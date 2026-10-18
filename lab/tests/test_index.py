@@ -112,3 +112,36 @@ def test_review_state_persists(tmp_path):
 def test_unrecorded_image_raises_key_error(index, call):
     with pytest.raises(KeyError):
         call(index)
+
+
+def test_keeping_records_the_current_signals(index):
+    index.record(PHOTO)
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+
+    index.set_review_state(PHOTO.path, ReviewState.KEPT)
+    index.set_signals(PHOTO.path, "blur", 2, [Signal("blur", 2, Category.BLURRY, 0.9)])
+
+    [image] = index.indexed_images()
+    assert image.review_state is ReviewState.KEPT
+    assert image.signals == (Signal("blur", 2, Category.BLURRY, 0.9),)
+    assert image.seen_when_kept == {BLUR.identity}
+
+
+def test_leaving_kept_forgets_the_recorded_signals(index):
+    index.record(PHOTO)
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+    index.set_review_state(PHOTO.path, ReviewState.KEPT)
+
+    index.set_review_state(PHOTO.path, ReviewState.UNREVIEWED)
+
+    [image] = index.indexed_images()
+    assert image.seen_when_kept == frozenset()
+
+
+def test_indexed_images_lists_unanalyzed_images_too(index):
+    index.record(PHOTO)
+    other = ImageRef(Path("/photos/b.jpg"), 5, 5)
+    index.record(other)
+    index.set_signals(other.path, "blur", 1, [BLUR])
+
+    assert [(i.ref, i.signals) for i in index.indexed_images()] == [(PHOTO, ()), (other, (BLUR,))]
