@@ -1,0 +1,990 @@
+{
+ "embedding_model": "mobileclip_s0",
+ "format_version": 1,
+ "images": {
+  "DCIM/Camera/blurred.jpg": {
+   "content_hash": "4110f0a7e9d30a05",
+   "has_camera_exif": false,
+   "height": 480,
+   "perceptual_hash": "bcee88cf035134b3",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "4.2",
+      "peak_variance": "4.4"
+     },
+     "score": 0.9576,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.3,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.035",
+      "prompt": "a photo of a ticket or a bill"
+     },
+     "score": 0.035,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "no",
+      "probability": "0.104",
+      "prompt": "a viral image from social media"
+     },
+     "score": 0.1843,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "0.944",
+      "distance": "32",
+      "group": "b65ee79ffd07ceeb",
+      "role": "inferior"
+     },
+     "score": 0.7186,
+     "version": 2
+    }
+   ],
+   "width": 640
+  },
+  "DCIM/Camera/bright.jpg": {
+   "content_hash": "1af8661ee47a788b",
+   "has_camera_exif": false,
+   "height": 480,
+   "perceptual_hash": "9e66591fcd34980e",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "12.8",
+      "peak_variance": "13.3"
+     },
+     "score": 0.8828,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "1.000",
+      "case": "bright",
+      "dark_score": "0.000",
+      "flat_score": "0.953"
+     },
+     "score": 1.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.3,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.192",
+      "prompt": "a photo of a document"
+     },
+     "score": 0.192,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "no",
+      "probability": "0.231",
+      "prompt": "an emoji sticker"
+     },
+     "score": 0.2875,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    }
+   ],
+   "width": 640
+  },
+  "DCIM/Camera/burst-0.jpg": {
+   "content_hash": "c203651c90a81c37",
+   "has_camera_exif": true,
+   "height": 480,
+   "perceptual_hash": "b3e94c94b269c996",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "0.5",
+      "peak_variance": "1.8"
+     },
+     "score": 0.982,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "yes",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.029",
+      "prompt": "a photo of a presentation slide on a screen"
+     },
+     "score": 0.0288,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "yes",
+      "messaging_folder": "no",
+      "probability": "0.486",
+      "prompt": "an emoji sticker"
+     },
+     "score": 0.4378,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "0.962",
+      "distance": "2",
+      "group": "4042fc658169206f",
+      "role": "inferior"
+     },
+     "score": 0.9091,
+     "version": 2
+    },
+    {
+     "category": "burst",
+     "detector": "burst",
+     "evidence": {
+      "group": "03bef78bdd310fee",
+      "role": "inferior",
+      "sharpness": "1.8",
+      "shots": "3"
+     },
+     "score": 0.9985,
+     "version": 1
+    }
+   ],
+   "width": 640
+  },
+  "DCIM/Camera/burst-1.jpg": {
+   "content_hash": "80c1b4fa65cd6608",
+   "has_camera_exif": true,
+   "height": 480,
+   "perceptual_hash": "b2e94d94b269c996",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "123.6",
+      "peak_variance": "598.0"
+     },
+     "score": 0.1433,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "yes",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.051",
+      "prompt": "a photo of a presentation slide on a screen"
+     },
+     "score": 0.0507,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "yes",
+      "messaging_folder": "no",
+      "probability": "0.207",
+      "prompt": "an emoji sticker"
+     },
+     "score": 0.1865,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "1.000",
+      "distance": "0",
+      "group": "4042fc658169206f",
+      "role": "best"
+     },
+     "score": 0.0,
+     "version": 2
+    },
+    {
+     "category": "burst",
+     "detector": "burst",
+     "evidence": {
+      "group": "03bef78bdd310fee",
+      "role": "best",
+      "sharpness": "598.0",
+      "shots": "3"
+     },
+     "score": 0.0,
+     "version": 1
+    }
+   ],
+   "width": 640
+  },
+  "DCIM/Camera/burst-2.jpg": {
+   "content_hash": "56daa56e954b5594",
+   "has_camera_exif": true,
+   "height": 480,
+   "perceptual_hash": "b2e94d94b269c996",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "3.7",
+      "peak_variance": "16.6"
+     },
+     "score": 0.8573,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "yes",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.043",
+      "prompt": "a photo of a presentation slide on a screen"
+     },
+     "score": 0.0433,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "yes",
+      "messaging_folder": "no",
+      "probability": "0.342",
+      "prompt": "an emoji sticker"
+     },
+     "score": 0.3077,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "0.986",
+      "distance": "0",
+      "group": "4042fc658169206f",
+      "role": "inferior"
+     },
+     "score": 1.0,
+     "version": 2
+    },
+    {
+     "category": "burst",
+     "detector": "burst",
+     "evidence": {
+      "group": "03bef78bdd310fee",
+      "role": "inferior",
+      "sharpness": "16.6",
+      "shots": "3"
+     },
+     "score": 0.9861,
+     "version": 1
+    }
+   ],
+   "width": 640
+  },
+  "DCIM/Camera/dark.jpg": {
+   "content_hash": "fccc7f051ac823c4",
+   "has_camera_exif": false,
+   "height": 480,
+   "perceptual_hash": "dec16f70cc284f23",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "12.6",
+      "peak_variance": "13.0"
+     },
+     "score": 0.8851,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "1.000",
+      "flat_score": "0.953"
+     },
+     "score": 1.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.3,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.114",
+      "prompt": "a photo of a blackboard with writing"
+     },
+     "score": 0.1142,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "no",
+      "probability": "0.087",
+      "prompt": "a good night greeting image"
+     },
+     "score": 0.1706,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    }
+   ],
+   "width": 640
+  },
+  "DCIM/Camera/texture.jpg": {
+   "content_hash": "38e6179e16f7f1df",
+   "embedding": "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",
+   "has_camera_exif": true,
+   "height": 480,
+   "perceptual_hash": "f2d2187c383c7399",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "2316.0",
+      "peak_variance": "2563.2"
+     },
+     "score": 0.0375,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "yes",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.016",
+      "prompt": "a photo of a presentation slide on a screen"
+     },
+     "score": 0.0159,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "yes",
+      "messaging_folder": "no",
+      "probability": "0.149",
+      "prompt": "an internet meme"
+     },
+     "score": 0.1341,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "exact_duplicate",
+     "detector": "exact_duplicate",
+     "evidence": {
+      "group": "38e6179e16f7f1df",
+      "role": "best"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "1.000",
+      "distance": "0",
+      "group": "b65ee79ffd07ceeb",
+      "role": "best"
+     },
+     "score": 0.0,
+     "version": 2
+    },
+    {
+     "category": "burst",
+     "detector": "burst",
+     "evidence": {
+      "group": "b65ee79ffd07ceeb",
+      "role": "best",
+      "sharpness": "2563.2",
+      "shots": "2"
+     },
+     "score": 0.0,
+     "version": 1
+    }
+   ],
+   "width": 640
+  },
+  "Documents/page.png": {
+   "content_hash": "bedeaa0b7c155ed4",
+   "embedding": "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",
+   "has_camera_exif": false,
+   "height": 800,
+   "perceptual_hash": "afd0d0d2d0d2d0f6",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "6736.5",
+      "peak_variance": "11653.1"
+     },
+     "score": 0.0085,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "600x800"
+     },
+     "score": 0.3,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.926",
+      "prompt": "a photo of a printed page of text"
+     },
+     "score": 0.9261,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "no",
+      "probability": "0.014",
+      "prompt": "an internet meme"
+     },
+     "score": 0.1116,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    }
+   ],
+   "width": 600
+  },
+  "Download/texture-small.jpg": {
+   "content_hash": "3a5b27ea9441dde0",
+   "has_camera_exif": false,
+   "height": 240,
+   "perceptual_hash": "f0d2187cb83c7399",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "4000.6",
+      "peak_variance": "4486.7"
+     },
+     "score": 0.0218,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "320x240"
+     },
+     "score": 0.3,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.018",
+      "prompt": "a photo of a presentation slide on a screen"
+     },
+     "score": 0.0176,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "no",
+      "probability": "0.175",
+      "prompt": "an internet meme"
+     },
+     "score": 0.2416,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "0.996",
+      "distance": "2",
+      "group": "b65ee79ffd07ceeb",
+      "role": "inferior"
+     },
+     "score": 0.982,
+     "version": 2
+    }
+   ],
+   "width": 320
+  },
+  "Pictures/Screenshots/Screenshot_20240501-120000.png": {
+   "content_hash": "d3c7fce243c900be",
+   "has_camera_exif": false,
+   "height": 2400,
+   "perceptual_hash": "d02f2f2f2f282f50",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "59.1",
+      "peak_variance": "170.8"
+     },
+     "score": 0.3692,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "Screenshot",
+      "screen_size": "yes",
+      "size": "1080x2400"
+     },
+     "score": 0.972,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.172",
+      "prompt": "a photo of a form or a contract"
+     },
+     "score": 0.1723,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "no",
+      "probability": "0.005",
+      "prompt": "an emoji sticker"
+     },
+     "score": 0.1038,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    }
+   ],
+   "width": 1080
+  },
+  "WhatsApp/Media/WhatsApp Images/IMG-20240501-WA0001.jpg": {
+   "content_hash": "38e6179e16f7f1df",
+   "has_camera_exif": true,
+   "height": 480,
+   "perceptual_hash": "f2d2187c383c7399",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "2316.0",
+      "peak_variance": "2563.2"
+     },
+     "score": 0.0375,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "yes",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "640x480"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.016",
+      "prompt": "a photo of a presentation slide on a screen"
+     },
+     "score": 0.0159,
+     "version": 1
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "yes",
+      "messaging_folder": "yes",
+      "probability": "0.149",
+      "prompt": "an internet meme"
+     },
+     "score": 0.4805,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "exact_duplicate",
+     "detector": "exact_duplicate",
+     "evidence": {
+      "group": "38e6179e16f7f1df",
+      "role": "inferior"
+     },
+     "score": 1.0,
+     "version": 1
+    },
+    {
+     "category": "near_duplicate",
+     "detector": "near_duplicate",
+     "evidence": {
+      "cosine": "1.000",
+      "distance": "0",
+      "group": "b65ee79ffd07ceeb",
+      "role": "inferior"
+     },
+     "score": 1.0,
+     "version": 2
+    },
+    {
+     "category": "burst",
+     "detector": "burst",
+     "evidence": {
+      "group": "b65ee79ffd07ceeb",
+      "role": "inferior",
+      "sharpness": "2563.2",
+      "shots": "2"
+     },
+     "score": 0.5,
+     "version": 1
+    }
+   ],
+   "width": 640
+  }
+ },
+ "tolerance": {
+  "embedding_cosine": 0.99,
+  "score": 0.05
+ }
+}
