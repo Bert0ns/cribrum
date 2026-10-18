@@ -1,4 +1,5 @@
-"""Command line: `scan` analyzes images, `report` lists candidates, `label` opens the labeler."""
+"""Command line: `scan` analyzes images, `report` lists candidates, `label` opens the labeler,
+`evaluate` measures recall on the labels."""
 
 import argparse
 import os
@@ -6,6 +7,7 @@ import sys
 from pathlib import Path
 
 from cribrum_lab import pipeline
+from cribrum_lab.evaluation import evaluate, format_report
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.labeling import LabelingServer, sample
 from cribrum_lab.labels import LabelStore
@@ -35,6 +37,11 @@ def main(argv: list[str] | None = None) -> None:
     label.add_argument("--size", type=int, default=500, help="images in the sample")
     label.add_argument("--seed", type=int, default=0, help="change it for a new sample")
     label.add_argument("--port", type=int, default=8765)
+    evaluate = commands.add_parser("evaluate", help="recall per category on the labels")
+    evaluate.add_argument("--labels", type=Path, default=DEFAULT_LABELS, help="SQLite labels file")
+    evaluate.add_argument(
+        "--out", type=Path, help="also write the report here (keep it under lab/data/)"
+    )
     args = parser.parse_args(argv)
 
     args.index.parent.mkdir(parents=True, exist_ok=True)
@@ -44,8 +51,10 @@ def main(argv: list[str] | None = None) -> None:
             _scan(index, args.folder, args.jobs, embedder)
         elif args.command == "report":
             _report(index, args.top)
-        else:
+        elif args.command == "label":
             _label(index, args.labels, args.size, args.seed, args.port)
+        else:
+            _evaluate(index, args.labels, args.out)
 
 
 def _scan(index: ImageIndex, folder: Path, jobs: int, embedder: pipeline.Embedder | None) -> None:
@@ -96,6 +105,14 @@ def _label(index: ImageIndex, labels: Path, size: int, seed: int, port: int) -> 
             pass
         finally:
             server.server_close()
+
+
+def _evaluate(index: ImageIndex, labels: Path, out: Path | None) -> None:
+    with LabelStore(labels) as store:
+        text = format_report(evaluate(index.indexed_images(), store.all()))
+    print(text)
+    if out:
+        out.write_text(text + "\n")
 
 
 if __name__ == "__main__":

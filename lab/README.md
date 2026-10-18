@@ -65,6 +65,14 @@ uv run cribrum-lab label               # then open http://127.0.0.1:8765/
 
 The page shows one image at a time from a sample of 500 (`--size`). Half of the sample are candidates, spread over every category, and half are images no detector flagged, so that recall can also be measured on what the detectors missed. Keys: `k` keep, `d` delete, `1`-`8` delete for a given category (listed on the page), `u` undo, `s` skip. Labels go to `lab/data/labels.sqlite` and are keyed by content hash, so they survive copying the images again. A new run of `label` skips images that are already labeled; `--seed` draws a different sample.
 
+## Evaluate
+
+```bash
+uv run cribrum-lab evaluate            # --out data/report.txt to keep a copy
+```
+
+Prints the recall on the labeled images, overall and per category, with the number of candidates it costs over the whole index. For each category it suggests the highest threshold that still reaches 95% recall: copy the ones you trust into `THRESHOLDS` in `cribrum_lab/ranker.py`. It ends with the images labeled delete that no detector flagged. The report lists paths of personal images, so keep it under `lab/data/`.
+
 ## Layout
 
 | Module | Contents |
@@ -87,4 +95,5 @@ The page shows one image at a time from a sample of 500 (`--size`). Half of the 
 | `cribrum_lab.prompts` | Zero-shot classes and prompts; their embeddings are committed in `prompt_embeddings.json` |
 | `cribrum_lab.labels` | `LabelStore`: keep/delete labels keyed by content hash |
 | `cribrum_lab.labeling` | Sampling and the local labeling web page |
+| `cribrum_lab.evaluation` | Recall per category, threshold sweep and missed images |
 | `cribrum_lab.ranker` | `Ranker`: per-category thresholds, candidates and the review order |
