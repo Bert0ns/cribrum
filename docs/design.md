@@ -1,0 +1,192 @@
+# Cribrum — Design Document
+
+- **Status:** Draft
+- **Last updated:** 2026-10-18
+
+## 1. Problem
+
+A phone accumulates thousands of images. Many have no lasting value: blurry shots, near-identical bursts, lower-resolution copies of the same photo, pictures of lecture slides or homework taken for a single moment, screenshots, and forwarded media. Messaging apps make it worse. WhatsApp alone keeps received, sent, and status media in several folders, some of them hidden from the gallery.
+
+Gallery apps are built for browsing, not for cleanup. They don't search the whole storage, and they can't tell a memory from clutter.
+
+## 2. Goals and non-goals
+
+### Goals
+
+- Find **every** image on local storage, including folders hidden from the gallery.
+- Detect images that are likely deletable, grouped into understandable categories.
+- Make reviewing hundreds of candidates fast.
+- Never delete anything without explicit confirmation, and keep every deletion reversible for a while.
+- Keep the code modular, so detectors, image sources, and model runtimes can be swapped or added easily.
+
+### Non-goals (for now)
+
+- Cloud photo libraries (Google Photos and similar).
+- Cloud-based classifiers.
+- Publication on the Play Store.
+- iOS and desktop versions.
+- Visual polish beyond a clean, functional UI.
+
+## 3. Key decisions
+
+| # | Decision | Rationale |
+|---|---|---|
+| D1 | **Android first, native Kotlin + Jetpack Compose.** | The heavy work is platform-specific: file system access, permissions, background jobs, image decoding, on-device ML. Cross-platform frameworks (Flutter, React Native) would still need native modules for all of it, plus a bridge layer that is hard to debug. Compose Multiplatform keeps a desktop option open. |
+| D2 | **Python lab as the reference implementation.** | Detectors are built and tuned in Python on real photos first, then ported to Kotlin. Golden test fixtures check that both implementations give the same results. |
+| D3 | **On-device analysis only.** | Privacy, zero cost, works offline. Cloud classifiers were evaluated (cheap, roughly $1–2 per 10,000 images) and postponed. The architecture keeps them pluggable (see §7). |
+| D4 | **Recall over precision.** | Missing a deletable image is worse than surfacing one the user wants to keep. Thresholds start low, any single detector can make an image a candidate, and protection signals only lower an image in the ordering, never remove it from the candidates. |
+| D5 | **Photo age is not a deletion signal.** | An old photo may be old precisely because it survived earlier cleanups. Per-image review state replaces age (see §6.3). |
+| D6 | **Nothing is deleted without confirmation, and deletions go to a 30-day trash first.** | Mistakes must be recoverable. |
+| D7 | **Personal, sideloaded distribution first.** | Allows the "All files access" permission (`MANAGE_EXTERNAL_STORAGE`) without Play Store review. |
+| D8 | **Local images only.** | Cloud libraries need their own cleanup, but they are a separate, future problem (see §11). |
+
+## 4. Finding images on Android
+
+Two layers:
+
+1. **MediaStore**, Android's media index. It covers the gallery and `Android/media/com.whatsapp/WhatsApp/Media/...`. It does **not** index folders containing a `.nomedia` file, such as `WhatsApp Images/Sent`. That is exactly where clutter piles up unseen.
+2. **Deep scan** with `MANAGE_EXTERNAL_STORAGE`: a file system walk of shared storage that finds every image file, `.nomedia` folders included. Since Android 11, `Android/data` and `Android/obb` stay inaccessible even with this permission.
+
+Deep scan is the default (D7). The scanner merges both layers and identifies each file by its path, size, and modification time.
+
+Indexing is incremental. A first full pass runs in the background, ideally while charging, and later passes only process new or changed files.
+
+## 5. Detectors
+
+Each detector looks at an image (or at the image index) and emits **signals**. No detector decides on its own whether an image should be deleted.
+
+| Category | Technique | Notes |
+|---|---|---|
+| `EXACT_DUPLICATE` | Group by file size, then content hash (xxHash) | Exact, cheap |
+| `NEAR_DUPLICATE` | Perceptual hash (pHash/dHash) + embedding similarity | Catches recompressed and resized copies, such as those made by WhatsApp. Suggests keeping the best copy: highest resolution, least compression, original EXIF metadata. |
+| `BURST` | Capture-time clustering + embedding similarity | Suggests the best shot: sharpness, eyes open (face detection). |
+| `BLURRY` | Variance of the Laplacian on a downscaled grayscale image | Measure the subject region when one is found, to avoid flagging portraits with an intentionally blurred background. |
+| `BAD_EXPOSURE` | Luminance histogram | Pocket shots, black frames, blown-out frames |
+| `SCREENSHOT` | Path and file name, image size equal to a screen resolution, no camera EXIF | Nearly deterministic |
+| `DOCUMENT` | OCR text coverage + MobileCLIP zero-shot classification | Slides, whiteboards, handwritten notes, homework, receipts, printed pages |
+| `FORWARDED` | Messaging-app folder, missing camera EXIF, meme/sticker zero-shot prompts | Forwarded memes and greeting images |
+
+### MobileCLIP
+
+[MobileCLIP](https://github.com/apple/ml-mobileclip) is a compact image–text embedding model that runs on phones. A single embedding per image, computed once and cached, serves three purposes:
+
+- near-duplicate search (cosine similarity between embeddings);
+- zero-shot classification against text prompts such as *"a photo of a projector slide"* or *"handwritten homework on paper"*;
+- natural-language search later on.
+
+With about 10,000 images, the embeddings take roughly 20 MB (512 float32 values per image), and comparing every pair directly is feasible without an approximate-nearest-neighbor index.
+
+## 6. Ranking
+
+### 6.1 Candidate selection
+
+An image becomes a candidate if **any** signal exceeds its category threshold (D4). Thresholds are tuned in the lab for recall (§10).
+
+### 6.2 Protection signals
+
+These signals hint that an image is a memory: faces, favorites, membership in a user album, uniqueness (no near-duplicates). They lower an image's position in the review order but **never** remove it from the candidates.
+
+### 6.3 Review state
+
+Each image carries a review state:
+
+- `UNREVIEWED`: candidate as usual.
+- `KEPT`: the user reviewed it and chose to keep it. It is not suggested again unless a **new** signal appears. For example, a higher-resolution copy shows up and turns this one into the inferior duplicate.
+- `TRASHED`: in the app trash.
+
+### 6.4 "Review everything" mode
+
+All `UNREVIEWED` images, ordered from most to least likely deletable. Going through all of them eventually brings false negatives to zero by construction. A missed image just shows up later in the order.
+
+## 7. Architecture
+
+The core idea is a pipeline of independent, interchangeable components.
+
+```kotlin
+interface ImageSource {                  // MediaStore + deep scan today; cloud libraries later
+    fun scan(): Flow<ImageRef>
+}
+
+interface Detector {                     // one per technique; a cloud classifier would be one more
+    val id: String
+    val version: Int
+    suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal>
+}
+
+data class Signal(
+    val detectorId: String,
+    val detectorVersion: Int,
+    val category: Category,
+    val score: Float,                    // 0..1
+    val evidence: Map<String, String> = emptyMap(),
+)
+
+interface Ranker {                       // combines signals into candidates and an ordering
+    fun rank(images: List<IndexedImage>): List<Candidate>
+}
+
+interface Trash {                        // app-managed trash, 30-day retention
+    suspend fun moveToTrash(images: List<ImageRef>)
+    suspend fun restore(images: List<ImageRef>)
+}
+
+interface ModelRuntime                   // LiteRT or ONNX Runtime behind one interface
+```
+
+- Signals are stored with the version of the detector that produced them. When a detector improves, only its signals are recomputed.
+- Group-level detectors (duplicates, bursts) run over the index instead of over a single image. They use the same `Signal` output, with a group id stored in `evidence`.
+- The Python lab mirrors these interfaces one-to-one, so porting is mostly translation.
+
+### Planned stack
+
+| Concern | Choice |
+|---|---|
+| UI | Jetpack Compose |
+| Index | Room (SQLite) |
+| Background work | WorkManager |
+| Thumbnails | Coil |
+| On-device ML | LiteRT / ONNX Runtime, ML Kit (text recognition, face detection) |
+
+### Index (draft)
+
+| Field | Purpose |
+|---|---|
+| `path`, `size`, `mtime` | Identity and change detection |
+| `width`, `height`, `mime`, `exif_*` | Metadata used by detectors and best-copy selection |
+| `content_hash` | Exact duplicates |
+| `phash` | Near-duplicates |
+| `embedding` | MobileCLIP vector |
+| `review_state` | §6.3 |
+| `signals` (separate table) | Detector output, keyed by image + detector id + version |
+
+## 8. Review UX
+
+The bottleneck of a recall-first design is review speed, so this screen is the heart of the app.
+
+- Candidates are grouped by category, and each group is sorted by confidence.
+- In grids, likely-deletable images are **preselected**. One tap keeps an image.
+- Duplicate and burst groups have a "keep best, trash the rest" action, with side-by-side comparison.
+- Quick gestures and no unnecessary confirmations, except a final summary before trashing.
+- "Never suggest this again" works per image and per folder.
+
+## 9. Deletion and trash
+
+The system trash (`MediaStore.createTrashRequest`, Android 11+) only works for files MediaStore indexes, so it misses `.nomedia` folders. Cribrum therefore keeps its **own trash**: files move to an app-managed folder together with their original path, and are purged after 30 days. One mechanism covers every file.
+
+## 10. Python lab
+
+Goal: prove that the detectors work on real data before writing the app.
+
+1. **Collect:** copy the device's images to a local folder (`adb pull`, or a USB file transfer), messaging-app folders included. Image data is never committed.
+2. **Detect:** implement the detectors behind the same interfaces as §7.
+3. **Label:** a keyboard-driven labeling tool (`k` = keep, `d` = delete, digits = category). MobileCLIP clusters similar images so a whole cluster can be labeled at once. Target: 500–1,000 labeled images.
+4. **Measure:** per-category **recall** first, then the number of candidates it costs. Target: at least ~95% recall on deletable images.
+5. **Freeze:** export golden fixtures (sample images with expected signals) for the Kotlin implementation's tests.
+
+## 11. Future work and open questions
+
+- **Cloud classifiers:** a `Detector` implementation that calls a vision model API. It should be opt-in, send only downscaled thumbnails, and exclude images with faces by default.
+- **Cloud libraries:** a new `ImageSource`. Since 2025 the Google Photos Library API no longer gives third-party apps read access to a user's whole library, and it never supported deletion. Cleaning Google Photos may need a different approach.
+- **Play Store:** "All files access" is granted only to specific app categories. Deep scan might have to become an optional feature.
+- **Desktop and iOS:** reachable through Kotlin Multiplatform / Compose Multiplatform.
+- **Learning from decisions:** adjust per-category thresholds from the user's keep/trash history.
