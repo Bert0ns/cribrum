@@ -63,7 +63,7 @@ Each detector looks at an image (or at the image index) and emits **signals**. N
 | `BLURRY` | Variance of the Laplacian on a downscaled grayscale image | Measure the subject region when one is found, to avoid flagging portraits with an intentionally blurred background. |
 | `BAD_EXPOSURE` | Luminance histogram | Pocket shots, black frames, blown-out frames |
 | `SCREENSHOT` | Path and file name, image size equal to a screen resolution, no camera EXIF | Nearly deterministic |
-| `DOCUMENT` | OCR text coverage + MobileCLIP zero-shot classification | Slides, whiteboards, handwritten notes, homework, receipts, printed pages |
+| `DOCUMENT` | Text coverage (PP-OCRv4 text detection) + MobileCLIP zero-shot classification | Slides, whiteboards, handwritten notes, homework, receipts, printed pages. Only detection runs: how much text there is matters, not what it says. |
 | `FORWARDED` | Messaging-app folder, missing camera EXIF, meme/sticker zero-shot prompts | Forwarded memes and greeting images |
 
 ### MobileCLIP
@@ -158,7 +158,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 | Index | Room (SQLite) |
 | Background work | WorkManager |
 | Thumbnails | Coil |
-| On-device ML | ONNX Runtime (MobileCLIP, YuNet faces), ML Kit (text recognition) |
+| On-device ML | ONNX Runtime: MobileCLIP, YuNet (faces), PP-OCRv4 text detection. The same files as the lab, so results match. |
 
 ### Index (draft)
 
