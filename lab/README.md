@@ -32,6 +32,15 @@ The script copies the camera, pictures, screenshots, downloads and documents fol
 
 Never commit anything under `lab/data/`.
 
+### From WSL
+
+WSL2 does not see USB devices, so the Linux `adb` cannot reach a phone plugged into Windows. Forward the phone to WSL with [usbipd-win](https://github.com/dorssel/usbipd-win):
+
+1. Once, in WSL: `sudo apt install adb`.
+2. Once, in PowerShell: `winget install usbipd`, then `usbipd list` to find the phone's BUSID, and `usbipd bind --busid <BUSID>` from an administrator PowerShell.
+3. Every time you plug the phone in, stop the Windows adb server first (`adb kill-server`, or close Android Studio), because it holds the device. Then run `usbipd attach --wsl --busid <BUSID>` in PowerShell.
+4. In WSL, check that `adb devices` lists the phone, then run the script as above.
+
 ## Layout
 
 | Module | Contents |
