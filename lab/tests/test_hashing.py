@@ -46,3 +46,9 @@ def test_perceptual_hash_tells_different_images_apart(tmp_path):
     hashes = [phash(tmp_path, scene(seed), f"{seed}.jpg") for seed in range(5)]
 
     assert min(distance(a, b) for i, a in enumerate(hashes) for b in hashes[i + 1 :]) > 16
+
+
+def test_flat_images_hash_the_same_on_every_platform(tmp_path):
+    hashes = {phash(tmp_path, Image.new("RGB", (64, 48), c), f"{c}.png") for c in ("gray", "white")}
+
+    assert hashes == {1 << 63}  # only the DC term is above the median
