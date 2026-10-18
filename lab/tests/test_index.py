@@ -77,3 +77,18 @@ def test_review_state_persists(tmp_path):
 
     with ImageIndex(db) as index:
         assert index.review_state(PHOTO.path) is ReviewState.KEPT
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda index: index.set_metadata(PHOTO.path, META),
+        lambda index: index.set_signals(PHOTO.path, "blur", 1, [BLUR]),
+        lambda index: index.set_review_state(PHOTO.path, ReviewState.KEPT),
+        lambda index: index.review_state(PHOTO.path),
+    ],
+    ids=["set_metadata", "set_signals", "set_review_state", "review_state"],
+)
+def test_unrecorded_image_raises_key_error(index, call):
+    with pytest.raises(KeyError):
+        call(index)

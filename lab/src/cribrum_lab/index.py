@@ -47,6 +47,8 @@ CREATE INDEX IF NOT EXISTS signals_by_analysis ON signals (path, detector_id);
 
 
 class ImageIndex:
+    """Methods taking a path raise KeyError for an image that was never recorded."""
+
     def __init__(self, database: Path | str) -> None:
         self._db = sqlite3.connect(database)
         self._db.execute("PRAGMA foreign_keys = ON")
@@ -98,7 +100,7 @@ class ImageIndex:
     def set_metadata(self, path: Path, metadata: ImageMetadata) -> None:
         captured_at = metadata.captured_at.isoformat() if metadata.captured_at else None
         with self._db:
-            self._db.execute(
+            updated = self._db.execute(
                 """UPDATE images SET width = ?, height = ?, mime = ?, camera_make = ?,
                    camera_model = ?, captured_at = ? WHERE path = ?""",
                 (
@@ -111,6 +113,7 @@ class ImageIndex:
                     str(path),
                 ),
             )
+        _require(updated.rowcount, path)
 
     def metadata(self, path: Path) -> ImageMetadata | None:
         row = self._db.execute(
@@ -129,6 +132,8 @@ class ImageIndex:
         self, path: Path, detector_id: str, detector_version: int, signals: list[Signal]
     ) -> None:
         """Replaces whatever this detector stored for the image, from any version."""
+        exists = self._db.execute("SELECT 1 FROM images WHERE path = ?", (str(path),)).fetchone()
+        _require(exists, path)
         with self._db:
             self._db.execute(
                 "DELETE FROM analyses WHERE path = ? AND detector_id = ?", (str(path), detector_id)
@@ -171,12 +176,19 @@ class ImageIndex:
 
     def set_review_state(self, path: Path, state: ReviewState) -> None:
         with self._db:
-            self._db.execute(
+            updated = self._db.execute(
                 "UPDATE images SET review_state = ? WHERE path = ?", (state.value, str(path))
             )
+        _require(updated.rowcount, path)
 
     def review_state(self, path: Path) -> ReviewState:
-        (state,) = self._db.execute(
+        row = self._db.execute(
             "SELECT review_state FROM images WHERE path = ?", (str(path),)
         ).fetchone()
-        return ReviewState(state)
+        _require(row, path)
+        return ReviewState(row[0])
+
+
+def _require(found: object, path: Path) -> None:
+    if not found:
+        raise KeyError(f"image not in the index: {path}")
