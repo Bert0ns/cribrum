@@ -1,10 +1,11 @@
 """Detector interfaces. Every analysis technique implements one of them."""
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+from cribrum_lab import hashing
 from cribrum_lab.model import ImageRef, Signal
 
 GROUP_KEY = "group"
@@ -23,8 +24,12 @@ class Role(StrEnum):
 class AnalysisContext:
     """Shared, read-only information available to detectors.
 
+    Per-image lookups compute their value from the file by default; the pipeline
+    replaces them with lookups backed by the index, so each value is computed once.
     Grows as detectors need it (e.g. screen resolutions, cached embeddings).
     """
+
+    content_hash: Callable[[ImageRef], str] = hashing.content_hash
 
 
 class Detector(Protocol):
@@ -49,10 +54,8 @@ class GroupDetector(Protocol):
     ever suggests it; the others are `Role.INFERIOR`. Images in no group are left
     out of the result.
 
-    `version` follows the same rule as `Detector.version`.
-
-    shortcut: only `ImageRef`s come in, which is enough for EXACT_DUPLICATE; reshape the
-    input when NEAR_DUPLICATE and BURST need indexed metadata and embeddings.
+    `version` follows the same rule as `Detector.version`. Per-image data they need
+    (content hashes, metadata, embeddings) comes from the lookups in `AnalysisContext`.
     """
 
     id: str
