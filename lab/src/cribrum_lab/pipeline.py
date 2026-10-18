@@ -18,6 +18,7 @@ import xxhash
 from cribrum_lab import hashing, mobileclip
 from cribrum_lab.detectors import AnalysisContext, Detector, GroupDetector
 from cribrum_lab.detectors.blur import BlurDetector
+from cribrum_lab.detectors.burst import BurstDetector
 from cribrum_lab.detectors.document import DocumentDetector
 from cribrum_lab.detectors.exact_duplicate import ExactDuplicateDetector
 from cribrum_lab.detectors.exposure import ExposureDetector
@@ -36,7 +37,11 @@ DETECTORS: list[Detector] = [
     DocumentDetector(),
     ForwardedDetector(),
 ]
-GROUP_DETECTORS: list[GroupDetector] = [ExactDuplicateDetector(), NearDuplicateDetector()]
+GROUP_DETECTORS: list[GroupDetector] = [
+    ExactDuplicateDetector(),
+    NearDuplicateDetector(),
+    BurstDetector(),
+]
 
 Progress = Callable[[str, int, int], None]
 """Called with a step name, the items done and the items in total."""
