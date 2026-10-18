@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from cribrum_lab.sources import FilesystemImageSource
@@ -65,3 +66,20 @@ def test_skips_symlinks(tmp_path):
     (tmp_path / "link.jpg").symlink_to(target)
 
     assert scanned_paths(tmp_path) == {Path("a.jpg")}
+
+
+def test_skips_special_and_unreadable_files(tmp_path):
+    os.mkfifo(tmp_path / "pipe.jpg")  # opening a FIFO for reading would block forever
+    write(tmp_path / "locked.jpg", JPEG).chmod(0)
+    write(tmp_path / "ok.jpg", JPEG)
+
+    assert scanned_paths(tmp_path) == {Path("ok.jpg")}
+
+
+def test_scan_order_is_deterministic(tmp_path):
+    for name in ["b/2.jpg", "b/1.jpg", "a/9.jpg", "c.jpg"]:
+        write(tmp_path / name, JPEG)
+
+    paths = [ref.path.relative_to(tmp_path) for ref in FilesystemImageSource(tmp_path).scan()]
+
+    assert paths == [Path(n) for n in ["c.jpg", "a/9.jpg", "b/1.jpg", "b/2.jpg"]]
