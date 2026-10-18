@@ -1,12 +1,14 @@
 """Detector interfaces. Every analysis technique implements one of them."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
 from cribrum_lab import hashing
+from cribrum_lab.metadata import ImageMetadata, read_metadata
 from cribrum_lab.model import ImageRef, Signal
+from cribrum_lab.screens import SCREEN_SIZES
 
 GROUP_KEY = "group"
 """Evidence key holding the id of the group an image belongs to."""
@@ -26,10 +28,14 @@ class AnalysisContext:
 
     Per-image lookups compute their value from the file by default; the pipeline
     replaces them with lookups backed by the index, so each value is computed once.
-    Grows as detectors need it (e.g. screen resolutions, cached embeddings).
+    Grows as detectors need it (e.g. cached embeddings).
     """
 
     content_hash: Callable[[ImageRef], str] = hashing.content_hash
+    metadata: Callable[[ImageRef], ImageMetadata] = lambda image: read_metadata(image.path)
+    """Raises `UnreadableImage` when the header can't be decoded."""
+    screen_sizes: Collection[tuple[int, int]] = SCREEN_SIZES
+    """Known screen resolutions as (short side, long side)."""
 
 
 class Detector(Protocol):
