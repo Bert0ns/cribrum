@@ -5,19 +5,19 @@
 set -euo pipefail
 
 dest="$(cd "$(dirname "$0")/.." && pwd)/data/device"
-whatsapp=Android/media/com.whatsapp/WhatsApp/Media
-folders=(
-  DCIM
-  Pictures
-  Download
-  Documents
-  Telegram
-  Android/media/org.telegram.messenger
-  "$whatsapp/WhatsApp Images"  # Sent/ and Private/ have .nomedia: the gallery never shows them
-  "$whatsapp/WhatsApp Stickers"
-  "$whatsapp/WhatsApp Documents"
-  "$whatsapp/.Statuses"
-)
+folders=(DCIM Pictures Download Documents Screenshots)
+# Messaging apps moved under Android/media/ with Android 11; upgraded phones may still use the old place.
+for whatsapp in WhatsApp/Media Android/media/com.whatsapp/WhatsApp/Media; do
+  folders+=(
+    "$whatsapp/WhatsApp Images"  # Sent/ and Private/ have .nomedia: the gallery never shows them
+    "$whatsapp/WhatsApp Stickers"
+    "$whatsapp/WhatsApp Documents"
+    "$whatsapp/.Statuses"
+  )
+done
+for telegram in Telegram Android/media/org.telegram.messenger/Telegram; do
+  folders+=("$telegram/Telegram Images" "$telegram/Telegram Documents")
+done
 
 adb get-state >/dev/null  # fails early when no device is connected
 
