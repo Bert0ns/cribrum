@@ -18,13 +18,17 @@ CI runs the same checks on every pull request that touches `lab/`.
 
 ## Data
 
-Put copies of your images under `lab/data/`, which git ignores. For example, from a connected Android device:
+The lab works on copies of your images under `lab/data/`, which git ignores. To copy them from an Android device:
 
-```bash
-adb pull /sdcard/DCIM lab/data/device/DCIM
-adb pull /sdcard/Pictures lab/data/device/Pictures
-adb pull /sdcard/Android/media/com.whatsapp lab/data/device/whatsapp
-```
+1. Enable USB debugging (Settings → Developer options) and connect the phone.
+2. Check that `adb devices` lists it, then accept the prompt on the phone.
+3. Run:
+
+   ```bash
+   lab/scripts/pull-device-images.sh
+   ```
+
+The script copies the camera, pictures, downloads, documents, Telegram and WhatsApp image folders into `lab/data/device/`. It keeps the device's folder layout, because detectors use paths as evidence, and it keeps modification times. It includes the WhatsApp folders hidden from the gallery by `.nomedia`. Videos and other WhatsApp media are left out. Running it again overwrites the copies.
 
 Never commit anything under `lab/data/`.
 
