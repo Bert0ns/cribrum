@@ -42,4 +42,5 @@ def test_group_members_share_a_group_id_and_get_a_role():
 
     assert unique not in signals
     assert signals[a][0].evidence == {"group": "10", "role": "best"}
+    assert signals[a][0].score == 0.0
     assert signals[b][0].evidence == {"group": "10", "role": "inferior"}

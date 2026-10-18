@@ -45,10 +45,14 @@ class GroupDetector(Protocol):
 
     Every member of a group gets a signal, so the review screen can show the whole
     group. Its evidence holds the group id under `GROUP_KEY` and the member's role
-    under `ROLE_KEY`: the copy to keep is `Role.BEST` (with a low score), the others
-    are `Role.INFERIOR`. Images in no group are left out of the result.
+    under `ROLE_KEY`: the copy to keep is `Role.BEST` with score 0, so no threshold
+    ever suggests it; the others are `Role.INFERIOR`. Images in no group are left
+    out of the result.
 
     `version` follows the same rule as `Detector.version`.
+
+    shortcut: only `ImageRef`s come in, which is enough for EXACT_DUPLICATE; reshape the
+    input when NEAR_DUPLICATE and BURST need indexed metadata and embeddings.
     """
 
     id: str
