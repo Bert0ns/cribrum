@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Copies the image folders of the connected Android device into lab/data/device/,
 # keeping the device's folder layout and modification times (docs/design.md, section 10).
-# Usage: lab/scripts/pull-device-images.sh
+# Usage: lab/scripts/pull-device-images.sh [FOLDER...]
+#   FOLDER is relative to /sdcard; without any, the default folders below are copied.
 set -euo pipefail
 
 dest="$(cd "$(dirname "$0")/.." && pwd)/data/device"
@@ -18,6 +19,9 @@ done
 for telegram in Telegram Android/media/org.telegram.messenger/Telegram; do
   folders+=("$telegram/Telegram Images" "$telegram/Telegram Documents")
 done
+if (($#)); then
+  folders=("$@")
+fi
 
 adb get-state >/dev/null  # fails early when no device is connected
 
