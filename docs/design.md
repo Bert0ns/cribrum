@@ -194,7 +194,7 @@ Goal: prove that the detectors work on real data before writing the app.
 2. **Detect:** implement the detectors behind the same interfaces as §7.
 3. **Label:** a keyboard-driven labeling tool (`k` = keep, `d` = delete, digits = category). MobileCLIP clusters similar images so a whole cluster can be labeled at once. Target: 500–1,000 labeled images.
 4. **Measure:** per-category **recall** first, then the number of candidates it costs. Target: at least ~95% recall on deletable images.
-5. **Freeze:** export golden fixtures (sample images with expected signals) for the Kotlin implementation's tests.
+5. **Freeze:** export golden fixtures (sample images with expected signals) for the Kotlin implementation's tests. The fixture images are synthetic, generated from fixed seeds (`fixtures/`), never personal photos.
 
 ## 11. Future work and open questions
 
