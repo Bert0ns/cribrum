@@ -17,9 +17,11 @@ class ModelRuntime(Protocol):
 
 
 class OnnxRuntime:
-    def __init__(self, model: Path) -> None:
+    def __init__(self, model: Path, threads: int = 0) -> None:
+        """`threads` 0 lets ONNX Runtime use every core; worker processes should pass 1."""
         options = onnxruntime.SessionOptions()
         options.log_severity_level = 3  # warnings about unused initializers are noise
+        options.intra_op_num_threads = threads
         self._session = onnxruntime.InferenceSession(
             model, options, providers=["CPUExecutionProvider"]
         )
