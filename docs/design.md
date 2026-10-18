@@ -119,6 +119,8 @@ interface GroupDetector {                // duplicates, bursts: looks at all ima
     suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>>
 }
 
+enum class Role { BEST, INFERIOR }      // a group member's role, stored in evidence["role"]
+
 data class Signal(
     val detectorId: String,
     val detectorVersion: Int,
@@ -140,7 +142,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 ```
 
 - Signals are stored with the version of the detector that produced them. When a detector improves, only its signals are recomputed.
-- Group detectors (duplicates, bursts) run over the index instead of over a single image. They use the same `Signal` output. Every member of a group gets a signal, with the group id in `evidence["group"]` and its role in `evidence["role"]`: `best` for the copy to keep (with a low score), `inferior` for the others. Images in no group get no signal.
+- Group detectors (duplicates, bursts) run over the index instead of over a single image. They use the same `Signal` output. Every member of a group gets a signal, with the group id in `evidence["group"]` and its role in `evidence["role"]`: `best` for the copy to keep (with score 0, so no threshold ever suggests it), `inferior` for the others. Images in no group get no signal.
 - The Python lab mirrors these interfaces one-to-one, so porting is mostly translation.
 
 ### Planned stack
