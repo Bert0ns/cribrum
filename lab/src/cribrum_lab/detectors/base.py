@@ -1,9 +1,22 @@
-"""The detector interface. Every analysis technique implements it."""
+"""Detector interfaces. Every analysis technique implements one of them."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol
 
 from cribrum_lab.model import ImageRef, Signal
+
+GROUP_KEY = "group"
+"""Evidence key holding the id of the group an image belongs to."""
+
+ROLE_KEY = "role"
+"""Evidence key holding the image's `Role` within its group."""
+
+
+class Role(StrEnum):
+    BEST = "best"
+    INFERIOR = "inferior"
 
 
 @dataclass(frozen=True)
@@ -25,3 +38,22 @@ class Detector(Protocol):
     version: int
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]: ...
+
+
+class GroupDetector(Protocol):
+    """Analyzes all images at once and emits signals for groups of them (duplicates, bursts).
+
+    Every member of a group gets a signal, so the review screen can show the whole
+    group. Its evidence holds the group id under `GROUP_KEY` and the member's role
+    under `ROLE_KEY`: the copy to keep is `Role.BEST` (with a low score), the others
+    are `Role.INFERIOR`. Images in no group are left out of the result.
+
+    `version` follows the same rule as `Detector.version`.
+    """
+
+    id: str
+    version: int
+
+    def analyze(
+        self, images: Sequence[ImageRef], context: AnalysisContext
+    ) -> dict[ImageRef, list[Signal]]: ...
