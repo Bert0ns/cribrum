@@ -72,6 +72,7 @@ def _text(value: object) -> str | None:
 
 def _datetime(value: object) -> datetime | None:
     try:
-        return datetime.strptime(str(value), _EXIF_DATETIME_FORMAT)
+        # Drop NUL terminators and any subsecond or timezone suffix some cameras append.
+        return datetime.strptime(str(value).strip("\x00 ")[:19], _EXIF_DATETIME_FORMAT)
     except ValueError:
         return None

@@ -100,3 +100,12 @@ def test_malformed_exif_does_not_hide_the_image(tmp_path):
 
     assert (meta.width, meta.height, meta.mime) == (512, 512, "image/webp")
     assert not meta.has_camera_exif
+
+
+@pytest.mark.parametrize(
+    "value", ["2024:05:01 10:20:30\x00", "2024:05:01 10:20:30.123", "2024:05:01 10:20:30+02:00"]
+)
+def test_capture_time_tolerates_terminators_and_suffixes(tmp_path, value):
+    meta = read_metadata(save(tmp_path / "a.jpg", exif=camera_exif(captured=value)))
+
+    assert meta.captured_at == datetime(2024, 5, 1, 10, 20, 30)
