@@ -7,7 +7,7 @@ requires-python = ">=3.12"
 license = "GPL-3.0-only"
 dependencies = []
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["pytest>=8"]
 
 [build-system]
@@ -19,3 +19,4 @@ packages = ["src/cribrum_lab"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
