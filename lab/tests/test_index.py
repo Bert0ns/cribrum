@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from cribrum_lab.index import ImageIndex, IndexVersionError
@@ -33,6 +34,7 @@ def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index)
     index.set_unreadable(PHOTO.path)
     index.set_content_hash(PHOTO.path, "0123abcd")
     index.set_perceptual_hash(PHOTO.path, 42)
+    index.set_embeddings("clip", 1, {PHOTO.path: np.ones(4)})
     index.set_signals(PHOTO.path, "blur", 1, [BLUR])
     index.set_review_state(PHOTO.path, ReviewState.KEPT)
 
@@ -42,6 +44,7 @@ def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index)
     assert index.unreadable() == []
     assert index.content_hash(PHOTO.path) is None
     assert index.perceptual_hash(PHOTO.path) is None
+    assert index.embeddings("clip", 1) == {}
     assert index.signals(PHOTO.path) == []
     assert not index.is_analyzed(PHOTO.path, "blur", 1)
     assert index.review_state(PHOTO.path) is ReviewState.KEPT
@@ -72,6 +75,18 @@ def test_perceptual_hash_round_trip_uses_all_64_bits(index):
     index.set_perceptual_hash(PHOTO.path, 2**64 - 1)
 
     assert index.perceptual_hash(PHOTO.path) == 2**64 - 1
+
+
+def test_embeddings_are_stored_per_model_version(index):
+    index.record(PHOTO)
+    vector = np.array([0.5, -0.25, 1.0], dtype=np.float32)
+
+    index.set_embeddings("clip", 2, {PHOTO.path: vector})
+
+    [(path, stored)] = index.embeddings("clip", 2).items()
+    assert path == PHOTO.path
+    np.testing.assert_array_equal(stored, vector)
+    assert index.embeddings("clip", 1) == {}
 
 
 def test_signals_are_stored_per_detector_version(index):

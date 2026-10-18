@@ -12,6 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Self
 
+import numpy as np
+
 from cribrum_lab.metadata import ImageMetadata
 from cribrum_lab.model import Category, ImageRef, IndexedImage, ReviewState, Signal
 
@@ -56,6 +58,13 @@ CREATE TABLE IF NOT EXISTS kept_signals (
     role TEXT NOT NULL,
     PRIMARY KEY (path, category, group_id, role)
 );
+CREATE TABLE IF NOT EXISTS embeddings (
+    path TEXT NOT NULL REFERENCES images ON DELETE CASCADE,
+    model TEXT NOT NULL,
+    model_version INTEGER NOT NULL,
+    vector BLOB NOT NULL,  -- float32, little-endian
+    PRIMARY KEY (path, model)
+);
 -- The image set a group detector version last ran on, so unchanged sets are skipped.
 CREATE TABLE IF NOT EXISTS group_runs (
     detector_id TEXT PRIMARY KEY,
@@ -63,7 +72,7 @@ CREATE TABLE IF NOT EXISTS group_runs (
     fingerprint TEXT NOT NULL
 );
 """
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 """Bump on every schema change: an index from another version is refused, not misread."""
 
 
@@ -101,8 +110,8 @@ class ImageIndex:
     def record(self, image: ImageRef) -> bool:
         """Adds or updates an image. Returns True if it is new or changed.
 
-        A changed image (different size or mtime) loses its metadata, hashes, unreadable
-        mark and signals, which must be computed again. It keeps its review
+        A changed image (different size or mtime) loses its metadata, hashes, embeddings,
+        unreadable mark and signals, which must be computed again. It keeps its review
         state: the file may only have been touched, and a decision the user made must not
         be lost. A real edit shows up as new signals, which the ranker treats as such.
         """
@@ -127,6 +136,7 @@ class ImageIndex:
                     (image.size, image.mtime_ns, path),
                 )
                 self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
+                self._db.execute("DELETE FROM embeddings WHERE path = ?", (path,))
         return True
 
     def images(self) -> list[ImageRef]:
@@ -217,6 +227,28 @@ class ImageIndex:
         ).fetchone()
         _require(row, path)
         return None if row[0] is None else int(row[0], 16)
+
+    def set_embeddings(
+        self, model: str, model_version: int, vectors: Mapping[Path, np.ndarray]
+    ) -> None:
+        with self._db:
+            for path, vector in vectors.items():
+                exists = self._db.execute(
+                    "SELECT 1 FROM images WHERE path = ?", (str(path),)
+                ).fetchone()
+                _require(exists, path)
+                self._db.execute(
+                    "INSERT OR REPLACE INTO embeddings VALUES (?, ?, ?, ?)",
+                    (str(path), model, model_version, vector.astype("<f4").tobytes()),
+                )
+
+    def embeddings(self, model: str, model_version: int) -> dict[Path, np.ndarray]:
+        """Every stored embedding of this model version, loaded at once for group detectors."""
+        rows = self._db.execute(
+            "SELECT path, vector FROM embeddings WHERE model = ? AND model_version = ?",
+            (model, model_version),
+        )
+        return {Path(path): np.frombuffer(vector, dtype="<f4") for path, vector in rows}
 
     def set_signals(
         self, path: Path, detector_id: str, detector_version: int, signals: list[Signal]

@@ -76,6 +76,8 @@ Each detector looks at an image (or at the image index) and emits **signals**. N
 
 With about 10,000 images, the embeddings take roughly 20 MB (512 float32 values per image), and comparing every pair directly is feasible without an approximate-nearest-neighbor index.
 
+**Variant: MobileCLIP-S0, as ONNX.** It is the smallest variant (a 45 MB float32 image encoder), and its ONNX export ([Xenova/mobileclip_s0](https://huggingface.co/Xenova/mobileclip_s0), pinned to a revision) runs unchanged in the lab (ONNX Runtime) and on Android (ONNX Runtime Mobile). Both compute the same embeddings, so golden fixtures can compare them directly. Input: shortest side resized to 256 px (bilinear), center crop to 256×256, RGB scaled to [0, 1], no normalization. The text encoder (170 MB) only turns prompts into embeddings. The lab computes those once, and the app ships them as constants, so the text encoder never goes on the phone. The weights come under Apple's sample code license, which allows use and redistribution as long as its notice is kept with them. On the dev machine (Ryzen 5 3600XT, CPU only), decoding and preprocessing take about 80 ms per image on one core (12 worker processes share it), and inference about 19 ms per image in batches of 16 on all cores: roughly 5 minutes for 10,000 images. Larger variants (S2, MobileCLIP2) remain an option if the lab measures too low a recall.
+
 ## 6. Ranking
 
 ### 6.1 Candidate selection

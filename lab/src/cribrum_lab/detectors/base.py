@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
+import numpy as np
+
 from cribrum_lab import hashing
 from cribrum_lab.metadata import ImageMetadata, read_metadata
 from cribrum_lab.model import ImageRef, Signal
@@ -27,10 +29,18 @@ class AnalysisContext:
 
     content_hash: Callable[[ImageRef], str] = hashing.content_hash
     perceptual_hash: Callable[[ImageRef], int] = hashing.perceptual_hash
+    embedding: Callable[[ImageRef], np.ndarray] = lambda image: _embed(image)
+    """L2-normalized MobileCLIP embedding."""
     metadata: Callable[[ImageRef], ImageMetadata] = lambda image: read_metadata(image.path)
     """Raises `UnreadableImage` when the header can't be decoded."""
     screen_sizes: Collection[tuple[int, int]] = SCREEN_SIZES
     """Known screen resolutions as (short side, long side)."""
+
+
+def _embed(image: ImageRef) -> np.ndarray:
+    from cribrum_lab import mobileclip  # loads ONNX Runtime only when a detector needs it
+
+    return mobileclip.default_model().embed_images([image.path])[0]
 
 
 class Detector(Protocol):
