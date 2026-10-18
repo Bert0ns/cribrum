@@ -1,0 +1,67 @@
+from pathlib import Path
+
+from cribrum_lab.sources import FilesystemImageSource
+
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
+PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
+GIF = b"GIF89a" + b"\x00" * 16
+WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 8
+HEIC = b"\x00\x00\x00\x18ftypheic" + b"\x00" * 12
+MP4 = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 12
+
+
+def write(path: Path, content: bytes) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return path
+
+
+def scanned_paths(root: Path) -> set[Path]:
+    return {ref.path.relative_to(root) for ref in FilesystemImageSource(root).scan()}
+
+
+def test_finds_every_supported_format(tmp_path):
+    for name, content in [("a.jpg", JPEG), ("b.png", PNG), ("c.gif", GIF), ("d.webp", WEBP)]:
+        write(tmp_path / name, content)
+    write(tmp_path / "e.heic", HEIC)
+
+    assert scanned_paths(tmp_path) == {
+        Path(n) for n in ["a.jpg", "b.png", "c.gif", "d.webp", "e.heic"]
+    }
+
+
+def test_includes_nomedia_and_hidden_folders(tmp_path):
+    write(tmp_path / "WhatsApp Images/Sent/.nomedia", b"")
+    write(tmp_path / "WhatsApp Images/Sent/IMG-1.jpg", JPEG)
+    write(tmp_path / ".thumbnails/t.jpg", JPEG)
+
+    assert scanned_paths(tmp_path) == {
+        Path("WhatsApp Images/Sent/IMG-1.jpg"),
+        Path(".thumbnails/t.jpg"),
+    }
+
+
+def test_detects_images_by_content_not_extension(tmp_path):
+    write(tmp_path / "no_extension", JPEG)
+    write(tmp_path / "photo.jpg", PNG)
+    write(tmp_path / "fake.jpg", b"not an image")
+    write(tmp_path / "clip.mp4", MP4)
+    write(tmp_path / "empty.jpg", b"")
+
+    assert scanned_paths(tmp_path) == {Path("no_extension"), Path("photo.jpg")}
+
+
+def test_image_ref_identifies_the_file(tmp_path):
+    path = write(tmp_path / "a.jpg", JPEG)
+
+    [ref] = FilesystemImageSource(tmp_path).scan()
+
+    stat = path.stat()
+    assert (ref.path, ref.size, ref.mtime_ns) == (path, stat.st_size, stat.st_mtime_ns)
+
+
+def test_skips_symlinks(tmp_path):
+    target = write(tmp_path / "a.jpg", JPEG)
+    (tmp_path / "link.jpg").symlink_to(target)
+
+    assert scanned_paths(tmp_path) == {Path("a.jpg")}
