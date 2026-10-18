@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS images (
     camera_model TEXT,
     captured_at TEXT,
     unreadable INTEGER NOT NULL DEFAULT 0,
-    content_hash TEXT
+    content_hash TEXT,
+    perceptual_hash TEXT
 );
 -- Which detector version last analyzed an image, even if it emitted no signal.
 CREATE TABLE IF NOT EXISTS analyses (
@@ -62,7 +63,7 @@ CREATE TABLE IF NOT EXISTS group_runs (
     fingerprint TEXT NOT NULL
 );
 """
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 """Bump on every schema change: an index from another version is refused, not misread."""
 
 
@@ -100,8 +101,8 @@ class ImageIndex:
     def record(self, image: ImageRef) -> bool:
         """Adds or updates an image. Returns True if it is new or changed.
 
-        A changed image (different size or mtime) loses its metadata, content hash,
-        unreadable mark and signals, which must be computed again. It keeps its review
+        A changed image (different size or mtime) loses its metadata, hashes, unreadable
+        mark and signals, which must be computed again. It keeps its review
         state: the file may only have been touched, and a decision the user made must not
         be lost. A real edit shows up as new signals, which the ranker treats as such.
         """
@@ -121,7 +122,8 @@ class ImageIndex:
                 self._db.execute(
                     """UPDATE images SET size = ?, mtime_ns = ?, width = NULL, height = NULL,
                        mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL,
-                       unreadable = 0, content_hash = NULL WHERE path = ?""",
+                       unreadable = 0, content_hash = NULL, perceptual_hash = NULL
+                       WHERE path = ?""",
                     (image.size, image.mtime_ns, path),
                 )
                 self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
@@ -200,6 +202,21 @@ class ImageIndex:
         ).fetchone()
         _require(row, path)
         return row[0]
+
+    def set_perceptual_hash(self, path: Path, phash: int) -> None:
+        with self._db:
+            updated = self._db.execute(
+                "UPDATE images SET perceptual_hash = ? WHERE path = ?", (f"{phash:016x}", str(path))
+            )
+        _require(updated.rowcount, path)
+
+    def perceptual_hash(self, path: Path) -> int | None:
+        """Stored as hex text: SQLite integers are signed and a hash may use all 64 bits."""
+        row = self._db.execute(
+            "SELECT perceptual_hash FROM images WHERE path = ?", (str(path),)
+        ).fetchone()
+        _require(row, path)
+        return None if row[0] is None else int(row[0], 16)
 
     def set_signals(
         self, path: Path, detector_id: str, detector_version: int, signals: list[Signal]
