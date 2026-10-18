@@ -22,6 +22,7 @@ from cribrum_lab.detectors.burst import BurstDetector
 from cribrum_lab.detectors.document import DocumentDetector
 from cribrum_lab.detectors.exact_duplicate import ExactDuplicateDetector
 from cribrum_lab.detectors.exposure import ExposureDetector
+from cribrum_lab.detectors.faces import FaceDetector
 from cribrum_lab.detectors.forwarded import ForwardedDetector
 from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
 from cribrum_lab.detectors.screenshot import ScreenshotDetector
@@ -36,6 +37,7 @@ DETECTORS: list[Detector] = [
     ScreenshotDetector(),
     DocumentDetector(),
     ForwardedDetector(),
+    FaceDetector(),
 ]
 GROUP_DETECTORS: list[GroupDetector] = [
     ExactDuplicateDetector(),
