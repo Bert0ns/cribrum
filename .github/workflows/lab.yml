@@ -3,9 +3,9 @@ name: lab
 on:
   push:
     branches: [main]
-    paths: ["lab/**", ".github/workflows/lab.yml"]
+    paths: ["lab/**", "fixtures/**", ".github/workflows/lab.yml"]
   pull_request:
-    paths: ["lab/**", ".github/workflows/lab.yml"]
+    paths: ["lab/**", "fixtures/**", ".github/workflows/lab.yml"]
 
 jobs:
   check:
