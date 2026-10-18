@@ -65,6 +65,8 @@ uv run cribrum-lab label               # then open http://127.0.0.1:8765/
 
 The page shows one image at a time from a sample of 500 (`--size`). Half of the sample are candidates, spread over every category, and half are images no detector flagged, so that recall can also be measured on what the detectors missed. Keys: `k` keep, `d` delete, `1`-`8` delete for a given category (listed on the page), `u` undo, `s` skip. Labels go to `lab/data/labels.sqlite` and are keyed by content hash, so they survive copying the images again. A new run of `label` skips images that are already labeled; `--seed` draws a different sample.
 
+With `--clusters`, similar images in the sample (by MobileCLIP embedding) come first, as grids of up to 48: click an image to leave it out, then one key labels the rest. The images left out and those alike to no other are shown one by one afterwards, or in a later session.
+
 ## Evaluate
 
 ```bash

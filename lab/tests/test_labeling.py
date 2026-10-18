@@ -5,11 +5,12 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PIL import Image
 
 from cribrum_lab.hashing import content_hash
-from cribrum_lab.labeling import LabelingServer, sample
+from cribrum_lab.labeling import LabelingServer, clusters, sample
 from cribrum_lab.labels import Decision, LabelStore
 from cribrum_lab.model import Category, ImageRef, IndexedImage, Signal
 from cribrum_lab.ranker import Candidate
@@ -66,7 +67,8 @@ def server(tmp_path):
     (tmp_path / "broken.jpg").write_bytes(b"\xff\xd8\xff not an image")
     paths.append(tmp_path / "broken.jpg")
     store = LabelStore(":memory:")
-    server = LabelingServer([ImageRef(p, p.stat().st_size, 0) for p in paths], store)
+    refs = [ImageRef(p, p.stat().st_size, 0) for p in paths]
+    server = LabelingServer([[refs[0], refs[1]], [refs[2]]], store)
     threading.Thread(target=server.serve_forever, args=(0.05,), daemon=True).start()
     yield server
     server.shutdown()
@@ -94,6 +96,7 @@ def test_page_and_queue(server):
     queue = json.loads(get(server, "/api/queue"))
 
     assert [Path(item["path"]).name for item in queue["items"]] == ["a.png", "b.jpg", "broken.jpg"]
+    assert queue["groups"] == [[0, 1], [2]]
     assert queue["categories"]["6"] == "screenshot"
 
 
@@ -101,6 +104,11 @@ def test_images_are_sent_as_bounded_jpegs(server):
     with Image.open(io.BytesIO(get(server, "/image/0"))) as image:
         assert image.format == "JPEG"
         assert max(image.size) == 1600
+
+
+def test_thumbnails_for_grids_are_smaller(server):
+    with Image.open(io.BytesIO(get(server, "/thumbnail/0"))) as image:
+        assert max(image.size) == 400
 
 
 @pytest.mark.parametrize("path", ["/image/3", "/image/-1", "/image/../etc/passwd", "/nope"])
@@ -120,21 +128,61 @@ def test_undecodable_image_is_an_error_not_a_crash(server):
 
 
 def test_label_and_undo(server):
-    post(server, "/api/label", {"item": 1, "decision": "delete", "category": "blurry"})
+    post(server, "/api/label", {"items": [1], "decision": "delete", "category": "blurry"})
 
     [label] = server.store.all()
     assert label.decision is Decision.DELETE
     assert label.category is Category.BLURRY
     assert label.content_hash == content_hash(server.queue[1])
 
-    post(server, "/api/unlabel", {"item": 1})
+    post(server, "/api/unlabel", {"items": [1]})
 
     assert server.store.all() == []
 
 
-def test_invalid_label_is_rejected(server):
+def test_a_whole_group_is_labeled_at_once(server):
+    post(server, "/api/label", {"items": [0, 1], "decision": "keep"})
+
+    assert [label.path.name for label in server.store.all()] == ["a.png", "b.jpg"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"items": [0], "decision": "maybe"}, {"items": [], "decision": "keep"}, {"items": [0, 9]}],
+)
+def test_invalid_label_is_rejected(server, body):
     with pytest.raises(urllib.error.HTTPError) as error:
-        post(server, "/api/label", {"item": 0, "decision": "maybe"})
+        post(server, "/api/label", {"decision": "keep", **body})
 
     assert error.value.code == 400
     assert server.store.all() == []
+
+
+def vector(*values):
+    v = np.zeros(8, dtype=np.float32)
+    v[: len(values)] = values
+    return v / np.linalg.norm(v)
+
+
+def test_clusters_group_similar_images_largest_first():
+    refs = [ImageRef(Path(f"{i}"), 0, 0) for i in range(7)]
+    vectors = {
+        refs[0].path: vector(1, 0),
+        refs[1].path: vector(0, 1),
+        refs[2].path: vector(1, 0.1),
+        refs[3].path: vector(0.1, 1),
+        refs[4].path: vector(1, 0.2),
+        refs[5].path: vector(0, 0, 1),  # alike to no other image
+    }  # refs[6] has no embedding
+
+    groups = clusters(refs, vectors)
+
+    assert groups == [[refs[0], refs[2], refs[4]], [refs[1], refs[3]]]
+
+
+def test_large_clusters_are_split_to_fit_a_screen():
+    refs = [ImageRef(Path(f"{i}"), 0, 0) for i in range(100)]
+
+    groups = clusters(refs, {ref.path: vector(1) for ref in refs})
+
+    assert [len(g) for g in groups] == [48, 48, 4]

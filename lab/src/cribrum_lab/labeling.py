@@ -7,11 +7,13 @@ import io
 import json
 import random
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from itertools import pairwise
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageOps
 
 from cribrum_lab import hashing
@@ -23,6 +25,12 @@ CATEGORY_KEYS = {str(i): category for i, category in enumerate(Category, 1)}
 """Digit keys that label an image as deletable for a given reason."""
 PREVIEW_SIDE = 1600
 """Browsers can't show HEIC: every image is sent as a JPEG this size at most."""
+THUMBNAIL_SIDE = 400
+"""Size of each image in a cluster's grid."""
+CLUSTER_COSINE = 0.8
+"""Embedding similarity to a cluster's first image that still joins the cluster."""
+MAX_CLUSTER = 48
+"""Larger clusters are split: a grid should fit one screen."""
 _PAGE = Path(__file__).with_name("labeling.html")
 
 
@@ -59,35 +67,77 @@ def sample(
     return picked
 
 
-def preview(path: Path) -> bytes:
+def clusters(
+    images: Sequence[ImageRef], vectors: Mapping[Path, np.ndarray]
+) -> list[list[ImageRef]]:
+    """Groups of similar images, largest first, so a whole group can be labeled at once.
+
+    Leader clustering: each image joins the first cluster whose first image is at least
+    CLUSTER_COSINE similar, or starts a new one. Images without an embedding and images
+    alike to no other are left out: they are labeled one by one.
+    """
+    leaders: list[np.ndarray] = []
+    members: list[list[ImageRef]] = []
+    for image in images:
+        vector = vectors.get(image.path)
+        if vector is None:
+            continue
+        if leaders:
+            similarity = np.stack(leaders) @ vector
+            best = int(similarity.argmax())
+            if similarity[best] >= CLUSTER_COSINE:
+                members[best].append(image)
+                continue
+        leaders.append(vector)
+        members.append([image])
+    groups = [
+        group[start : start + MAX_CLUSTER]
+        for group in members
+        for start in range(0, len(group), MAX_CLUSTER)
+    ]
+    return sorted((g for g in groups if len(g) > 1), key=len, reverse=True)
+
+
+def preview(path: Path, side: int = PREVIEW_SIDE) -> bytes:
     with Image.open(path) as image:
-        image.draft("RGB", (PREVIEW_SIDE, PREVIEW_SIDE))
+        image.draft("RGB", (side, side))
         image = ImageOps.exif_transpose(image).convert("RGB")
-        image.thumbnail((PREVIEW_SIDE, PREVIEW_SIDE))
+        image.thumbnail((side, side))
         buffer = io.BytesIO()
         image.save(buffer, "JPEG", quality=85)
         return buffer.getvalue()
 
 
 class LabelingServer(ThreadingHTTPServer):
-    def __init__(self, queue: Sequence[ImageRef], store: LabelStore, port: int = 0) -> None:
+    """Serves a queue of groups of images: a group of one is shown alone, a larger group
+    as a grid labeled with one key."""
+
+    def __init__(
+        self, groups: Sequence[Sequence[ImageRef]], store: LabelStore, port: int = 0
+    ) -> None:
         super().__init__(("127.0.0.1", port), _Handler)
-        self.queue = list(queue)
+        self.queue = [image for group in groups for image in group]
+        starts = [0]
+        for group in groups:
+            starts.append(starts[-1] + len(group))
+        self.groups = [list(range(a, b)) for a, b in pairwise(starts)]
         self.store = store
         self.lock = threading.Lock()
         self.hashes: dict[int, str] = {}
 
-    def label(self, item: int, decision: Decision, category: Category | None) -> None:
-        image = self.queue[item]
+    def label(self, items: Sequence[int], decision: Decision, category: Category | None) -> None:
         with self.lock:
-            digest = self.hashes.get(item) or hashing.content_hash(image)
-            self.hashes[item] = digest
-            self.store.set(Label(digest, image.path, decision, category))
+            for item in items:
+                image = self.queue[item]
+                digest = self.hashes.get(item) or hashing.content_hash(image)
+                self.hashes[item] = digest
+                self.store.set(Label(digest, image.path, decision, category))
 
-    def unlabel(self, item: int) -> None:
+    def unlabel(self, items: Sequence[int]) -> None:
         with self.lock:
-            if item in self.hashes:
-                self.store.remove(self.hashes[item])
+            for item in items:
+                if item in self.hashes:
+                    self.store.remove(self.hashes[item])
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -99,13 +149,15 @@ class _Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/queue":
             items = [{"path": str(image.path)} for image in self.server.queue]
             keys = {key: category.value for key, category in CATEGORY_KEYS.items()}
-            self._json({"items": items, "categories": keys})
-        elif self.path.startswith("/image/"):
-            item = self._item(self.path.removeprefix("/image/"))
+            self._json({"items": items, "groups": self.server.groups, "categories": keys})
+        elif self.path.startswith(("/image/", "/thumbnail/")):
+            kind, _, number = self.path[1:].partition("/")
+            item = self._item(number)
             if item is None:
                 return
+            side = PREVIEW_SIDE if kind == "image" else THUMBNAIL_SIDE
             try:
-                self._send(preview(self.server.queue[item].path), "image/jpeg")
+                self._send(preview(self.server.queue[item].path, side), "image/jpeg")
             except Exception as error:  # an undecodable file must not stop the session
                 self.send_error(HTTPStatus.UNPROCESSABLE_ENTITY, str(error))
         else:
@@ -113,8 +165,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or "{}")
-        item = self._item(str(body.get("item")))
-        if item is None:
+        items = [_index(str(item), len(self.server.queue)) for item in body.get("items", [])]
+        if not items or None in items:
+            self.send_error(HTTPStatus.BAD_REQUEST)
             return
         if self.path == "/api/label":
             try:
@@ -123,19 +176,19 @@ class _Handler(BaseHTTPRequestHandler):
             except (KeyError, ValueError):
                 self.send_error(HTTPStatus.BAD_REQUEST)
                 return
-            self.server.label(item, decision, category)
+            self.server.label(items, decision, category)
         elif self.path == "/api/unlabel":
-            self.server.unlabel(item)
+            self.server.unlabel(items)
         else:
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         self._json({"ok": True})
 
     def _item(self, text: str) -> int | None:
-        if text.isdigit() and int(text) < len(self.server.queue):
-            return int(text)
-        self.send_error(HTTPStatus.NOT_FOUND)
-        return None
+        item = _index(text, len(self.server.queue))
+        if item is None:
+            self.send_error(HTTPStatus.NOT_FOUND)
+        return item
 
     def _json(self, value: object) -> None:
         self._send(json.dumps(value).encode(), "application/json")
@@ -150,3 +203,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args: object) -> None:
         pass  # one line per image request would bury the terminal
+
+
+def _index(text: str, size: int) -> int | None:
+    return int(text) if text.isdigit() and int(text) < size else None

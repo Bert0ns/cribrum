@@ -6,7 +6,13 @@
 <style>
   body { margin: 0; background: #111; color: #ddd; font: 14px system-ui, sans-serif; }
   main { height: calc(100vh - 64px); display: flex; align-items: center; justify-content: center; }
-  img { max-width: 100vw; max-height: calc(100vh - 64px); object-fit: contain; }
+  main > img { max-width: 100vw; max-height: calc(100vh - 64px); object-fit: contain; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px;
+          width: 100%; max-height: 100%; overflow-y: auto; padding: 6px; box-sizing: border-box;
+          align-self: flex-start; }
+  #grid img { width: 100%; aspect-ratio: 1; object-fit: cover; cursor: pointer;
+              border: 3px solid transparent; box-sizing: border-box; }
+  #grid img.excluded { opacity: 0.25; border-color: #e66; }
   footer { height: 64px; padding: 6px 12px; box-sizing: border-box; background: #222; }
   #path { color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status.keep { color: #6c6; } #status.delete { color: #e66; }
@@ -14,33 +20,19 @@
 </style>
 </head>
 <body>
-<main><img id="image" alt=""></main>
+<main id="view"></main>
 <footer>
   <div><span id="progress"></span> · <span id="status"></span></div>
   <div id="keys"></div>
   <div id="path"></div>
 </footer>
 <script>
-let items = [], categories = {}, position = 0, history = [], labeled = 0;
+let items = [], groups = [], categories = {}, position = 0, history = [], labeled = 0;
+let excluded = new Set();
 
 async function post(url, body) {
   const response = await fetch(url, {method: "POST", body: JSON.stringify(body)});
   if (!response.ok) throw new Error(await response.text());
-}
-
-function show() {
-  if (position >= items.length) {
-    document.getElementById("image").removeAttribute("src");
-    document.getElementById("status").textContent = "done: every image in the sample is labeled";
-    return;
-  }
-  document.getElementById("image").src = `/image/${position}`;
-  document.getElementById("path").textContent = items[position].path;
-  document.getElementById("progress").textContent =
-    `${position + 1} / ${items.length} · ${labeled} labeled this session`;
-  for (let ahead = 1; ahead <= 3 && position + ahead < items.length; ahead++) {
-    new Image().src = `/image/${position + ahead}`;  // preload: no wait between images
-  }
 }
 
 function setStatus(text, kind) {
@@ -49,21 +41,68 @@ function setStatus(text, kind) {
   status.className = kind || "";
 }
 
+function image(src, onError) {
+  const element = document.createElement("img");
+  element.src = src;
+  element.addEventListener("error", onError);
+  return element;
+}
+
+function show() {
+  const view = document.getElementById("view");
+  view.replaceChildren();
+  excluded = new Set();
+  if (position >= groups.length) {
+    setStatus("done: every image in the sample is labeled");
+    document.getElementById("path").textContent = "";
+    return;
+  }
+  const group = groups[position];
+  if (group.length === 1) {
+    view.append(image(`/image/${group[0]}`,
+      () => setStatus("this image can't be decoded: s to skip it", "delete")));
+    document.getElementById("path").textContent = items[group[0]].path;
+  } else {
+    const grid = document.createElement("div");
+    grid.id = "grid";
+    for (const item of group) {
+      const tile = image(`/thumbnail/${item}`, () => tile.classList.add("excluded"));
+      tile.title = items[item].path;
+      tile.addEventListener("click", () => {
+        excluded.has(item) ? excluded.delete(item) : excluded.add(item);
+        tile.classList.toggle("excluded");
+      });
+      grid.append(tile);
+    }
+    view.append(grid);
+    document.getElementById("path").textContent =
+      `${group.length} similar images: click one to leave it out, then label the rest at once`;
+  }
+  const images = groups.slice(0, position).reduce((n, g) => n + g.length, 0);
+  document.getElementById("progress").textContent =
+    `${images + 1} / ${items.length} · ${labeled} labeled this session`;
+  for (const item of (groups[position + 1] || [])) {
+    new Image().src = groups[position + 1].length === 1 ? `/image/${item}` : `/thumbnail/${item}`;
+  }
+}
+
 async function label(decision, category) {
-  if (position >= items.length) return;
-  await post("/api/label", {item: position, decision, category});
-  history.push(position);
-  labeled++;
-  setStatus(category ? `${decision}: ${category}` : decision, decision);
+  if (position >= groups.length) return;
+  const chosen = groups[position].filter(item => !excluded.has(item));
+  if (chosen.length) await post("/api/label", {items: chosen, decision, category});
+  history.push({position, items: chosen});
+  labeled += chosen.length;
+  setStatus(`${category ? `${decision}: ${category}` : decision} (${chosen.length})`, decision);
   position++;
   show();
 }
 
 async function undo() {
   if (!history.length) return;
-  position = history.pop();
-  await post("/api/unlabel", {item: position});
-  labeled--;
+  const last = history.pop();
+  if (last.items.length) await post("/api/unlabel", {items: last.items});
+  labeled -= last.items.length;
+  position = last.position;
   setStatus("undone");
   show();
 }
@@ -76,16 +115,13 @@ document.addEventListener("keydown", event => {
   else if (key === "d") action = label("delete");
   else if (categories[key]) action = label("delete", categories[key]);
   else if (key === "u" || key === "backspace") action = undo();
-  else if (key === "s" && position < items.length) { position++; setStatus("skipped"); show(); }
+  else if (key === "s" && position < groups.length) { position++; setStatus("skipped"); show(); }
   if (action) action.catch(error => setStatus(`error: ${error.message}`, "delete"));
-});
-
-document.getElementById("image").addEventListener("error", () => {
-  if (position < items.length) setStatus("this image can't be decoded: s to skip it", "delete");
 });
 
 fetch("/api/queue").then(r => r.json()).then(queue => {
   items = queue.items;
+  groups = queue.groups;
   categories = queue.categories;
   const digits = Object.entries(categories).map(([k, c]) => `<kbd>${k}</kbd> ${c}`).join(" ");
   document.getElementById("keys").innerHTML =
