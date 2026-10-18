@@ -1,18 +1,21 @@
-"""Analysis pipeline: scan → metadata → per-image detectors → group detectors → index.
+"""Analysis pipeline: scan → metadata → per-image detectors → embeddings → group detectors.
 
 Every step stores its results as it goes and skips what the index already holds for the
 same detector version, so an interrupted run resumes where it stopped and a second run on
 unchanged data does no detector work.
 """
 
+import multiprocessing
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Protocol
 
+import numpy as np
 import xxhash
 
-from cribrum_lab import hashing
+from cribrum_lab import hashing, mobileclip
 from cribrum_lab.detectors import AnalysisContext, Detector, GroupDetector
 from cribrum_lab.detectors.blur import BlurDetector
 from cribrum_lab.detectors.exact_duplicate import ExactDuplicateDetector
@@ -30,6 +33,19 @@ GROUP_DETECTORS: list[GroupDetector] = [ExactDuplicateDetector(), NearDuplicateD
 Progress = Callable[[str, int, int], None]
 """Called with a step name, the items done and the items in total."""
 
+EMBEDDING_CHUNK = 256
+"""Images decoded per round before the model runs: bounds the memory held by decoded pixels."""
+EMBEDDING_BATCH = 32
+
+
+class Embedder(Protocol):
+    """Embeds images preprocessed by `mobileclip.preprocess`, as `MobileClip` does."""
+
+    id: str
+    version: int
+
+    def embed_pixels(self, pixels: np.ndarray) -> np.ndarray: ...
+
 
 @dataclass
 class Stats:
@@ -38,7 +54,7 @@ class Stats:
     forgotten: int = 0
     unreadable: int = 0
     detector_runs: int = 0
-    """Per-image detector analyses and perceptual hashes computed, plus group detector runs."""
+    """Per-image analyses, perceptual hashes and embeddings computed, plus group detector runs."""
     failures: list[str] = field(default_factory=list)
     """Analyses that raised. They are not stored, so the next run retries them."""
 
@@ -48,10 +64,15 @@ def run(
     index: ImageIndex,
     detectors: Sequence[Detector] = DETECTORS,
     group_detectors: Sequence[GroupDetector] = GROUP_DETECTORS,
+    embedder: Embedder | None = None,
     jobs: int = 1,
     progress: Progress | None = None,
 ) -> Stats:
-    """Analyzes every image under `root`. Images under it that are gone leave the index."""
+    """Analyzes every image under `root`. Images under it that are gone leave the index.
+
+    Without an `embedder` no embeddings are computed, and detectors that need them get
+    an `AnalysisContext.embedding` that raises.
+    """
     progress = progress or (lambda step, done, total: None)
     root = root.resolve()
     stats = Stats()
@@ -101,10 +122,17 @@ def run(
             stats.detector_runs += 1
         progress("detectors", done, len(tasks))
 
+    embeddings = {}
+    if embedder is not None:
+        _embed(
+            embedder, index, [i for i in images if i.path not in unreadable], jobs, stats, progress
+        )
+        embeddings = index.embeddings(embedder.id, embedder.version)
     context = AnalysisContext(
         content_hash=_cached_content_hash(index),
         perceptual_hash=_stored_perceptual_hash(index),
         metadata=_metadata(index),
+        embedding=_stored_embedding(embeddings),
     )
     fingerprint = _fingerprint(images)
     for detector in group_detectors:
@@ -146,6 +174,44 @@ def _analyze(
     return image, results, phash
 
 
+def _embed(
+    embedder: Embedder,
+    index: ImageIndex,
+    images: list[ImageRef],
+    jobs: int,
+    stats: Stats,
+    progress: Progress,
+) -> None:
+    """Decodes in the worker processes; the model runs here, on all cores, in batches."""
+    stored = index.embeddings(embedder.id, embedder.version).keys()
+    todo = [image for image in images if image.path not in stored]
+    for start in range(0, len(todo), EMBEDDING_CHUNK):
+        chunk = todo[start : start + EMBEDDING_CHUNK]
+        decoded = []
+        for image, pixels in zip(chunk, _map(_preprocess, chunk, jobs), strict=True):
+            if isinstance(pixels, str):
+                stats.failures.append(f"{image.path}: embedding: {pixels}")
+            else:
+                decoded.append((image, pixels))
+        for batch_start in range(0, len(decoded), EMBEDDING_BATCH):
+            batch = decoded[batch_start : batch_start + EMBEDDING_BATCH]
+            vectors = embedder.embed_pixels(np.stack([pixels for _, pixels in batch]))
+            index.set_embeddings(
+                embedder.id,
+                embedder.version,
+                {image.path: v for (image, _), v in zip(batch, vectors, strict=True)},
+            )
+            stats.detector_runs += len(batch)
+            progress("embeddings", start + batch_start + len(batch), len(todo))
+
+
+def _preprocess(image: ImageRef) -> np.ndarray | str:
+    try:
+        return mobileclip.preprocess(image.path)
+    except Exception as error:
+        return _describe(error)
+
+
 def _describe(error: Exception) -> str:
     return f"{type(error).__name__}: {error}"
 
@@ -154,7 +220,8 @@ def _map(function, tasks, jobs):
     if jobs == 1:
         yield from map(function, tasks)
         return
-    with ProcessPoolExecutor(jobs) as pool:
+    # Not fork: ONNX Runtime's threads would be copied mid-state into the children.
+    with ProcessPoolExecutor(jobs, mp_context=multiprocessing.get_context("forkserver")) as pool:
         yield from pool.map(function, tasks, chunksize=4)
 
 
@@ -179,6 +246,16 @@ def _stored_perceptual_hash(index: ImageIndex) -> Callable[[ImageRef], int]:
         return phash
 
     return perceptual_hash
+
+
+def _stored_embedding(embeddings: dict[Path, np.ndarray]) -> Callable[[ImageRef], np.ndarray]:
+    def embedding(image: ImageRef) -> np.ndarray:
+        found = embeddings.get(image.path)
+        if found is None:
+            raise LookupError(f"no embedding for {image.path}")
+        return found
+
+    return embedding
 
 
 def _metadata(index: ImageIndex) -> Callable[[ImageRef], ImageMetadata]:

@@ -131,3 +131,47 @@ def test_worker_processes_give_the_same_signals(photos, tmp_path, index):
         pipeline.run(photos, parallel, jobs=2)
 
         assert parallel.indexed_images() == index.indexed_images()
+
+
+class MeanColorEmbedder:
+    """Embeds an image as its normalized mean color, padded: enough to tell images apart."""
+
+    id = "mean_color"
+    version = 1
+
+    def embed_pixels(self, pixels):
+        vectors = np.concatenate([pixels.mean(axis=(2, 3)), np.ones((len(pixels), 1))], axis=1)
+        return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+
+
+class EmbeddingReader:
+    """Group detector that records the embeddings it can look up."""
+
+    id = "embedding_reader"
+    version = 1
+
+    def __init__(self):
+        self.seen = {}
+
+    def analyze(self, images, context):
+        self.seen = {image.path.name: context.embedding(image) for image in images}
+        return {}
+
+
+def test_embeddings_are_computed_once_and_reach_group_detectors(photos, index):
+    reader = EmbeddingReader()
+
+    first = pipeline.run(photos, index, embedder=MeanColorEmbedder(), group_detectors=[reader])
+    second = pipeline.run(photos, index, embedder=MeanColorEmbedder(), group_detectors=[])
+
+    assert first.detector_runs == 3 * len(pipeline.DETECTORS) + 3 * 2 + 1  # + hashes, embeddings
+    assert second.detector_runs == 0
+    assert set(reader.seen) == {"a.png", "a-copy.png", "Screenshot_1.png"}
+    assert len(index.embeddings("mean_color", 1)) == 3
+
+
+def test_without_an_embedder_the_lookup_raises(photos, index):
+    reader = EmbeddingReader()
+
+    with pytest.raises(LookupError):
+        pipeline.run(photos, index, group_detectors=[reader])
