@@ -57,6 +57,14 @@ uv run cribrum-lab report              # candidates per category, top 10 paths e
 
 The first `scan` downloads MobileCLIP-S0 (45 MB) into `lab/data/models/`; `--no-embeddings` skips it. `scan` stores everything in `lab/data/index.sqlite` as it goes. Run it again after an interruption or after copying new images: it only analyzes what is new or changed, or what a newer detector version has not seen yet. Images that are gone from the folder leave the index. `--jobs` sets the number of worker processes (all cores by default). The index refuses to open if its schema version changed: delete it and scan again.
 
+## Label
+
+```bash
+uv run cribrum-lab label               # then open http://127.0.0.1:8765/
+```
+
+The page shows one image at a time from a sample of 500 (`--size`). Half of the sample are candidates, spread over every category, and half are images no detector flagged, so that recall can also be measured on what the detectors missed. Keys: `k` keep, `d` delete, `1`-`8` delete for a given category (listed on the page), `u` undo, `s` skip. Labels go to `lab/data/labels.sqlite` and are keyed by content hash, so they survive copying the images again. A new run of `label` skips images that are already labeled; `--seed` draws a different sample.
+
 ## Layout
 
 | Module | Contents |
@@ -77,4 +85,6 @@ The first `scan` downloads MobileCLIP-S0 (45 MB) into `lab/data/models/`; `--no-
 | `cribrum_lab.runtime` | `ModelRuntime` interface and `OnnxRuntime` |
 | `cribrum_lab.mobileclip` | MobileCLIP-S0 image and text embeddings, zero-shot scores |
 | `cribrum_lab.prompts` | Zero-shot classes and prompts; their embeddings are committed in `prompt_embeddings.json` |
+| `cribrum_lab.labels` | `LabelStore`: keep/delete labels keyed by content hash |
+| `cribrum_lab.labeling` | Sampling and the local labeling web page |
 | `cribrum_lab.ranker` | `Ranker`: per-category thresholds, candidates and the review order |
