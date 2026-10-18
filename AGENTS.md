@@ -16,6 +16,22 @@ Most of the code in this repository is written by AI coding agents. Read this fi
 - Photo age must not be used as a deletion signal.
 - Keep the Python lab (`lab/`) and the Android app (`android/`) structurally parallel: same component names, same interfaces.
 
+## Skills
+
+Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` only holds symlinks to them). Read a skill's `SKILL.md` before the task it covers.
+
+| Skill | Use it for |
+|---|---|
+| `tdd` | Building detectors and other features test-first |
+| `ponytail` | Keeping a change to the smallest thing that works |
+| `code-review` | Reviewing a branch against these guidelines and its GitHub issue |
+| `code-simplification` | Simplifying working code without changing behavior |
+| `deslop` | Removing AI boilerplate from code before committing |
+| `unslop` | Removing AI tells from docs, issues and commit messages |
+| `grill-me`, `grilling` | Stress-testing a design decision before it goes into `docs/design.md` |
+
+They come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
+
 ## Layout
 
 - `lab/`: Python 3.12+, `src/` layout, tests under `lab/tests/` (pytest).
