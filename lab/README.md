@@ -57,5 +57,6 @@ WSL2 does not see USB devices, so the Linux `adb` cannot reach a phone plugged i
 | `cribrum_lab.index` | `ImageIndex`: SQLite store for images, metadata, signals per detector version, and review state |
 | `cribrum_lab.imaging` | `load_grayscale`: downscaled luminance for content-based detectors |
 | `cribrum_lab.hashing` | `content_hash`: xxHash of a whole file, for exact duplicates |
+| `cribrum_lab.screens` | Known screen resolutions, for screenshots |
 | `cribrum_lab.folders` | What a folder says about an image: camera or messaging app |
 | `cribrum_lab.detectors` | `Detector` interface and its implementations |
