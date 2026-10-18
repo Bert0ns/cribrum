@@ -17,6 +17,7 @@ from cribrum_lab.detectors import AnalysisContext, Detector, GroupDetector
 from cribrum_lab.detectors.blur import BlurDetector
 from cribrum_lab.detectors.exact_duplicate import ExactDuplicateDetector
 from cribrum_lab.detectors.exposure import ExposureDetector
+from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
 from cribrum_lab.detectors.screenshot import ScreenshotDetector
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.metadata import ImageMetadata, UnreadableImage, read_metadata
@@ -24,7 +25,7 @@ from cribrum_lab.model import ImageRef, Signal
 from cribrum_lab.sources import FilesystemImageSource
 
 DETECTORS: list[Detector] = [BlurDetector(), ExposureDetector(), ScreenshotDetector()]
-GROUP_DETECTORS: list[GroupDetector] = [ExactDuplicateDetector()]
+GROUP_DETECTORS: list[GroupDetector] = [ExactDuplicateDetector(), NearDuplicateDetector()]
 
 Progress = Callable[[str, int, int], None]
 """Called with a step name, the items done and the items in total."""
@@ -37,7 +38,7 @@ class Stats:
     forgotten: int = 0
     unreadable: int = 0
     detector_runs: int = 0
-    """Per-image detector analyses run, plus one per group detector run."""
+    """Per-image detector analyses and perceptual hashes computed, plus group detector runs."""
     failures: list[str] = field(default_factory=list)
     """Analyses that raised. They are not stored, so the next run retries them."""
 
@@ -83,18 +84,28 @@ def run(
         if image.path in unreadable:
             continue  # pixels can't be decoded either; group detectors still see the file
         todo = [d for d in detectors if not index.is_analyzed(image.path, d.id, d.version)]
-        if todo:
-            tasks.append((image, index.metadata(image.path), todo))
-    for done, (image, results) in enumerate(_map(_analyze, tasks, jobs), 1):
+        needs_phash = index.perceptual_hash(image.path) is None
+        if todo or needs_phash:
+            tasks.append((image, index.metadata(image.path), todo, needs_phash))
+    for done, (image, results, phash) in enumerate(_map(_analyze, tasks, jobs), 1):
         for detector_id, version, outcome in results:
             if isinstance(outcome, str):
                 stats.failures.append(f"{image.path}: {detector_id}: {outcome}")
             else:
                 index.set_signals(image.path, detector_id, version, outcome)
                 stats.detector_runs += 1
+        if isinstance(phash, str):
+            stats.failures.append(f"{image.path}: perceptual hash: {phash}")
+        elif phash is not None:
+            index.set_perceptual_hash(image.path, phash)
+            stats.detector_runs += 1
         progress("detectors", done, len(tasks))
 
-    context = AnalysisContext(content_hash=_cached_content_hash(index), metadata=_metadata(index))
+    context = AnalysisContext(
+        content_hash=_cached_content_hash(index),
+        perceptual_hash=_stored_perceptual_hash(index),
+        metadata=_metadata(index),
+    )
     fingerprint = _fingerprint(images)
     for detector in group_detectors:
         if index.group_fingerprint(detector.id, detector.version) == fingerprint:
@@ -111,19 +122,32 @@ def run(
 
 
 def _analyze(
-    task: tuple[ImageRef, ImageMetadata, list[Detector]],
-) -> tuple[ImageRef, list[tuple[str, int, list[Signal] | str]]]:
-    """Runs in a worker process: the metadata comes along, the index stays in the parent."""
-    image, metadata, detectors = task
+    task: tuple[ImageRef, ImageMetadata, list[Detector], bool],
+) -> tuple[ImageRef, list[tuple[str, int, list[Signal] | str]], int | str | None]:
+    """Runs in a worker process: the metadata comes along, the index stays in the parent.
+
+    Errors come back as text, so one broken file does not stop a run over thousands.
+    """
+    image, metadata, detectors, needs_phash = task
     context = AnalysisContext(metadata=lambda _: metadata)
     results = []
     for detector in detectors:
         try:
             outcome = detector.analyze(image, context)
-        except Exception as error:  # one broken file must not stop a run over thousands
-            outcome = f"{type(error).__name__}: {error}"
+        except Exception as error:
+            outcome = _describe(error)
         results.append((detector.id, detector.version, outcome))
-    return image, results
+    phash = None
+    if needs_phash:
+        try:
+            phash = hashing.perceptual_hash(image)
+        except Exception as error:
+            phash = _describe(error)
+    return image, results, phash
+
+
+def _describe(error: Exception) -> str:
+    return f"{type(error).__name__}: {error}"
 
 
 def _map(function, tasks, jobs):
@@ -143,6 +167,18 @@ def _cached_content_hash(index: ImageIndex) -> Callable[[ImageRef], str]:
         return digest
 
     return content_hash
+
+
+def _stored_perceptual_hash(index: ImageIndex) -> Callable[[ImageRef], int]:
+    """Hashes come from the worker step; an image without one could not be decoded."""
+
+    def perceptual_hash(image: ImageRef) -> int:
+        phash = index.perceptual_hash(image.path)
+        if phash is None:
+            raise UnreadableImage(image.path)
+        return phash
+
+    return perceptual_hash
 
 
 def _metadata(index: ImageIndex) -> Callable[[ImageRef], ImageMetadata]:

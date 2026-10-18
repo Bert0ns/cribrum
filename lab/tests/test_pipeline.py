@@ -46,7 +46,7 @@ def test_first_run_stores_metadata_and_signals_of_every_detector(photos, index):
         Category.SCREENSHOT,
     }
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
-    assert Category.EXACT_DUPLICATE in categories(index, copy)
+    assert {Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE} <= categories(index, copy)
 
 
 def test_second_run_on_unchanged_data_does_no_detector_work(photos, index):
@@ -66,7 +66,8 @@ def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index
     stats = pipeline.run(photos, index)
 
     assert stats.new_or_changed == 1
-    assert stats.detector_runs == len(pipeline.DETECTORS) + len(pipeline.GROUP_DETECTORS)
+    phash = 1
+    assert stats.detector_runs == len(pipeline.DETECTORS) + phash + len(pipeline.GROUP_DETECTORS)
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
     assert Category.EXACT_DUPLICATE not in categories(index, copy)
 
