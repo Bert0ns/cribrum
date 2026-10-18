@@ -158,7 +158,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 | Index | Room (SQLite) |
 | Background work | WorkManager |
 | Thumbnails | Coil |
-| On-device ML | LiteRT / ONNX Runtime, ML Kit (text recognition, face detection) |
+| On-device ML | ONNX Runtime (MobileCLIP, YuNet faces), ML Kit (text recognition) |
 
 ### Index (draft)
 
