@@ -1,5 +1,7 @@
 """BLURRY: variance of the Laplacian on a downscaled grayscale image (docs/design.md, section 5)."""
 
+from pathlib import Path
+
 import numpy as np
 
 from cribrum_lab.detectors.base import AnalysisContext
@@ -18,23 +20,32 @@ class BlurDetector:
     version = 1
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
-        laplacian = _laplacian(load_grayscale(image.path, MAX_SIDE))
-        if laplacian.size == 0:
-            return []  # under 3 px on a side (after downscaling): nothing to measure
-        global_variance = float(laplacian.var())
-        # A portrait with a blurred background still has a sharp region: score on that one.
-        peak_variance = max(
-            float(tile.var())
-            for rows in np.array_split(laplacian, TILES, axis=0)
-            for tile in np.array_split(rows, TILES, axis=1)
-            if tile.size > 0  # images narrower than TILES px leave some tiles empty
-        )
+        measured = measure(image.path)
+        if measured is None:
+            return []
+        global_variance, peak_variance = measured
         score = HALF_SCORE_VARIANCE / (HALF_SCORE_VARIANCE + peak_variance)
         evidence = {
             "global_variance": f"{global_variance:.1f}",
             "peak_variance": f"{peak_variance:.1f}",
         }
         return [Signal(self.id, self.version, Category.BLURRY, score, evidence)]
+
+
+def measure(path: Path) -> tuple[float, float] | None:
+    """Laplacian variance of the whole image and of its sharpest tile, which stands for the
+    subject. None when the image is under 3 px on a side after downscaling."""
+    laplacian = _laplacian(load_grayscale(path, MAX_SIDE))
+    if laplacian.size == 0:
+        return None
+    # A portrait with a blurred background still has a sharp region: score on that one.
+    peak_variance = max(
+        float(tile.var())
+        for rows in np.array_split(laplacian, TILES, axis=0)
+        for tile in np.array_split(rows, TILES, axis=1)
+        if tile.size > 0  # images narrower than TILES px leave some tiles empty
+    )
+    return float(laplacian.var()), peak_variance
 
 
 def _laplacian(gray: np.ndarray) -> np.ndarray:
