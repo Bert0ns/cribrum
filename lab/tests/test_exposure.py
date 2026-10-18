@@ -43,3 +43,21 @@ def test_bad_frames_score_high_and_name_their_case(tmp_path, image, case):
 
 def test_well_exposed_image_scores_low(tmp_path):
     assert analyze(tmp_path, gradient()).score < 0.5
+
+
+def night_shot():
+    sky = noisy(10, spread=4)
+    sky.paste(Image.new("RGB", (160, 150), (220, 200, 180)), (120, 80))  # lit subject, 20% of frame
+    return sky
+
+
+def document():
+    page = Image.new("RGB", (400, 300), (245, 245, 245))
+    for top in range(20, 280, 20):  # lines of dark text, about 10% of the page
+        page.paste(Image.new("RGB", (360, 2), (20, 20, 20)), (20, top))
+    return page
+
+
+@pytest.mark.parametrize("image", [night_shot(), document()], ids=["night shot", "document"])
+def test_high_contrast_scenes_with_skewed_histograms_score_low(tmp_path, image):
+    assert analyze(tmp_path, image).score < 0.5
