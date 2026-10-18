@@ -4,13 +4,17 @@ Python prototype and reference implementation of Cribrum's detectors. Detectors 
 
 ## Setup
 
+The lab uses [uv](https://docs.astral.sh/uv/). `uv.lock` pins every dependency, so commit it together with any change to `pyproject.toml`.
+
 ```bash
 cd lab
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-pytest
+uv sync                   # create .venv and install everything, dev tools included
+uv run pytest             # tests
+uv run ruff check         # lint
+uv run ruff format        # format
 ```
+
+CI runs the same checks on every pull request that touches `lab/`.
 
 ## Data
 
