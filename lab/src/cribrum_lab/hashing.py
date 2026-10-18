@@ -28,7 +28,8 @@ def perceptual_hash(image: ImageRef) -> int:
     """
     gray = Image.fromarray(load_grayscale(image.path, _PHASH_DECODE_SIDE))
     small = np.asarray(gray.resize((_PHASH_SIZE, _PHASH_SIZE), Image.Resampling.LANCZOS))
-    low = (_DCT @ small.astype(np.float64) @ _DCT.T)[:8, :8]
+    # Rounded, so a flat image's AC terms are exactly 0 instead of platform-dependent noise.
+    low = np.round(_DCT @ small.astype(np.float64) @ _DCT.T, 6)[:8, :8]
     bits = (low > np.median(low)).flatten()
     return int.from_bytes(np.packbits(bits).tobytes())
 

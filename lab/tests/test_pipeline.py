@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -8,9 +9,11 @@ from cribrum_lab.index import ImageIndex
 from cribrum_lab.model import Category, Signal
 
 
-def save(path, color="gray", size=(64, 48)):
+def save(path, seed=0, size=(64, 48)):
+    """A random pattern: flat images would all be near-duplicates of each other."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    Image.new("RGB", size, color).save(path)
+    noise = np.random.default_rng(seed).integers(0, 256, (6, 8, 3), np.uint8)
+    Image.fromarray(noise).resize(size).save(path)
     return path
 
 
@@ -25,7 +28,7 @@ def photos(tmp_path):
     root = tmp_path / "device"
     save(root / "DCIM/Camera/a.png")
     save(root / "WhatsApp/Media/a-copy.png")  # same bytes as a.png
-    save(root / "Pictures/Screenshots/Screenshot_1.png", "white")
+    save(root / "Pictures/Screenshots/Screenshot_1.png", seed=1)
     return root
 
 
@@ -60,7 +63,7 @@ def test_second_run_on_unchanged_data_does_no_detector_work(photos, index):
 
 def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index):
     pipeline.run(photos, index)
-    changed = save(photos / "DCIM/Camera/a.png", "black")
+    changed = save(photos / "DCIM/Camera/a.png", seed=2)
     os.utime(changed, ns=(1, 1))
 
     stats = pipeline.run(photos, index)
