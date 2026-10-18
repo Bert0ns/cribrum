@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import pytest
+
 from cribrum_lab.sources import FilesystemImageSource
 
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
@@ -8,6 +10,9 @@ PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
 GIF = b"GIF89a" + b"\x00" * 16
 WEBP = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 8
 HEIC = b"\x00\x00\x00\x18ftypheic" + b"\x00" * 12
+# MIAF profile: the HEIF brand appears only among the compatible brands
+MIAF_HEIC = b"\x00\x00\x00\x1cftypmiaf\x00\x00\x00\x00mif1heic" + b"\x00" * 8
+AVIF = b"\x00\x00\x00\x1cftypavif\x00\x00\x00\x00mif1miaf" + b"\x00" * 8
 MP4 = b"\x00\x00\x00\x18ftypisom" + b"\x00" * 12
 
 
@@ -29,6 +34,13 @@ def test_finds_every_supported_format(tmp_path):
     assert scanned_paths(tmp_path) == {
         Path(n) for n in ["a.jpg", "b.png", "c.gif", "d.webp", "e.heic"]
     }
+
+
+@pytest.mark.parametrize("content", [MIAF_HEIC, AVIF], ids=["MIAF HEIC", "AVIF"])
+def test_finds_heif_declared_by_compatible_brand(tmp_path, content):
+    write(tmp_path / "a.heic", content)
+
+    assert scanned_paths(tmp_path) == {Path("a.heic")}
 
 
 def test_includes_nomedia_and_hidden_folders(tmp_path):

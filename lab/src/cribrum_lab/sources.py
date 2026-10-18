@@ -7,8 +7,13 @@ from typing import Protocol
 
 from cribrum_lab.model import ImageRef
 
-# ISO base media brands of HEIF and AVIF still images. Videos (e.g. "isom", "mp42") are left out.
-_HEIF_BRANDS = {b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"mif1", b"msf1", b"avif"}
+# ISO base media brands of HEIF and AVIF images. Videos (e.g. "isom", "mp42") are left out.
+_HEIF_BRANDS = {
+    b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx",
+    b"mif1", b"mif2", b"msf1", b"miaf", b"avif", b"avis",
+}  # fmt: skip
+_HEAD_SIZE = 64
+"""Enough for the magic bytes of every format and the brand list of a typical ftyp box."""
 
 
 class ImageSource(Protocol):
@@ -43,11 +48,17 @@ class FilesystemImageSource:
 
 def _is_image(path: Path) -> bool:
     with path.open("rb") as file:
-        head = file.read(12)
+        head = file.read(_HEAD_SIZE)
     return (
         head.startswith(b"\xff\xd8\xff")  # JPEG
         or head.startswith(b"\x89PNG\r\n\x1a\n")
         or head.startswith((b"GIF87a", b"GIF89a"))
         or (head.startswith(b"RIFF") and head[8:12] == b"WEBP")
-        or (head[4:8] == b"ftyp" and head[8:12] in _HEIF_BRANDS)
+        or (head[4:8] == b"ftyp" and not _HEIF_BRANDS.isdisjoint(_ftyp_brands(head)))
     )
+
+
+def _ftyp_brands(head: bytes) -> list[bytes]:
+    """Major brand plus compatible brands: HEIF files may declare their brand in either."""
+    box_end = min(int.from_bytes(head[:4]), len(head))
+    return [head[8:12]] + [head[i : i + 4] for i in range(16, box_end - 3, 4)]
