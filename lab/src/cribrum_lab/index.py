@@ -7,6 +7,7 @@ under lab/data/: it holds paths and metadata of personal images.
 import json
 import sqlite3
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from pathlib import Path
 from typing import Self
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS images (
     camera_make TEXT,
     camera_model TEXT,
     captured_at TEXT,
+    unreadable INTEGER NOT NULL DEFAULT 0,
     content_hash TEXT
 );
 -- Which detector version last analyzed an image, even if it emitted no signal.
@@ -53,7 +55,19 @@ CREATE TABLE IF NOT EXISTS kept_signals (
     role TEXT NOT NULL,
     PRIMARY KEY (path, category, group_id, role)
 );
+-- The image set a group detector version last ran on, so unchanged sets are skipped.
+CREATE TABLE IF NOT EXISTS group_runs (
+    detector_id TEXT PRIMARY KEY,
+    detector_version INTEGER NOT NULL,
+    fingerprint TEXT NOT NULL
+);
 """
+SCHEMA_VERSION = 1
+"""Bump on every schema change: an index from another version is refused, not misread."""
+
+
+class IndexVersionError(Exception):
+    """The database was written with another schema version."""
 
 
 class ImageIndex:
@@ -62,7 +76,17 @@ class ImageIndex:
     def __init__(self, database: Path | str) -> None:
         self._db = sqlite3.connect(database)
         self._db.execute("PRAGMA foreign_keys = ON")
+        self._db.execute("PRAGMA journal_mode = WAL")  # one commit per image must stay cheap
+        self._db.execute("PRAGMA synchronous = NORMAL")
+        tables = self._db.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]
+        version = self._db.execute("PRAGMA user_version").fetchone()[0]
+        if tables and version != SCHEMA_VERSION:
+            self._db.close()
+            raise IndexVersionError(
+                f"{database} has schema version {version}, expected {SCHEMA_VERSION}"
+            )
         self._db.executescript(_SCHEMA)
+        self._db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
 
     def __enter__(self) -> Self:
         return self
@@ -76,10 +100,10 @@ class ImageIndex:
     def record(self, image: ImageRef) -> bool:
         """Adds or updates an image. Returns True if it is new or changed.
 
-        A changed image (different size or mtime) loses its metadata, content hash and
-        signals, which must be computed again. It keeps its review state: the file may
-        only have been touched, and a decision the user made must not be lost. A real
-        edit shows up as new signals, which the ranker treats as such.
+        A changed image (different size or mtime) loses its metadata, content hash,
+        unreadable mark and signals, which must be computed again. It keeps its review
+        state: the file may only have been touched, and a decision the user made must not
+        be lost. A real edit shows up as new signals, which the ranker treats as such.
         """
         path = str(image.path)
         row = self._db.execute(
@@ -97,7 +121,7 @@ class ImageIndex:
                 self._db.execute(
                     """UPDATE images SET size = ?, mtime_ns = ?, width = NULL, height = NULL,
                        mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL,
-                       content_hash = NULL WHERE path = ?""",
+                       unreadable = 0, content_hash = NULL WHERE path = ?""",
                     (image.size, image.mtime_ns, path),
                 )
                 self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
@@ -106,6 +130,31 @@ class ImageIndex:
     def images(self) -> list[ImageRef]:
         rows = self._db.execute("SELECT path, size, mtime_ns FROM images ORDER BY path")
         return [ImageRef(Path(path), size, mtime_ns) for path, size, mtime_ns in rows]
+
+    def forget(self, paths: Iterable[Path]) -> None:
+        """Removes images from the index, with everything stored about them. Files are untouched."""
+        with self._db:
+            self._db.executemany("DELETE FROM images WHERE path = ?", [(str(p),) for p in paths])
+
+    def without_metadata(self) -> list[ImageRef]:
+        """Images whose metadata was never read, leaving out the unreadable ones."""
+        rows = self._db.execute(
+            """SELECT path, size, mtime_ns FROM images
+               WHERE width IS NULL AND NOT unreadable ORDER BY path"""
+        )
+        return [ImageRef(Path(path), size, mtime_ns) for path, size, mtime_ns in rows]
+
+    def set_unreadable(self, path: Path) -> None:
+        """Marks an image whose header can't be decoded, so it isn't retried until it changes."""
+        with self._db:
+            updated = self._db.execute(
+                "UPDATE images SET unreadable = 1 WHERE path = ?", (str(path),)
+            )
+        _require(updated.rowcount, path)
+
+    def unreadable(self) -> list[Path]:
+        rows = self._db.execute("SELECT path FROM images WHERE unreadable ORDER BY path")
+        return [Path(path) for (path,) in rows]
 
     def set_metadata(self, path: Path, metadata: ImageMetadata) -> None:
         captured_at = metadata.captured_at.isoformat() if metadata.captured_at else None
@@ -156,28 +205,55 @@ class ImageIndex:
         self, path: Path, detector_id: str, detector_version: int, signals: list[Signal]
     ) -> None:
         """Replaces whatever this detector stored for the image, from any version."""
-        exists = self._db.execute("SELECT 1 FROM images WHERE path = ?", (str(path),)).fetchone()
-        _require(exists, path)
+        self.set_signals_of_many(detector_id, detector_version, {path: signals})
+
+    def set_signals_of_many(
+        self, detector_id: str, detector_version: int, signals: Mapping[Path, list[Signal]]
+    ) -> None:
+        """`set_signals` for many images in one transaction, as group detectors need."""
+        with self._db:
+            for path, image_signals in signals.items():
+                exists = self._db.execute(
+                    "SELECT 1 FROM images WHERE path = ?", (str(path),)
+                ).fetchone()
+                _require(exists, path)
+                self._db.execute(
+                    "DELETE FROM analyses WHERE path = ? AND detector_id = ?",
+                    (str(path), detector_id),
+                )
+                self._db.execute(
+                    "INSERT INTO analyses VALUES (?, ?, ?)",
+                    (str(path), detector_id, detector_version),
+                )
+                self._db.executemany(
+                    "INSERT INTO signals VALUES (?, ?, ?, ?, ?, ?)",
+                    [
+                        (
+                            str(path),
+                            s.detector_id,
+                            s.detector_version,
+                            s.category.value,
+                            s.score,
+                            json.dumps(s.evidence),
+                        )
+                        for s in image_signals
+                    ],
+                )
+
+    def group_fingerprint(self, detector_id: str, detector_version: int) -> str | None:
+        row = self._db.execute(
+            "SELECT fingerprint FROM group_runs WHERE detector_id = ? AND detector_version = ?",
+            (detector_id, detector_version),
+        ).fetchone()
+        return row[0] if row else None
+
+    def set_group_fingerprint(
+        self, detector_id: str, detector_version: int, fingerprint: str
+    ) -> None:
         with self._db:
             self._db.execute(
-                "DELETE FROM analyses WHERE path = ? AND detector_id = ?", (str(path), detector_id)
-            )
-            self._db.execute(
-                "INSERT INTO analyses VALUES (?, ?, ?)", (str(path), detector_id, detector_version)
-            )
-            self._db.executemany(
-                "INSERT INTO signals VALUES (?, ?, ?, ?, ?, ?)",
-                [
-                    (
-                        str(path),
-                        s.detector_id,
-                        s.detector_version,
-                        s.category.value,
-                        s.score,
-                        json.dumps(s.evidence),
-                    )
-                    for s in signals
-                ],
+                "INSERT OR REPLACE INTO group_runs VALUES (?, ?, ?)",
+                (detector_id, detector_version, fingerprint),
             )
 
     def is_analyzed(self, path: Path, detector_id: str, detector_version: int) -> bool:
