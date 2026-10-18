@@ -19,12 +19,15 @@ class BlurDetector:
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
         laplacian = _laplacian(load_grayscale(image.path, MAX_SIDE))
+        if laplacian.size == 0:
+            return []  # under 3 px on a side (after downscaling): nothing to measure
         global_variance = float(laplacian.var())
         # A portrait with a blurred background still has a sharp region: score on that one.
         peak_variance = max(
             float(tile.var())
             for rows in np.array_split(laplacian, TILES, axis=0)
             for tile in np.array_split(rows, TILES, axis=1)
+            if tile.size > 0  # images narrower than TILES px leave some tiles empty
         )
         score = HALF_SCORE_VARIANCE / (HALF_SCORE_VARIANCE + peak_variance)
         evidence = {

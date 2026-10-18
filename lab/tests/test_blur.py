@@ -1,4 +1,7 @@
+import warnings
+
 import numpy as np
+import pytest
 from PIL import Image, ImageFilter
 
 from cribrum_lab.detectors import AnalysisContext
@@ -52,3 +55,15 @@ def test_evidence_records_the_measures(tmp_path):
     [signal] = BlurDetector().analyze(ImageRef(path, 0, 0), AnalysisContext())
 
     assert set(signal.evidence) == {"global_variance", "peak_variance"}
+
+
+@pytest.mark.parametrize("size", [(1, 1), (2, 2), (4, 4), (10000, 20)])
+def test_tiny_and_thin_images_do_not_crash(tmp_path, size):
+    path = tmp_path / "a.png"
+    texture((max(size[0], 8), max(size[1], 8))).resize(size).save(path)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        signals = BlurDetector().analyze(ImageRef(path, 0, 0), AnalysisContext())
+
+    assert all(0.0 <= s.score <= 1.0 for s in signals)
