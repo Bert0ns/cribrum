@@ -5,7 +5,10 @@ description = "Prototype and reference implementation of Cribrum's detectors"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-only"
-dependencies = []
+dependencies = [
+    "pillow>=13.0.0",
+    "pillow-heif>=1.8.1",
+]
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.17"]
