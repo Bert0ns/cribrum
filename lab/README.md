@@ -14,6 +14,8 @@ uv run ruff check         # lint
 uv run ruff format        # format
 ```
 
+CI runs the same checks on every pull request that touches `lab/`.
+
 ## Data
 
 Put copies of your images under `lab/data/`, which git ignores. For example, from a connected Android device:
