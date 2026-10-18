@@ -72,6 +72,8 @@ The first `scan` downloads MobileCLIP-S0 (45 MB) into `lab/data/models/`; `--no-
 | `cribrum_lab.detectors` | `Detector` interface and its implementations |
 | `cribrum_lab.pipeline` | `run`: scan, metadata, detectors and group detectors into the index |
 | `cribrum_lab.cli` | The `cribrum-lab` command |
+| `cribrum_lab.models` | Downloads model files once into `lab/data/models/`, checked against a SHA-256 |
+| `cribrum_lab.assets` | Small model files committed with their license (YuNet face detector) |
 | `cribrum_lab.runtime` | `ModelRuntime` interface and `OnnxRuntime` |
 | `cribrum_lab.mobileclip` | MobileCLIP-S0 image and text embeddings, zero-shot scores |
 | `cribrum_lab.prompts` | Zero-shot classes and prompts; their embeddings are committed in `prompt_embeddings.json` |

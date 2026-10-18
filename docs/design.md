@@ -88,7 +88,7 @@ An image becomes a candidate if **any** signal exceeds its category threshold (D
 
 These signals hint that an image is a memory: faces, favorites, membership in a user album, uniqueness (no near-duplicates). They lower an image's position in the review order but **never** remove it from the candidates.
 
-They are ordinary `Signal`s whose category is a `Protection` (`FACES`, `FAVORITE`, `ALBUM`) instead of a deletable `Category`. Detectors emit them, the index stores them, and detector versions apply to them, all exactly like other signals. They have no threshold, so they never make an image a candidate. The ranker multiplies an image's likelihood by `1 - weight × score` for each one. Uniqueness is not a signal: the ranker derives it from the image being in no duplicate or burst group. Candidates always stay ahead of the other images in the order. Favorites and albums only exist on Android (MediaStore), so the lab has no detector for them.
+They are ordinary `Signal`s whose category is a `Protection` (`FACES`, `FAVORITE`, `ALBUM`) instead of a deletable `Category`. Detectors emit them, the index stores them, and detector versions apply to them, all exactly like other signals. They have no threshold, so they never make an image a candidate. The ranker multiplies an image's likelihood by `1 - weight × score` for each one. Uniqueness is not a signal: the ranker derives it from the image being in no duplicate or burst group. Candidates always stay ahead of the other images in the order. Favorites and albums only exist on Android (MediaStore), so the lab has no detector for them. Faces come from [YuNet](https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet), a 230 KB ONNX face detector under the MIT license. Like MobileCLIP, the same file runs on ONNX Runtime in the lab and in the app, so ML Kit is not needed for faces.
 
 ### 6.3 Review state
 
@@ -158,7 +158,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 | Index | Room (SQLite) |
 | Background work | WorkManager |
 | Thumbnails | Coil |
-| On-device ML | LiteRT / ONNX Runtime, ML Kit (text recognition, face detection) |
+| On-device ML | ONNX Runtime (MobileCLIP, YuNet faces), ML Kit (text recognition) |
 
 ### Index (draft)
 

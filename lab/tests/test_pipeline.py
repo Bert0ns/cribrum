@@ -6,7 +6,7 @@ from PIL import Image
 
 from cribrum_lab import pipeline
 from cribrum_lab.index import ImageIndex
-from cribrum_lab.model import Category, Signal
+from cribrum_lab.model import Category, Protection, Signal
 
 
 def save(path, seed=0, size=(64, 48)):
@@ -47,6 +47,7 @@ def test_first_run_stores_metadata_and_signals_of_every_detector(photos, index):
         Category.BLURRY,
         Category.BAD_EXPOSURE,
         Category.SCREENSHOT,
+        Protection.FACES,
     }
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
     assert {Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE} <= categories(index, copy)
@@ -69,7 +70,7 @@ def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index
     stats = pipeline.run(photos, index)
 
     assert stats.new_or_changed == 1
-    without_embeddings = 3  # blur, exposure, screenshot: the others wait for embeddings
+    without_embeddings = 4  # blur, exposure, screenshot, faces: the others need embeddings
     phash = 1
     assert stats.detector_runs == without_embeddings + phash + len(pipeline.GROUP_DETECTORS)
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"

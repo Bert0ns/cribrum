@@ -6,8 +6,6 @@ and checked against their SHA-256, into lab/data/models/.
 """
 
 import functools
-import hashlib
-import urllib.request
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -15,6 +13,7 @@ import numpy as np
 from PIL import Image, ImageOps
 from tokenizers import Tokenizer
 
+from cribrum_lab import models
 from cribrum_lab.runtime import ModelRuntime, OnnxRuntime
 
 MODEL_ID = "mobileclip_s0"
@@ -24,7 +23,7 @@ CONTEXT_LENGTH = 77
 LOGIT_SCALE = 100.0
 """CLIP's learned temperature: turns cosine similarities into softmax logits."""
 
-MODELS = Path(__file__).resolve().parents[2] / "data" / "models" / MODEL_ID
+MODELS = models.MODELS / MODEL_ID
 _REVISION = "757d59c9c6870a76a4b0306f05f5061bca15c39f"
 _FILES = {
     "vision_model.onnx": (
@@ -40,20 +39,9 @@ _FILES = {
 
 def model_file(name: str, folder: Path = MODELS) -> Path:
     """Path to a model file, downloaded and verified on first use."""
-    path = folder / name
-    if path.exists():
-        return path
     prefix, sha256 = _FILES[name]
     url = f"https://huggingface.co/Xenova/mobileclip_s0/resolve/{_REVISION}/{prefix}{name}"
-    folder.mkdir(parents=True, exist_ok=True)
-    partial = path.with_suffix(path.suffix + ".part")
-    urllib.request.urlretrieve(url, partial)
-    digest = hashlib.sha256(partial.read_bytes()).hexdigest()
-    if digest != sha256:
-        partial.unlink()
-        raise RuntimeError(f"{name}: SHA-256 {digest}, expected {sha256}")
-    partial.rename(path)
-    return path
+    return models.fetch(url, sha256, folder / name)
 
 
 def preprocess(path: Path) -> np.ndarray:
