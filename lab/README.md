@@ -66,7 +66,7 @@ uv run cribrum-lab report              # candidates per category, top 10 paths e
 | `cribrum_lab.metadata` | `read_metadata`: displayed size, MIME type, camera EXIF and capture time |
 | `cribrum_lab.index` | `ImageIndex`: SQLite store for images, metadata, signals per detector version, and review state |
 | `cribrum_lab.imaging` | `load_grayscale`: downscaled luminance for content-based detectors |
-| `cribrum_lab.hashing` | `content_hash`: xxHash of a whole file, for exact duplicates |
+| `cribrum_lab.hashing` | `content_hash` (xxHash of a whole file) and `perceptual_hash` (64-bit pHash), for duplicates |
 | `cribrum_lab.screens` | Known screen resolutions, for screenshots |
 | `cribrum_lab.folders` | What a folder says about an image: camera or messaging app |
 | `cribrum_lab.detectors` | `Detector` interface and its implementations |

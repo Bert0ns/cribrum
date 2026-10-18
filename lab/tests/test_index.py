@@ -32,6 +32,7 @@ def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index)
     index.set_metadata(PHOTO.path, META)
     index.set_unreadable(PHOTO.path)
     index.set_content_hash(PHOTO.path, "0123abcd")
+    index.set_perceptual_hash(PHOTO.path, 42)
     index.set_signals(PHOTO.path, "blur", 1, [BLUR])
     index.set_review_state(PHOTO.path, ReviewState.KEPT)
 
@@ -40,6 +41,7 @@ def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index)
     assert index.metadata(PHOTO.path) is None
     assert index.unreadable() == []
     assert index.content_hash(PHOTO.path) is None
+    assert index.perceptual_hash(PHOTO.path) is None
     assert index.signals(PHOTO.path) == []
     assert not index.is_analyzed(PHOTO.path, "blur", 1)
     assert index.review_state(PHOTO.path) is ReviewState.KEPT
@@ -56,10 +58,20 @@ def test_metadata_round_trip(index, meta):
 def test_content_hash_round_trip(index):
     index.record(PHOTO)
     assert index.content_hash(PHOTO.path) is None
+    assert index.perceptual_hash(PHOTO.path) is None
 
     index.set_content_hash(PHOTO.path, "0123abcd")
 
     assert index.content_hash(PHOTO.path) == "0123abcd"
+
+
+def test_perceptual_hash_round_trip_uses_all_64_bits(index):
+    index.record(PHOTO)
+    assert index.perceptual_hash(PHOTO.path) is None
+
+    index.set_perceptual_hash(PHOTO.path, 2**64 - 1)
+
+    assert index.perceptual_hash(PHOTO.path) == 2**64 - 1
 
 
 def test_signals_are_stored_per_detector_version(index):
@@ -99,6 +111,8 @@ def test_review_state_persists(tmp_path):
         lambda index: index.set_metadata(PHOTO.path, META),
         lambda index: index.set_content_hash(PHOTO.path, "0123abcd"),
         lambda index: index.set_unreadable(PHOTO.path),
+        lambda index: index.set_perceptual_hash(PHOTO.path, 42),
+        lambda index: index.perceptual_hash(PHOTO.path),
         lambda index: index.content_hash(PHOTO.path),
         lambda index: index.set_signals(PHOTO.path, "blur", 1, [BLUR]),
         lambda index: index.set_review_state(PHOTO.path, ReviewState.KEPT),
@@ -108,6 +122,8 @@ def test_review_state_persists(tmp_path):
         "set_metadata",
         "set_content_hash",
         "set_unreadable",
+        "set_perceptual_hash",
+        "perceptual_hash",
         "content_hash",
         "set_signals",
         "set_review_state",

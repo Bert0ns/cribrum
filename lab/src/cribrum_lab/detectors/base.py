@@ -26,6 +26,7 @@ class AnalysisContext:
     """
 
     content_hash: Callable[[ImageRef], str] = hashing.content_hash
+    perceptual_hash: Callable[[ImageRef], int] = hashing.perceptual_hash
     metadata: Callable[[ImageRef], ImageMetadata] = lambda image: read_metadata(image.path)
     """Raises `UnreadableImage` when the header can't be decoded."""
     screen_sizes: Collection[tuple[int, int]] = SCREEN_SIZES
