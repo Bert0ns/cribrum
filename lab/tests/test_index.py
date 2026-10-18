@@ -26,18 +26,18 @@ def test_record_reports_new_and_changed_images(index):
     assert index.images() == [ImageRef(PHOTO.path, 101, 2)]
 
 
-def test_changed_image_drops_its_stale_data(index):
+def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index):
     index.record(PHOTO)
     index.set_metadata(PHOTO.path, META)
     index.set_signals(PHOTO.path, "blur", 1, [BLUR])
     index.set_review_state(PHOTO.path, ReviewState.KEPT)
 
-    index.record(ImageRef(PHOTO.path, 200, 5))
+    index.record(ImageRef(PHOTO.path, 200, 5))  # edited, or just touched by a sync tool
 
     assert index.metadata(PHOTO.path) is None
     assert index.signals(PHOTO.path) == []
     assert not index.is_analyzed(PHOTO.path, "blur", 1)
-    assert index.review_state(PHOTO.path) is ReviewState.UNREVIEWED
+    assert index.review_state(PHOTO.path) is ReviewState.KEPT
 
 
 @pytest.mark.parametrize("meta", [META, ImageMetadata(1080, 2400, "image/png")])

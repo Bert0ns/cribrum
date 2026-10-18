@@ -64,8 +64,10 @@ class ImageIndex:
     def record(self, image: ImageRef) -> bool:
         """Adds or updates an image. Returns True if it is new or changed.
 
-        A changed image (different size or mtime) loses its metadata, signals and
-        review state: it is a different picture now.
+        A changed image (different size or mtime) loses its metadata and signals, which
+        must be computed again. It keeps its review state: the file may only have been
+        touched, and a decision the user made must not be lost. A real edit shows up as
+        new signals, which the ranker treats as such.
         """
         path = str(image.path)
         row = self._db.execute(
@@ -74,11 +76,19 @@ class ImageIndex:
         if row == (image.size, image.mtime_ns):
             return False
         with self._db:
-            self._db.execute("DELETE FROM images WHERE path = ?", (path,))
-            self._db.execute(
-                "INSERT INTO images (path, size, mtime_ns) VALUES (?, ?, ?)",
-                (path, image.size, image.mtime_ns),
-            )
+            if row is None:
+                self._db.execute(
+                    "INSERT INTO images (path, size, mtime_ns) VALUES (?, ?, ?)",
+                    (path, image.size, image.mtime_ns),
+                )
+            else:
+                self._db.execute(
+                    """UPDATE images SET size = ?, mtime_ns = ?, width = NULL, height = NULL,
+                       mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL
+                       WHERE path = ?""",
+                    (image.size, image.mtime_ns, path),
+                )
+                self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
         return True
 
     def images(self) -> list[ImageRef]:
