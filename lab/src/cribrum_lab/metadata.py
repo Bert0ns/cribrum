@@ -36,8 +36,7 @@ def read_metadata(path: Path) -> ImageMetadata:
     """Reads the header only: the pixels are not decoded."""
     try:
         with Image.open(path) as image:
-            exif = image.getexif()
-            details = exif.get_ifd(ExifTags.IFD.Exif)
+            exif, details = _exif(image)
             # pillow-heif already applies the orientation and resets the tag to 1.
             rotated = exif.get(ExifTags.Base.Orientation) in _ROTATED_ORIENTATIONS
             width, height = (image.height, image.width) if rotated else image.size
@@ -54,6 +53,15 @@ def read_metadata(path: Path) -> ImageMetadata:
             )
     except (OSError, SyntaxError, ValueError) as error:  # how Pillow reports undecodable files
         raise UnreadableImage(path) from error
+
+
+def _exif(image: Image.Image) -> tuple[Image.Exif, dict]:
+    """Main EXIF tags and the Exif sub-IFD, or empty ones when the EXIF block is malformed."""
+    try:
+        exif = image.getexif()
+        return exif, exif.get_ifd(ExifTags.IFD.Exif)
+    except (OSError, SyntaxError, ValueError):  # e.g. sticker packs storing JSON as EXIF
+        return Image.Exif(), {}
 
 
 def _text(value: object) -> str | None:

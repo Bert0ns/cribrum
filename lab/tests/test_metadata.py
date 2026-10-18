@@ -90,3 +90,13 @@ def test_reads_photos_above_pillow_pixel_limit(tmp_path):
     Image.new("1", (16320, 12240)).save(path)  # 200 MP sensor; 1-bit keeps the test file small
 
     assert (read_metadata(path).width, read_metadata(path).height) == (16320, 12240)
+
+
+def test_malformed_exif_does_not_hide_the_image(tmp_path):
+    path = tmp_path / "sticker.webp"
+    Image.new("RGBA", (512, 512)).save(path, exif=b'Exif\x00\x00{"sticker-pack-id": "1"}')
+
+    meta = read_metadata(path)
+
+    assert (meta.width, meta.height, meta.mime) == (512, 512, "image/webp")
+    assert not meta.has_camera_exif
