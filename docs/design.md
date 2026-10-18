@@ -142,6 +142,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 ```
 
 - Signals are stored with the version of the detector that produced them. When a detector improves, only its signals are recomputed.
+- Detectors get per-image data they don't compute themselves (content hash, metadata, embeddings) through lookups in `AnalysisContext`. The pipeline backs them with the index, so each value is computed once and shared by every detector.
 - Group detectors (duplicates, bursts) run over the index instead of over a single image. They use the same `Signal` output. Every member of a group gets a signal, with the group id in `evidence["group"]` and its role in `evidence["role"]`: `best` for the copy to keep (with score 0, so no threshold ever suggests it), `inferior` for the others. Images in no group get no signal.
 - The Python lab mirrors these interfaces one-to-one, so porting is mostly translation.
 
