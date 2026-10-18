@@ -1,4 +1,4 @@
-"""Command line: `cribrum-lab scan FOLDER` analyzes images, `cribrum-lab report` lists them."""
+"""Command line: `scan` analyzes images, `report` lists candidates, `label` opens the labeler."""
 
 import argparse
 import os
@@ -7,11 +7,15 @@ from pathlib import Path
 
 from cribrum_lab import pipeline
 from cribrum_lab.index import ImageIndex
+from cribrum_lab.labeling import LabelingServer, sample
+from cribrum_lab.labels import LabelStore
 from cribrum_lab.mobileclip import MobileClip
 from cribrum_lab.ranker import Ranker
 
-DEFAULT_INDEX = Path(__file__).resolve().parents[2] / "data" / "index.sqlite"
-"""Under lab/data/, which git ignores: the index holds paths of personal images."""
+DATA = Path(__file__).resolve().parents[2] / "data"
+"""lab/data/, which git ignores: the index and the labels hold paths of personal images."""
+DEFAULT_INDEX = DATA / "index.sqlite"
+DEFAULT_LABELS = DATA / "labels.sqlite"
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -26,6 +30,11 @@ def main(argv: list[str] | None = None) -> None:
     )
     report = commands.add_parser("report", help="candidates per category")
     report.add_argument("--top", type=int, default=10, help="paths listed per category")
+    label = commands.add_parser("label", help="label a sample of images in the browser")
+    label.add_argument("--labels", type=Path, default=DEFAULT_LABELS, help="SQLite labels file")
+    label.add_argument("--size", type=int, default=500, help="images in the sample")
+    label.add_argument("--seed", type=int, default=0, help="change it for a new sample")
+    label.add_argument("--port", type=int, default=8765)
     args = parser.parse_args(argv)
 
     args.index.parent.mkdir(parents=True, exist_ok=True)
@@ -33,8 +42,10 @@ def main(argv: list[str] | None = None) -> None:
         if args.command == "scan":
             embedder = None if args.no_embeddings else MobileClip()
             _scan(index, args.folder, args.jobs, embedder)
-        else:
+        elif args.command == "report":
             _report(index, args.top)
+        else:
+            _label(index, args.labels, args.size, args.seed, args.port)
 
 
 def _scan(index: ImageIndex, folder: Path, jobs: int, embedder: pipeline.Embedder | None) -> None:
@@ -69,6 +80,22 @@ def _report(index: ImageIndex, top: int) -> None:
         for candidate in members[:top]:
             score = max(s.score for s in candidate.reasons if s.category is category)
             print(f"  {score:.2f}  {candidate.image.ref.path}")
+
+
+def _label(index: ImageIndex, labels: Path, size: int, seed: int, port: int) -> None:
+    with LabelStore(labels) as store:
+        done = {label.path for label in store.all()}
+        exclude = done | set(index.unreadable())
+        queue = sample(Ranker().rank(index.indexed_images()), size, exclude, seed)
+        server = LabelingServer(queue, store, port)
+        print(f"{len(queue)} images to label at http://127.0.0.1:{server.server_port}/")
+        print(f"{len(done)} labeled so far, stored in {labels}. Ctrl-C to stop.")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            server.server_close()
 
 
 if __name__ == "__main__":
