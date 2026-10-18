@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Prototype and reference implementation of Cribrum's detectors"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "GPL-3.0-only"
 dependencies = []
 
 [project.optional-dependencies]

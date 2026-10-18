@@ -34,3 +34,7 @@ Early design phase. Nothing is usable yet.
 5. Learning from review decisions, periodic review reminders.
 
 See [`docs/design.md`](docs/design.md) for details.
+
+## License
+
+Cribrum is free software, released under the [GNU General Public License v3.0](LICENSE). You may use, study, modify, and share it. If you distribute a modified version, it must be released under the same license.
