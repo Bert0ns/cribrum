@@ -7,6 +7,7 @@ from pathlib import Path
 
 from cribrum_lab import pipeline
 from cribrum_lab.index import ImageIndex
+from cribrum_lab.mobileclip import MobileClip
 from cribrum_lab.ranker import Ranker
 
 DEFAULT_INDEX = Path(__file__).resolve().parents[2] / "data" / "index.sqlite"
@@ -20,6 +21,9 @@ def main(argv: list[str] | None = None) -> None:
     scan = commands.add_parser("scan", help="find and analyze every image under a folder")
     scan.add_argument("folder", type=Path)
     scan.add_argument("--jobs", type=int, default=os.cpu_count(), help="worker processes")
+    scan.add_argument(
+        "--no-embeddings", action="store_true", help="skip MobileCLIP (no model download)"
+    )
     report = commands.add_parser("report", help="candidates per category")
     report.add_argument("--top", type=int, default=10, help="paths listed per category")
     args = parser.parse_args(argv)
@@ -27,15 +31,16 @@ def main(argv: list[str] | None = None) -> None:
     args.index.parent.mkdir(parents=True, exist_ok=True)
     with ImageIndex(args.index) as index:
         if args.command == "scan":
-            _scan(index, args.folder, args.jobs)
+            embedder = None if args.no_embeddings else MobileClip()
+            _scan(index, args.folder, args.jobs, embedder)
         else:
             _report(index, args.top)
 
 
-def _scan(index: ImageIndex, folder: Path, jobs: int) -> None:
+def _scan(index: ImageIndex, folder: Path, jobs: int, embedder: pipeline.Embedder | None) -> None:
     if not folder.is_dir():
         sys.exit(f"not a folder: {folder}")
-    stats = pipeline.run(folder, index, jobs=jobs, progress=_progress)
+    stats = pipeline.run(folder, index, embedder=embedder, jobs=jobs, progress=_progress)
     print(
         f"\r\033[K{stats.images} images, {stats.new_or_changed} new or changed, "
         f"{stats.forgotten} gone, {stats.unreadable} unreadable, "

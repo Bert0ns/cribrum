@@ -9,7 +9,7 @@ def test_scan_then_report_lists_candidates_per_category(tmp_path, capsys):
     Image.new("RGB", (1080, 2400), "white").save(folder / "Screenshot_1.png")
     index = str(tmp_path / "index.sqlite")
 
-    main(["--index", index, "scan", str(tmp_path / "device"), "--jobs", "1"])
+    main(["--index", index, "scan", str(tmp_path / "device"), "--jobs", "1", "--no-embeddings"])
     main(["--index", index, "report"])
 
     out = capsys.readouterr().out
