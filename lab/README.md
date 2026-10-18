@@ -28,7 +28,7 @@ The lab works on copies of your images under `lab/data/`, which git ignores. To 
    lab/scripts/pull-device-images.sh
    ```
 
-The script copies the camera, pictures, screenshots, downloads and documents folders, plus the WhatsApp and Telegram image folders (in both their old and Android 11+ locations), into `lab/data/device/`. It keeps the device's folder layout, because detectors use paths as evidence, and it keeps modification times. It includes the WhatsApp folders hidden from the gallery by `.nomedia`. Videos, audio and voice notes are left out. Running it again overwrites the copies.
+The script copies the images (JPEG, PNG, WebP, GIF, HEIC) from the camera, pictures, screenshots, downloads and documents folders, and from the WhatsApp, Telegram and Instagram media folders (in both their old and Android 11+ locations), into `lab/data/device/`. Videos, audio and other files stay on the device, and so do gallery thumbnail caches (`.thumbnails`). It keeps the device's folder layout, because detectors use paths as evidence, and it keeps modification times. It includes the WhatsApp folders hidden from the gallery by `.nomedia`. Running it again overwrites the copies.
 
 To try it on a few folders first, pass them relative to `/sdcard`:
 
