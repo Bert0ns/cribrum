@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS images (
     mime TEXT,
     camera_make TEXT,
     camera_model TEXT,
-    captured_at TEXT
+    captured_at TEXT,
+    content_hash TEXT
 );
 -- Which detector version last analyzed an image, even if it emitted no signal.
 CREATE TABLE IF NOT EXISTS analyses (
@@ -66,10 +67,10 @@ class ImageIndex:
     def record(self, image: ImageRef) -> bool:
         """Adds or updates an image. Returns True if it is new or changed.
 
-        A changed image (different size or mtime) loses its metadata and signals, which
-        must be computed again. It keeps its review state: the file may only have been
-        touched, and a decision the user made must not be lost. A real edit shows up as
-        new signals, which the ranker treats as such.
+        A changed image (different size or mtime) loses its metadata, content hash and
+        signals, which must be computed again. It keeps its review state: the file may
+        only have been touched, and a decision the user made must not be lost. A real
+        edit shows up as new signals, which the ranker treats as such.
         """
         path = str(image.path)
         row = self._db.execute(
@@ -86,8 +87,8 @@ class ImageIndex:
             else:
                 self._db.execute(
                     """UPDATE images SET size = ?, mtime_ns = ?, width = NULL, height = NULL,
-                       mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL
-                       WHERE path = ?""",
+                       mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL,
+                       content_hash = NULL WHERE path = ?""",
                     (image.size, image.mtime_ns, path),
                 )
                 self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
@@ -127,6 +128,20 @@ class ImageIndex:
         return ImageMetadata(
             *fields, captured_at=datetime.fromisoformat(captured_at) if captured_at else None
         )
+
+    def set_content_hash(self, path: Path, digest: str) -> None:
+        with self._db:
+            updated = self._db.execute(
+                "UPDATE images SET content_hash = ? WHERE path = ?", (digest, str(path))
+            )
+        _require(updated.rowcount, path)
+
+    def content_hash(self, path: Path) -> str | None:
+        row = self._db.execute(
+            "SELECT content_hash FROM images WHERE path = ?", (str(path),)
+        ).fetchone()
+        _require(row, path)
+        return row[0]
 
     def set_signals(
         self, path: Path, detector_id: str, detector_version: int, signals: list[Signal]

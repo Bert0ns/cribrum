@@ -29,12 +29,14 @@ def test_record_reports_new_and_changed_images(index):
 def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index):
     index.record(PHOTO)
     index.set_metadata(PHOTO.path, META)
+    index.set_content_hash(PHOTO.path, "0123abcd")
     index.set_signals(PHOTO.path, "blur", 1, [BLUR])
     index.set_review_state(PHOTO.path, ReviewState.KEPT)
 
     index.record(ImageRef(PHOTO.path, 200, 5))  # edited, or just touched by a sync tool
 
     assert index.metadata(PHOTO.path) is None
+    assert index.content_hash(PHOTO.path) is None
     assert index.signals(PHOTO.path) == []
     assert not index.is_analyzed(PHOTO.path, "blur", 1)
     assert index.review_state(PHOTO.path) is ReviewState.KEPT
@@ -46,6 +48,15 @@ def test_metadata_round_trip(index, meta):
     index.set_metadata(PHOTO.path, meta)
 
     assert index.metadata(PHOTO.path) == meta
+
+
+def test_content_hash_round_trip(index):
+    index.record(PHOTO)
+    assert index.content_hash(PHOTO.path) is None
+
+    index.set_content_hash(PHOTO.path, "0123abcd")
+
+    assert index.content_hash(PHOTO.path) == "0123abcd"
 
 
 def test_signals_are_stored_per_detector_version(index):
@@ -83,11 +94,20 @@ def test_review_state_persists(tmp_path):
     "call",
     [
         lambda index: index.set_metadata(PHOTO.path, META),
+        lambda index: index.set_content_hash(PHOTO.path, "0123abcd"),
+        lambda index: index.content_hash(PHOTO.path),
         lambda index: index.set_signals(PHOTO.path, "blur", 1, [BLUR]),
         lambda index: index.set_review_state(PHOTO.path, ReviewState.KEPT),
         lambda index: index.review_state(PHOTO.path),
     ],
-    ids=["set_metadata", "set_signals", "set_review_state", "review_state"],
+    ids=[
+        "set_metadata",
+        "set_content_hash",
+        "content_hash",
+        "set_signals",
+        "set_review_state",
+        "review_state",
+    ],
 )
 def test_unrecorded_image_raises_key_error(index, call):
     with pytest.raises(KeyError):
