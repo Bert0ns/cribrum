@@ -1,4 +1,4 @@
-"""Analysis pipeline: scan → metadata → per-image detectors → embeddings → group detectors.
+"""Analysis pipeline: scan → metadata → embeddings → per-image detectors → group detectors.
 
 Every step stores its results as it goes and skips what the index already holds for the
 same detector version, so an interrupted run resumes where it stopped and a second run on
@@ -18,8 +18,10 @@ import xxhash
 from cribrum_lab import hashing, mobileclip
 from cribrum_lab.detectors import AnalysisContext, Detector, GroupDetector
 from cribrum_lab.detectors.blur import BlurDetector
+from cribrum_lab.detectors.document import DocumentDetector
 from cribrum_lab.detectors.exact_duplicate import ExactDuplicateDetector
 from cribrum_lab.detectors.exposure import ExposureDetector
+from cribrum_lab.detectors.forwarded import ForwardedDetector
 from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
 from cribrum_lab.detectors.screenshot import ScreenshotDetector
 from cribrum_lab.index import ImageIndex
@@ -27,7 +29,13 @@ from cribrum_lab.metadata import ImageMetadata, UnreadableImage, read_metadata
 from cribrum_lab.model import ImageRef, Signal
 from cribrum_lab.sources import FilesystemImageSource
 
-DETECTORS: list[Detector] = [BlurDetector(), ExposureDetector(), ScreenshotDetector()]
+DETECTORS: list[Detector] = [
+    BlurDetector(),
+    ExposureDetector(),
+    ScreenshotDetector(),
+    DocumentDetector(),
+    ForwardedDetector(),
+]
 GROUP_DETECTORS: list[GroupDetector] = [ExactDuplicateDetector(), NearDuplicateDetector()]
 
 Progress = Callable[[str, int, int], None]
@@ -36,6 +44,10 @@ Progress = Callable[[str, int, int], None]
 EMBEDDING_CHUNK = 256
 """Images decoded per round before the model runs: bounds the memory held by decoded pixels."""
 EMBEDDING_BATCH = 32
+
+
+class MissingEmbedding(LookupError):
+    """The run has no embedding for this image: no embedder, or it could not decode it."""
 
 
 class Embedder(Protocol):
@@ -55,6 +67,8 @@ class Stats:
     unreadable: int = 0
     detector_runs: int = 0
     """Per-image analyses, perceptual hashes and embeddings computed, plus group detector runs."""
+    skipped: int = 0
+    """Per-image analyses left for a run with embeddings."""
     failures: list[str] = field(default_factory=list)
     """Analyses that raised. They are not stored, so the next run retries them."""
 
@@ -70,8 +84,8 @@ def run(
 ) -> Stats:
     """Analyzes every image under `root`. Images under it that are gone leave the index.
 
-    Without an `embedder` no embeddings are computed, and detectors that need them get
-    an `AnalysisContext.embedding` that raises.
+    Without an `embedder` no embeddings are computed. Per-image detectors that need one
+    are skipped, without storing anything, so a later run with an embedder runs them.
     """
     progress = progress or (lambda step, done, total: None)
     root = root.resolve()
@@ -100,17 +114,24 @@ def run(
     stats.unreadable = len(unreadable & found)
 
     images = [i for i in index.images() if i.path in found]
+    readable = [i for i in images if i.path not in unreadable]
+    embeddings = {}
+    if embedder is not None:
+        _embed(embedder, index, readable, jobs, stats, progress)
+        embeddings = index.embeddings(embedder.id, embedder.version)
+
     tasks = []
-    for image in images:
-        if image.path in unreadable:
-            continue  # pixels can't be decoded either; group detectors still see the file
+    for image in readable:  # group detectors still see the unreadable files
         todo = [d for d in detectors if not index.is_analyzed(image.path, d.id, d.version)]
         needs_phash = index.perceptual_hash(image.path) is None
         if todo or needs_phash:
-            tasks.append((image, index.metadata(image.path), todo, needs_phash))
+            meta = index.metadata(image.path)
+            tasks.append((image, meta, embeddings.get(image.path), todo, needs_phash))
     for done, (image, results, phash) in enumerate(_map(_analyze, tasks, jobs), 1):
         for detector_id, version, outcome in results:
-            if isinstance(outcome, str):
+            if outcome is None:
+                stats.skipped += 1
+            elif isinstance(outcome, str):
                 stats.failures.append(f"{image.path}: {detector_id}: {outcome}")
             else:
                 index.set_signals(image.path, detector_id, version, outcome)
@@ -122,19 +143,15 @@ def run(
             stats.detector_runs += 1
         progress("detectors", done, len(tasks))
 
-    embeddings = {}
-    if embedder is not None:
-        _embed(
-            embedder, index, [i for i in images if i.path not in unreadable], jobs, stats, progress
-        )
-        embeddings = index.embeddings(embedder.id, embedder.version)
     context = AnalysisContext(
         content_hash=_cached_content_hash(index),
         perceptual_hash=_stored_perceptual_hash(index),
         metadata=_metadata(index),
         embedding=_stored_embedding(embeddings),
     )
-    fingerprint = _fingerprint(images)
+    # Embeddings change what group detectors can see: a run with them is a different run.
+    model = f"{embedder.id}:{embedder.version}:{len(embeddings)}" if embedder else ""
+    fingerprint = _fingerprint(images, model)
     for detector in group_detectors:
         if index.group_fingerprint(detector.id, detector.version) == fingerprint:
             continue
@@ -150,18 +167,25 @@ def run(
 
 
 def _analyze(
-    task: tuple[ImageRef, ImageMetadata, list[Detector], bool],
-) -> tuple[ImageRef, list[tuple[str, int, list[Signal] | str]], int | str | None]:
-    """Runs in a worker process: the metadata comes along, the index stays in the parent.
+    task: tuple[ImageRef, ImageMetadata, np.ndarray | None, list[Detector], bool],
+) -> tuple[ImageRef, list[tuple[str, int, list[Signal] | str | None]], int | str | None]:
+    """Runs in a worker process: metadata and embedding come along, the index stays in the
+    parent.
 
-    Errors come back as text, so one broken file does not stop a run over thousands.
+    Errors come back as text, so one broken file does not stop a run over thousands. A
+    detector that needs the missing embedding comes back as None.
     """
-    image, metadata, detectors, needs_phash = task
-    context = AnalysisContext(metadata=lambda _: metadata)
+    image, metadata, embedding, detectors, needs_phash = task
+    context = AnalysisContext(
+        metadata=lambda _: metadata,
+        embedding=_stored_embedding({image.path: embedding} if embedding is not None else {}),
+    )
     results = []
     for detector in detectors:
         try:
             outcome = detector.analyze(image, context)
+        except MissingEmbedding:
+            outcome = None
         except Exception as error:
             outcome = _describe(error)
         results.append((detector.id, detector.version, outcome))
@@ -252,7 +276,7 @@ def _stored_embedding(embeddings: dict[Path, np.ndarray]) -> Callable[[ImageRef]
     def embedding(image: ImageRef) -> np.ndarray:
         found = embeddings.get(image.path)
         if found is None:
-            raise LookupError(f"no embedding for {image.path}")
+            raise MissingEmbedding(image.path)
         return found
 
     return embedding
@@ -268,8 +292,8 @@ def _metadata(index: ImageIndex) -> Callable[[ImageRef], ImageMetadata]:
     return metadata
 
 
-def _fingerprint(images: Sequence[ImageRef]) -> str:
-    digest = xxhash.xxh3_64()
+def _fingerprint(images: Sequence[ImageRef], model: str) -> str:
+    digest = xxhash.xxh3_64(model.encode())
     for image in sorted(images, key=lambda i: str(i.path)):
         digest.update(f"{image.path}\0{image.size}\0{image.mtime_ns}\n".encode())
     return digest.hexdigest()

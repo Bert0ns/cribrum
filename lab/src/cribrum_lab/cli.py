@@ -44,7 +44,7 @@ def _scan(index: ImageIndex, folder: Path, jobs: int, embedder: pipeline.Embedde
     print(
         f"\r\033[K{stats.images} images, {stats.new_or_changed} new or changed, "
         f"{stats.forgotten} gone, {stats.unreadable} unreadable, "
-        f"{stats.detector_runs} detector runs",
+        f"{stats.detector_runs} detector runs, {stats.skipped} waiting for embeddings",
         file=sys.stderr,
     )
     for failure in stats.failures:
