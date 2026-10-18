@@ -10,6 +10,8 @@ The lab uses [uv](https://docs.astral.sh/uv/). `uv.lock` pins every dependency, 
 cd lab
 uv sync                   # create .venv and install everything, dev tools included
 uv run pytest             # tests
+uv run ruff check         # lint
+uv run ruff format        # format
 ```
 
 ## Data
