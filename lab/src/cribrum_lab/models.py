@@ -1,6 +1,7 @@
 """Downloads model files once into lab/data/models/, checked against a pinned SHA-256."""
 
 import hashlib
+import os
 import urllib.request
 from pathlib import Path
 
@@ -12,11 +13,12 @@ def fetch(url: str, sha256: str, path: Path) -> Path:
     if path.exists():
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
-    partial = path.with_suffix(path.suffix + ".part")
+    # One partial file per process: pipeline workers may all fetch a model at once.
+    partial = path.with_suffix(f"{path.suffix}.{os.getpid()}.part")
     urllib.request.urlretrieve(url, partial)
     digest = hashlib.sha256(partial.read_bytes()).hexdigest()
     if digest != sha256:
         partial.unlink()
         raise RuntimeError(f"{path.name}: SHA-256 {digest}, expected {sha256}")
-    partial.rename(path)
+    partial.replace(path)
     return path

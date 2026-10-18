@@ -58,7 +58,7 @@ def test_class_probabilities_sum_to_one():
 
 @pytest.mark.parametrize("text", prompts.PROMPTS["document"])
 def test_document_prompts_score_high_as_documents(text):
-    signal = analyze(DocumentDetector(), text)
+    signal = analyze(DocumentDetector(coverage=lambda _: 0.0), text)
 
     assert signal.category is Category.DOCUMENT
     assert signal.score > 0.5
@@ -66,7 +66,16 @@ def test_document_prompts_score_high_as_documents(text):
 
 
 def test_photo_of_people_is_not_a_document():
-    assert analyze(DocumentDetector(), "a group photo of friends").score < 0.1
+    assert analyze(DocumentDetector(lambda _: 0.002), "a group photo of friends").score < 0.1
+
+
+def test_text_coverage_raises_the_document_score():
+    detector = DocumentDetector(coverage=lambda _: 0.12)
+
+    signal = analyze(detector, "a photo of a landscape")
+
+    assert signal.score > 0.75
+    assert signal.evidence["text_coverage"] == "0.1200"
 
 
 def test_meme_in_a_messaging_folder_scores_highest():
