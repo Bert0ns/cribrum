@@ -12,6 +12,9 @@ dependencies = [
     "xxhash>=4.0.1",
 ]
 
+[project.scripts]
+cribrum-lab = "cribrum_lab.cli:main"
+
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.17"]
 

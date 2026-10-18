@@ -47,6 +47,16 @@ WSL2 does not see USB devices, so the Linux `adb` cannot reach a phone plugged i
 3. Every time you plug the phone in, stop the Windows adb server first (`adb kill-server`, or close Android Studio), because it holds the device. Then run `usbipd attach --wsl --busid <BUSID>` in PowerShell.
 4. In WSL, check that `adb devices` lists the phone, then run the script as above.
 
+## Analyze
+
+```bash
+cd lab
+uv run cribrum-lab scan data/device    # find and analyze every image under the folder
+uv run cribrum-lab report              # candidates per category, top 10 paths each
+```
+
+`scan` stores everything in `lab/data/index.sqlite` as it goes. Run it again after an interruption or after copying new images: it only analyzes what is new or changed, or what a newer detector version has not seen yet. Images that are gone from the folder leave the index. `--jobs` sets the number of worker processes (all cores by default). The index refuses to open if its schema version changed: delete it and scan again.
+
 ## Layout
 
 | Module | Contents |
@@ -60,4 +70,6 @@ WSL2 does not see USB devices, so the Linux `adb` cannot reach a phone plugged i
 | `cribrum_lab.screens` | Known screen resolutions, for screenshots |
 | `cribrum_lab.folders` | What a folder says about an image: camera or messaging app |
 | `cribrum_lab.detectors` | `Detector` interface and its implementations |
+| `cribrum_lab.pipeline` | `run`: scan, metadata, detectors and group detectors into the index |
+| `cribrum_lab.cli` | The `cribrum-lab` command |
 | `cribrum_lab.ranker` | `Ranker`: per-category thresholds, candidates and the review order |
