@@ -22,6 +22,22 @@ class Category(Enum):
     FORWARDED = "forwarded"
 
 
+class Protection(Enum):
+    """Hints that an image is a memory. They lower it in the review order, never remove it."""
+
+    FACES = "faces"
+    FAVORITE = "favorite"  # Android only: MediaStore's IS_FAVORITE
+    ALBUM = "album"  # Android only: the image is in an album the user made
+
+
+def kind(value: str) -> "Category | Protection":
+    """The Category or Protection a stored value names."""
+    try:
+        return Category(value)
+    except ValueError:
+        return Protection(value)
+
+
 class ReviewState(Enum):
     UNREVIEWED = "unreviewed"
     KEPT = "kept"
@@ -39,14 +55,15 @@ class ImageRef:
 
 @dataclass(frozen=True)
 class Signal:
-    """A detector's evidence that an image may belong to a deletable category.
+    """A detector's evidence that an image may belong to a deletable category, or, with a
+    `Protection` instead, that it may be a memory.
 
     Signals never decide on their own: the ranker combines them.
     """
 
     detector_id: str
     detector_version: int
-    category: Category
+    category: Category | Protection
     score: float
     evidence: dict[str, str] = field(default_factory=dict)
 
@@ -55,7 +72,7 @@ class Signal:
             raise ValueError(f"score must be in [0, 1], got {self.score}")
 
     @property
-    def identity(self) -> tuple[Category, str, str]:
+    def identity(self) -> tuple[Category | Protection, str, str]:
         """What the signal says, whatever the detector version and score: category, group
         and role. The ranker uses it to tell a new signal from one the user already saw.
         """
@@ -69,5 +86,5 @@ class IndexedImage:
     ref: ImageRef
     review_state: ReviewState = ReviewState.UNREVIEWED
     signals: tuple[Signal, ...] = ()
-    seen_when_kept: frozenset[tuple[Category, str, str]] = frozenset()
+    seen_when_kept: frozenset[tuple[Category | Protection, str, str]] = frozenset()
     """Identities of the signals the image had when the user kept it."""
