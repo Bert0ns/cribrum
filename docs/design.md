@@ -91,7 +91,7 @@ These signals hint that an image is a memory: faces, favorites, membership in a 
 Each image carries a review state:
 
 - `UNREVIEWED`: candidate as usual.
-- `KEPT`: the user reviewed it and chose to keep it. It is not suggested again unless a **new** signal appears. For example, a higher-resolution copy shows up and turns this one into the inferior duplicate.
+- `KEPT`: the user reviewed it and chose to keep it. It is not suggested again unless a **new** signal appears. For example, a higher-resolution copy shows up and turns this one into the inferior duplicate. Keeping an image records the identity of each signal it has (category, group, role). A signal is new when its identity is not among them: a newer detector version, a higher score or a retuned threshold is not new.
 - `TRASHED`: in the app trash.
 
 ### 6.4 "Review everything" mode

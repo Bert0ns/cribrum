@@ -4,6 +4,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
+GROUP_KEY = "group"
+"""Evidence key holding the id of the group an image belongs to."""
+
+ROLE_KEY = "role"
+"""Evidence key holding the image's role within its group (`detectors.Role`)."""
+
 
 class Category(Enum):
     EXACT_DUPLICATE = "exact_duplicate"
@@ -47,3 +53,21 @@ class Signal:
     def __post_init__(self) -> None:
         if not 0.0 <= self.score <= 1.0:
             raise ValueError(f"score must be in [0, 1], got {self.score}")
+
+    @property
+    def identity(self) -> tuple[Category, str, str]:
+        """What the signal says, whatever the detector version and score: category, group
+        and role. The ranker uses it to tell a new signal from one the user already saw.
+        """
+        return self.category, self.evidence.get(GROUP_KEY, ""), self.evidence.get(ROLE_KEY, "")
+
+
+@dataclass(frozen=True)
+class IndexedImage:
+    """An image as the ranker sees it."""
+
+    ref: ImageRef
+    review_state: ReviewState = ReviewState.UNREVIEWED
+    signals: tuple[Signal, ...] = ()
+    seen_when_kept: frozenset[tuple[Category, str, str]] = frozenset()
+    """Identities of the signals the image had when the user kept it."""

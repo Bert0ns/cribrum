@@ -60,3 +60,4 @@ WSL2 does not see USB devices, so the Linux `adb` cannot reach a phone plugged i
 | `cribrum_lab.screens` | Known screen resolutions, for screenshots |
 | `cribrum_lab.folders` | What a folder says about an image: camera or messaging app |
 | `cribrum_lab.detectors` | `Detector` interface and its implementations |
+| `cribrum_lab.ranker` | `Ranker`: per-category thresholds, candidates and the review order |

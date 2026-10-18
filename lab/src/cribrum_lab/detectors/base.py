@@ -10,12 +10,6 @@ from cribrum_lab.metadata import ImageMetadata, read_metadata
 from cribrum_lab.model import ImageRef, Signal
 from cribrum_lab.screens import SCREEN_SIZES
 
-GROUP_KEY = "group"
-"""Evidence key holding the id of the group an image belongs to."""
-
-ROLE_KEY = "role"
-"""Evidence key holding the image's `Role` within its group."""
-
 
 class Role(StrEnum):
     BEST = "best"

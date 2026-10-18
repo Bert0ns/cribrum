@@ -3,9 +3,9 @@
 from collections import defaultdict
 from collections.abc import Sequence
 
-from cribrum_lab.detectors.base import GROUP_KEY, ROLE_KEY, AnalysisContext, Role
+from cribrum_lab.detectors.base import AnalysisContext, Role
 from cribrum_lab.folders import is_camera_folder, is_messaging_folder
-from cribrum_lab.model import Category, ImageRef, Signal
+from cribrum_lab.model import GROUP_KEY, ROLE_KEY, Category, ImageRef, Signal
 
 
 class ExactDuplicateDetector:
