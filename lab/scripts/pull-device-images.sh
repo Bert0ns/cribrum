@@ -1,34 +1,39 @@
 #!/usr/bin/env bash
-# Copies the image folders of the connected Android device into lab/data/device/,
+# Copies the images of the connected Android device into lab/data/device/,
 # keeping the device's folder layout and modification times (docs/design.md, section 10).
-# Usage: lab/scripts/pull-device-images.sh
+# Videos, audio and other files stay on the device.
+# Usage: lab/scripts/pull-device-images.sh [FOLDER...]
+#   FOLDER is relative to /sdcard; without any, the default folders below are copied.
 set -euo pipefail
 
 dest="$(cd "$(dirname "$0")/.." && pwd)/data/device"
 folders=(DCIM Pictures Download Documents Screenshots)
 # Messaging apps moved under Android/media/ with Android 11; upgraded phones may still use the old place.
-for whatsapp in WhatsApp/Media Android/media/com.whatsapp/WhatsApp/Media; do
-  folders+=(
-    "$whatsapp/WhatsApp Images"  # Sent/ and Private/ have .nomedia: the gallery never shows them
-    "$whatsapp/WhatsApp Stickers"
-    "$whatsapp/WhatsApp Documents"
-    "$whatsapp/.Statuses"
-  )
-done
-for telegram in Telegram Android/media/org.telegram.messenger/Telegram; do
-  folders+=("$telegram/Telegram Images" "$telegram/Telegram Documents")
-done
+# WhatsApp's Sent/ and Private/ folders have .nomedia: the gallery never shows them.
+folders+=(WhatsApp/Media Android/media/com.whatsapp/WhatsApp/Media)
+folders+=(Telegram Android/media/org.telegram.messenger/Telegram)
+folders+=(Android/media/com.instagram.android)
+if (($#)); then
+  folders=("$@")
+fi
 
 adb get-state >/dev/null  # fails early when no device is connected
 
+found=()
 for folder in "${folders[@]}"; do
-  if ! adb shell "test -d '/sdcard/$folder'"; then
+  if adb shell "test -d '/sdcard/$folder'"; then
+    found+=("'$folder'")
+  else
     echo "skip: /sdcard/$folder not found"
-    continue
   fi
-  parent="$dest/$(dirname "$folder")"
-  mkdir -p "$parent"
-  adb pull -a "/sdcard/$folder" "$parent"
 done
+((${#found[@]})) || exit 0
+
+# One tar stream instead of one adb pull per file. Gallery thumbnail caches are not photos.
+# exec-out mixes stderr into the stream, so the device side must stay silent.
+images="-iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.webp' -o -iname '*.gif' -o -iname '*.heic' -o -iname '*.heif'"
+mkdir -p "$dest"
+adb exec-out "cd /sdcard && find ${found[*]} -type d -name .thumbnails -prune -o -type f \( $images \) -print 2>/dev/null | tar -cf - -T - 2>/dev/null" \
+  | tar -xf - -C "$dest"
 
 echo "Images copied to $dest"
