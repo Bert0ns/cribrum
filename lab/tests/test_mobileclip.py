@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from cribrum_lab import mobileclip
+from cribrum_lab import mobileclip, models
 from cribrum_lab.mobileclip import MODELS, MobileClip, model_file, preprocess, zero_shot
 
 HAS_MODEL = all((MODELS / name).exists() for name in mobileclip._FILES)
@@ -69,7 +69,7 @@ def test_model_file_with_a_wrong_checksum_is_rejected(tmp_path, monkeypatch):
         assert mobileclip._REVISION in url
         path.write_bytes(b"not the model")
 
-    monkeypatch.setattr(mobileclip.urllib.request, "urlretrieve", download)
+    monkeypatch.setattr(models.urllib.request, "urlretrieve", download)
 
     with pytest.raises(RuntimeError, match="SHA-256"):
         model_file("tokenizer.json", tmp_path)
@@ -88,7 +88,7 @@ def test_model_file_is_downloaded_once(tmp_path, monkeypatch):
         downloads.append(url)
         path.write_bytes(content)
 
-    monkeypatch.setattr(mobileclip.urllib.request, "urlretrieve", download)
+    monkeypatch.setattr(models.urllib.request, "urlretrieve", download)
 
     assert model_file("tokenizer.json", tmp_path).read_bytes() == content
     assert model_file("tokenizer.json", tmp_path).read_bytes() == content
