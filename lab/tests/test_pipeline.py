@@ -69,8 +69,9 @@ def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index
     stats = pipeline.run(photos, index)
 
     assert stats.new_or_changed == 1
+    without_embeddings = 3  # blur, exposure, screenshot: the others wait for embeddings
     phash = 1
-    assert stats.detector_runs == len(pipeline.DETECTORS) + phash + len(pipeline.GROUP_DETECTORS)
+    assert stats.detector_runs == without_embeddings + phash + len(pipeline.GROUP_DETECTORS)
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
     assert Category.EXACT_DUPLICATE not in categories(index, copy)
 
@@ -134,13 +135,14 @@ def test_worker_processes_give_the_same_signals(photos, tmp_path, index):
 
 
 class MeanColorEmbedder:
-    """Embeds an image as its normalized mean color, padded: enough to tell images apart."""
+    """Embeds an image as its mean color, padded to MobileCLIP's 512 values."""
 
     id = "mean_color"
     version = 1
 
     def embed_pixels(self, pixels):
-        vectors = np.concatenate([pixels.mean(axis=(2, 3)), np.ones((len(pixels), 1))], axis=1)
+        vectors = np.ones((len(pixels), 512))
+        vectors[:, :3] = pixels.mean(axis=(2, 3))
         return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
@@ -175,3 +177,31 @@ def test_without_an_embedder_the_lookup_raises(photos, index):
 
     with pytest.raises(LookupError):
         pipeline.run(photos, index, group_detectors=[reader])
+
+
+class EmbeddingDetector:
+    id = "embedding_user"
+    version = 1
+
+    def analyze(self, image, context):
+        return [
+            Signal(self.id, self.version, Category.DOCUMENT, float(context.embedding(image)[0]))
+        ]
+
+
+def test_detector_needing_embeddings_waits_for_a_run_with_them(photos, index):
+    stats = pipeline.run(photos, index, detectors=[EmbeddingDetector()], group_detectors=[])
+
+    assert stats.skipped == 3
+    assert stats.failures == []
+
+    stats = pipeline.run(
+        photos,
+        index,
+        detectors=[EmbeddingDetector()],
+        group_detectors=[],
+        embedder=MeanColorEmbedder(),
+    )
+
+    assert stats.skipped == 0
+    assert stats.detector_runs == 3 + 3  # embeddings, then the detector

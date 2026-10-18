@@ -74,4 +74,5 @@ The first `scan` downloads MobileCLIP-S0 (45 MB) into `lab/data/models/`; `--no-
 | `cribrum_lab.cli` | The `cribrum-lab` command |
 | `cribrum_lab.runtime` | `ModelRuntime` interface and `OnnxRuntime` |
 | `cribrum_lab.mobileclip` | MobileCLIP-S0 image and text embeddings, zero-shot scores |
+| `cribrum_lab.prompts` | Zero-shot classes and prompts; their embeddings are committed in `prompt_embeddings.json` |
 | `cribrum_lab.ranker` | `Ranker`: per-category thresholds, candidates and the review order |
