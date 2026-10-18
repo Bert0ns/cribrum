@@ -47,10 +47,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.035",
-      "prompt": "a photo of a ticket or a bill"
+      "prompt": "a photo of a ticket or a bill",
+      "text_coverage": "0.0000"
      },
      "score": 0.035,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -133,10 +134,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.192",
-      "prompt": "a photo of a document"
+      "prompt": "a photo of a document",
+      "text_coverage": "0.0000"
      },
      "score": 0.192,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -207,10 +209,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.029",
-      "prompt": "a photo of a presentation slide on a screen"
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0525"
      },
-     "score": 0.0288,
-     "version": 1
+     "score": 0.4369,
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -305,10 +308,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.051",
-      "prompt": "a photo of a presentation slide on a screen"
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0279"
      },
-     "score": 0.0507,
-     "version": 1
+     "score": 0.2629,
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -403,10 +407,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.043",
-      "prompt": "a photo of a presentation slide on a screen"
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0455"
      },
-     "score": 0.0433,
-     "version": 1
+     "score": 0.3913,
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -501,10 +506,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.114",
-      "prompt": "a photo of a blackboard with writing"
+      "prompt": "a photo of a blackboard with writing",
+      "text_coverage": "0.0000"
      },
      "score": 0.1142,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -576,10 +582,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.016",
-      "prompt": "a photo of a presentation slide on a screen"
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0000"
      },
      "score": 0.0159,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -685,10 +692,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.926",
-      "prompt": "a photo of a printed page of text"
+      "prompt": "a photo of a printed page of text",
+      "text_coverage": "0.1376"
      },
-     "score": 0.9261,
-     "version": 1
+     "score": 0.9852,
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -759,10 +767,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.018",
-      "prompt": "a photo of a presentation slide on a screen"
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0000"
      },
      "score": 0.0176,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -845,10 +854,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.172",
-      "prompt": "a photo of a form or a contract"
+      "prompt": "a photo of a form or a contract",
+      "text_coverage": "0.0000"
      },
      "score": 0.1723,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
@@ -919,10 +929,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.016",
-      "prompt": "a photo of a presentation slide on a screen"
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0000"
      },
      "score": 0.0159,
-     "version": 1
+     "version": 2
     },
     {
      "category": "forwarded",
