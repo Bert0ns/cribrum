@@ -15,7 +15,7 @@ from typing import Self
 import numpy as np
 
 from cribrum_lab.metadata import ImageMetadata
-from cribrum_lab.model import Category, ImageRef, IndexedImage, ReviewState, Signal
+from cribrum_lab.model import ImageRef, IndexedImage, ReviewState, Signal, kind
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS images (
@@ -319,7 +319,7 @@ class ImageIndex:
             (str(path),),
         )
         return [
-            Signal(detector_id, version, Category(category), score, json.loads(evidence))
+            Signal(detector_id, version, kind(category), score, json.loads(evidence))
             for detector_id, version, category, score, evidence in rows
         ]
 
@@ -357,11 +357,11 @@ class ImageIndex:
         ):
             detector_id, version, category, score = fields
             signals[path].append(
-                Signal(detector_id, version, Category(category), score, json.loads(evidence))
+                Signal(detector_id, version, kind(category), score, json.loads(evidence))
             )
         seen = defaultdict(set)
         for path, category, group, role in self._db.execute("SELECT * FROM kept_signals"):
-            seen[path].add((Category(category), group, role))
+            seen[path].add((kind(category), group, role))
         rows = self._db.execute(
             "SELECT path, size, mtime_ns, review_state FROM images ORDER BY path"
         )

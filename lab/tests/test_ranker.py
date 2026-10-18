@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from cribrum_lab.detectors import GROUP_KEY, ROLE_KEY, Role
-from cribrum_lab.model import Category, ImageRef, IndexedImage, ReviewState, Signal
+from cribrum_lab.model import Category, ImageRef, IndexedImage, Protection, ReviewState, Signal
 from cribrum_lab.ranker import Ranker
 
 THRESHOLDS = {Category.BLURRY: 0.5, Category.SCREENSHOT: 0.8, Category.EXACT_DUPLICATE: 0.5}
@@ -158,3 +158,47 @@ def test_threshold_of_one_passes_only_a_perfect_score():
     ranked = Ranker({Category.BLURRY: 1.0}).rank([image("a", blur(1.0)), image("b", blur(0.9))])
 
     assert [c.is_candidate for c in ranked] == [True, False]
+
+
+def faces(score=1.0):
+    return Signal("faces", 1, Protection.FACES, score, {"faces": "2"})
+
+
+def test_protection_lowers_an_image_but_keeps_it_a_candidate():
+    order = rank(image("people", blur(0.9), faces()), image("wall", blur(0.8)))
+
+    assert names(order) == ["wall", "people"]
+    assert all(c.is_candidate for c in order)
+    assert order[1].reasons == (blur(0.9),)
+
+
+def test_protected_candidate_still_comes_before_every_non_candidate():
+    order = rank(
+        image("people", blur(0.5), faces(), Signal("x", 1, Protection.FAVORITE, 1.0)),
+        image("unflagged", blur(0.49)),
+    )
+
+    assert names(order) == ["people", "unflagged"]
+
+
+def test_protection_signal_alone_never_makes_a_candidate():
+    [candidate] = rank(image("people", faces()))
+
+    assert not candidate.is_candidate
+
+
+def test_unique_image_ranks_below_an_equally_scored_duplicate():
+    order = rank(
+        image("unique", blur(0.9)),
+        image("copy", blur(0.9), duplicate("g", Role.INFERIOR)),
+        image("best", blur(0.9), duplicate("g", Role.BEST)),
+    )
+
+    assert names(order)[-1] == "unique"
+    assert order[-1].protection < 1.0
+
+
+def test_by_category_applies_protection_too():
+    order = rank(image("people", blur(0.9), faces()), image("wall", blur(0.8)))
+
+    assert names(Ranker.by_category(order)[Category.BLURRY]) == ["wall", "people"]

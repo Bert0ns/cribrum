@@ -7,7 +7,7 @@ import pytest
 
 from cribrum_lab.index import ImageIndex, IndexVersionError
 from cribrum_lab.metadata import ImageMetadata
-from cribrum_lab.model import Category, ImageRef, ReviewState, Signal
+from cribrum_lab.model import Category, ImageRef, Protection, ReviewState, Signal
 
 PHOTO = ImageRef(Path("/photos/a.jpg"), 100, 1)
 META = ImageMetadata(4000, 3000, "image/jpeg", "Google", "Pixel 8", datetime(2024, 5, 1, 10, 20))
@@ -243,3 +243,13 @@ def test_index_from_another_schema_version_is_refused(tmp_path):
 
     with pytest.raises(IndexVersionError):
         ImageIndex(db)
+
+
+def test_protection_signals_round_trip(index):
+    index.record(PHOTO)
+    faces = Signal("faces", 1, Protection.FACES, 0.8, {"faces": "3"})
+
+    index.set_signals(PHOTO.path, "faces", 1, [faces])
+
+    assert index.signals(PHOTO.path) == [faces]
+    assert index.indexed_images()[0].signals == (faces,)
