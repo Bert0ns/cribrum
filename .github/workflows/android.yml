@@ -1,0 +1,27 @@
+name: android
+
+on:
+  push:
+    branches: [main]
+    paths: ["android/**", "fixtures/**", ".github/workflows/android.yml"]
+  pull_request:
+    paths: ["android/**", "fixtures/**", ".github/workflows/android.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug
+      - uses: actions/upload-artifact@v5
+        with:
+          name: cribrum-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
