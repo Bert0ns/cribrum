@@ -83,3 +83,10 @@ def test_unreadable_file_raises(tmp_path):
 
     with pytest.raises(UnreadableImage):
         read_metadata(path)
+
+
+def test_reads_photos_above_pillow_pixel_limit(tmp_path):
+    path = tmp_path / "200mp.png"
+    Image.new("1", (16320, 12240)).save(path)  # 200 MP sensor; 1-bit keeps the test file small
+
+    assert (read_metadata(path).width, read_metadata(path).height) == (16320, 12240)
