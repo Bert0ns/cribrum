@@ -35,8 +35,8 @@ class AppTrashDeviceTest {
     }
 
     @After
-    fun cleanUp() = runBlocking {
-        trash.purge(trash.trashed().map { it.original }.filter { it.path.startsWith(folder.path) })
+    fun cleanUp() {
+        runBlocking { trash.purge(trash.trashed().map { it.original }.filter { it.path.startsWith(folder.path) }) }
         folder.deleteRecursively()
     }
 
