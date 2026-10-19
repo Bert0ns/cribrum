@@ -47,6 +47,7 @@ import io.github.bert0ns.cribrum.ui.CategoryScreen
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.ScanStatus
 import io.github.bert0ns.cribrum.ui.Screen
+import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
 
@@ -116,6 +117,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                         when (screen) {
                             Screen.Home -> stringResource(R.string.app_name)
                             is Screen.Category -> categoryName(screen.category)
+                            Screen.Trash -> stringResource(R.string.trash)
                         },
                     )
                 },
@@ -133,11 +135,12 @@ fun App(model: ReviewViewModel = viewModel()) {
             when (screen) {
                 Screen.Home -> {
                     ScanStatus(progress, onScan = { Indexing.scanNow(context) })
-                    CategoryList(state.categories, model::open)
+                    CategoryList(state.categories, model::open, model::openTrash)
                 }
                 is Screen.Category -> CategoryScreen(
                     state.page, state.remaining, state.marked, screen.category in GROUP_CATEGORIES, model::toggle, model::applyPage,
                 )
+                Screen.Trash -> TrashScreen(state.trashed, state.selected, model::select, model::restoreSelected, model::emptyTrash)
             }
         }
     }

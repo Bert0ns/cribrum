@@ -31,6 +31,7 @@
         <item quantity="other">The last %2$d images to review.</item>
     </plurals>
     <string name="back">Back</string>
+    <string name="trash">Trash</string>
     <string name="review_hint">Marked images go to the trash. Tap one to keep it, hold it to see it full size.</string>
     <string name="best_copy">Best</string>
     <string name="apply">Trash %1$d, keep %2$d</string>
@@ -50,6 +51,17 @@
         <item quantity="other">%d images changed since the scan and stayed where they were</item>
     </plurals>
     <string name="undo">Undo</string>
+    <string name="trash_empty">The trash is empty.</string>
+    <string name="trash_hint">Tap images to select them. They are deleted for good 30 days after they were trashed.</string>
+    <string name="days_left">%1$dd left</string>
+    <string name="restore">Restore %1$d</string>
+    <string name="empty_trash">Empty trash</string>
+    <plurals name="empty_trash_title">
+        <item quantity="one">Delete %d image for good?</item>
+        <item quantity="other">Delete %d images for good?</item>
+    </plurals>
+    <string name="empty_trash_body">This cannot be undone.</string>
+    <string name="delete">Delete</string>
     <string name="selected_for_trash">Marked for the trash</string>
     <string name="kept">Kept</string>
 </resources>
