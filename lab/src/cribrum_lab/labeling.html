@@ -32,7 +32,7 @@
   <div id="path"></div>
 </footer>
 <script>
-let items = [], groups = [], categories = {}, position = 0, history = [], labeled = 0;
+let items = [], groups = [], position = 0, history = [], labeled = 0;
 let excluded = new Set(), hovered = null, zoom = null;
 
 async function post(url, body) {
@@ -154,13 +154,13 @@ function show() {
   }
 }
 
-async function label(decision, category) {
+async function label(decision) {
   if (position >= groups.length) return;
   const chosen = groups[position].filter(item => !excluded.has(item));
-  if (chosen.length) await post("/api/label", {items: chosen, decision, category});
+  if (chosen.length) await post("/api/label", {items: chosen, decision});
   history.push({position, items: chosen});
   labeled += chosen.length;
-  setStatus(`${category ? `${decision}: ${category}` : decision} (${chosen.length})`, decision);
+  setStatus(`${decision} (${chosen.length})`, decision);
   position++;
   show();
 }
@@ -191,7 +191,6 @@ document.addEventListener("keydown", event => {
   let action = null;
   if (key === "k") action = label("keep");
   else if (key === "d") action = label("delete");
-  else if (categories[key]) action = label("delete", categories[key]);
   else if (key === "u" || key === "backspace") action = undo();
   else if (key === "s" && position < groups.length) { position++; setStatus("skipped"); show(); }
   if (action) action.catch(error => setStatus(`error: ${error.message}`, "delete"));
@@ -200,11 +199,8 @@ document.addEventListener("keydown", event => {
 fetch("/api/queue").then(r => r.json()).then(queue => {
   items = queue.items;
   groups = queue.groups;
-  categories = queue.categories;
-  const digits = Object.entries(categories).map(([k, c]) => `<kbd>${k}</kbd> ${c}`).join(" ");
-  document.getElementById("keys").innerHTML =
-    `<kbd>k</kbd> keep · <kbd>d</kbd> delete · ${digits} · <kbd>u</kbd> undo · <kbd>s</kbd> skip` +
-    " · <kbd>z</kbd> zoom";
+  document.getElementById("keys").innerHTML = "<kbd>k</kbd> keep · <kbd>d</kbd> delete · " +
+    "<kbd>u</kbd> undo · <kbd>s</kbd> skip · <kbd>z</kbd> zoom";
   show();
 });
 </script>

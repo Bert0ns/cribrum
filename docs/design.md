@@ -192,8 +192,8 @@ Goal: prove that the detectors work on real data before writing the app.
 
 1. **Collect:** copy the device's images to a local folder (`adb pull`, or a USB file transfer), messaging-app folders included. Image data is never committed.
 2. **Detect:** implement the detectors behind the same interfaces as §7.
-3. **Label:** a keyboard-driven labeling tool (`k` = keep, `d` = delete, digits = category). MobileCLIP clusters similar images so a whole cluster can be labeled at once. Target: 500–1,000 labeled images.
-4. **Measure:** per-category **recall** first, then the number of candidates it costs. Target: at least ~95% recall on deletable images.
+3. **Label:** a keyboard-driven labeling tool (`k` = keep, `d` = delete). A label carries no category: the labeler can tell what to keep, but not which detector should catch it, and asking for one turned out slow and error-prone. MobileCLIP clusters similar images so a whole cluster can be labeled at once. Target: 500–1,000 labeled images.
+4. **Measure:** **recall** first, then the number of candidates it costs. The per-category thresholds are chosen together, for the recall of all categories at once. Target: at least ~95% recall on deletable images.
 5. **Freeze:** export golden fixtures (sample images with expected signals) for the Kotlin implementation's tests. The fixture images are synthetic, generated from fixed seeds (`fixtures/`), never personal photos.
 
 ## 11. Future work and open questions

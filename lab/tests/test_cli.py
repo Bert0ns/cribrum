@@ -2,7 +2,6 @@ from PIL import Image
 
 from cribrum_lab.cli import main
 from cribrum_lab.labels import Decision, Label, LabelStore
-from cribrum_lab.model import Category
 
 
 def test_scan_then_report_lists_candidates_per_category(tmp_path, capsys):
@@ -28,7 +27,7 @@ def test_evaluate_prints_recall(tmp_path, capsys):
     main(["--index", index, "scan", str(folder), "--jobs", "1", "--no-embeddings"])
     with LabelStore(labels) as store:
         path = (folder / "Screenshot_1.png").resolve()
-        store.set(Label("h", path, Decision.DELETE, Category.SCREENSHOT))
+        store.set(Label("h", path, Decision.DELETE))
 
     main(["--index", index, "evaluate", "--labels", str(labels), "--out", str(tmp_path / "r.txt")])
 

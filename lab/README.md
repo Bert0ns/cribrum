@@ -74,7 +74,7 @@ The first `scan` downloads MobileCLIP-S0 (45 MB) and PP-OCRv4's text detector (5
 uv run cribrum-lab label               # then open http://127.0.0.1:8765/
 ```
 
-The page shows one image at a time from a sample of 500 (`--size`). Half of the sample are candidates, spread over every category, and half are images no detector flagged, so that recall can also be measured on what the detectors missed. Keys: `k` keep, `d` delete, `1`-`8` delete for a given category (listed on the page), `u` undo, `s` skip. To check whether an image is really blurry, click it or press `z`: the original opens at full size, where 100% is one image pixel per screen pixel. The mouse wheel zooms, dragging moves the image, and `z` or `Esc` closes it. In a grid, `z` zooms on the image under the mouse. Labels go to `lab/data/labels.sqlite` and are keyed by content hash, so they survive copying the images again. A new run of `label` skips images that are already labeled; `--seed` draws a different sample.
+The page shows one image at a time from a sample of 500 (`--size`). Half of the sample are candidates, spread over every category, and half are images no detector flagged, so that recall can also be measured on what the detectors missed. Keys: `k` keep, `d` delete, `u` undo, `s` skip. A label says only whether you would keep the image: the detectors work out why. To check whether an image is really blurry, click it or press `z`: the original opens at full size, where 100% is one image pixel per screen pixel. The mouse wheel zooms, dragging moves the image, and `z` or `Esc` closes it. In a grid, `z` zooms on the image under the mouse. Labels go to `lab/data/labels.sqlite` and are keyed by content hash, so they survive copying the images again. A new run of `label` skips images that are already labeled; `--seed` draws a different sample.
 
 With `--clusters`, similar images in the sample (by MobileCLIP embedding) come first, as grids of up to 48: click an image to leave it out, then one key labels the rest. The images left out and those alike to no other are shown one by one afterwards, or in a later session.
 
@@ -84,7 +84,7 @@ With `--clusters`, similar images in the sample (by MobileCLIP embedding) come f
 uv run cribrum-lab evaluate            # --out data/report.txt to keep a copy
 ```
 
-Prints the recall on the labeled images, overall and per category, with the number of candidates it costs over the whole index. For each category it suggests the highest threshold that still reaches 95% recall: copy the ones you trust into `THRESHOLDS` in `cribrum_lab/ranker.py`. It ends with the images labeled delete that no detector flagged. The report lists paths of personal images, so keep it under `lab/data/`.
+Prints the recall on the labeled images with the current thresholds, and the number of candidates it costs over the whole index. Per category, it counts the images labeled delete and keep that the category flags. Then it suggests a threshold for every category, chosen together so that all categories at once reach 95% recall with as few candidates as it can find: copy them into `THRESHOLDS` in `cribrum_lab/ranker.py`. It ends with the images labeled delete that no detector flagged. The report lists paths of personal images, so keep it under `lab/data/`.
 
 ## Layout
 

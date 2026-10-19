@@ -11,17 +11,16 @@ from enum import Enum
 from pathlib import Path
 from typing import Self
 
-from cribrum_lab.model import Category
-
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS labels (
     content_hash TEXT PRIMARY KEY,
     path TEXT NOT NULL,
     decision TEXT NOT NULL,
-    category TEXT,
     labeled_at TEXT NOT NULL
 );
 """
+# Databases from before labels were only keep or delete also have a category column, which
+# is left empty: naming columns in every query works with both.
 
 
 class Decision(Enum):
@@ -34,8 +33,6 @@ class Label:
     content_hash: str
     path: Path
     decision: Decision
-    category: Category | None = None
-    """Why the image is deletable, when the labeler said so."""
 
 
 class LabelStore:
@@ -56,12 +53,12 @@ class LabelStore:
         """Adds a label, or replaces the one the same content already had."""
         with self._db:
             self._db.execute(
-                "INSERT OR REPLACE INTO labels VALUES (?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO labels (content_hash, path, decision, labeled_at) "
+                "VALUES (?, ?, ?, ?)",
                 (
                     label.content_hash,
                     str(label.path),
                     label.decision.value,
-                    label.category.value if label.category else None,
                     datetime.now(UTC).isoformat(),
                 ),
             )
@@ -72,9 +69,6 @@ class LabelStore:
 
     def all(self) -> list[Label]:
         rows = self._db.execute(
-            "SELECT content_hash, path, decision, category FROM labels ORDER BY labeled_at"
+            "SELECT content_hash, path, decision FROM labels ORDER BY labeled_at"
         )
-        return [
-            Label(digest, Path(path), Decision(decision), Category(category) if category else None)
-            for digest, path, decision, category in rows
-        ]
+        return [Label(digest, Path(path), Decision(decision)) for digest, path, decision in rows]
