@@ -111,7 +111,15 @@ def test_thumbnails_for_grids_are_smaller(server):
         assert max(image.size) == 400
 
 
-@pytest.mark.parametrize("path", ["/image/3", "/image/-1", "/image/../etc/passwd", "/nope"])
+def test_originals_for_zooming_keep_every_pixel(server):
+    with Image.open(io.BytesIO(get(server, "/original/0"))) as image:
+        assert image.format == "JPEG"
+        assert image.size == (3000, 2000)
+
+
+@pytest.mark.parametrize(
+    "path", ["/image/3", "/image/-1", "/image/../etc/passwd", "/original/3", "/nope"]
+)
 def test_only_queued_images_are_served(server, path):
     with pytest.raises(urllib.error.HTTPError) as error:
         get(server, path)

@@ -26,7 +26,7 @@ CATEGORY_KEYS = {str(i): category for i, category in enumerate(Category, 1)}
 PREVIEW_SIDE = 1600
 """Browsers can't show HEIC: every image is sent as a JPEG this size at most."""
 THUMBNAIL_SIDE = 400
-"""Size of each image in a cluster's grid."""
+"""Size of each image in a cluster's grid. Zooming in loads the original at full size."""
 CLUSTER_COSINE = 0.8
 """Embedding similarity to a cluster's first image that still joins the cluster."""
 MAX_CLUSTER = 48
@@ -98,13 +98,16 @@ def clusters(
     return sorted((g for g in groups if len(g) > 1), key=len, reverse=True)
 
 
-def preview(path: Path, side: int = PREVIEW_SIDE) -> bytes:
+def preview(path: Path, side: int | None = PREVIEW_SIDE) -> bytes:
+    """A JPEG of the image at most `side` pixels wide and high, or at full size if None."""
     with Image.open(path) as image:
-        image.draft("RGB", (side, side))
+        if side:
+            image.draft("RGB", (side, side))
         image = ImageOps.exif_transpose(image).convert("RGB")
-        image.thumbnail((side, side))
+        if side:
+            image.thumbnail((side, side))
         buffer = io.BytesIO()
-        image.save(buffer, "JPEG", quality=85)
+        image.save(buffer, "JPEG", quality=85 if side else 95)
         return buffer.getvalue()
 
 
@@ -150,12 +153,12 @@ class _Handler(BaseHTTPRequestHandler):
             items = [{"path": str(image.path)} for image in self.server.queue]
             keys = {key: category.value for key, category in CATEGORY_KEYS.items()}
             self._json({"items": items, "groups": self.server.groups, "categories": keys})
-        elif self.path.startswith(("/image/", "/thumbnail/")):
+        elif self.path.startswith(("/image/", "/thumbnail/", "/original/")):
             kind, _, number = self.path[1:].partition("/")
             item = self._item(number)
             if item is None:
                 return
-            side = PREVIEW_SIDE if kind == "image" else THUMBNAIL_SIDE
+            side = {"image": PREVIEW_SIDE, "thumbnail": THUMBNAIL_SIDE, "original": None}[kind]
             try:
                 self._send(preview(self.server.queue[item].path, side), "image/jpeg")
             except Exception as error:  # an undecodable file must not stop the session

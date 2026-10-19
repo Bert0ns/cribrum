@@ -17,6 +17,11 @@
   #path { color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status.keep { color: #6c6; } #status.delete { color: #e66; }
   kbd { background: #333; border-radius: 3px; padding: 0 4px; }
+  main > img { cursor: zoom-in; }
+  #zoom { position: fixed; inset: 0 0 64px 0; background: #000; overflow: auto; display: flex;
+          cursor: grab; }
+  #zoom img { margin: auto; flex: none; }
+  #zoom img.pixelated { image-rendering: pixelated; }
 </style>
 </head>
 <body>
@@ -28,7 +33,7 @@
 </footer>
 <script>
 let items = [], groups = [], categories = {}, position = 0, history = [], labeled = 0;
-let excluded = new Set();
+let excluded = new Set(), hovered = null, zoom = null;
 
 async function post(url, body) {
   const response = await fetch(url, {method: "POST", body: JSON.stringify(body)});
@@ -48,10 +53,67 @@ function image(src, onError) {
   return element;
 }
 
+// Zoom shows the original at full size. 100% is one image pixel per screen pixel, and
+// pixels stay sharp squares beyond it, so blur in the view is blur in the image.
+function openZoom(item, fx = 0.5, fy = 0.5) {
+  const overlay = document.createElement("div");
+  overlay.id = "zoom";
+  const img = image(`/original/${item}`, () => setStatus("this image can't be decoded", "delete"));
+  img.draggable = false;
+  overlay.append(img);
+  document.body.append(overlay);
+  zoom = {overlay, img, scale: 1};
+  setStatus("loading the original...");
+  img.addEventListener("load", () => {
+    if (zoom?.img !== img) return;  // closed before the original arrived
+    const rect = overlay.getBoundingClientRect();
+    setScale(1, fx * img.naturalWidth, fy * img.naturalHeight, rect.width / 2, rect.height / 2);
+  });
+  overlay.addEventListener("wheel", event => {
+    event.preventDefault();
+    if (!event.deltaY || !img.naturalWidth) return;
+    const rect = img.getBoundingClientRect(), pixel = zoom.scale / devicePixelRatio;
+    const scale = Math.min(32, Math.max(0.05, zoom.scale * (event.deltaY < 0 ? 1.25 : 0.8)));
+    setScale(scale, (event.clientX - rect.left) / pixel, (event.clientY - rect.top) / pixel,
+      event.clientX, event.clientY);
+  }, {passive: false});
+  overlay.addEventListener("mousedown", start => {
+    const left = overlay.scrollLeft, top = overlay.scrollTop;
+    const move = event => {
+      overlay.scrollLeft = left - (event.clientX - start.clientX);
+      overlay.scrollTop = top - (event.clientY - start.clientY);
+    };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", () => document.removeEventListener("mousemove", move),
+      {once: true});
+  });
+}
+
+// Keeps the image point (x, y), in image pixels, at (cx, cy) on the screen.
+function setScale(scale, x, y, cx, cy) {
+  const {overlay, img} = zoom, pixel = scale / devicePixelRatio;
+  zoom.scale = scale;
+  img.style.width = `${img.naturalWidth * pixel}px`;
+  img.classList.toggle("pixelated", scale > 1);
+  const left = Math.max(0, (overlay.clientWidth - img.naturalWidth * pixel) / 2);
+  const top = Math.max(0, (overlay.clientHeight - img.naturalHeight * pixel) / 2);
+  overlay.scrollLeft = left + x * pixel - cx;
+  overlay.scrollTop = top + y * pixel - cy;
+  setStatus(`${img.naturalWidth}×${img.naturalHeight} at ${Math.round(scale * 100)}%: ` +
+    "wheel to zoom, drag to move, z or Esc to close");
+}
+
+function closeZoom() {
+  zoom.overlay.remove();
+  zoom = null;
+  setStatus("");
+}
+
 function show() {
   const view = document.getElementById("view");
   view.replaceChildren();
   excluded = new Set();
+  hovered = null;
   if (position >= groups.length) {
     setStatus("done: every image in the sample is labeled");
     document.getElementById("path").textContent = "";
@@ -59,8 +121,11 @@ function show() {
   }
   const group = groups[position];
   if (group.length === 1) {
-    view.append(image(`/image/${group[0]}`,
-      () => setStatus("this image can't be decoded: s to skip it", "delete")));
+    const single = image(`/image/${group[0]}`,
+      () => setStatus("this image can't be decoded: s to skip it", "delete"));
+    single.addEventListener("click", event =>
+      openZoom(group[0], event.offsetX / single.width, event.offsetY / single.height));
+    view.append(single);
     document.getElementById("path").textContent = items[group[0]].path;
   } else {
     const grid = document.createElement("div");
@@ -72,11 +137,14 @@ function show() {
         excluded.has(item) ? excluded.delete(item) : excluded.add(item);
         tile.classList.toggle("excluded");
       });
+      tile.addEventListener("mouseenter", () => hovered = item);
+      tile.addEventListener("mouseleave", () => hovered = null);
       grid.append(tile);
     }
     view.append(grid);
     document.getElementById("path").textContent =
-      `${group.length} similar images: click one to leave it out, then label the rest at once`;
+      `${group.length} similar images: click one to leave it out, then label the rest at once. ` +
+      "z zooms on the image under the mouse";
   }
   const images = groups.slice(0, position).reduce((n, g) => n + g.length, 0);
   document.getElementById("progress").textContent =
@@ -110,6 +178,16 @@ async function undo() {
 document.addEventListener("keydown", event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   const key = event.key.toLowerCase();
+  const grid = position < groups.length && groups[position].length > 1;
+  if (zoom) {
+    closeZoom();
+    // In a grid the zoom shows one image but a key labels them all: close first.
+    if (key === "z" || key === "escape" || grid) return;
+  } else if (key === "z" && position < groups.length) {
+    if (!grid) openZoom(groups[position][0]);
+    else if (hovered !== null) openZoom(hovered);
+    return;
+  }
   let action = null;
   if (key === "k") action = label("keep");
   else if (key === "d") action = label("delete");
@@ -125,7 +203,8 @@ fetch("/api/queue").then(r => r.json()).then(queue => {
   categories = queue.categories;
   const digits = Object.entries(categories).map(([k, c]) => `<kbd>${k}</kbd> ${c}`).join(" ");
   document.getElementById("keys").innerHTML =
-    `<kbd>k</kbd> keep · <kbd>d</kbd> delete · ${digits} · <kbd>u</kbd> undo · <kbd>s</kbd> skip`;
+    `<kbd>k</kbd> keep · <kbd>d</kbd> delete · ${digits} · <kbd>u</kbd> undo · <kbd>s</kbd> skip` +
+    " · <kbd>z</kbd> zoom";
   show();
 });
 </script>
