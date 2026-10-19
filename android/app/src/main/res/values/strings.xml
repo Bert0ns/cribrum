@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">Cribrum</string>
     <string name="placeholder">Nothing to review yet.</string>
+    <string name="access_title">Cribrum needs All files access</string>
+    <string name="access_body">Many images live in folders the gallery never shows, such as the photos you sent on WhatsApp. To find them, Cribrum reads every folder on this phone. Nothing leaves the phone, and nothing is deleted without your confirmation.</string>
+    <string name="access_grant">Allow access</string>
 </resources>

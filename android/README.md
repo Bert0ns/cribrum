@@ -36,3 +36,5 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | `io.github.bert0ns.cribrum.index` | Room tables and `ImageIndex`, with the lab's schema | `cribrum_lab.index` |
 | `io.github.bert0ns.cribrum.metadata` | `ImageMetadata` | `cribrum_lab.metadata` |
 | `io.github.bert0ns.cribrum.trash` | `Trash` and `AppTrash`: the only code that deletes files (`docs/design.md` §9) | none: the lab never deletes |
+| `io.github.bert0ns.cribrum.sources` | `ImageSource`: the deep scan, MediaStore, and both merged | `cribrum_lab.sources` |
+| `io.github.bert0ns.cribrum.ui` | Compose screens | `cribrum_lab.labeling` (the lab's only UI) |
