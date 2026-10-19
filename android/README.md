@@ -43,3 +43,5 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | `io.github.bert0ns.cribrum.detectors` | `Detector`, `GroupDetector`, `AnalysisContext`, and the detectors ported so far | `cribrum_lab.detectors` |
 | `io.github.bert0ns.cribrum.hashing`, `.folders` | Content hash (xxHash3), camera and messaging folders | `cribrum_lab.hashing`, `cribrum_lab.folders` |
 | `io.github.bert0ns.cribrum.imaging` | `loadGrayscale`: Pillow's decoding, luminance and Lanczos thumbnail, step by step | `cribrum_lab.imaging` |
+| `io.github.bert0ns.cribrum.review` | `Review`: pages of candidates, and decisions applied to the trash and the index together | none |
+| `io.github.bert0ns.cribrum.pipeline` | `Pipeline`, and `IndexWorker` running it with WorkManager | `cribrum_lab.pipeline` |
