@@ -84,7 +84,7 @@ With `--clusters`, similar images in the sample (by MobileCLIP embedding) come f
 uv run cribrum-lab evaluate            # --out data/report.txt to keep a copy
 ```
 
-Prints the recall on the labeled images with the current thresholds, and the number of candidates it costs over the whole index. Per category, it counts the images labeled delete and keep that the category flags. Then it suggests a threshold for every category, chosen together so that all categories at once reach 95% recall with as few candidates as it can find: copy them into `THRESHOLDS` in `cribrum_lab/ranker.py`. It ends with the images labeled delete that no detector flagged. The report lists paths of personal images, so keep it under `lab/data/`.
+Prints the recall on the labeled images with the current thresholds, and the number of candidates it costs over the whole index. Per category, it counts the images labeled delete and keep that the category flags. Then it suggests a threshold for every category, chosen together so that all categories at once reach 80% recall with as few candidates as it can find: copy them into `THRESHOLDS` in `cribrum_lab/ranker.py`. It ends with the images labeled delete that no detector flagged. The report lists paths of personal images, so keep it under `lab/data/`.
 
 ## Layout
 

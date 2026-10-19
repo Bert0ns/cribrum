@@ -17,7 +17,8 @@ from cribrum_lab.labels import Decision, Label
 from cribrum_lab.model import Category, IndexedImage, ReviewState
 from cribrum_lab.ranker import THRESHOLDS, Ranker
 
-TARGET_RECALL = 0.95
+TARGET_RECALL = 0.80
+"""Above it, the first real labels needed nearly every image as a candidate: docs/design.md, 10."""
 SWEEP = [round(0.05 * i, 2) for i in range(1, 20)]
 
 

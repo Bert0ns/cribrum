@@ -193,7 +193,7 @@ Goal: prove that the detectors work on real data before writing the app.
 1. **Collect:** copy the device's images to a local folder (`adb pull`, or a USB file transfer), messaging-app folders included. Image data is never committed.
 2. **Detect:** implement the detectors behind the same interfaces as §7.
 3. **Label:** a keyboard-driven labeling tool (`k` = keep, `d` = delete). A label carries no category: the labeler can tell what to keep, but not which detector should catch it, and asking for one turned out slow and error-prone. MobileCLIP clusters similar images so a whole cluster can be labeled at once. Target: 500–1,000 labeled images.
-4. **Measure:** **recall** first, then the number of candidates it costs. The per-category thresholds are chosen together, for the recall of all categories at once. Target: at least ~95% recall on deletable images.
+4. **Measure:** **recall** first, then the number of candidates it costs. The per-category thresholds are chosen together, for the recall of all categories at once. Target: about 80% recall on deletable images. It was 95%, but on the first real labels (912 images from one phone) 80% already made 69% of the images candidates, and anything above 80% made 96% of them candidates, since only flagging nearly every WhatsApp image catches the rest. A filter that flags everything does not help the review. Images that are not candidates still come after the candidates in the review order, so a miss is shown later, not hidden.
 5. **Freeze:** export golden fixtures (sample images with expected signals) for the Kotlin implementation's tests. The fixture images are synthetic, generated from fixed seeds (`fixtures/`), never personal photos.
 
 ## 11. Future work and open questions
@@ -203,3 +203,4 @@ Goal: prove that the detectors work on real data before writing the app.
 - **Play Store:** "All files access" is granted only to specific app categories. Deep scan might have to become an optional feature.
 - **Desktop and iOS:** reachable through Kotlin Multiplatform / Compose Multiplatform.
 - **Learning from decisions:** adjust per-category thresholds from the user's keep/trash history.
+- **Recall level as a setting:** the user picks how many of the deletable images the candidates should catch, trading a longer review for fewer misses. The lab would export one set of thresholds per level instead of one.
