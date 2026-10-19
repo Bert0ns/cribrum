@@ -49,7 +49,7 @@ Two layers:
 
 Deep scan is the default (D7). The scanner merges both layers and identifies each file by its path, size, and modification time.
 
-Indexing is incremental. A first full pass runs in the background, ideally while charging, and later passes only process new or changed files.
+Indexing is incremental. A first full pass runs in the background, ideally while charging, and later passes only process new or changed files. On Android, WorkManager runs a pass whenever the app opens and once a day while the phone charges. A pass runs as a foreground service with a notification, since a first scan of thousands of images outlasts the few minutes Android gives background work. The index keeps what each pass did, so a stopped pass resumes where it was.
 
 ## 5. Detectors
 
@@ -190,6 +190,8 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 The system trash (`MediaStore.createTrashRequest`, Android 11+) only works for files MediaStore indexes, so it misses `.nomedia` folders. Cribrum therefore keeps its **own trash**: files move to an app-managed folder together with their original path, and are purged after 30 days. One mechanism covers every file.
 
 The trash is a `.cribrum-trash` folder at the root of each storage volume, with a `.nomedia` file so galleries skip it. Each trashed file gets its own folder there, holding the file under its own name and an `origin.properties` with its original path, size, mtime and the time it was trashed. Moving is a rename on the same volume: it is instant, and it keeps the mtime, so a restored file is the same `ImageRef` as before. Because the trash lives on shared storage and needs no database, it survives an uninstall and can be restored by hand. A file that changed since its scan is not trashed, and a restore never overwrites a file that took the original path. The trash is the only code that deletes files: it purges an item 30 days after trashing it, or when the user empties the trash.
+
+A trashed image stays in the index, as `TRASHED`, while its file is in the trash: the scan does not find it, but does not forget it either. Its signals and review state are still there if it comes back. The index forgets it when the trash purges it.
 
 ## 10. Python lab
 
