@@ -3,9 +3,9 @@ name: android
 on:
   push:
     branches: [main]
-    paths: ["android/**", "fixtures/**", ".github/workflows/android.yml"]
+    paths: ["android/**", "fixtures/**", "lab/src/cribrum_lab/ranker.py", ".github/workflows/android.yml"]
   pull_request:
-    paths: ["android/**", "fixtures/**", ".github/workflows/android.yml"]
+    paths: ["android/**", "fixtures/**", "lab/src/cribrum_lab/ranker.py", ".github/workflows/android.yml"]
 
 jobs:
   check:
