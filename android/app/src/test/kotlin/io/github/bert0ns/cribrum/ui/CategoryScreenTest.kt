@@ -1,0 +1,60 @@
+package io.github.bert0ns.cribrum.ui
+
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.review.ReviewGroup
+import io.github.bert0ns.cribrum.review.ReviewItem
+import org.junit.Assert.assertEquals
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36]) // Compose tests reach InputManager.getInstance, which SDK 37 removed
+class CategoryScreenTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    private val images = (1..3).map { ImageRef("/sdcard/DCIM/img$it.jpg", 1_000_000, 0) }
+    private val page = images.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
+
+    @Test
+    fun `every candidate starts marked, a tap keeps it, and nothing moves before the summary is confirmed`() {
+        var applied = 0
+        compose.setContent {
+            var marked by remember { mutableStateOf(images.map { it.path }.toSet()) }
+            CategoryScreen(page, marked, grouped = false, onToggle = { image ->
+                marked = if (image.path in marked) marked - image.path else marked + image.path
+            }, onApply = { applied++ })
+        }
+
+        compose.onNodeWithText("Trash 3, keep 0").assertExists()
+        compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
+        compose.onNodeWithText("Trash 2, keep 1").performClick()
+
+        compose.onNodeWithText("Move 2 images to the trash?").assertExists()
+        assertEquals(0, applied)
+        compose.onNodeWithText("Move to trash").performClick()
+        assertEquals(1, applied)
+    }
+
+    @Test
+    fun `cancelling the summary trashes nothing`() {
+        var applied = 0
+        compose.setContent { CategoryScreen(page, images.map { it.path }.toSet(), false, {}, { applied++ }) }
+
+        compose.onNodeWithText("Trash 3, keep 0").performClick()
+        compose.onNodeWithText("Cancel").performClick()
+
+        assertEquals(0, applied)
+    }
+}
