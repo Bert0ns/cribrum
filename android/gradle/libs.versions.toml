@@ -6,6 +6,8 @@ activity-compose = "1.13.0"
 junit = "4.13.2"
 ksp = "2.3.12"
 coroutines = "1.11.0"
+exifinterface = "1.4.2"
+cryptohash = "1.0.2"
 room = "2.8.5"
 robolectric = "4.17"
 androidx-test-core = "1.7.0"
@@ -21,6 +23,8 @@ activity-compose = { group = "androidx.activity", name = "activity-compose", ver
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
+exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
+cryptohash = { group = "com.appmattus.crypto", name = "cryptohash", version.ref = "cryptohash" }
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
