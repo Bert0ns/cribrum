@@ -52,7 +52,9 @@ Every time you plug the phone in:
 
 1. Stop the Windows adb server, because it holds the device: `adb kill-server` in PowerShell, or close Android Studio.
 2. Run `usbipd attach --wsl --busid <BUSID>`. A normal PowerShell is enough. From WSL, call it as `usbipd.exe`.
-3. In WSL, run `adb devices`. The first time, accept the USB debugging prompt on the phone. Then run the script as above.
+3. In WSL, run `adb devices`. The first time, it shows the phone as `unauthorized` until you accept the USB debugging prompt on the phone. Accepting it makes the phone reconnect, which detaches it from WSL, so attach it again. Then run the script as above.
+
+The Windows and WSL `adb` have different keys, so a phone that already trusts the Windows one still asks again. `usbipd attach --auto-attach` attaches the phone again every time it reconnects, until you stop it with Ctrl+C.
 
 If `usbipd attach` fails with "The VBoxUsbMon driver is not correctly installed", uninstalling VirtualBox has removed the USB driver that usbipd-win shares with it. Run `winget uninstall --id dorssel.usbipd-win` and then `winget install --id dorssel.usbipd-win`, and bind the phone again.
 
