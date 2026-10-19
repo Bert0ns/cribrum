@@ -42,10 +42,19 @@ Never commit anything under `lab/data/`.
 
 WSL2 does not see USB devices, so the Linux `adb` cannot reach a phone plugged into Windows. Forward the phone to WSL with [usbipd-win](https://github.com/dorssel/usbipd-win):
 
-1. Once, in WSL: `sudo apt install adb`.
-2. Once, in PowerShell: `winget install usbipd`, then `usbipd list` to find the phone's BUSID, and `usbipd bind --busid <BUSID>` from an administrator PowerShell.
-3. Every time you plug the phone in, stop the Windows adb server first (`adb kill-server`, or close Android Studio), because it holds the device. Then run `usbipd attach --wsl --busid <BUSID>` in PowerShell.
-4. In WSL, check that `adb devices` lists the phone, then run the script as above.
+Once per computer:
+
+1. In WSL, run `sudo apt install adb`. Besides `adb`, it installs the udev rules that let a normal user open the phone. Without them, `adb devices` shows the phone as `no permissions`. The Android SDK's `adb` lacks these rules.
+2. In PowerShell, run `winget install --id dorssel.usbipd-win`.
+3. In an administrator PowerShell, run `usbipd list` to find the phone's BUSID, then `usbipd bind --busid <BUSID>`. The binding survives reboots. The BUSID depends on the USB port, so bind again after switching ports.
+
+Every time you plug the phone in:
+
+1. Stop the Windows adb server, because it holds the device: `adb kill-server` in PowerShell, or close Android Studio.
+2. Run `usbipd attach --wsl --busid <BUSID>`. A normal PowerShell is enough. From WSL, call it as `usbipd.exe`.
+3. In WSL, run `adb devices`. The first time, accept the USB debugging prompt on the phone. Then run the script as above.
+
+If `usbipd attach` fails with "The VBoxUsbMon driver is not correctly installed", uninstalling VirtualBox has removed the USB driver that usbipd-win shares with it. Run `winget uninstall --id dorssel.usbipd-win` and then `winget install --id dorssel.usbipd-win`, and bind the phone again.
 
 ## Analyze
 
