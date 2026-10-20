@@ -18,7 +18,7 @@ NO_CAMERA_EXIF_WEIGHT = 0.1
 
 class ForwardedDetector:
     id = "forwarded"
-    version = 1
+    version = 2
     category = Category.FORWARDED
     """Bump with prompts.VERSION."""
 
