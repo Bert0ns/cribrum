@@ -15,17 +15,24 @@ import java.io.File
  * Shared, read-only information available to detectors.
  *
  * Per-image lookups compute their value from the file by default; the pipeline replaces them
- * with lookups backed by the index, so each value is computed once. Grows as detectors need it
- * (perceptual hashes, embeddings).
+ * with lookups backed by the index, so each value is computed once. Grows as detectors need it.
  */
 data class AnalysisContext(
     val contentHash: suspend (ImageRef) -> String = { hashFile(it) },
     val perceptualHash: suspend (ImageRef) -> ULong = { hashPerceptual(it) },
+    /** L2-normalized MobileCLIP2-S0 embedding, 512 floats. Throws [MissingEmbedding] when the image has none. */
+    val embedding: suspend (ImageRef) -> FloatArray = { throw MissingEmbedding(it) },
     /** Throws [io.github.bert0ns.cribrum.metadata.UnreadableImage] when the header can't be decoded. */
     val metadata: suspend (ImageRef) -> ImageMetadata = { readMetadata(File(it.path)) },
     /** Known screen resolutions as (short side, long side). */
     val screenSizes: Set<Pair<Int, Int>> = SCREEN_SIZES,
 )
+
+/**
+ * The run has no embedding for this image: no model, or it could not decode the image. A
+ * detector that needs one lets it propagate, and the pipeline runs it again on a later run.
+ */
+class MissingEmbedding(image: ImageRef) : NoSuchElementException(image.path)
 
 /**
  * Analyzes one image and emits zero or more signals.

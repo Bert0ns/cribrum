@@ -15,14 +15,14 @@ uv run python -m cribrum_lab.fixtures
 {
   "format_version": 1,
   "tolerance": {"score": 0.05, "embedding_cosine": 0.99},
-  "embedding_model": "mobileclip_s0",
+  "embedding_model": "mobileclip2_s0",
   "images": {
     "DCIM/Camera/texture.jpg": {           // path relative to golden/: folders matter
       "width": 640, "height": 480,          // as displayed, EXIF orientation applied
       "has_camera_exif": true,
       "content_hash": "…",                  // xxHash3 64-bit of the file, hex
       "perceptual_hash": "…",               // 64-bit pHash, hex
-      "embedding": "…",                     // only some images: base64 of 512 little-endian float32
+      "embedding": "…",                     // base64 of 512 little-endian float32, L2-normalized
       "signals": [
         {"detector": "blur", "version": 1, "category": "blurry", "score": 0.12, "evidence": {…}}
       ]

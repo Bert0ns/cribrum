@@ -27,7 +27,6 @@ ROOT = Path(__file__).resolve().parents[3] / "fixtures" / "golden"
 FORMAT_VERSION = 1
 TOLERANCE = {"score": 0.05, "embedding_cosine": 0.99}
 """Decoders and resamplers differ between Pillow and Android: numbers match only closely."""
-_EMBEDDED = ["DCIM/Camera/texture.jpg", "Documents/page.png"]
 
 
 def _texture(seed: int, size: tuple[int, int] = (640, 480)) -> Image.Image:
@@ -170,7 +169,7 @@ def expected(root: Path, embed: bool) -> dict:
             ],
         }
         relative = image.path.relative_to(root).as_posix()
-        if relative in _EMBEDDED and image in vectors:
+        if image in vectors:
             entry["embedding"] = base64.b64encode(vectors[image].astype("<f4").tobytes()).decode()
         result[relative] = entry
     return {
