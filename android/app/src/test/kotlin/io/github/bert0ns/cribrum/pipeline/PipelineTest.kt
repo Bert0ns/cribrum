@@ -84,13 +84,13 @@ class PipelineTest {
     @Test
     fun `changed image is analyzed again and groups are recomputed`() {
         photos()
-        run()
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
         save("DCIM/Camera/a.png", seed = 2).setLastModified(1000)
 
-        val stats = run()
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
 
         assertEquals(1, stats.newOrChanged)
-        assertEquals(DETECTORS.size + 1 + GROUP_DETECTORS.size, stats.detectorRuns)
+        assertEquals(DETECTORS.size + 2 + GROUP_DETECTORS.size, stats.detectorRuns) // + hash, embedding
         assertFalse(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 
@@ -176,6 +176,7 @@ class PipelineTest {
         assertEquals(
             setOf(
                 Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER,
+                Category.FORWARDED,
                 Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE,
             ),
             DETECTOR_CATEGORIES,

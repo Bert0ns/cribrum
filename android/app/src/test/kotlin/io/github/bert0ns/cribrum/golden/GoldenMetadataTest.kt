@@ -2,6 +2,7 @@ package io.github.bert0ns.cribrum.golden
 
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
+import io.github.bert0ns.cribrum.detectors.ForwardedDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
 import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.hashing.contentHash
@@ -15,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
-/** Metadata, content hashes, SCREENSHOT, STICKER and EXACT_DUPLICATE against the lab's golden fixtures. */
+/** Metadata, content hashes, SCREENSHOT, STICKER, FORWARDED and EXACT_DUPLICATE against the lab's golden fixtures. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE) // Android's real decoders, not Robolectric's stand-ins
 class GoldenMetadataTest {
@@ -71,6 +72,23 @@ class GoldenMetadataTest {
             val got = detector.analyze(expected.image, AnalysisContext()).single()
 
             assertEquals(expected.relative, want.score, got.score)
+            assertEquals(expected.relative, want.evidence, got.evidence)
+        }
+    }
+
+    @Test
+    fun `forwarded scores match`() = runBlocking {
+        val detector = ForwardedDetector()
+        for (expected in Golden.images) {
+            val want = expected.signal(detector.id)!!
+            val got = detector.analyze(
+                expected.image,
+                AnalysisContext(embedding = { expected.embedding }),
+            ).single()
+
+            assertEquals(expected.relative, want.version, got.detectorVersion)
+            assertEquals(expected.relative, want.category, got.kind.value)
+            assertEquals(expected.relative, want.score, got.score, Golden.scoreTolerance)
             assertEquals(expected.relative, want.evidence, got.evidence)
         }
     }

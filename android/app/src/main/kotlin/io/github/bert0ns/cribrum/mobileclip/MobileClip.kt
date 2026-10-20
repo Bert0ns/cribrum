@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.pipeline.Embedder
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
 import java.io.File
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -19,10 +20,28 @@ import kotlin.math.sqrt
 const val MODEL_ID = "mobileclip2_s0"
 const val DIMENSIONS = 512
 const val INPUT_SIDE = 256
+
+/** CLIP's learned temperature (`logit_scale.exp()` of the checkpoint): turns cosine similarities into softmax logits. */
+const val LOGIT_SCALE = 64.33f
 private const val PIXELS = 3 * INPUT_SIDE * INPUT_SIDE
 
 /** Where the build puts the image encoder among the APK's assets (downloadMobileClip in build.gradle.kts). */
 const val VISION_MODEL_ASSET = "mobileclip2_s0/vision_model.onnx"
+
+/**
+ * Probability of each prompt for an image embedding: softmax over the scaled cosine similarities.
+ * Prompts and image embeddings are L2-normalized, so their dot product is the cosine similarity.
+ */
+fun zeroShot(imageEmbedding: FloatArray, promptEmbeddings: List<FloatArray>): FloatArray {
+    val logits = promptEmbeddings.map { prompt ->
+        val dot = prompt.indices.fold(0f) { sum, i -> sum + imageEmbedding[i] * prompt[i] }
+        LOGIT_SCALE * dot
+    }
+    val maxLogit = logits.max()
+    val weights = logits.map { exp(it - maxLogit) }
+    val total = weights.sum()
+    return FloatArray(weights.size) { weights[it] / total }
+}
 
 /**
  * RGB in [0, 1], CHW: shortest side resized to 256 (Pillow's bilinear), then center-cropped.
