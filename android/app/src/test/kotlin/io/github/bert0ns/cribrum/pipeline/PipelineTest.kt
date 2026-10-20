@@ -18,9 +18,9 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -84,14 +84,13 @@ class PipelineTest {
     @Test
     fun `changed image is analyzed again and groups are recomputed`() {
         photos()
-        run()
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
         save("DCIM/Camera/a.png", seed = 2).setLastModified(1000)
 
-        val stats = run()
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
 
         assertEquals(1, stats.newOrChanged)
-        val withoutEmbeddings = 4 // blur, exposure, screenshot, sticker: the others need embeddings
-        assertEquals(withoutEmbeddings + 1 + GROUP_DETECTORS.size, stats.detectorRuns)
+        assertEquals(DETECTORS.size + 2 + GROUP_DETECTORS.size, stats.detectorRuns) // + hash, embedding
         assertFalse(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 

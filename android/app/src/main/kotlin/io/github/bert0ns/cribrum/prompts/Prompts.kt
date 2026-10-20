@@ -1,4 +1,11 @@
-// Zero-shot classes and their MobileCLIP prompts (docs/design.md §5). Mirrors lab/src/cribrum_lab/prompts.py.
+// Zero-shot classes and their MobileCLIP prompts, in one versioned place (docs/design.md §5).
+// Mirrors lab/src/cribrum_lab/prompts.py.
+//
+// The prompt embeddings are generated once in the lab and committed there in prompt_embeddings.json,
+// which the build copies into the app as is, so the app never needs the text encoder. After editing
+// PROMPTS, bump VERSION and the version of every detector using them, then regenerate the file in the lab:
+//
+//     uv run python -m cribrum_lab.prompts
 package io.github.bert0ns.cribrum.prompts
 
 import io.github.bert0ns.cribrum.mobileclip.MODEL_ID
@@ -10,6 +17,7 @@ import java.util.Base64
 
 const val VERSION = 1
 
+/** Each class's score is the sum of its prompts' probabilities. "photo" is the class of memories, and only competes for probability. */
 val PROMPTS: Map<String, List<String>> = mapOf(
     "document" to listOf(
         "a photo of a projector slide in a classroom",
@@ -99,7 +107,7 @@ internal fun parse(jsonString: String): Pair<List<String>, List<FloatArray>> {
     return texts to texts.map { decodeVector(prompts.getString(it)) }
 }
 
-private fun decodeVector(base64: String): FloatArray {
+internal fun decodeVector(base64: String): FloatArray {
     val buffer = ByteBuffer.wrap(Base64.getDecoder().decode(base64)).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
     return FloatArray(buffer.remaining()).also { buffer.get(it) }
 }

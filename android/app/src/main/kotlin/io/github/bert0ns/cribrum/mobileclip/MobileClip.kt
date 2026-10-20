@@ -20,6 +20,8 @@ import kotlin.math.sqrt
 const val MODEL_ID = "mobileclip2_s0"
 const val DIMENSIONS = 512
 const val INPUT_SIDE = 256
+
+/** CLIP's learned temperature (`logit_scale.exp()` of the checkpoint): turns cosine similarities into softmax logits. */
 const val LOGIT_SCALE = 64.33f
 private const val PIXELS = 3 * INPUT_SIDE * INPUT_SIDE
 

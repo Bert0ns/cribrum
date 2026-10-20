@@ -8,9 +8,6 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.util.Base64
 
 private val STORED: JSONObject by lazy {
     val stream = PromptsTest::class.java.getResourceAsStream("/prompt_embeddings.json")
@@ -20,9 +17,7 @@ private val STORED: JSONObject by lazy {
 
 /** An image embedding that sits exactly on a prompt: the class it belongs to wins. */
 fun promptVector(text: String): FloatArray {
-    val encoded = STORED.getJSONObject("prompts").getString(text)
-    val buffer = ByteBuffer.wrap(Base64.getDecoder().decode(encoded)).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
-    return FloatArray(buffer.remaining()).also { buffer.get(it) }
+    return decodeVector(STORED.getJSONObject("prompts").getString(text))
 }
 
 @RunWith(RobolectricTestRunner::class)

@@ -6,6 +6,7 @@ import io.github.bert0ns.cribrum.folders.isMessagingFolder
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Signal
+import io.github.bert0ns.cribrum.prompts.VERSION
 import io.github.bert0ns.cribrum.prompts.classify
 import java.util.Locale
 
@@ -17,7 +18,7 @@ import java.util.Locale
  */
 class ForwardedDetector : Detector {
     override val id = "forwarded"
-    /** Bump with [io.github.bert0ns.cribrum.prompts.VERSION]. */
+    /** Bump with [VERSION]. */
     override val version = 2
     override val category = Category.FORWARDED
 
