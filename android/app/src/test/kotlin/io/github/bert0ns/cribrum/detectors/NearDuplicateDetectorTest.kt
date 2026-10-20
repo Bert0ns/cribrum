@@ -21,6 +21,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import kotlin.math.sqrt
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -53,8 +54,35 @@ class NearDuplicateDetectorTest {
         return out
     }
 
-    private fun run(images: List<ImageRef>) = runBlocking {
-        NearDuplicateDetector().analyze(images, AnalysisContext())
+    private fun crop(image: TestImage, left: Int, top: Int, width: Int, height: Int): TestImage {
+        val out = TestImage(width, height)
+        for (y in 0 until height) {
+            for (x in 0 until width) {
+                out[x, y] = image[left + x, top + y]
+            }
+        }
+        return out
+    }
+
+    private fun unit(vararg values: Float): FloatArray {
+        val vector = FloatArray(512)
+        var norm = 0f
+        for (i in values.indices) {
+            vector[i] = values[i]
+            norm += values[i] * values[i]
+        }
+        val length = sqrt(norm)
+        for (i in values.indices) {
+            vector[i] /= length
+        }
+        return vector
+    }
+
+    private fun run(
+        images: List<ImageRef>,
+        embedding: suspend (ImageRef) -> FloatArray = { throw MissingEmbedding(it) },
+    ) = runBlocking {
+        NearDuplicateDetector().analyze(images, AnalysisContext(embedding = embedding))
     }
 
     @Test
@@ -131,5 +159,44 @@ class NearDuplicateDetectorTest {
 
         assertFalse(broken in signals)
         assertEquals(3, signals.size)
+    }
+
+    @Test
+    fun `close embeddings link images the hash misses`() {
+        val scene1 = TestImage.texture(800, 600, seed = 1)
+        val original = save(scene1, "DCIM/Camera/a.jpg")
+        val crop = save(crop(scene1, 100, 75, 600, 450), "Pictures/a-crop.jpg")
+        val other = save(TestImage.texture(800, 600, seed = 2), "DCIM/Camera/b.jpg")
+        val vectors = mapOf(
+            original to unit(1f, 0f),
+            crop to unit(1f, 0.4f),
+            other to unit(0f, 1f),
+        )
+
+        assertTrue(run(listOf(original, crop, other)).isEmpty())
+
+        val signals = run(listOf(original, crop, other), embedding = { vectors.getValue(it) })
+
+        assertEquals(setOf(original, crop), signals.keys)
+        assertEquals(Role.INFERIOR.value, signals[crop]!![0].evidence[ROLE_KEY])
+        assertEquals(0.928f, signals[crop]!![0].evidence["cosine"]!!.toFloat(), 1e-3f)
+        assertTrue(signals[crop]!![0].score > 0.5f)
+    }
+
+    @Test
+    fun `images without an embedding still link by hash`() {
+        val scene1 = TestImage.texture(800, 600, seed = 1)
+        val original = save(scene1, "DCIM/Camera/a.jpg", quality = 95)
+        val resized = save(downsample(scene1, 400, 300), "WhatsApp/a.jpg", quality = 95)
+        val recompressed = save(scene1, "Download/a.jpg", quality = 40)
+        val other = save(TestImage.texture(800, 600, seed = 2), "DCIM/Camera/b.jpg", quality = 95)
+        val vectors = mapOf(original to unit(1f), other to unit(0f, 1f))
+
+        val signals = run(
+            listOf(original, resized, recompressed, other),
+            embedding = { vectors[it] ?: throw MissingEmbedding(it) },
+        )
+
+        assertEquals(setOf(original, resized, recompressed), signals.keys)
     }
 }

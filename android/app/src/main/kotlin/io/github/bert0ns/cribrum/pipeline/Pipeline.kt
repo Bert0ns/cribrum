@@ -5,6 +5,7 @@ package io.github.bert0ns.cribrum.pipeline
 import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.BlurDetector
+import io.github.bert0ns.cribrum.detectors.BurstDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
@@ -43,7 +44,7 @@ val DETECTORS: List<Detector> = listOf(
     StickerDetector(),
     ForwardedDetector(),
 )
-val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector(), NearDuplicateDetector())
+val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector(), NearDuplicateDetector(), BurstDetector())
 val DETECTOR_CATEGORIES: Set<Category> =
     (DETECTORS.mapNotNull { it.category } + GROUP_DETECTORS.mapNotNull { it.category }).toSet()
 
