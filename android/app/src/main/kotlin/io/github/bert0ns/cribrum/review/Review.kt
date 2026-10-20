@@ -37,6 +37,9 @@ data class ReviewItem(
 
 data class CategorySummary(val category: Category, val count: Int)
 
+/** The groups shown now, and how many candidates the category has left in all, these included. */
+data class Page(val groups: List<ReviewGroup>, val remaining: Int)
+
 /** What applying a page did, so it can be undone. */
 data class Decision(val trashed: List<ImageRef>, val kept: List<ImageRef>, val failed: List<ImageRef>)
 
@@ -47,7 +50,7 @@ class Review(private val index: ImageIndex, private val trash: Trash, private va
         .sortedByDescending { it.count }
 
     /** The first page of a category: groups in the ranker's order, never split across pages. */
-    suspend fun page(category: Category): List<ReviewGroup> {
+    suspend fun page(category: Category): Page {
         val images = index.indexedImages()
         val candidates = Ranker.byCategory(ranker.rank(images))[category].orEmpty()
         val groups = if (category in GROUP_CATEGORIES) groups(category, candidates, images) else singles(category, candidates)
@@ -58,7 +61,7 @@ class Review(private val index: ImageIndex, private val trash: Trash, private va
             page += group
             size += group.images.size
         }
-        return page
+        return Page(page, candidates.size)
     }
 
     /**

@@ -19,8 +19,16 @@
     <string name="category_document">Documents and notes</string>
     <string name="category_forwarded">Forwarded</string>
     <plurals name="candidates">
-        <item quantity="one">%d image</item>
-        <item quantity="other">%d images</item>
+        <item quantity="one">%d image to review</item>
+        <item quantity="other">%d images to review</item>
+    </plurals>
+    <plurals name="page_more">
+        <item quantity="one">%1$d of %2$d image to review. Confirm these to see the next ones.</item>
+        <item quantity="other">%1$d of %2$d images to review. Confirm these to see the next ones.</item>
+    </plurals>
+    <plurals name="page_last">
+        <item quantity="one">The last image to review.</item>
+        <item quantity="other">The last %2$d images to review.</item>
     </plurals>
     <string name="back">Back</string>
     <string name="review_hint">Marked images go to the trash. Tap one to keep it, hold it to see it full size.</string>

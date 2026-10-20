@@ -69,8 +69,9 @@ class ReviewTest {
     fun `a page preselects every candidate, most likely first, and fits a page`() = test {
         repeat(PAGE_SIZE + 5) { image("img$it.jpg", blurry(0.5f + it / 200f)) }
 
-        val page = page(Category.BLURRY)
+        val page = page(Category.BLURRY).groups
 
+        assertEquals(PAGE_SIZE + 5, page(Category.BLURRY).remaining)
         assertEquals(PAGE_SIZE, page.size)
         assertTrue(page.all { group -> group.images.single().suggestTrash })
         assertEquals(page.map { it.images.single().score }.sortedDescending(), page.map { it.images.single().score })
@@ -81,7 +82,7 @@ class ReviewTest {
         val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
         val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
 
-        val group = page(Category.EXACT_DUPLICATE).single()
+        val group = page(Category.EXACT_DUPLICATE).groups.single()
 
         assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
     }
@@ -97,7 +98,7 @@ class ReviewTest {
         assertFalse(File(bad.path).exists())
         assertEquals(ReviewState.TRASHED, index.reviewState(bad.path))
         assertEquals(ReviewState.KEPT, index.reviewState(good.path))
-        assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY))
+        assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY).groups)
     }
 
     @Test
@@ -109,7 +110,7 @@ class ReviewTest {
 
         assertEquals(listOf(changed), decision.failed)
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(changed.path))
-        assertEquals(1, page(Category.BLURRY).size)
+        assertEquals(1, page(Category.BLURRY).groups.size)
     }
 
     @Test
@@ -123,7 +124,7 @@ class ReviewTest {
         assertEquals(bad, File(bad.path).toImageRef())
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(bad.path))
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(good.path))
-        assertEquals(2, page(Category.BLURRY).size)
+        assertEquals(2, page(Category.BLURRY).groups.size)
     }
 
     @Test
@@ -135,7 +136,7 @@ class ReviewTest {
 
         assertTrue(File(image.path).exists())
         assertEquals(ReviewState.KEPT, index.reviewState(image.path))
-        assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY))
+        assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY).groups)
         assertEquals(emptyList<Any>(), trashed())
     }
 

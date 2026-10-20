@@ -32,11 +32,12 @@ class CategoryScreenTest {
         var applied = 0
         compose.setContent {
             var marked by remember { mutableStateOf(images.map { it.path }.toSet()) }
-            CategoryScreen(page, marked, grouped = false, onToggle = { image ->
+            CategoryScreen(page, 100, marked, grouped = false, onToggle = { image ->
                 marked = if (image.path in marked) marked - image.path else marked + image.path
             }, onApply = { applied++ })
         }
 
+        compose.onNodeWithText("3 of 100 images to review. Confirm these to see the next ones.").assertExists()
         compose.onNodeWithText("Trash 3, keep 0").assertExists()
         compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
         compose.onNodeWithText("Trash 2, keep 1").performClick()
@@ -50,8 +51,9 @@ class CategoryScreenTest {
     @Test
     fun `cancelling the summary trashes nothing`() {
         var applied = 0
-        compose.setContent { CategoryScreen(page, images.map { it.path }.toSet(), false, {}, { applied++ }) }
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }) }
 
+        compose.onNodeWithText("The last 3 images to review.").assertExists()
         compose.onNodeWithText("Trash 3, keep 0").performClick()
         compose.onNodeWithText("Cancel").performClick()
 

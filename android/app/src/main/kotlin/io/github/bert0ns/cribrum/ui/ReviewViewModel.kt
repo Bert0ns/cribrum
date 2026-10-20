@@ -27,6 +27,8 @@ data class ReviewState(
     val screen: Screen = Screen.Home,
     val categories: List<CategorySummary> = emptyList(),
     val page: List<ReviewGroup> = emptyList(),
+    /** Candidates the open category has left, the page included. */
+    val remaining: Int = 0,
     /** Paths marked for the trash on the current page. */
     val marked: Set<String> = emptySet(),
     /** The last applied page, until the user undoes it or moves on. */
@@ -45,7 +47,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
 
     fun open(category: Category) = load {
         val page = review.page(category)
-        it.copy(screen = Screen.Category(category), page = page, marked = marked(page), lastDecision = null)
+        it.copy(screen = Screen.Category(category), page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null)
     }
 
     fun back() = load { it.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null) }
@@ -60,7 +62,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         val images = state.page.flatMap { group -> group.images.map { it.image } }
         val decision = review.apply(images.filter { it.path in state.marked }, images.filter { it.path !in state.marked })
         val page = review.page(category)
-        state.copy(page = page, marked = marked(page), lastDecision = decision)
+        state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = decision)
     }
 
     fun undo() = load { state ->
@@ -68,7 +70,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         review.undo(decision)
         val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null)
         val page = review.page(category)
-        state.copy(page = page, marked = marked(page), lastDecision = null)
+        state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null)
     }
 
     fun dismissUndo() = mutableState.update { it.copy(lastDecision = null) }

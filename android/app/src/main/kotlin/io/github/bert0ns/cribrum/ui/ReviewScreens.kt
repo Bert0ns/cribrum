@@ -125,6 +125,7 @@ private fun Tile(image: ImageRef, marked: Boolean, label: String?, onTap: () -> 
 @Composable
 fun CategoryScreen(
     page: List<ReviewGroup>,
+    remaining: Int,
     marked: Set<String>,
     grouped: Boolean,
     onToggle: (ImageRef) -> Unit,
@@ -136,7 +137,15 @@ fun CategoryScreen(
     val images = page.flatMap { it.images }
     val toTrash = images.filter { it.image.path in marked }
     Column(modifier.fillMaxSize()) {
-        Text(stringResource(R.string.review_hint), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            if (images.isNotEmpty()) {
+                // Candidates only: a group shows its best copy too, for comparison.
+                val shown = images.count { it.suggestTrash }
+                val position = if (remaining > shown) R.plurals.page_more else R.plurals.page_last
+                Text(pluralStringResource(position, remaining, shown, remaining), style = MaterialTheme.typography.titleSmall)
+            }
+            Text(stringResource(R.string.review_hint), style = MaterialTheme.typography.bodySmall)
+        }
         LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f)) {
             for (group in page) {
                 if (grouped) item(span = { GridItemSpan(maxLineSpan) }, key = "header-${group.id}") { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
