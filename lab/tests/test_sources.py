@@ -95,3 +95,11 @@ def test_scan_order_is_deterministic(tmp_path):
     paths = [ref.path.relative_to(tmp_path) for ref in FilesystemImageSource(tmp_path).scan()]
 
     assert paths == [Path(n) for n in ["c.jpg", "a/9.jpg", "b/1.jpg", "b/2.jpg"]]
+
+
+def test_skips_system_trash_and_pending_files(tmp_path):
+    write(tmp_path / "IMG.jpg", JPEG)
+    write(tmp_path / ".trashed-1790000000-IMG_1.jpg", JPEG)
+    write(tmp_path / ".pending-1790000000-IMG_2.jpg", JPEG)
+
+    assert scanned_paths(tmp_path) == {Path("IMG.jpg")}
