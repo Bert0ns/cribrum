@@ -1,6 +1,12 @@
 // Core types shared by every component. Mirrors lab/src/cribrum_lab/model.py and docs/design.md §7.
 package io.github.bert0ns.cribrum.model
 
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.TimeUnit
+
 /** Evidence key holding the id of the group an image belongs to. */
 const val GROUP_KEY = "group"
 
@@ -51,6 +57,12 @@ enum class Role(val value: String) {
 
 /** Identifies an image file. Size and mtime detect changes between scans. */
 data class ImageRef(val path: String, val size: Long, val mtimeNs: Long)
+
+/** The file as it is now, not a symlink's target. Every component builds its [ImageRef]s with it. */
+fun File.toImageRef(): ImageRef {
+    val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+    return ImageRef(path, attributes.size(), attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS))
+}
 
 /**
  * A detector's evidence that an image may belong to a deletable category, or, with a

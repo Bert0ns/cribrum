@@ -138,8 +138,11 @@ interface Ranker {                       // combines signals into candidates and
 }
 
 interface Trash {                        // app-managed trash, 30-day retention
-    suspend fun moveToTrash(images: List<ImageRef>)
-    suspend fun restore(images: List<ImageRef>)
+    suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef>
+    suspend fun restore(images: List<ImageRef>): List<ImageRef>
+    suspend fun trashed(): List<TrashedImage>
+    suspend fun purge(images: List<ImageRef>)
+    suspend fun purgeExpired(): List<ImageRef>
 }
 
 interface ModelRuntime                   // LiteRT or ONNX Runtime behind one interface
@@ -185,6 +188,8 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 ## 9. Deletion and trash
 
 The system trash (`MediaStore.createTrashRequest`, Android 11+) only works for files MediaStore indexes, so it misses `.nomedia` folders. Cribrum therefore keeps its **own trash**: files move to an app-managed folder together with their original path, and are purged after 30 days. One mechanism covers every file.
+
+The trash is a `.cribrum-trash` folder at the root of each storage volume, with a `.nomedia` file so galleries skip it. Each trashed file gets its own folder there, holding the file under its own name and an `origin.properties` with its original path, size, mtime and the time it was trashed. Moving is a rename on the same volume: it is instant, and it keeps the mtime, so a restored file is the same `ImageRef` as before. Because the trash lives on shared storage and needs no database, it survives an uninstall and can be restored by hand. A file that changed since its scan is not trashed, and a restore never overwrites a file that took the original path. The trash is the only code that deletes files: it purges an item 30 days after trashing it, or when the user empties the trash.
 
 ## 10. Python lab
 
