@@ -10,8 +10,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.Configuration
-import androidx.work.WorkManager
+import androidx.work.testing.WorkManagerTestInitHelper
 import io.github.bert0ns.cribrum.App
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -27,13 +26,12 @@ class SettingsScreenTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private val context = ApplicationProvider.getApplicationContext<Context>()
+
     @Before
     fun setUp() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        try {
-            WorkManager.initialize(context, Configuration.Builder().build())
-        } catch (_: IllegalStateException) {
-        }
+        // App() schedules the daily scan on the home screen.
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
     }
 
     @Test
@@ -45,7 +43,9 @@ class SettingsScreenTest {
         compose.onNodeWithContentDescription("Settings").performClick()
 
         compose.onNodeWithText("Settings").assertIsDisplayed()
-        compose.onNodeWithText("Version 0.1.0").assertIsDisplayed()
+        // The release workflow sets the version, so it can't be a literal here.
+        val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        compose.onNodeWithText("Version $version").assertIsDisplayed()
         compose.onNodeWithText("Trashed images stay for 30 days, then the app deletes them.").assertIsDisplayed()
         compose.onNodeWithText("Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.").assertIsDisplayed()
 
