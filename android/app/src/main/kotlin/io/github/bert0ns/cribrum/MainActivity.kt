@@ -158,7 +158,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                 )
                 Screen.Settings -> SettingsScreen(onOpenStorageMap = model::openStorageMap)
                 Screen.StorageMap -> StorageMapScreen(
-                    currentFolder = state.storageMapZoom.lastOrNull() ?: state.storageMap ?: Folder("", "", 0L, 0),
+                    currentFolder = state.storageMap.lastOrNull() ?: Folder("", "", 0L, 0),
                     onZoomIn = model::zoomStorageMap,
                 )
             }

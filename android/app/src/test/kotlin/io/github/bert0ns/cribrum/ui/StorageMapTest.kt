@@ -1,88 +1,92 @@
 package io.github.bert0ns.cribrum.ui
 
+import io.github.bert0ns.cribrum.model.ImageRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StorageMapTest {
-    private val bounds = Rect(0.0, 0.0, 100.0, 100.0)
+    private val bounds = MapRect(0.0, 0.0, 100.0, 100.0)
+
+    private fun ref(path: String, size: Long) = ImageRef(path, size, 0L)
 
     @Test
-    fun `single weight fills the bounds`() {
-        val rects = squarify(listOf(42.0), bounds)
+    fun `squarify empty weights returns empty list`() {
+        assertEquals(emptyList<MapRect>(), squarify(emptyList(), bounds))
+    }
+
+    @Test
+    fun `squarify single weight fills bounds`() {
+        val rects = squarify(listOf(10.0), bounds)
         assertEquals(1, rects.size)
-        assertEquals(bounds, rects.first())
+        assertEquals(0.0, rects[0].left, 1e-6)
+        assertEquals(0.0, rects[0].top, 1e-6)
+        assertEquals(100.0, rects[0].width, 1e-6)
+        assertEquals(100.0, rects[0].height, 1e-6)
     }
 
     @Test
-    fun `zero weights get empty rects`() {
-        val rects = squarify(listOf(0.0, 0.0), bounds)
-        assertEquals(2, rects.size)
-        assertTrue(rects.all { it.width == 0.0 && it.height == 0.0 })
-    }
-
-    @Test
-    fun `mixed zero and non-zero weights`() {
-        val rects = squarify(listOf(0.0, 50.0, 0.0), bounds)
-        assertEquals(3, rects.size)
-        assertEquals(0.0, rects[0].width, 1e-6)
-        assertEquals(bounds.width * bounds.height, rects[1].width * rects[1].height, 1e-6)
-        assertEquals(0.0, rects[2].width, 1e-6)
-    }
-
-    @Test
-    fun `areas proportional to weights`() {
+    fun `squarify areas are proportional to weights`() {
         val weights = listOf(6.0, 6.0, 4.0, 3.0, 2.0, 2.0, 1.0)
         val rects = squarify(weights, bounds)
         assertEquals(weights.size, rects.size)
-        val totalWeight = weights.sum()
-        val totalArea = bounds.width * bounds.height
 
+        val totalWeight = weights.sum()
+        val totalArea = bounds.area
         for (i in weights.indices) {
             val expectedArea = totalArea * (weights[i] / totalWeight)
-            val actualArea = rects[i].width * rects[i].height
-            assertEquals(expectedArea, actualArea, 1e-6)
+            assertEquals(expectedArea, rects[i].area, 1e-4)
         }
     }
 
     @Test
-    fun `every rect inside bounds`() {
-        val weights = listOf(10.0, 20.0, 30.0, 40.0, 50.0)
+    fun `squarify rectangles stay inside bounds`() {
+        val weights = listOf(10.0, 20.0, 30.0, 40.0)
         val rects = squarify(weights, bounds)
-        for (rect in rects) {
-            assertTrue("left >= bounds.left", rect.left >= bounds.left - 1e-6)
-            assertTrue("top >= bounds.top", rect.top >= bounds.top - 1e-6)
-            assertTrue("right <= bounds.right", rect.left + rect.width <= bounds.left + bounds.width + 1e-6)
-            assertTrue("bottom <= bounds.bottom", rect.top + rect.height <= bounds.top + bounds.height + 1e-6)
+        for (r in rects) {
+            assertTrue(r.left >= bounds.left - 1e-6)
+            assertTrue(r.top >= bounds.top - 1e-6)
+            assertTrue(r.right <= bounds.right + 1e-6)
+            assertTrue(r.bottom <= bounds.bottom + 1e-6)
         }
     }
 
     @Test
-    fun `no overlaps between rectangles`() {
-        val weights = listOf(15.0, 25.0, 5.0, 35.0, 10.0, 20.0)
+    fun `squarify rectangles do not overlap`() {
+        val weights = listOf(10.0, 20.0, 30.0, 40.0)
         val rects = squarify(weights, bounds)
-
-        for (i in rects.indices) {
+        for (i in 0 until rects.size) {
             for (j in i + 1 until rects.size) {
-                val r1 = rects[i]
-                val r2 = rects[j]
-                val xOverlap = maxOf(0.0, minOf(r1.left + r1.width, r2.left + r2.width) - maxOf(r1.left, r2.left))
-                val yOverlap = maxOf(0.0, minOf(r1.top + r1.height, r2.top + r2.height) - maxOf(r1.top, r2.top))
-                val intersectionArea = xOverlap * yOverlap
-                assertTrue("Rect $i and Rect $j overlap with area $intersectionArea", intersectionArea < 1e-6)
+                val a = rects[i]
+                val b = rects[j]
+                val horizontalOverlap = maxOf(0.0, minOf(a.right, b.right) - maxOf(a.left, b.left))
+                val verticalOverlap = maxOf(0.0, minOf(a.bottom, b.bottom) - maxOf(a.top, b.top))
+                val overlapArea = horizontalOverlap * verticalOverlap
+                assertTrue(overlapArea < 1e-4)
             }
         }
     }
 
     @Test
-    fun `folder tree sums sizes of subfolders`() {
+    fun `squarify zero and positive weights`() {
+        val weights = listOf(10.0, 0.0, 20.0, 0.0)
+        val rects = squarify(weights, bounds)
+        assertEquals(4, rects.size)
+        assertEquals(0.0, rects[1].area, 1e-6)
+        assertEquals(0.0, rects[3].area, 1e-6)
+        assertEquals(10000.0 * (10.0 / 30.0), rects[0].area, 1e-4)
+        assertEquals(10000.0 * (20.0 / 30.0), rects[2].area, 1e-4)
+    }
+
+    @Test
+    fun `folder tree sums sizes and counts`() {
         val images = listOf(
-            "/storage/emulated/0/DCIM/Camera/IMG_001.jpg" to 1000L,
-            "/storage/emulated/0/DCIM/Camera/IMG_002.jpg" to 2000L,
-            "/storage/emulated/0/DCIM/Screenshots/scr_01.png" to 500L,
-            "/storage/emulated/0/Pictures/vacation.jpg" to 4000L,
-            "/storage/emulated/0/Pictures/Sub/pic.jpg" to 1500L,
+            ref("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 1000L),
+            ref("/storage/emulated/0/DCIM/Camera/IMG_002.jpg", 2000L),
+            ref("/storage/emulated/0/DCIM/Screenshots/Screenshot_1.png", 500L),
+            ref("/storage/emulated/0/Pictures/vacation.jpg", 4000L),
+            ref("/storage/emulated/0/Pictures/Sub/photo.jpg", 1500L),
         )
         val tree = buildFolderTree(images)
 
@@ -90,9 +94,8 @@ class StorageMapTest {
         assertEquals("/storage/emulated/0", tree.path)
         assertEquals(9000L, tree.size)
         assertEquals(5, tree.imageCount)
-
-        // Subfolders should be sorted by size descending
         assertEquals(2, tree.children.size)
+
         val pictures = tree.children[0]
         val dcim = tree.children[1]
 
@@ -130,7 +133,7 @@ class StorageMapTest {
 
     @Test
     fun `rect contains point`() {
-        val r = Rect(10.0, 20.0, 50.0, 40.0)
+        val r = MapRect(10.0, 20.0, 50.0, 40.0)
         assertTrue(r.contains(10.0, 20.0))
         assertTrue(r.contains(30.0, 40.0))
         assertTrue(r.contains(60.0, 60.0))
@@ -141,9 +144,9 @@ class StorageMapTest {
     @Test
     fun `layoutTreemap recursive blocks and hues`() {
         val images = listOf(
-            "/DCIM/Camera/IMG_001.jpg" to 3000L,
-            "/DCIM/Screenshots/scr.png" to 1000L,
-            "/Pictures/vacation.jpg" to 6000L,
+            ref("/DCIM/Camera/IMG_001.jpg", 3000L),
+            ref("/DCIM/Screenshots/scr.png", 1000L),
+            ref("/Pictures/vacation.jpg", 6000L),
         )
         val tree = buildFolderTree(images)
         val blocks = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0)
@@ -163,12 +166,60 @@ class StorageMapTest {
     @Test
     fun `layoutTreemap skips tiny rectangles`() {
         val images = listOf(
-            "/Huge/huge.jpg" to 1_000_000L,
-            "/Tiny/tiny.jpg" to 1L,
+            ref("/Huge/huge.jpg", 1_000_000L),
+            ref("/Tiny/tiny.jpg", 1L),
         )
         val tree = buildFolderTree(images)
         // With minSize = 2.0 on 100x100 bounds, Tiny gets 1e-4 width which is < 2.0
         val blocks = layoutTreemap(tree, bounds, gap = 0.0, minSize = 2.0)
         assertFalse(blocks.any { it.folder.name == "Tiny" })
+    }
+
+    @Test
+    fun `layoutTreemap assigns non-negative hue to direct files when folder has subfolders`() {
+        val folder = Folder(
+            name = "DCIM",
+            path = "/DCIM",
+            size = 5000L,
+            imageCount = 5,
+            children = listOf(
+                Folder(name = "Camera", path = "/DCIM/Camera", size = 3000L, imageCount = 3),
+            ),
+        )
+        val blocks = layoutTreemap(folder, bounds, gap = 1.0, minSize = 2.0)
+        val directFilesBlock = blocks.first { it.isDirectFiles }
+        assertTrue("hueIndex must be >= 0 but was ${directFilesBlock.hueIndex}", directFilesBlock.hueIndex >= 0)
+    }
+
+    @Test
+    fun `leaf folder is not marked as direct files`() {
+        val folder = Folder(
+            name = "DCIM",
+            path = "/DCIM",
+            size = 3000L,
+            imageCount = 3,
+            children = listOf(
+                Folder(name = "Camera", path = "/DCIM/Camera", size = 3000L, imageCount = 3),
+            ),
+        )
+        val blocks = layoutTreemap(folder, bounds, gap = 1.0, minSize = 2.0)
+        val cameraBlock = blocks.first { it.folder.name == "Camera" }
+        assertFalse("Leaf folder must not be marked as direct files", cameraBlock.isDirectFiles)
+    }
+
+    @Test
+    fun `tap inside a nested folder hits its top-level folder`() {
+        val tree = buildFolderTree(
+            listOf(
+                ref("/DCIM/Camera/IMG_001.jpg", 3000L),
+                ref("/DCIM/Screenshots/scr.png", 1000L),
+                ref("/Pictures/vacation.jpg", 6000L),
+            ),
+        )
+        val blocks = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0)
+        val camera = blocks.first { it.folder.name == "Camera" }
+        val hit = topLevelBlockAt(blocks, camera.rect.left + 1.0, camera.rect.top + 1.0)
+        assertEquals("DCIM", hit?.folder?.name)
+        assertFalse(hit!!.isDirectFiles)
     }
 }

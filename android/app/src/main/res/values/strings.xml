@@ -88,6 +88,7 @@
     </plurals>
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
     <string name="storage_map">Storage map</string>
+    <string name="storage_map_image_sizes">image sizes</string>
     <string name="storage_map_direct_files">Files in this folder</string>
     <string name="storage_map_root">All explored folders</string>
     <string name="storage_map_empty">No images indexed</string>

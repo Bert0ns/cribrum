@@ -41,8 +41,7 @@ data class ReviewState(
     /** The last applied page, until the user undoes it or moves on. */
     val lastDecision: Decision? = null,
     val loading: Boolean = false,
-    val storageMap: Folder? = null,
-    val storageMapZoom: List<Folder> = emptyList(),
+    val storageMap: List<Folder> = emptyList(),
 )
 
 class ReviewViewModel(application: Application) : AndroidViewModel(application) {
@@ -64,23 +63,20 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     fun openSettings() = load { it.copy(screen = Screen.Settings) }
 
     fun openStorageMap() = load { state ->
-        val notTrashed = app.index.indexedImages()
-            .filter { it.reviewState != io.github.bert0ns.cribrum.model.ReviewState.TRASHED }
-            .map { it.ref.path to it.ref.size }
-        val root = buildFolderTree(notTrashed)
-        state.copy(screen = Screen.StorageMap, storageMap = root, storageMapZoom = emptyList())
+        val root = buildFolderTree(review.notTrashed())
+        state.copy(screen = Screen.StorageMap, storageMap = listOf(root))
     }
 
     fun zoomStorageMap(folder: Folder) = load { state ->
-        state.copy(storageMapZoom = state.storageMapZoom + folder)
+        state.copy(storageMap = state.storageMap + folder)
     }
 
     fun back() = load { state ->
         when {
-            state.screen == Screen.StorageMap && state.storageMapZoom.isNotEmpty() ->
-                state.copy(storageMapZoom = state.storageMapZoom.dropLast(1))
+            state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
+                state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.StorageMap ->
-                state.copy(screen = Screen.Settings, storageMapZoom = emptyList())
+                state.copy(screen = Screen.Settings, storageMap = emptyList())
             else ->
                 state.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null)
         }

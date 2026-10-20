@@ -2,9 +2,21 @@ package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.testing.WorkManagerTestInitHelper
+import io.github.bert0ns.cribrum.App
+import io.github.bert0ns.cribrum.CribrumApp
+import io.github.bert0ns.cribrum.model.ImageRef
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,12 +29,19 @@ class StorageMapScreenTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private val app = ApplicationProvider.getApplicationContext<CribrumApp>()
+
     private val tree = buildFolderTree(
         listOf(
-            "/storage/emulated/0/DCIM/Camera/IMG_001.jpg" to 10_000_000L,
-            "/storage/emulated/0/Pictures/vacation.jpg" to 5_000_000L,
+            ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 0L),
+            ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 0L),
         ),
     )
+
+    @Before
+    fun setUp() {
+        WorkManagerTestInitHelper.initializeTestWorkManager(app)
+    }
 
     @Test
     fun `storage map displays subfolders and fires zoom callback on tap`() {
@@ -62,5 +81,67 @@ class StorageMapScreenTest {
 
         compose.onNodeWithText("Storage map").assertIsDisplayed().performClick()
         assertEquals(true, opened)
+    }
+
+    /** Navigation runs on the view model scope, so the screen changes after the click returns. */
+    private fun awaitText(text: String) = compose.waitUntil(5_000) {
+        compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    private fun openStorageMapFromSettings() {
+        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
+        compose.onNodeWithText("Storage map").assertIsDisplayed().performClick()
+        awaitText("DCIM")
+    }
+
+    @Test
+    fun `storage map opens from settings and displays indexed folders`() = runBlocking<Unit> {
+        app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
+        app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
+
+        // viewModel() caches the first Application it sees, which is stale after another test class.
+        val model = ReviewViewModel(app)
+        compose.setContent {
+            App(model)
+        }
+
+        openStorageMapFromSettings()
+
+        compose.onNodeWithText("DCIM").assertIsDisplayed()
+        compose.onNodeWithText("Pictures").assertIsDisplayed()
+        compose.onNodeWithText("/storage/emulated/0").assertIsDisplayed()
+    }
+
+    @Test
+    fun `back button zooms out of folder before leaving storage map`() = runBlocking<Unit> {
+        app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
+        app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
+
+        // viewModel() caches the first Application it sees, which is stale after another test class.
+        val model = ReviewViewModel(app)
+        compose.setContent {
+            App(model)
+        }
+
+        openStorageMapFromSettings()
+
+        // Zoom into DCIM
+        compose.onNodeWithText("DCIM").performClick()
+        awaitText("Camera")
+        compose.onNodeWithText("Camera").assertIsDisplayed()
+
+        // First back zooms out to root folder
+        compose.onNodeWithContentDescription("Back").performClick()
+        awaitText("Pictures")
+        compose.onNodeWithText("DCIM").assertIsDisplayed()
+        compose.onNodeWithText("Pictures").assertIsDisplayed()
+
+        // Second back leaves storage map to settings
+        compose.onNodeWithContentDescription("Back").performClick()
+        awaitText("Settings")
+        compose.onNodeWithText("Settings").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
+        compose.onNodeWithText("Storage map").assertIsDisplayed()
     }
 }

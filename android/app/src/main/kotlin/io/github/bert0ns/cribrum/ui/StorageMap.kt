@@ -1,9 +1,10 @@
 package io.github.bert0ns.cribrum.ui
 
+import io.github.bert0ns.cribrum.model.ImageRef
 import kotlin.math.max
 import kotlin.math.min
 
-data class Rect(
+data class MapRect(
     val left: Double,
     val top: Double,
     val width: Double,
@@ -33,13 +34,13 @@ private class MutableFolder(
     val path: String,
 ) {
     var directSize: Long = 0L
-    var directCount: Int = 0
+    var directImageCount: Int = 0
     val subfolders = mutableMapOf<String, MutableFolder>()
 
     fun toFolder(): Folder {
         val childFolders = subfolders.values.map { it.toFolder() }.sortedByDescending { it.size }
         val totalSize = directSize + childFolders.sumOf { it.size }
-        val totalCount = directCount + childFolders.sumOf { it.imageCount }
+        val totalCount = directImageCount + childFolders.sumOf { it.imageCount }
         return Folder(
             name = name,
             path = path,
@@ -51,30 +52,29 @@ private class MutableFolder(
 }
 
 /**
- * Builds a [Folder] tree from a list of image (path, size) pairs. Common single-child parent
+ * Builds a [Folder] tree from a list of images. Common single-child parent
  * folders with no direct files are collapsed so the tree starts at the first branching point.
  */
-fun buildFolderTree(images: List<Pair<String, Long>>): Folder {
+fun buildFolderTree(images: List<ImageRef>): Folder {
     if (images.isEmpty()) return Folder(name = "", path = "", size = 0L, imageCount = 0)
 
     val root = MutableFolder(name = "", path = "")
-    for ((filePath, size) in images) {
-        val normalized = filePath.replace('\\', '/')
-        val parts = normalized.split('/').filter { it.isNotEmpty() }
+    for (image in images) {
+        val parts = image.path.split('/').filter { it.isNotEmpty() }
         if (parts.size <= 1) {
-            root.directSize += size
-            root.directCount += 1
+            root.directSize += image.size
+            root.directImageCount += 1
         } else {
             val folderSegments = parts.dropLast(1)
             var current = root
             var currentPath = ""
-            val isAbsolute = filePath.startsWith("/")
+            val isAbsolute = image.path.startsWith("/")
             for (segment in folderSegments) {
                 currentPath = if (currentPath.isEmpty() && !isAbsolute) segment else "$currentPath/$segment"
                 current = current.subfolders.getOrPut(segment) { MutableFolder(segment, currentPath) }
             }
-            current.directSize += size
-            current.directCount += 1
+            current.directSize += image.size
+            current.directImageCount += 1
         }
     }
 
@@ -91,9 +91,9 @@ private data class TreemapItem(val index: Int, val area: Double)
  * Lays out rectangles for [weights] inside [bounds] using the squarified treemap algorithm
  * (Bruls, Huizing and van Wijk, 2000). The returned list matches the indices of [weights].
  */
-fun squarify(weights: List<Double>, bounds: Rect): List<Rect> {
+fun squarify(weights: List<Double>, bounds: MapRect): List<MapRect> {
     if (weights.isEmpty()) return emptyList()
-    val result = Array(weights.size) { Rect(bounds.left, bounds.top, 0.0, 0.0) }
+    val result = Array(weights.size) { MapRect(bounds.left, bounds.top, 0.0, 0.0) }
     if (bounds.width <= 0.0 || bounds.height <= 0.0) return result.toList()
 
     val positiveItems = weights.mapIndexedNotNull { index, weight ->
@@ -124,7 +124,7 @@ fun squarify(weights: List<Double>, bounds: Rect): List<Rect> {
         return maxRatio
     }
 
-    fun layoutRow(row: List<TreemapItem>, rect: Rect): Rect {
+    fun layoutRow(row: List<TreemapItem>, rect: MapRect): MapRect {
         val rowArea = row.sumOf { it.area }
         val isHorizontal = rect.width >= rect.height
         val side = if (isHorizontal) rect.height else rect.width
@@ -134,14 +134,14 @@ fun squarify(weights: List<Double>, bounds: Rect): List<Rect> {
         for (item in row) {
             val length = if (thickness > 0.0) item.area / thickness else 0.0
             if (isHorizontal) {
-                result[item.index] = Rect(
+                result[item.index] = MapRect(
                     left = rect.left,
                     top = rect.top + offset,
                     width = thickness,
                     height = length,
                 )
             } else {
-                result[item.index] = Rect(
+                result[item.index] = MapRect(
                     left = rect.left + offset,
                     top = rect.top,
                     width = length,
@@ -152,14 +152,14 @@ fun squarify(weights: List<Double>, bounds: Rect): List<Rect> {
         }
 
         return if (isHorizontal) {
-            Rect(
+            MapRect(
                 left = rect.left + thickness,
                 top = rect.top,
                 width = max(0.0, rect.width - thickness),
                 height = rect.height,
             )
         } else {
-            Rect(
+            MapRect(
                 left = rect.left,
                 top = rect.top + thickness,
                 width = rect.width,
@@ -190,12 +190,15 @@ fun squarify(weights: List<Double>, bounds: Rect): List<Rect> {
 }
 
 data class TreemapBlock(
-    val rect: Rect,
+    val rect: MapRect,
     val folder: Folder,
     val isDirectFiles: Boolean,
     val depth: Int,
     val hueIndex: Int,
 )
+
+/** Returns a distinct hue in degrees (0..360) for a top-level block index. */
+fun folderHue(hueIndex: Int): Float = ((hueIndex * 137.5f) % 360f + 360f) % 360f
 
 /**
  * Recursively lays out a treemap for [folder] inside [bounds] with a [gap] between nesting levels.
@@ -203,46 +206,45 @@ data class TreemapBlock(
  */
 fun layoutTreemap(
     folder: Folder,
-    bounds: Rect,
-    gap: Double = 0.0,
-    minSize: Double = 0.0,
+    bounds: MapRect,
+    gap: Double,
+    minSize: Double,
 ): List<TreemapBlock> {
     if (folder.size <= 0L || bounds.width < minSize || bounds.height < minSize) return emptyList()
     val blocks = mutableListOf<TreemapBlock>()
 
     fun recurse(
         current: Folder,
-        rect: Rect,
+        rect: MapRect,
         depth: Int,
         hueIndex: Int,
     ) {
         if (rect.width < minSize || rect.height < minSize) return
 
-        if (current.children.isEmpty()) {
-            blocks.add(TreemapBlock(rect, current, isDirectFiles = true, depth = depth, hueIndex = hueIndex))
-            return
+        if (depth >= 0) {
+            blocks.add(TreemapBlock(rect, current, isDirectFiles = false, depth = depth, hueIndex = hueIndex))
+            if (current.children.isEmpty()) return
         }
 
-        blocks.add(TreemapBlock(rect, current, isDirectFiles = false, depth = depth, hueIndex = hueIndex))
-
-        val inner = Rect(
-            left = rect.left + gap,
-            top = rect.top + gap,
-            width = max(0.0, rect.width - 2 * gap),
-            height = max(0.0, rect.height - 2 * gap),
-        )
+        val inner = if (depth < 0) {
+            rect
+        } else {
+            MapRect(
+                left = rect.left + gap,
+                top = rect.top + gap,
+                width = max(0.0, rect.width - 2 * gap),
+                height = max(0.0, rect.height - 2 * gap),
+            )
+        }
         if (inner.width < minSize || inner.height < minSize) return
 
-        val directSize = current.directSize
-        val hasDirectFiles = directSize > 0L
+        val children = current.children.filter { it.size > 0L }
+        val hasDirect = current.directSize > 0L
+        if (children.isEmpty() && !hasDirect) return
+
         val items = mutableListOf<Pair<Folder?, Long>>()
-        for (child in current.children) {
-            if (child.size > 0L) items.add(child to child.size)
-        }
-        if (hasDirectFiles) {
-            items.add(null to directSize)
-        }
-        if (items.isEmpty()) return
+        for (child in children) items.add(child to child.size)
+        if (hasDirect) items.add(null to current.directSize)
 
         val weights = items.map { it.second.toDouble() }
         val rects = squarify(weights, inner)
@@ -251,41 +253,20 @@ fun layoutTreemap(
             val (childFolder, _) = items[i]
             val r = rects[i]
             if (r.width < minSize || r.height < minSize) continue
-
+            val hue = if (depth < 0) i else hueIndex
             if (childFolder != null) {
-                recurse(childFolder, r, depth + 1, hueIndex)
+                recurse(childFolder, r, depth + 1, hue)
             } else {
-                blocks.add(TreemapBlock(r, current, isDirectFiles = true, depth = depth + 1, hueIndex = hueIndex))
+                val isDirect = depth >= 0 || children.isNotEmpty()
+                blocks.add(TreemapBlock(r, current, isDirectFiles = isDirect, depth = depth + 1, hueIndex = hue))
             }
         }
     }
 
-    if (folder.children.isEmpty()) {
-        blocks.add(TreemapBlock(bounds, folder, isDirectFiles = true, depth = 0, hueIndex = 0))
-    } else {
-        val directSize = folder.directSize
-        val hasDirectFiles = directSize > 0L
-        val items = mutableListOf<Pair<Folder?, Long>>()
-        for (child in folder.children) {
-            if (child.size > 0L) items.add(child to child.size)
-        }
-        if (hasDirectFiles) {
-            items.add(null to directSize)
-        }
-        val weights = items.map { it.second.toDouble() }
-        val rects = squarify(weights, bounds)
-
-        for (i in items.indices) {
-            val (childFolder, _) = items[i]
-            val r = rects[i]
-            if (r.width < minSize || r.height < minSize) continue
-            if (childFolder != null) {
-                recurse(childFolder, r, depth = 0, hueIndex = i)
-            } else {
-                blocks.add(TreemapBlock(r, folder, isDirectFiles = true, depth = 0, hueIndex = -1))
-            }
-        }
-    }
-
+    recurse(folder, bounds, depth = -1, hueIndex = 0)
     return blocks
 }
+
+/** The top-level block under a tap, so tapping anywhere inside a folder selects that folder. */
+fun topLevelBlockAt(blocks: List<TreemapBlock>, x: Double, y: Double): TreemapBlock? =
+    blocks.firstOrNull { it.depth == 0 && it.rect.contains(x, y) }

@@ -1,3 +1,4 @@
+// Storage map screen (docs/design.md §8): WinDirStat-style treemap of explored folders.
 package io.github.bert0ns.cribrum.ui
 
 import android.text.format.Formatter
@@ -67,13 +68,17 @@ fun StorageMapScreen(
                 val targetFolder = selected?.folder ?: currentFolder
                 val isDirectFiles = selected != null && selected.isDirectFiles
 
-                val headline = when {
-                    isDirectFiles -> stringResource(R.string.storage_map_direct_files)
-                    targetFolder.name.isNotEmpty() -> targetFolder.name
-                    else -> stringResource(R.string.storage_map_root)
-                }
+                val headline = targetFolder.path.ifEmpty { stringResource(R.string.storage_map_root) }
                 val size = if (isDirectFiles) targetFolder.directSize else targetFolder.size
                 val count = if (isDirectFiles) targetFolder.directImageCount else targetFolder.imageCount
+                val imageSizes = stringResource(R.string.storage_map_image_sizes)
+
+                val details = listOfNotNull(
+                    if (isDirectFiles) stringResource(R.string.storage_map_direct_files) else null,
+                    Formatter.formatShortFileSize(context, size),
+                    pluralStringResource(R.plurals.storage_map_images, count, count),
+                    imageSizes,
+                ).joinToString(" \u2022 ")
 
                 Text(
                     text = headline,
@@ -81,8 +86,7 @@ fun StorageMapScreen(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = Formatter.formatShortFileSize(context, size) + " \u2022 " +
-                        pluralStringResource(R.plurals.storage_map_images, count, count),
+                    text = details,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -110,16 +114,12 @@ fun StorageMapScreen(
                 val minSizePx = with(density) { 3.dp.toPx().toDouble() }
 
                 val blocks = remember(currentFolder, widthPx, heightPx) {
-                    if (widthPx > 0.0 && heightPx > 0.0) {
-                        layoutTreemap(
-                            folder = currentFolder,
-                            bounds = Rect(0.0, 0.0, widthPx, heightPx),
-                            gap = gapPx,
-                            minSize = minSizePx,
-                        )
-                    } else {
-                        emptyList()
-                    }
+                    layoutTreemap(
+                        folder = currentFolder,
+                        bounds = MapRect(0.0, 0.0, widthPx, heightPx),
+                        gap = gapPx,
+                        minSize = minSizePx,
+                    )
                 }
 
                 Canvas(
@@ -128,17 +128,11 @@ fun StorageMapScreen(
                         .pointerInput(blocks) {
                             detectTapGestures(
                                 onTap = { offset ->
-                                    val hit = blocks.lastOrNull { block ->
-                                        block.rect.contains(offset.x.toDouble(), offset.y.toDouble())
-                                    }
-                                    selectedBlock = if (selectedBlock == hit) null else hit
-                                },
-                                onDoubleTap = { offset ->
-                                    val hit = blocks.lastOrNull { block ->
-                                        block.rect.contains(offset.x.toDouble(), offset.y.toDouble())
-                                    }
-                                    if (hit != null && !hit.isDirectFiles && hit.folder.children.isNotEmpty()) {
+                                    val hit = topLevelBlockAt(blocks, offset.x.toDouble(), offset.y.toDouble())
+                                    if (hit != null && hit == selectedBlock && !hit.isDirectFiles) {
                                         onZoomIn(hit.folder)
+                                    } else {
+                                        selectedBlock = if (selectedBlock == hit) null else hit
                                     }
                                 },
                             )
@@ -150,7 +144,7 @@ fun StorageMapScreen(
                         val topLeft = Offset(rect.left.toFloat(), rect.top.toFloat())
                         val size = Size(rect.width.toFloat(), rect.height.toFloat())
 
-                        val hue = (block.hueIndex * 137.5f) % 360f
+                        val hue = folderHue(block.hueIndex)
                         val lightness = (0.50f + block.depth * 0.08f).coerceAtMost(0.85f)
                         val color = if (block.isDirectFiles && block.depth > 0) {
                             Color.hsl(hue, 0.40f, lightness)
@@ -196,7 +190,7 @@ fun StorageMapScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     itemsIndexed(subfolders) { index, folder ->
-                        val hue = (index * 137.5f) % 360f
+                        val hue = folderHue(index)
                         val iconColor = Color.hsl(hue, 0.80f, 0.45f)
                         ListItem(
                             headlineContent = { Text(folder.name) },
