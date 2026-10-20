@@ -29,6 +29,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -139,6 +141,8 @@ fun CategoryScreen(
     onToggle: (ImageRef) -> Unit,
     onApply: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Shown right above the button, which a snackbar at the bottom of the screen would cover. */
+    snackbar: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var showSummary by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<ImageRef?>(null) }
@@ -168,6 +172,7 @@ fun CategoryScreen(
                 }
             }
         }
+        SnackbarHost(snackbar)
         if (images.isNotEmpty()) {
             Button(onClick = { showSummary = true }, Modifier.fillMaxWidth().padding(16.dp)) {
                 Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
