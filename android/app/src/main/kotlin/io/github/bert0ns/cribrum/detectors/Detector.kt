@@ -3,6 +3,7 @@
 package io.github.bert0ns.cribrum.detectors
 
 import io.github.bert0ns.cribrum.hashing.contentHash as hashFile
+import io.github.bert0ns.cribrum.hashing.perceptualHash as hashPerceptual
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.Category
@@ -19,6 +20,7 @@ import java.io.File
  */
 data class AnalysisContext(
     val contentHash: suspend (ImageRef) -> String = { hashFile(it) },
+    val perceptualHash: suspend (ImageRef) -> ULong = { hashPerceptual(it) },
     /** Throws [io.github.bert0ns.cribrum.metadata.UnreadableImage] when the header can't be decoded. */
     val metadata: suspend (ImageRef) -> ImageMetadata = { readMetadata(File(it.path)) },
     /** Known screen resolutions as (short side, long side). */

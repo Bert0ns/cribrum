@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
 import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.hashing.contentHash
+import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
@@ -42,7 +43,7 @@ data class Stats(
     var newOrChanged: Int = 0,
     var forgotten: Int = 0,
     var unreadable: Int = 0,
-    /** Per-image analyses and group detector runs. */
+    /** Per-image analyses, perceptual hashes, and group detector runs. */
     var detectorRuns: Int = 0,
     /** Analyses that threw. They are not stored, so the next run retries them. */
     val failures: MutableList<String> = mutableListOf(),
@@ -97,7 +98,11 @@ class Pipeline(
         val images = index.images().filter { it.path in found }
         analyzeEach(images.filter { it.path !in unreadable }, stats, progress)
 
-        val context = AnalysisContext(contentHash = ::cachedContentHash, metadata = ::storedMetadata)
+        val context = AnalysisContext(
+            contentHash = ::cachedContentHash,
+            perceptualHash = ::storedPerceptualHash,
+            metadata = ::storedMetadata,
+        )
         val fingerprint = fingerprint(images)
         for (detector in groupDetectors) {
             if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
@@ -111,21 +116,37 @@ class Pipeline(
         stats
     }
 
+    private class AnalysisTask(
+        val image: ImageRef,
+        val metadata: ImageMetadata,
+        val detectors: List<Detector>,
+        val needsPhash: Boolean,
+    )
+
+    private class AnalysisOutcome(
+        val image: ImageRef,
+        val detectorResults: List<Triple<Detector, List<Signal>?, String?>>,
+        val phash: Result<ULong>?,
+    )
+
     /** Runs the per-image detectors on [parallelism] images at a time, storing results here, in order of completion. */
     private suspend fun analyzeEach(images: List<ImageRef>, stats: Stats, progress: Progress) = coroutineScope {
         val tasks = images.mapNotNull { image ->
             val todo = detectors.filter { !index.isAnalyzed(image.path, it.id, it.version) }
-            if (todo.isEmpty()) null else Triple(image, index.metadata(image.path)!!, todo)
+            val needsPhash = index.perceptualHash(image.path) == null
+            if (todo.isEmpty() && !needsPhash) null else AnalysisTask(image, index.metadata(image.path)!!, todo, needsPhash)
         }
-        val queue = Channel<Triple<ImageRef, ImageMetadata, List<Detector>>>(Channel.UNLIMITED)
+        val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
         tasks.forEach(queue::trySend)
         queue.close()
-        val results = Channel<Pair<ImageRef, List<Triple<Detector, List<Signal>?, String?>>>>(parallelism)
+        val results = Channel<AnalysisOutcome>(parallelism)
         val workers = List(parallelism) {
             launch(Dispatchers.Default) {
-                for ((image, metadata, todo) in queue) {
-                    val context = AnalysisContext(metadata = { metadata })
-                    results.send(image to todo.map { detector -> analyze(detector, image, context) })
+                for (task in queue) {
+                    val context = AnalysisContext(metadata = { task.metadata })
+                    val outcomes = task.detectors.map { detector -> analyze(detector, task.image, context) }
+                    val phash = if (task.needsPhash) computePhash(task.image) else null
+                    results.send(AnalysisOutcome(task.image, outcomes, phash))
                 }
             }
         }
@@ -134,14 +155,25 @@ class Pipeline(
             results.close()
         }
         var done = 0
-        for ((image, outcomes) in results) {
-            for ((detector, signals, failure) in outcomes) {
+        for (outcome in results) {
+            for ((detector, signals, failure) in outcome.detectorResults) {
                 if (signals != null) {
-                    index.setSignals(image.path, detector.id, detector.version, signals)
+                    index.setSignals(outcome.image.path, detector.id, detector.version, signals)
                     stats.detectorRuns++
                 } else {
-                    stats.failures += "${image.path}: ${detector.id}: $failure"
+                    stats.failures += "${outcome.image.path}: ${detector.id}: $failure"
                 }
+            }
+            if (outcome.phash != null) {
+                outcome.phash.fold(
+                    onSuccess = {
+                        index.setPerceptualHash(outcome.image.path, it)
+                        stats.detectorRuns++
+                    },
+                    onFailure = {
+                        stats.failures += "${outcome.image.path}: perceptual hash: ${it.javaClass.simpleName}: ${it.message}"
+                    }
+                )
             }
             progress("detectors", ++done, tasks.size)
         }
@@ -155,8 +187,18 @@ class Pipeline(
         Triple(detector, null, "${error::class.simpleName}: ${error.message}")
     }
 
+    private fun computePhash(image: ImageRef): Result<ULong> = try {
+        Result.success(perceptualHash(image))
+    } catch (error: Exception) {
+        if (error is CancellationException) throw error
+        Result.failure(error)
+    }
+
     private suspend fun cachedContentHash(image: ImageRef): String =
         index.contentHash(image.path) ?: contentHash(image).also { index.setContentHash(image.path, it) }
+
+    private suspend fun storedPerceptualHash(image: ImageRef): ULong =
+        index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
 
     private suspend fun storedMetadata(image: ImageRef): ImageMetadata =
         index.metadata(image.path) ?: throw UnreadableImage(File(image.path))

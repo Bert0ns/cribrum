@@ -18,6 +18,7 @@ data class ExpectedImage(
     val height: Int,
     val hasCameraExif: Boolean,
     val contentHash: String,
+    val perceptualHash: String,
     val signals: List<ExpectedSignal>,
 ) {
     fun signal(detector: String): ExpectedSignal? = signals.singleOrNull { it.detector == detector }
@@ -40,6 +41,7 @@ object Golden {
                 height = entry.getInt("height"),
                 hasCameraExif = entry.getBoolean("has_camera_exif"),
                 contentHash = entry.getString("content_hash"),
+                perceptualHash = entry.getString("perceptual_hash"),
                 signals = (0 until signals.length()).map { i ->
                     val signal = signals.getJSONObject(i)
                     val evidence = signal.getJSONObject("evidence")

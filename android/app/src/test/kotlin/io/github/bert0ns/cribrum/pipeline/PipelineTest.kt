@@ -15,6 +15,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -61,6 +62,7 @@ class PipelineTest {
         assertEquals(emptyList<String>(), stats.failures)
         val screenshot = File(root, "Pictures/Screenshots/Screenshot_1.png").path
         assertEquals(64, runBlocking { index.metadata(screenshot) }!!.width)
+        assertNotNull(runBlocking { index.perceptualHash(screenshot) })
         assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER), kinds("Pictures/Screenshots/Screenshot_1.png"))
         assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
@@ -85,7 +87,7 @@ class PipelineTest {
         val stats = run()
 
         assertEquals(1, stats.newOrChanged)
-        assertEquals(DETECTORS.size + GROUP_DETECTORS.size, stats.detectorRuns)
+        assertEquals(DETECTORS.size + 1 + GROUP_DETECTORS.size, stats.detectorRuns)
         assertFalse(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 
