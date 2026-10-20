@@ -23,6 +23,7 @@ sealed interface Screen {
     data object Home : Screen
     data class Category(val category: io.github.bert0ns.cribrum.model.Category) : Screen
     data object Trash : Screen
+    data object Settings : Screen
 }
 
 data class ReviewState(
@@ -56,6 +57,8 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
+
+    fun openSettings() = load { it.copy(screen = Screen.Settings) }
 
     fun back() = load { it.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null) }
 

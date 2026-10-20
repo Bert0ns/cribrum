@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +47,7 @@ import io.github.bert0ns.cribrum.ui.CategoryScreen
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.ScanStatus
 import io.github.bert0ns.cribrum.ui.Screen
+import io.github.bert0ns.cribrum.ui.SettingsScreen
 import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
@@ -117,12 +119,20 @@ fun App(model: ReviewViewModel = viewModel()) {
                             Screen.Home -> stringResource(R.string.app_name)
                             is Screen.Category -> categoryName(screen.category)
                             Screen.Trash -> stringResource(R.string.trash)
+                            Screen.Settings -> stringResource(R.string.settings)
                         },
                     )
                 },
                 navigationIcon = {
                     if (screen != Screen.Home) {
                         IconButton(model::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    }
+                },
+                actions = {
+                    if (screen == Screen.Home) {
+                        IconButton(model::openSettings) {
+                            Icon(Icons.Filled.Settings, stringResource(R.string.settings))
+                        }
                     }
                 },
             )
@@ -142,8 +152,8 @@ fun App(model: ReviewViewModel = viewModel()) {
                 Screen.Trash -> TrashScreen(
                     state.trashed, state.selected, model::select, model::selectAll, model::restoreSelected, model::emptyTrash,
                 )
+                Screen.Settings -> SettingsScreen()
             }
         }
     }
 }
-
