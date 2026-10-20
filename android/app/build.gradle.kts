@@ -66,6 +66,8 @@ android {
         abortOnError = true
         // They say a newer release came out, which changes by the day, not with the code.
         disable += setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
+        // Cribrum is for phones, so the APK leaves out ChromeOS's x86_64 (abiFilters above).
+        disable += "ChromeOsAbiSupport"
     }
 }
 
