@@ -1,0 +1,80 @@
+name: release
+
+# Manual only: Actions → release → Run workflow, on main. Publishes a signed APK as a GitHub
+# release (docs/design.md D7: personal, sideloaded distribution).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, as MAJOR.MINOR.PATCH (e.g. 0.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the branch and the version
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::releases come from main, not $GITHUB_REF"; exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^([0-9]{1,2})\.([0-9]{1,2})\.([0-9]{1,2})$ ]]; then
+            echo "::error::the version must be MAJOR.MINOR.PATCH with each part under 100, got '$VERSION'"; exit 1
+          fi
+          # Android installs an update only over a lower versionCode.
+          code=$(( 10#${BASH_REMATCH[1]} * 10000 + 10#${BASH_REMATCH[2]} * 100 + 10#${BASH_REMATCH[3]} ))
+          latest=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/v||' | sort -V | tail -n 1)
+          if [ -n "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" -o "$latest" = "$VERSION" ]; then
+            echo "::error::the version must be above the latest release, v$latest"; exit 1
+          fi
+          echo "VERSION_CODE=$code" >> "$GITHUB_ENV"
+
+      - name: Write the signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::the ANDROID_KEYSTORE_BASE64 secret is missing (android/README.md, Release)"; exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "CRIBRUM_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Test and build
+        env:
+          CRIBRUM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          CRIBRUM_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: ./gradlew testDebugUnitTest lintDebug assembleRelease -PversionName="$VERSION" -PversionCode="$VERSION_CODE"
+
+      - name: Check the signature
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)/apksigner
+          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apk="cribrum-$VERSION.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+          gh release create "v$VERSION" "$apk" "$apk.sha256" \
+            --target "$GITHUB_SHA" --title "Cribrum $VERSION" --generate-notes

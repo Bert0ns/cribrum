@@ -29,6 +29,14 @@ Enable USB debugging on the phone (see the [lab README](../lab/README.md#data); 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Release
+
+Releases are manual: on GitHub, Actions → release → Run workflow, on `main`, with the version as `MAJOR.MINOR.PATCH`. The workflow refuses a version that is not above the latest release, runs the unit tests and lint, and publishes `cribrum-X.Y.Z.apk` and its SHA-256 as the release `vX.Y.Z`. Install it with `adb install -r`, or open it on the phone.
+
+Every release is signed with the same key, so each one installs over the previous one. It lives in the repository secrets `ANDROID_KEYSTORE_BASE64` (the PKCS12 keystore, in base64), `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS`. Keep a copy of the keystore and its password outside GitHub: with a lost key, the next release can only be installed after uninstalling the app, which drops its index. The trash is on shared storage and survives.
+
+A debug build is signed with another key, so it can't be installed over a release, or the other way round, without uninstalling first.
+
 ## Layout
 
 | Package | Contents | Lab counterpart |
