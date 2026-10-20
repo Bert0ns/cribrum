@@ -3,6 +3,7 @@ package io.github.bert0ns.cribrum.golden
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
+import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.metadata.readMetadata
 import kotlinx.coroutines.runBlocking
@@ -14,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
-/** Metadata, content hashes, SCREENSHOT and EXACT_DUPLICATE against the lab's golden fixtures. */
+/** Metadata, content hashes, SCREENSHOT, STICKER and EXACT_DUPLICATE against the lab's golden fixtures. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE) // Android's real decoders, not Robolectric's stand-ins
 class GoldenMetadataTest {
@@ -50,6 +51,18 @@ class GoldenMetadataTest {
             assertEquals(expected.relative, want.version, got.detectorVersion)
             assertEquals(expected.relative, want.category, got.kind.value)
             assertEquals(expected.relative, want.score, got.score, Golden.scoreTolerance)
+            assertEquals(expected.relative, want.evidence, got.evidence)
+        }
+    }
+
+    @Test
+    fun `sticker scores match exactly`() = runBlocking {
+        val detector = StickerDetector()
+        for (expected in Golden.images) {
+            val want = expected.signal(detector.id)!!
+            val got = detector.analyze(expected.image, AnalysisContext()).single()
+
+            assertEquals(expected.relative, want.score, got.score)
             assertEquals(expected.relative, want.evidence, got.evidence)
         }
     }

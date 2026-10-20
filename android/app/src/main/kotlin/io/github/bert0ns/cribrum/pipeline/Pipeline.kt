@@ -10,6 +10,7 @@ import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
+import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
@@ -27,7 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-val DETECTORS: List<Detector> = listOf(BlurDetector(), ExposureDetector(), ScreenshotDetector())
+val DETECTORS: List<Detector> = listOf(BlurDetector(), ExposureDetector(), ScreenshotDetector(), StickerDetector())
 val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector())
 
 /** Called with a step name, the items done and the items in total (0 while unknown). */
