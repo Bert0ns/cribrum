@@ -189,6 +189,7 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 - Duplicate and burst groups have a "keep best, trash the rest" action, with side-by-side comparison.
 - Quick gestures and no unnecessary confirmations, except a final summary before trashing.
 - "Never suggest this again" works per image and per folder.
+- A settings screen, opened from the home screen, shows app information and a warning that uninstalling leaves the trash folder on shared storage.
 
 ## 9. Deletion and trash
 
