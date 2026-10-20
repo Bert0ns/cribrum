@@ -28,6 +28,7 @@ const val MIN_COSINE = 0.90f
 class NearDuplicateDetector : GroupDetector {
     override val id = "near_duplicate"
     override val version = 2
+    override val category = Category.NEAR_DUPLICATE
 
     override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
         val members = mutableListOf<ImageRef>()

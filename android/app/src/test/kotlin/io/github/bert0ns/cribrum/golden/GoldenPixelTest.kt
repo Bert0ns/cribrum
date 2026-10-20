@@ -4,6 +4,7 @@ import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.BlurDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
+import io.github.bert0ns.cribrum.detectors.MAX_DISTANCE
 import io.github.bert0ns.cribrum.detectors.NearDuplicateDetector
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -48,8 +49,10 @@ class GoldenPixelTest {
 
     /**
      * Near-duplicate groups matched by perceptual hash alone reproduce expected.json's groups,
-     * best copies, and Hamming distances. Images requiring MobileCLIP embeddings (such as blurred.jpg,
-     * distance 32 > 10) are documented and left unlinked until embeddings are added.
+     * best copies, and Hamming distances. The lab computed them with embeddings too: a copy further
+     * than MAX_DISTANCE from its best copy was linked by its embedding alone, so the app, without
+     * embeddings yet, leaves it out. Group ids are hashes of the lab's paths, so they are compared
+     * by which images share one, not by value.
      */
     @Test
     fun `near duplicate reproduces hash-linked groups from golden fixtures`() = runBlocking {
@@ -61,9 +64,8 @@ class GoldenPixelTest {
         for (expected in Golden.images) {
             val want = expected.signal(detector.id)
             val got = found[expected.image]?.single()
-            if (expected.relative == "DCIM/Camera/blurred.jpg") {
-                // Linked only by MobileCLIP embeddings in expected.json (distance 32 > MAX_DISTANCE 10)
-                assertEquals(null, got)
+            if (want != null && want.evidence.getValue("distance").toInt() > MAX_DISTANCE) {
+                assertEquals(expected.relative, null, got) // linked by its embedding alone
                 continue
             }
             if (want == null) {

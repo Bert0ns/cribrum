@@ -171,7 +171,10 @@ class PipelineTest {
     @Test
     fun `detector categories are derived from the detector lists`() {
         assertEquals(
-            setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER, Category.EXACT_DUPLICATE),
+            setOf(
+                Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER,
+                Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE,
+            ),
             DETECTOR_CATEGORIES,
         )
     }
