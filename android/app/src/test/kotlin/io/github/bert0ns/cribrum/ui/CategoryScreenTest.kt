@@ -11,7 +11,10 @@ import androidx.compose.ui.test.performClick
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
+import androidx.compose.material3.SnackbarHostState
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,4 +62,20 @@ class CategoryScreenTest {
 
         assertEquals(0, applied)
     }
+
+    @Test
+    fun `the undo snackbar shows above the trash button, not over it`() {
+        val snackbar = SnackbarHostState()
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, snackbar = snackbar) }
+
+        compose.runOnIdle { scope.launch { snackbar.showSnackbar("3 images moved to the trash", "Undo") } }
+
+        val message = compose.onNodeWithText("3 images moved to the trash").fetchSemanticsNode().boundsInRoot
+        val button = compose.onNodeWithText("Trash 3, keep 0").fetchSemanticsNode().boundsInRoot
+        assertTrue("$message over $button", message.bottom <= button.top)
+        compose.onNodeWithText("Trash 3, keep 0").performClick()
+        compose.onNodeWithText("Move 3 images to the trash?").assertExists()
+    }
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
 }

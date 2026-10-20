@@ -22,7 +22,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -128,7 +127,6 @@ fun App(model: ReviewViewModel = viewModel()) {
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Column(Modifier.padding(padding)) {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -139,6 +137,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                 }
                 is Screen.Category -> CategoryScreen(
                     state.page, state.remaining, state.marked, screen.category in GROUP_CATEGORIES, model::toggle, model::applyPage,
+                    snackbar = snackbar,
                 )
                 Screen.Trash -> TrashScreen(state.trashed, state.selected, model::select, model::restoreSelected, model::emptyTrash)
             }
