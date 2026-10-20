@@ -18,6 +18,7 @@ HALF_SCORE_VARIANCE = 100.0
 class BlurDetector:
     id = "blur"
     version = 1
+    category = Category.BLURRY
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
         measured = measure(image.path)

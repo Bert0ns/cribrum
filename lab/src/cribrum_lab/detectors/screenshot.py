@@ -27,6 +27,7 @@ _PATH_PARTS = 3
 class ScreenshotDetector:
     id = "screenshot"
     version = 1
+    category = Category.SCREENSHOT
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
         meta = context.metadata(image)

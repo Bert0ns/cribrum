@@ -13,6 +13,7 @@ class ExactDuplicateDetector:
 
     id = "exact_duplicate"
     version = 1
+    category = Category.EXACT_DUPLICATE
 
     def analyze(
         self, images: Sequence[ImageRef], context: AnalysisContext

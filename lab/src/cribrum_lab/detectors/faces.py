@@ -29,6 +29,8 @@ MODEL = Path(__file__).parents[1] / "assets" / "face_detection_yunet_2023mar.onn
 class FaceDetector:
     id = "faces"
     version = 1
+    category = None
+    """It emits a protection signal, which is no category to review."""
 
     def __init__(self, runtime: ModelRuntime | None = None) -> None:
         self._runtime = runtime

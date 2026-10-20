@@ -19,6 +19,7 @@ NO_CAMERA_EXIF_WEIGHT = 0.1
 class ForwardedDetector:
     id = "forwarded"
     version = 1
+    category = Category.FORWARDED
     """Bump with prompts.VERSION."""
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:

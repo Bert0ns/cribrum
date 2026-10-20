@@ -26,6 +26,7 @@ _CHUNK = 1024
 class NearDuplicateDetector:
     id = "near_duplicate"
     version = 2
+    category = Category.NEAR_DUPLICATE
 
     def analyze(
         self, images: Sequence[ImageRef], context: AnalysisContext
