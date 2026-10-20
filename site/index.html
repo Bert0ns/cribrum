@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cribrum: On-device photo cleanup for Android</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo-row">
+        <svg class="logo" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="24" cy="22" r="15" />
+          <path d="M15 22h18 M24 13v18 M18 16v12 M30 16v12 M13 18h22 M13 26h22" stroke-width="1.2" opacity="0.65" />
+          <path d="M24 37v5 M20 42h8" stroke-width="2" />
+        </svg>
+        <div class="title-group">
+          <h1>Cribrum</h1>
+          <p class="tagline">A local photo sieve for Android.</p>
+        </div>
+      </div>
+      <p class="summary">
+        Cribrum finds images on your phone that you can delete without losing memories that matter. It scans local storage, suggests candidates for your review, and keeps deletions in a 30-day trash.
+      </p>
+      <div class="download-cta">
+        <a href="https://github.com/Bert0ns/cribrum/releases/latest" class="button">Download latest APK</a>
+        <span class="subtext">Android 11+ &middot; Free software (GPLv3)</span>
+      </div>
+    </header>
+
+    <main>
+      <section id="what-it-does">
+        <h2>What it does</h2>
+        <ul>
+          <li>
+            <strong>Finds photos worth deleting.</strong>
+            Cribrum scans storage for exact duplicates, similar copies, blurry shots, screenshots, bad exposures, and messaging clutter like WhatsApp stickers.
+          </li>
+          <li>
+            <strong>Suggests, never deletes on its own.</strong>
+            The app surfaces candidates for your review. You decide what to keep and what to trash. Nothing is removed without your confirmation.
+          </li>
+          <li>
+            <strong>Runs on the phone.</strong>
+            All scanning and analysis happen on the device. No photos, hashes, or metadata ever leave your phone. The app works offline and needs no account.
+          </li>
+          <li>
+            <strong>Keeps a 30-day trash.</strong>
+            Deleted files move to an app-managed folder on storage instead of disappearing immediately. They remain there for 30 days before purge, so you can restore anything deleted by mistake.
+          </li>
+        </ul>
+      </section>
+
+      <section id="requirements">
+        <h2>Requirements</h2>
+        <ul>
+          <li>
+            <strong>Android 11 or newer (API 30+).</strong>
+            The app relies on storage rules and file management APIs introduced in Android 11.
+          </li>
+          <li>
+            <strong>All files access (<code>MANAGE_EXTERNAL_STORAGE</code>).</strong>
+            Standard gallery apps only see files indexed by MediaStore, missing hidden folders such as WhatsApp sent and received media. Cribrum uses all files access to run a deep scan and find clutter across the entire shared storage.
+          </li>
+          <li>
+            <strong>Sideloaded distribution.</strong>
+            Google Play restricts all files access to a narrow set of app categories. Distributing Cribrum directly as a sideloaded APK allows full-storage cleanup without Play Store policy restrictions.
+          </li>
+        </ul>
+      </section>
+
+      <section id="how-to-install">
+        <h2>How to install</h2>
+        <ol>
+          <li>
+            <strong>Download the APK.</strong>
+            Get the latest release from the <a href="https://github.com/Bert0ns/cribrum/releases/latest">GitHub releases page</a>.
+          </li>
+          <li>
+            <strong>Allow the install.</strong>
+            Open the downloaded file. When Android asks for permission to install unknown apps from your browser or file manager, allow it and confirm.
+          </li>
+          <li>
+            <strong>Check the SHA-256.</strong>
+            Each release includes a <code>.sha256</code> checksum file. You can verify the APK digest with <code>sha256sum cribrum-*.apk</code> before running it.
+          </li>
+        </ol>
+      </section>
+
+      <section id="source-code">
+        <h2>Source code</h2>
+        <p>
+          Cribrum is free software released under the <a href="https://github.com/Bert0ns/cribrum/blob/main/LICENSE">GNU General Public License v3.0</a>.
+          Source code, issue tracking, and roadmap are hosted on GitHub:
+        </p>
+        <p>
+          <a href="https://github.com/Bert0ns/cribrum">https://github.com/Bert0ns/cribrum</a>
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <p>Cribrum &middot; GPL-3.0 &middot; <a href="https://github.com/Bert0ns/cribrum">Source</a> &middot; <a href="https://github.com/Bert0ns/cribrum/releases/latest">Releases</a></p>
+    </footer>
+  </div>
+</body>
+</html>
