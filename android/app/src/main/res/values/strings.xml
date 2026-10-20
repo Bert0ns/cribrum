@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Cribrum</string>
-    <string name="placeholder">Nothing to review yet.</string>
+    <string name="nothing_to_review">Nothing to review. New photos are checked every day while the phone charges.</string>
     <string name="access_title">Cribrum needs All files access</string>
     <string name="access_body">Many images live in folders the gallery never shows, such as the photos you sent on WhatsApp. To find them, Cribrum reads every folder on this phone. Nothing leaves the phone, and nothing is deleted without your confirmation.</string>
     <string name="access_grant">Allow access</string>
@@ -10,4 +10,46 @@
     <string name="scan_now">Scan now</string>
     <string name="scan_step_scan">Finding images: %1$d so far</string>
     <string name="scan_step">%1$s: %2$d of %3$d</string>
+    <string name="category_exact_duplicate">Exact copies</string>
+    <string name="category_near_duplicate">Similar copies</string>
+    <string name="category_burst">Bursts</string>
+    <string name="category_blurry">Blurry</string>
+    <string name="category_bad_exposure">Too dark or too bright</string>
+    <string name="category_screenshot">Screenshots</string>
+    <string name="category_document">Documents and notes</string>
+    <string name="category_forwarded">Forwarded</string>
+    <plurals name="candidates">
+        <item quantity="one">%d image to review</item>
+        <item quantity="other">%d images to review</item>
+    </plurals>
+    <plurals name="page_more">
+        <item quantity="one">%1$d of %2$d image to review. Confirm these to see the next ones.</item>
+        <item quantity="other">%1$d of %2$d images to review. Confirm these to see the next ones.</item>
+    </plurals>
+    <plurals name="page_last">
+        <item quantity="one">The last image to review.</item>
+        <item quantity="other">The last %2$d images to review.</item>
+    </plurals>
+    <string name="back">Back</string>
+    <string name="review_hint">Marked images go to the trash. Tap one to keep it, hold it to see it full size.</string>
+    <string name="best_copy">Best</string>
+    <string name="apply">Trash %1$d, keep %2$d</string>
+    <plurals name="summary_title">
+        <item quantity="one">Move %d image to the trash?</item>
+        <item quantity="other">Move %d images to the trash?</item>
+    </plurals>
+    <string name="summary_body">They take %1$s. The other images on this page will be kept. You can restore anything from the trash for 30 days.</string>
+    <string name="summary_confirm">Move to trash</string>
+    <string name="cancel">Cancel</string>
+    <plurals name="trashed_snackbar">
+        <item quantity="one">%d image moved to the trash</item>
+        <item quantity="other">%d images moved to the trash</item>
+    </plurals>
+    <plurals name="not_moved_snackbar">
+        <item quantity="one">%d image changed since the scan and stayed where it was</item>
+        <item quantity="other">%d images changed since the scan and stayed where they were</item>
+    </plurals>
+    <string name="undo">Undo</string>
+    <string name="selected_for_trash">Marked for the trash</string>
+    <string name="kept">Kept</string>
 </resources>
