@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> None:
     label.add_argument(
         "--clusters", action="store_true", help="show similar images as grids labeled at once"
     )
-    evaluate = commands.add_parser("evaluate", help="recall per category on the labels")
+    evaluate = commands.add_parser("evaluate", help="recall on the labels and suggested thresholds")
     evaluate.add_argument("--labels", type=Path, default=DEFAULT_LABELS, help="SQLite labels file")
     evaluate.add_argument(
         "--out", type=Path, help="also write the report here (keep it under lab/data/)"

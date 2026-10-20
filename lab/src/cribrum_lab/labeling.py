@@ -21,8 +21,6 @@ from cribrum_lab.labels import Decision, Label, LabelStore
 from cribrum_lab.model import Category, ImageRef
 from cribrum_lab.ranker import Candidate
 
-CATEGORY_KEYS = {str(i): category for i, category in enumerate(Category, 1)}
-"""Digit keys that label an image as deletable for a given reason."""
 PREVIEW_SIDE = 1600
 """Browsers can't show HEIC: every image is sent as a JPEG this size at most."""
 THUMBNAIL_SIDE = 400
@@ -128,13 +126,13 @@ class LabelingServer(ThreadingHTTPServer):
         self.lock = threading.Lock()
         self.hashes: dict[int, str] = {}
 
-    def label(self, items: Sequence[int], decision: Decision, category: Category | None) -> None:
+    def label(self, items: Sequence[int], decision: Decision) -> None:
         with self.lock:
             for item in items:
                 image = self.queue[item]
                 digest = self.hashes.get(item) or hashing.content_hash(image)
                 self.hashes[item] = digest
-                self.store.set(Label(digest, image.path, decision, category))
+                self.store.set(Label(digest, image.path, decision))
 
     def unlabel(self, items: Sequence[int]) -> None:
         with self.lock:
@@ -151,8 +149,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(_PAGE.read_bytes(), "text/html; charset=utf-8")
         elif self.path == "/api/queue":
             items = [{"path": str(image.path)} for image in self.server.queue]
-            keys = {key: category.value for key, category in CATEGORY_KEYS.items()}
-            self._json({"items": items, "groups": self.server.groups, "categories": keys})
+            self._json({"items": items, "groups": self.server.groups})
         elif self.path.startswith(("/image/", "/thumbnail/", "/original/")):
             kind, _, number = self.path[1:].partition("/")
             item = self._item(number)
@@ -175,11 +172,10 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/api/label":
             try:
                 decision = Decision(body["decision"])
-                category = Category(body["category"]) if body.get("category") else None
             except (KeyError, ValueError):
                 self.send_error(HTTPStatus.BAD_REQUEST)
                 return
-            self.server.label(items, decision, category)
+            self.server.label(items, decision)
         elif self.path == "/api/unlabel":
             self.server.unlabel(items)
         else:

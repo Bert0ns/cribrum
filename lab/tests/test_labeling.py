@@ -97,7 +97,6 @@ def test_page_and_queue(server):
 
     assert [Path(item["path"]).name for item in queue["items"]] == ["a.png", "b.jpg", "broken.jpg"]
     assert queue["groups"] == [[0, 1], [2]]
-    assert queue["categories"]["6"] == "screenshot"
 
 
 def test_images_are_sent_as_bounded_jpegs(server):
@@ -136,11 +135,10 @@ def test_undecodable_image_is_an_error_not_a_crash(server):
 
 
 def test_label_and_undo(server):
-    post(server, "/api/label", {"items": [1], "decision": "delete", "category": "blurry"})
+    post(server, "/api/label", {"items": [1], "decision": "delete"})
 
     [label] = server.store.all()
     assert label.decision is Decision.DELETE
-    assert label.category is Category.BLURRY
     assert label.content_hash == content_hash(server.queue[1])
 
     post(server, "/api/unlabel", {"items": [1]})
