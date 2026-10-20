@@ -77,13 +77,15 @@ Each detector looks at an image (or at the image index) and emits **signals**. N
 
 With about 10,000 images, the embeddings take roughly 20 MB (512 float32 values per image), and comparing every pair directly is feasible without an approximate-nearest-neighbor index.
 
-**Variant: MobileCLIP2-S0, as ONNX.** [MobileCLIP2](https://arxiv.org/abs/2508.20691) (2025) keeps MobileCLIP's architectures and improves their training: S0 goes from about 68% to 71.5% ImageNet zero-shot accuracy at the same size. S0 is the smallest variant (a 45 MB float32 image encoder), and its ONNX export ([plhery/mobileclip2-onnx](https://huggingface.co/plhery/mobileclip2-onnx), `onnx/s0/`, pinned to a revision) runs unchanged in the lab (ONNX Runtime) and on Android (ONNX Runtime Mobile). Both compute the same embeddings, so golden fixtures can compare them directly. The export was checked against Apple's open_clip weights on the golden fixtures: image and text embeddings agree to within 1e-6. Input: shortest side resized to 256 px (bilinear), center crop to 256×256, RGB scaled to [0, 1], no normalization. Zero-shot uses the checkpoint's learned temperature, 64.33. The text encoder (254 MB) only turns prompts into embeddings. The lab computes those once, and the app ships them as constants, so the text encoder never goes on the phone.
+**Variant: MobileCLIP2-S0, as ONNX.** [MobileCLIP2](https://arxiv.org/abs/2508.20691) (2025) keeps MobileCLIP's architectures and improves their training: S0 goes from about 68% to 71.5% ImageNet zero-shot accuracy at the same size. S0 is the smallest variant (a 45 MB float32 image encoder), and its ONNX export ([plhery/mobileclip2-onnx](https://huggingface.co/plhery/mobileclip2-onnx), `onnx/s0/`, pinned to a revision) runs unchanged in the lab and in the app, on ONNX Runtime in both. Both compute the same embeddings, so golden fixtures can compare them directly. The export was checked against Apple's open_clip weights on the golden fixtures: image and text embeddings agree to within 1e-6. Input: shortest side resized to 256 px (bilinear), center crop to 256×256, RGB scaled to [0, 1], no normalization. Zero-shot uses the checkpoint's learned temperature, 64.33. The text encoder (254 MB) only turns prompts into embeddings. The lab computes those once, and the app ships them as constants, so the text encoder never goes on the phone.
 
 On the first phone's 912 labels, MobileCLIP2-S0 raised recall from 73% to 81% at the starting thresholds. With thresholds suggested for 80% recall, it flags 117 kept images instead of 146, for about the same number of candidates. Its similarities spread like MobileCLIP-S0's: at 0.90 it links 3,125 pairs of the 10,000 images against 2,905, so the NEAR_DUPLICATE and BURST thresholds stayed.
 
 **License.** The MobileCLIP2 weights come under Apple's Machine Learning Research Model license, which allows research and other non-commercial use only. Cribrum is a personal, non-commercial app, so this is accepted. A commercial release would need another model, such as MobileCLIP-S0 (Apple sample code license) or Meta's Perception Encoder (Apache 2.0).
 
 On the dev machine (Ryzen 5 3600XT, CPU only), decoding and preprocessing take about 80 ms per image on one core (12 worker processes share it), and inference about 19 ms per image in batches of 16 on all cores: roughly 5 minutes for 10,000 images. These numbers were measured with MobileCLIP-S0, which has the same image encoder architecture (MCi0).
+
+**In the app.** The build downloads the image encoder from the same revision, checks the same SHA-256 as the lab, and packs it in the APK's assets with Apple's license next to it. It is never committed. The app ports the lab's preprocessing step by step (Pillow's draft decoding, EXIF orientation, bilinear resize), and on the golden fixtures its embeddings match the lab's with a cosine of at least 0.99999. ONNX Runtime adds a 35 MB native library per ABI, so the APK only carries the arm64 one.
 
 ## 6. Ranking
 
@@ -154,7 +156,7 @@ interface Trash {                        // app-managed trash, 30-day retention
     suspend fun purgeExpired(): List<ImageRef>
 }
 
-interface ModelRuntime                   // LiteRT or ONNX Runtime behind one interface
+interface ModelRuntime                   // ONNX Runtime behind one interface
 ```
 
 - Signals are stored with the version of the detector that produced them. When a detector improves, only its signals are recomputed.

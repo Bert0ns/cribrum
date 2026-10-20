@@ -22,6 +22,9 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.mobileclip.MobileClip
+import io.github.bert0ns.cribrum.mobileclip.VISION_MODEL_ASSET
+import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
@@ -80,7 +83,8 @@ class IndexWorker(context: Context, parameters: WorkerParameters) : CoroutineWor
         val purged = app.trash.purgeExpired()
         app.index.forget(purged.map { it.path })
         var reported = 0L
-        Pipeline(app.index).run(Indexing.deviceSource(applicationContext)) { step, done, total ->
+        val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
+        Pipeline(app.index, embedder = embedder).run(Indexing.deviceSource(applicationContext)) { step, done, total ->
             val now = System.currentTimeMillis()
             if (now - reported < PROGRESS_INTERVAL_MS && done != total) return@run
             reported = now

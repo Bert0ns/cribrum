@@ -1,3 +1,6 @@
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -17,6 +20,8 @@ android {
         // The release workflow sets both from the version it publishes.
         versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
         versionName = providers.gradleProperty("versionName").orNull ?: "0.1.0"
+        // ONNX Runtime ships a 35 MB native library per ABI: only phones' is kept.
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     signingConfigs {
@@ -68,6 +73,70 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+/** Downloads pinned files and checks their SHA-256, as lab/src/cribrum_lab/models.py does. */
+abstract class DownloadModel : DefaultTask() {
+    /** File name to "url sha256". */
+    @get:Input
+    abstract val files: MapProperty<String, String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun download() {
+        for ((name, source) in files.get()) {
+            val (url, sha256) = source.split(" ")
+            val target = outputDirectory.file(name).get().asFile
+            if (target.exists() && sha256(target) == sha256) continue
+            target.parentFile.mkdirs()
+            val partial = File(target.path + ".part")
+            URI(url).toURL().openStream().use { input -> partial.outputStream().use(input::copyTo) }
+            check(sha256(partial) == sha256) { "$url: SHA-256 mismatch" }
+            partial.renameTo(target)
+        }
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().use { input ->
+            val buffer = ByteArray(1 shl 16)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                digest.update(buffer, 0, read)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+}
+
+// The MobileCLIP2-S0 image encoder, from the same revision and with the same SHA-256 as
+// lab/src/cribrum_lab/mobileclip.py, with its license. Packed in the APK, never committed.
+val downloadMobileClip = tasks.register<DownloadModel>("downloadMobileClip") {
+    files.put(
+        "mobileclip2_s0/vision_model.onnx",
+        "https://huggingface.co/plhery/mobileclip2-onnx/resolve/ba95759a5bdbaca53e9111e2550a76ec09c8fd9e/onnx/s0/vision_model.onnx " +
+            "13d20ebfa8a8f63890eb2727fe4dc63009ff970f43e0f7d9d2ed999659f70c8a",
+    )
+    files.put(
+        "mobileclip2_s0/LICENSE",
+        "https://huggingface.co/apple/MobileCLIP2-S0/resolve/3136ea51c8ed56b9f9abfab04cb816735aaad6cb/LICENSE " +
+            "30c59d255d2b4075ba11b81ce5aa0109c28d28138d66d52f7f5d8cbba814df8b",
+    )
+    outputDirectory.set(layout.buildDirectory.dir("generated/mobileclip"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(downloadMobileClip, DownloadModel::outputDirectory)
+    }
+}
+
+// Unit tests run the model on the JVM, which needs ONNX Runtime's desktop build instead.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    exclude(group = "com.microsoft.onnxruntime", module = "onnxruntime-android")
+}
+
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
@@ -87,6 +156,7 @@ dependencies {
     implementation(libs.compose.material.icons)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
+    implementation(libs.onnxruntime.android)
     ksp(libs.room.compiler)
 
     testImplementation(libs.junit)
@@ -95,6 +165,7 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.work.testing)
+    testImplementation(libs.onnxruntime.jvm)
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
