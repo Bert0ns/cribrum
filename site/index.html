@@ -4,105 +4,245 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Cribrum: On-device photo cleanup for Android</title>
+  <meta name="description" content="A private, local photo sieve for Android. Finds duplicates, blurry shots, WhatsApp media clutter, and screenshots without uploading anything to the cloud.">
+  <meta property="og:title" content="Cribrum: On-device photo cleanup for Android">
+  <meta property="og:description" content="Find photos you can delete without losing memories that matter. 100% on-device, suggestions only, and safe 30-day trash.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://cribrum.bertons.me">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Ccircle cx='24' cy='24' r='22' fill='%232E5E4E'/%3E%3Ccircle cx='24' cy='24' r='14' stroke='%23ffffff' stroke-width='2.5' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='28' cy='20' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='24' cy='24' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='20' cy='28' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='28' cy='28' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
-    <header class="header">
-      <div class="logo-row">
-        <svg class="logo" viewBox="0 0 48 48" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="24" cy="22" r="15" />
-          <path d="M15 22h18 M24 13v18 M18 16v12 M30 16v12 M13 18h22 M13 26h22" stroke-width="1.2" opacity="0.65" />
-          <path d="M24 37v5 M20 42h8" stroke-width="2" />
+    <div class="top-bar">
+      <a href="#" class="brand">
+        <svg class="brand-mark" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <circle cx="24" cy="24" r="22" fill="#2E5E4E"/>
+          <circle cx="24" cy="24" r="14" stroke="#ffffff" stroke-width="2.5"/>
+          <circle cx="20" cy="20" r="1.5" fill="#ffffff"/>
+          <circle cx="28" cy="20" r="1.5" fill="#ffffff"/>
+          <circle cx="24" cy="24" r="1.5" fill="#ffffff"/>
+          <circle cx="20" cy="28" r="1.5" fill="#ffffff"/>
+          <circle cx="28" cy="28" r="1.5" fill="#ffffff"/>
         </svg>
-        <div class="title-group">
-          <h1>Cribrum</h1>
-          <p class="tagline">A local photo sieve for Android.</p>
-        </div>
+        <span>Cribrum</span>
+      </a>
+
+      <div class="nav-links">
+        <a href="#what-it-finds">What it finds</a>
+        <a href="#permissions">Permissions</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/Bert0ns/cribrum" target="_blank" rel="noopener noreferrer">Source</a>
+        <button class="theme-toggle" id="theme-btn" aria-label="Toggle theme" title="Toggle theme">
+          <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="5"/>
+            <line x1="12" y1="1" x2="12" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="23"/>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+            <line x1="1" y1="12" x2="3" y2="12"/>
+            <line x1="21" y1="12" x2="23" y2="12"/>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        </button>
       </div>
-      <p class="summary">
-        Cribrum finds images on your phone that you can delete without losing memories that matter. It scans local storage, suggests candidates for your review, and keeps deletions in a 30-day trash.
+    </div>
+
+    <header class="hero">
+      <h1>A local photo sieve for Android</h1>
+      <p class="hero-lead">
+        Cribrum scans storage for images you can safely delete, surfaces candidates for your review, and keeps deletions in a 30-day trash.
       </p>
-      <div class="download-cta">
-        <a href="https://github.com/Bert0ns/cribrum/releases/latest" class="button">Download latest APK</a>
-        <span class="subtext">Android 11+ &middot; Free software (GPLv3)</span>
+
+      <div class="cta-row">
+        <a href="https://github.com/Bert0ns/cribrum/releases/latest" class="btn btn-primary">
+          Download latest APK
+        </a>
+        <a href="https://github.com/Bert0ns/cribrum" class="btn btn-secondary" target="_blank" rel="noopener noreferrer">
+          View source on GitHub
+        </a>
       </div>
+      <p class="meta-text">Requires Android 11 or newer. Free software under GPL-3.0.</p>
     </header>
 
+    <div class="inspector">
+      <div class="inspector-header">
+        <span class="inspector-title">Storage scan overview</span>
+        <span class="inspector-sub">100% on-device</span>
+      </div>
+      <div class="inspector-list">
+        <div class="inspector-item">
+          <div class="inspector-item-label">Exact duplicates</div>
+          <div class="inspector-item-val">1.4 GB</div>
+        </div>
+        <div class="inspector-item">
+          <div class="inspector-item-label">WhatsApp sent and stickers</div>
+          <div class="inspector-item-val">3.2 GB</div>
+        </div>
+        <div class="inspector-item">
+          <div class="inspector-item-label">Blurry shots</div>
+          <div class="inspector-item-val">480 MB</div>
+        </div>
+        <div class="inspector-item">
+          <div class="inspector-item-label">Screenshots and notes</div>
+          <div class="inspector-item-val">620 MB</div>
+        </div>
+      </div>
+      <div class="inspector-footer">
+        <span>5.7 GB suggested for review</span>
+        <span style="color: var(--brand); font-weight: 650;">You decide what to delete</span>
+      </div>
+    </div>
+
     <main>
-      <section id="what-it-does">
-        <h2>What it does</h2>
-        <ul>
-          <li>
-            <strong>Finds photos worth deleting.</strong>
-            Cribrum scans storage for exact duplicates, similar copies, blurry shots, screenshots, bad exposures, and messaging clutter like WhatsApp stickers.
-          </li>
-          <li>
-            <strong>Suggests, never deletes on its own.</strong>
-            The app surfaces candidates for your review. You decide what to keep and what to trash. Nothing is removed without your confirmation.
-          </li>
-          <li>
-            <strong>Runs on the phone.</strong>
-            All scanning and analysis happen on the device. No photos, hashes, or metadata ever leave your phone. The app works offline and needs no account.
-          </li>
-          <li>
-            <strong>Keeps a 30-day trash.</strong>
-            Deleted files move to an app-managed folder on storage instead of disappearing immediately. They remain there for 30 days before purge, so you can restore anything deleted by mistake.
-          </li>
-        </ul>
+      <section id="principles">
+        <h2>Design principles</h2>
+        <div class="feature-list">
+          <div class="feature-row">
+            <div class="feature-term">Private by design</div>
+            <div class="feature-desc">All scanning and analysis run on your device. No photos, hashes, or metadata ever leave your phone. Cribrum declares zero network permissions.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Suggestions only</div>
+            <div class="feature-desc">The app surfaces candidates for review. You confirm every deletion batch. Nothing is removed without your explicit confirmation.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">30-day trash</div>
+            <div class="feature-desc">Approved deletions move to an app-managed folder on storage instead of disappearing immediately. You have 30 days to restore any photo deleted by mistake.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Recall over precision</div>
+            <div class="feature-desc">Showing an image you choose to keep is acceptable. Missing clutter that could free storage is not.</div>
+          </div>
+        </div>
       </section>
 
-      <section id="requirements">
-        <h2>Requirements</h2>
-        <ul>
-          <li>
-            <strong>Android 11 or newer (API 30+).</strong>
-            The app relies on storage rules and file management APIs introduced in Android 11.
-          </li>
-          <li>
-            <strong>All files access (<code>MANAGE_EXTERNAL_STORAGE</code>).</strong>
-            Standard gallery apps only see files indexed by MediaStore, missing hidden folders such as WhatsApp sent and received media. Cribrum uses all files access to run a deep scan and find clutter across the entire shared storage.
-          </li>
-          <li>
-            <strong>Sideloaded distribution.</strong>
-            Google Play restricts all files access to a narrow set of app categories. Distributing Cribrum directly as a sideloaded APK allows full-storage cleanup without Play Store policy restrictions.
-          </li>
-        </ul>
+      <section id="what-it-finds">
+        <h2>What it finds</h2>
+        <div class="feature-list">
+          <div class="feature-row">
+            <div class="feature-term">Exact duplicates</div>
+            <div class="feature-desc">Matches identical files byte-for-byte using xxHash. Fast and free of false positives.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Similar copies</div>
+            <div class="feature-desc">Identifies recompressed copies from messaging apps with perceptual hashes and MobileCLIP embeddings, keeping the original.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Blurry photos</div>
+            <div class="feature-desc">Measures sharpness with Laplacian variance on subject areas, preserving intentional portrait blur.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Chat clutter</div>
+            <div class="feature-desc">Cleans up hidden sent folders, reaction stickers, and forwarded media that messaging apps store across storage.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Screenshots and notes</div>
+            <div class="feature-desc">Detects temporary whiteboard captures, receipts, slides, and old screenshots.</div>
+          </div>
+        </div>
       </section>
 
-      <section id="how-to-install">
-        <h2>How to install</h2>
-        <ol>
-          <li>
-            <strong>Download the APK.</strong>
-            Get the latest release from the <a href="https://github.com/Bert0ns/cribrum/releases/latest">GitHub releases page</a>.
+      <section id="permissions">
+        <h2>Permissions and sideloading</h2>
+        <p>
+          Standard gallery applications use Android MediaStore, which only indexes public media folders. MediaStore ignores folders with <code>.nomedia</code> markers, such as <code>WhatsApp Images/Sent</code>, where silent storage waste accumulates.
+        </p>
+        <p>
+          Cribrum asks for <code>MANAGE_EXTERNAL_STORAGE</code> (all files access) to scan hidden directories directly. Because Google Play restricts this permission to file managers, Cribrum is distributed as a direct APK download on GitHub.
+        </p>
+        <p>
+          Cribrum does not declare <code>android.permission.INTERNET</code> in its manifest. The app cannot open network connections or send data anywhere.
+        </p>
+      </section>
+
+      <section id="install">
+        <h2>Install</h2>
+        <ol class="steps">
+          <li class="step-item">
+            <span class="step-num">1</span>
+            <div class="step-body">
+              <h3>Download the APK</h3>
+              <p>Get the latest release from the <a href="https://github.com/Bert0ns/cribrum/releases/latest" style="color: var(--brand); font-weight: 600;">GitHub releases page</a>.</p>
+            </div>
           </li>
-          <li>
-            <strong>Allow the install.</strong>
-            Open the downloaded file. When Android asks for permission to install unknown apps from your browser or file manager, allow it and confirm.
+          <li class="step-item">
+            <span class="step-num">2</span>
+            <div class="step-body">
+              <h3>Allow unknown apps</h3>
+              <p>Open the downloaded package. When Android asks to allow installation from your browser or file manager, confirm to proceed.</p>
+            </div>
           </li>
-          <li>
-            <strong>Check the SHA-256.</strong>
-            Each release includes a <code>.sha256</code> checksum file. You can verify the APK digest with <code>sha256sum cribrum-*.apk</code> before running it.
+          <li class="step-item">
+            <span class="step-num">3</span>
+            <div class="step-body">
+              <h3>Verify the checksum (optional)</h3>
+              <p>Verify package integrity before installing with the SHA-256 digest:</p>
+              <div class="code-box">
+                <code>sha256sum -c cribrum-*.apk.sha256</code>
+                <button class="copy-btn" id="copy-btn">Copy</button>
+              </div>
+            </div>
           </li>
         </ol>
       </section>
 
-      <section id="source-code">
-        <h2>Source code</h2>
+      <section id="source">
+        <h2>Source code and license</h2>
         <p>
-          Cribrum is free software released under the <a href="https://github.com/Bert0ns/cribrum/blob/main/LICENSE">GNU General Public License v3.0</a>.
-          Source code, issue tracking, and roadmap are hosted on GitHub:
-        </p>
-        <p>
-          <a href="https://github.com/Bert0ns/cribrum">https://github.com/Bert0ns/cribrum</a>
+          Cribrum is free software licensed under the <a href="https://github.com/Bert0ns/cribrum/blob/main/LICENSE" style="color: var(--brand); font-weight: 600;">GNU General Public License v3.0</a>.
+          Source code, detector benchmarks, and design notes are on GitHub:
+          <a href="https://github.com/Bert0ns/cribrum" style="color: var(--brand); font-weight: 600;" target="_blank" rel="noopener noreferrer">https://github.com/Bert0ns/cribrum</a>
         </p>
       </section>
     </main>
 
     <footer>
-      <p>Cribrum &middot; GPL-3.0 &middot; <a href="https://github.com/Bert0ns/cribrum">Source</a> &middot; <a href="https://github.com/Bert0ns/cribrum/releases/latest">Releases</a></p>
+      <div>Cribrum &bull; GNU GPLv3</div>
+      <div class="footer-nav">
+        <a href="https://github.com/Bert0ns/cribrum" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/Bert0ns/cribrum/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+        <a href="https://github.com/Bert0ns/cribrum/blob/main/docs/design.md" target="_blank" rel="noopener noreferrer">Design</a>
+      </div>
     </footer>
   </div>
+
+  <script>
+    const themeBtn = document.getElementById('theme-btn');
+    function getTheme() {
+      const stored = localStorage.getItem('cribrum-theme');
+      if (stored === 'dark' || stored === 'light') return stored;
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('cribrum-theme', theme);
+      if (!themeBtn) return;
+      if (theme === 'dark') {
+        themeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>';
+        themeBtn.title = 'Switch to light theme';
+      } else {
+        themeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+        themeBtn.title = 'Switch to dark theme';
+      }
+    }
+    setTheme(getTheme());
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || getTheme();
+        setTheme(current === 'dark' ? 'light' : 'dark');
+      });
+    }
+
+    const copyBtn = document.getElementById('copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', () => {
+        navigator.clipboard.writeText('sha256sum -c cribrum-*.apk.sha256');
+        copyBtn.textContent = 'Copied';
+        setTimeout(() => { copyBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  </script>
 </body>
 </html>
