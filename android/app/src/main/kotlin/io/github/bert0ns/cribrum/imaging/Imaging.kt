@@ -104,6 +104,35 @@ internal fun thumbnail(gray: Gray, maxSide: Int): Gray {
     return resample(reduced, outW, outH, 0.0, 0.0, gray.width.toDouble() / factorX, gray.height.toDouble() / factorY)
 }
 
+/**
+ * Pillow's Image.resize for mode F (32-bit float): two-pass Lanczos with double coefficients
+ * and no integer clipping or reducing gap.
+ */
+internal fun resize(gray: Gray, outW: Int, outH: Int): Gray {
+    if (outW == gray.width && outH == gray.height) return gray
+    val horizontal = floatCoefficients(gray.width, outW)
+    val vertical = floatCoefficients(gray.height, outH)
+    val firstRow = vertical.first[0]
+    val lastRow = vertical.first[outH - 1] + vertical.weights[outH - 1].size
+    val intermediate = FloatArray(outW * (lastRow - firstRow))
+    for (y in firstRow until lastRow) for (x in 0 until outW) {
+        val w = horizontal.weights[x]
+        val firstX = horizontal.first[x]
+        var sum = 0.0
+        for (i in w.indices) sum += gray[firstX + i, y] * w[i]
+        intermediate[(y - firstRow) * outW + x] = sum.toFloat()
+    }
+    val out = FloatArray(outW * outH)
+    for (y in 0 until outH) for (x in 0 until outW) {
+        val w = vertical.weights[y]
+        val firstY = vertical.first[y]
+        var sum = 0.0
+        for (i in w.indices) sum += intermediate[(firstY - firstRow + i) * outW + x] * w[i]
+        out[y * outW + x] = sum.toFloat()
+    }
+    return Gray(outW, outH, out)
+}
+
 private const val REDUCING_GAP = 2.0
 
 /** The size that keeps the aspect ratio inside maxSide x maxSide, rounded the way Pillow rounds it. */
@@ -169,6 +198,30 @@ private fun coefficients(inSize: Int, in0: Double, in1: Double, outSize: Int): C
         }
     }
     return Coefficients(first, weights)
+}
+
+/** Per output pixel: the first input pixel it reads and its floating-point weights. */
+private class FloatCoefficients(val first: IntArray, val weights: Array<DoubleArray>)
+
+private fun floatCoefficients(inSize: Int, outSize: Int): FloatCoefficients {
+    val scale = inSize.toDouble() / outSize
+    val filterScale = max(scale, 1.0)
+    val support = LANCZOS_SUPPORT * filterScale
+    val first = IntArray(outSize)
+    val weights = Array(outSize) { xx ->
+        val center = (xx + 0.5) * scale
+        val xmin = max((center - support + 0.5).toInt(), 0)
+        val xmax = min((center + support + 0.5).toInt(), inSize) - xmin
+        val k = DoubleArray(max(xmax, 0)) { x -> lanczos((x + xmin - center + 0.5) / filterScale) }
+        val total = k.sum()
+        first[xx] = xmin
+        if (total != 0.0) {
+            DoubleArray(k.size) { x -> k[x] / total }
+        } else {
+            k
+        }
+    }
+    return FloatCoefficients(first, weights)
 }
 
 private fun clip8(sum: Long): Float = ((sum + (1L shl (PRECISION_BITS - 1))) shr PRECISION_BITS).coerceIn(0, 255).toFloat()
