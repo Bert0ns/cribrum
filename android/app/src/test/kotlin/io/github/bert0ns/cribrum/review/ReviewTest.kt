@@ -49,6 +49,11 @@ class ReviewTest {
         mapOf(GROUP_KEY to group, ROLE_KEY to role.value),
     )
 
+    private fun nearDuplicate(group: String, role: Role, score: Float = if (role == Role.BEST) 0f else 0.8f) = Signal(
+        "near_duplicate", 2, Category.NEAR_DUPLICATE, score,
+        mapOf(GROUP_KEY to group, ROLE_KEY to role.value, "distance" to "4"),
+    )
+
     private fun test(block: suspend Review.() -> Unit) = runBlocking { review.block() }
 
     @Test
@@ -62,7 +67,7 @@ class ReviewTest {
         assertEquals(
             listOf(
                 CategorySummary(Category.EXACT_DUPLICATE, 1, hasDetector = true),
-                CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = false),
+                CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = true),
                 CategorySummary(Category.BURST, 0, hasDetector = false),
                 CategorySummary(Category.BLURRY, 2, hasDetector = true),
                 CategorySummary(Category.BAD_EXPOSURE, 0, hasDetector = true),
@@ -95,6 +100,16 @@ class ReviewTest {
         val group = page(Category.EXACT_DUPLICATE).groups.single()
 
         assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
+    }
+
+    @Test
+    fun `a near-duplicate group shows its best copy first, kept, next to the copies to trash`() = test {
+        val best = image("DCIM/Camera/a.jpg", nearDuplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", nearDuplicate("g", Role.INFERIOR))
+
+        val group = page(Category.NEAR_DUPLICATE).groups.single()
+
+        assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 0.8f)), group.images)
     }
 
     @Test
