@@ -1,19 +1,24 @@
 package io.github.bert0ns.cribrum.ui
 
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
-import androidx.compose.material3.SnackbarHostState
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -29,6 +34,48 @@ class CategoryScreenTest {
 
     private val images = (1..3).map { ImageRef("/sdcard/DCIM/img$it.jpg", 1_000_000, 0) }
     private val page = images.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
+
+    @Test
+    fun `category list shows candidate count and opens on tap`() {
+        var opened: Category? = null
+        val categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true))
+        compose.setContent {
+            CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
+        }
+
+        compose.onNodeWithText("Blurry").assertExists()
+        compose.onNodeWithText("3 images to review").assertExists()
+        compose.onNodeWithText("Blurry").assertIsEnabled().performClick()
+        assertEquals(Category.BLURRY, opened)
+    }
+
+    @Test
+    fun `empty category shows zero images and opens nothing`() {
+        var opened: Category? = null
+        val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
+        compose.setContent {
+            CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
+        }
+
+        compose.onNodeWithText("Blurry").assertExists()
+        compose.onNodeWithText("0 images to review").assertExists()
+        compose.onNodeWithText("Blurry").assertIsNotEnabled()
+        assertNull(opened)
+    }
+
+    @Test
+    fun `category without detector shows coming soon and opens nothing`() {
+        var opened: Category? = null
+        val categories = listOf(CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = false))
+        compose.setContent {
+            CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
+        }
+
+        compose.onNodeWithText("Similar copies").assertExists()
+        compose.onNodeWithText("Coming soon").assertExists()
+        compose.onNodeWithText("Similar copies").assertIsNotEnabled()
+        assertNull(opened)
+    }
 
     @Test
     fun `every candidate starts marked, a tap keeps it, and nothing moves before the summary is confirmed`() {

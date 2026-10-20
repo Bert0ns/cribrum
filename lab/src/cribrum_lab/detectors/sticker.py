@@ -12,6 +12,7 @@ from cribrum_lab.model import Category, ImageRef, Signal
 class StickerDetector:
     id = "sticker"
     version = 1
+    category = Category.STICKER
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
         in_folder = is_sticker_folder(image.path)

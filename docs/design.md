@@ -115,12 +115,14 @@ interface ImageSource {                  // MediaStore + deep scan today; cloud 
 interface Detector {                     // one per technique; a cloud classifier would be one more
     val id: String
     val version: Int
+    val category: Category? get() = null
     suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal>
 }
 
 interface GroupDetector {                // duplicates, bursts: looks at all images at once
     val id: String
     val version: Int
+    val category: Category? get() = null
     suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>>
 }
 
@@ -180,6 +182,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 
 The bottleneck of a recall-first design is review speed, so this screen is the heart of the app.
 
+- The home screen lists every category in fixed order (`Category.entries`). A category without an Android detector yet shows a short "coming soon" line, an empty one shows 0 images to review, and tapping either opens nothing.
 - Candidates are grouped by category, and each group is sorted by confidence.
 - A sticker is listed under `STICKER` only, whatever else flags it. Stickers were 62% of the images on the first phone and took most of the blurry, document, near-duplicate and forwarded candidates, which hid the photos there. It stays a candidate and keeps its place in the review order: only the grouping changes.
 - In grids, likely-deletable images are **preselected**. One tap keeps an image.

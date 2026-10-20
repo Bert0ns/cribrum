@@ -13,6 +13,7 @@ import java.util.Locale
 class BlurDetector : Detector {
     override val id = "blur"
     override val version = 1
+    override val category = Category.BLURRY
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
         val (globalVariance, peakVariance) = measure(loadGrayscale(File(image.path), MAX_SIDE)) ?: return emptyList()

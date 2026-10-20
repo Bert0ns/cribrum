@@ -52,7 +52,7 @@ class ReviewTest {
     private fun test(block: suspend Review.() -> Unit) = runBlocking { review.block() }
 
     @Test
-    fun `categories with candidates, the largest first`() = test {
+    fun `every category is listed in fixed order with its count and detector flag`() = test {
         image("a.jpg", blurry(0.9f))
         image("b.jpg", blurry(0.8f))
         image("c.jpg", blurry(0.1f))
@@ -60,7 +60,17 @@ class ReviewTest {
         image("Download/d.jpg", duplicate("g", Role.INFERIOR))
 
         assertEquals(
-            listOf(CategorySummary(Category.BLURRY, 2), CategorySummary(Category.EXACT_DUPLICATE, 1)),
+            listOf(
+                CategorySummary(Category.EXACT_DUPLICATE, 1, hasDetector = true),
+                CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = false),
+                CategorySummary(Category.BURST, 0, hasDetector = false),
+                CategorySummary(Category.BLURRY, 2, hasDetector = true),
+                CategorySummary(Category.BAD_EXPOSURE, 0, hasDetector = true),
+                CategorySummary(Category.SCREENSHOT, 0, hasDetector = true),
+                CategorySummary(Category.DOCUMENT, 0, hasDetector = false),
+                CategorySummary(Category.FORWARDED, 0, hasDetector = false),
+                CategorySummary(Category.STICKER, 0, hasDetector = true),
+            ),
             categories(),
         )
     }

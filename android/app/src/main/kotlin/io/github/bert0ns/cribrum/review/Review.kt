@@ -10,6 +10,7 @@ import io.github.bert0ns.cribrum.model.IndexedImage
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Role
+import io.github.bert0ns.cribrum.pipeline.DETECTOR_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Candidate
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Ranker
@@ -35,7 +36,7 @@ data class ReviewItem(
     val score: Float = 0f,
 )
 
-data class CategorySummary(val category: Category, val count: Int)
+data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true)
 
 /** The groups shown now, and how many candidates the category has left in all, these included. */
 data class Page(val groups: List<ReviewGroup>, val remaining: Int)
@@ -43,11 +44,19 @@ data class Page(val groups: List<ReviewGroup>, val remaining: Int)
 /** What applying a page did, so it can be undone. */
 data class Decision(val trashed: List<ImageRef>, val kept: List<ImageRef>, val failed: List<ImageRef>)
 
-class Review(private val index: ImageIndex, private val trash: Trash, private val ranker: Ranker = Ranker()) {
-    /** Categories with something to review, the ones with the most candidates first. */
-    suspend fun categories(): List<CategorySummary> = Ranker.byCategory(ranker.rank(index.indexedImages()))
-        .map { (category, candidates) -> CategorySummary(category, candidates.size) }
-        .sortedByDescending { it.count }
+class Review(
+    private val index: ImageIndex,
+    private val trash: Trash,
+    private val ranker: Ranker = Ranker(),
+    private val detectorCategories: Set<Category> = DETECTOR_CATEGORIES,
+) {
+    /** Every category in fixed order, with its candidate count and whether it has a detector. */
+    suspend fun categories(): List<CategorySummary> {
+        val byCategory = Ranker.byCategory(ranker.rank(index.indexedImages()))
+        return Category.entries.map { category ->
+            CategorySummary(category, byCategory[category]?.size ?: 0, category in detectorCategories)
+        }
+    }
 
     /** The first page of a category: groups in the ranker's order, never split across pages. */
     suspend fun page(category: Category): Page {

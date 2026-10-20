@@ -16,6 +16,7 @@ import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
 import io.github.bert0ns.cribrum.metadata.readMetadata
+import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
@@ -30,6 +31,8 @@ import java.io.File
 
 val DETECTORS: List<Detector> = listOf(BlurDetector(), ExposureDetector(), ScreenshotDetector(), StickerDetector())
 val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector())
+val DETECTOR_CATEGORIES: Set<Category> =
+    (DETECTORS.mapNotNull { it.category } + GROUP_DETECTORS.mapNotNull { it.category }).toSet()
 
 /** Called with a step name, the items done and the items in total (0 while unknown). */
 typealias Progress = suspend (step: String, done: Int, total: Int) -> Unit

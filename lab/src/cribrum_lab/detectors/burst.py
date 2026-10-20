@@ -29,6 +29,7 @@ MIN_COSINE = 0.80
 class BurstDetector:
     id = "burst"
     version = 1
+    category = Category.BURST
 
     def analyze(
         self, images: Sequence[ImageRef], context: AnalysisContext

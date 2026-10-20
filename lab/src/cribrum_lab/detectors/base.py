@@ -9,7 +9,7 @@ import numpy as np
 
 from cribrum_lab import hashing
 from cribrum_lab.metadata import ImageMetadata, read_metadata
-from cribrum_lab.model import ImageRef, Signal
+from cribrum_lab.model import Category, ImageRef, Signal
 from cribrum_lab.screens import SCREEN_SIZES
 
 
@@ -52,6 +52,8 @@ class Detector(Protocol):
 
     id: str
     version: int
+    category: Category | None
+    """The category its signals are about, so the app can tell which categories it looks for."""
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]: ...
 
@@ -71,6 +73,8 @@ class GroupDetector(Protocol):
 
     id: str
     version: int
+    category: Category | None
+    """As in `Detector`."""
 
     def analyze(
         self, images: Sequence[ImageRef], context: AnalysisContext

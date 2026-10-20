@@ -23,6 +23,7 @@ RAMP = 64
 class ExposureDetector:
     id = "exposure"
     version = 1
+    category = Category.BAD_EXPOSURE
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
         gray = load_grayscale(image.path, MAX_SIDE)

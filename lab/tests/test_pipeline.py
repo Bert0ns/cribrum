@@ -207,3 +207,9 @@ def test_detector_needing_embeddings_waits_for_a_run_with_them(photos, index):
 
     assert stats.skipped == 0
     assert stats.detector_runs == 3 + 3  # embeddings, then the detector
+
+
+def test_every_category_has_a_detector():
+    detectors = [*pipeline.DETECTORS, *pipeline.GROUP_DETECTORS]
+
+    assert {d.category for d in detectors} - {None} == set(Category)

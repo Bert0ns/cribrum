@@ -17,6 +17,7 @@ import java.util.Locale
 class ExposureDetector : Detector {
     override val id = "exposure"
     override val version = 1
+    override val category = Category.BAD_EXPOSURE
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
         val sorted = loadGrayscale(File(image.path), MAX_SIDE).pixels.sortedArray()

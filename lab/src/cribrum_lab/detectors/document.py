@@ -19,6 +19,7 @@ TEXT_WEIGHT = 0.8
 class DocumentDetector:
     id = "document"
     version = 2
+    category = Category.DOCUMENT
     """Bump with prompts.VERSION too."""
 
     def __init__(self, coverage: Callable[[Path], float] = text.text_coverage) -> None:

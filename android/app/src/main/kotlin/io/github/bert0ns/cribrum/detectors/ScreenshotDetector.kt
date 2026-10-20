@@ -15,6 +15,7 @@ import java.io.File
 class ScreenshotDetector : Detector {
     override val id = "screenshot"
     override val version = 1
+    override val category = Category.SCREENSHOT
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
         val meta = context.metadata(image)
