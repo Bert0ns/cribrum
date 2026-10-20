@@ -3,7 +3,6 @@ package io.github.bert0ns.cribrum.ui
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import kotlin.math.abs
 
 class StorageMapTest {
     private val bounds = Rect(0.0, 0.0, 100.0, 100.0)
@@ -73,5 +72,58 @@ class StorageMapTest {
                 assertTrue("Rect $i and Rect $j overlap with area $intersectionArea", intersectionArea < 1e-6)
             }
         }
+    }
+
+    @Test
+    fun `folder tree sums sizes of subfolders`() {
+        val images = listOf(
+            "/storage/emulated/0/DCIM/Camera/IMG_001.jpg" to 1000L,
+            "/storage/emulated/0/DCIM/Camera/IMG_002.jpg" to 2000L,
+            "/storage/emulated/0/DCIM/Screenshots/scr_01.png" to 500L,
+            "/storage/emulated/0/Pictures/vacation.jpg" to 4000L,
+            "/storage/emulated/0/Pictures/Sub/pic.jpg" to 1500L,
+        )
+        val tree = buildFolderTree(images)
+
+        assertEquals("0", tree.name)
+        assertEquals("/storage/emulated/0", tree.path)
+        assertEquals(9000L, tree.size)
+        assertEquals(5, tree.imageCount)
+
+        // Subfolders should be sorted by size descending
+        assertEquals(2, tree.children.size)
+        val pictures = tree.children[0]
+        val dcim = tree.children[1]
+
+        assertEquals("Pictures", pictures.name)
+        assertEquals(5500L, pictures.size)
+        assertEquals(2, pictures.imageCount)
+        assertEquals(4000L, pictures.directSize)
+        assertEquals(1, pictures.directImageCount)
+        assertEquals(1, pictures.children.size)
+        assertEquals("Sub", pictures.children[0].name)
+        assertEquals(1500L, pictures.children[0].size)
+        assertEquals(1, pictures.children[0].imageCount)
+
+        assertEquals("DCIM", dcim.name)
+        assertEquals(3500L, dcim.size)
+        assertEquals(3, dcim.imageCount)
+        assertEquals(0L, dcim.directSize)
+        assertEquals(0, dcim.directImageCount)
+        assertEquals(2, dcim.children.size)
+        assertEquals("Camera", dcim.children[0].name)
+        assertEquals(3000L, dcim.children[0].size)
+        assertEquals(2, dcim.children[0].imageCount)
+        assertEquals("Screenshots", dcim.children[1].name)
+        assertEquals(500L, dcim.children[1].size)
+        assertEquals(1, dcim.children[1].imageCount)
+    }
+
+    @Test
+    fun `folder tree with empty image list`() {
+        val tree = buildFolderTree(emptyList())
+        assertEquals(0L, tree.size)
+        assertEquals(0, tree.imageCount)
+        assertTrue(tree.children.isEmpty())
     }
 }

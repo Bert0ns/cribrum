@@ -14,6 +14,74 @@ data class Rect(
     val area: Double get() = width * height
 }
 
+data class Folder(
+    val name: String,
+    val path: String,
+    val size: Long,
+    val imageCount: Int,
+    val children: List<Folder> = emptyList(),
+) {
+    val directSize: Long get() = size - children.sumOf { it.size }
+    val directImageCount: Int get() = imageCount - children.sumOf { it.imageCount }
+}
+
+private class MutableFolder(
+    val name: String,
+    val path: String,
+) {
+    var directSize: Long = 0L
+    var directCount: Int = 0
+    val subfolders = mutableMapOf<String, MutableFolder>()
+
+    fun toFolder(): Folder {
+        val childFolders = subfolders.values.map { it.toFolder() }.sortedByDescending { it.size }
+        val totalSize = directSize + childFolders.sumOf { it.size }
+        val totalCount = directCount + childFolders.sumOf { it.imageCount }
+        return Folder(
+            name = name,
+            path = path,
+            size = totalSize,
+            imageCount = totalCount,
+            children = childFolders,
+        )
+    }
+}
+
+/**
+ * Builds a [Folder] tree from a list of image (path, size) pairs. Common single-child parent
+ * folders with no direct files are collapsed so the tree starts at the first branching point.
+ */
+fun buildFolderTree(images: List<Pair<String, Long>>): Folder {
+    if (images.isEmpty()) return Folder(name = "", path = "", size = 0L, imageCount = 0)
+
+    val root = MutableFolder(name = "", path = "")
+    for ((filePath, size) in images) {
+        val normalized = filePath.replace('\\', '/')
+        val parts = normalized.split('/').filter { it.isNotEmpty() }
+        if (parts.size <= 1) {
+            root.directSize += size
+            root.directCount += 1
+        } else {
+            val folderSegments = parts.dropLast(1)
+            var current = root
+            var currentPath = ""
+            val isAbsolute = filePath.startsWith("/")
+            for (segment in folderSegments) {
+                currentPath = if (currentPath.isEmpty() && !isAbsolute) segment else "$currentPath/$segment"
+                current = current.subfolders.getOrPut(segment) { MutableFolder(segment, currentPath) }
+            }
+            current.directSize += size
+            current.directCount += 1
+        }
+    }
+
+    var result = root.toFolder()
+    while (result.children.size == 1 && result.directImageCount == 0) {
+        result = result.children.single()
+    }
+    return result
+}
+
 private data class TreemapItem(val index: Int, val area: Double)
 
 /**
