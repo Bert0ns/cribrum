@@ -33,6 +33,8 @@ android {
     lint {
         warningsAsErrors = true
         abortOnError = true
+        // They say a newer release came out, which changes by the day, not with the code.
+        disable += setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
     }
 }
 

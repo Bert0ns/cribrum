@@ -26,3 +26,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | Package | Contents | Lab counterpart |
 |---|---|---|
 | `io.github.bert0ns.cribrum.model` | Core types: `ImageRef`, `Category`, `Protection`, `Signal`, `IndexedImage` | `cribrum_lab.model` |
+| `io.github.bert0ns.cribrum.ranker` | `Ranker`, `Candidate`, thresholds and protection weights | `cribrum_lab.ranker` |
