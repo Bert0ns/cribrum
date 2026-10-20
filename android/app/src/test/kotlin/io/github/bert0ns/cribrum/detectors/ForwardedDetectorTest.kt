@@ -5,7 +5,7 @@ import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Signal
-import io.github.bert0ns.cribrum.prompts.Prompts
+import io.github.bert0ns.cribrum.prompts.promptVector
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -23,7 +23,7 @@ class ForwardedDetectorTest {
         camera: Boolean = false,
     ): Signal {
         val meta = ImageMetadata(1000, 1000, "image/jpeg", cameraModel = if (camera) "Pixel 8" else null)
-        val embedding = Prompts.promptVector(promptText)
+        val embedding = promptVector(promptText)
         val context = AnalysisContext(metadata = { meta }, embedding = { embedding })
         val signal = runBlocking { detector.analyze(ImageRef(path, 0, 0), context) }.single()
         assertEquals(Category.FORWARDED, signal.kind)

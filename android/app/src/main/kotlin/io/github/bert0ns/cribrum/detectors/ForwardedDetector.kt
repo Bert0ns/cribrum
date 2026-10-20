@@ -6,16 +6,23 @@ import io.github.bert0ns.cribrum.folders.isMessagingFolder
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Signal
-import io.github.bert0ns.cribrum.prompts.Prompts
+import io.github.bert0ns.cribrum.prompts.classify
 import java.util.Locale
 
+/**
+ * Three pieces of evidence, combined as independent chances (noisy OR) like [ScreenshotDetector]:
+ * the zero-shot class is the strongest, because messaging folders and missing camera EXIF
+ * also describe every photo a friend sends. The weights are starting points, to be tuned
+ * for recall in the lab.
+ */
 class ForwardedDetector : Detector {
     override val id = "forwarded"
+    /** Bump with [io.github.bert0ns.cribrum.prompts.VERSION]. */
     override val version = 2
     override val category = Category.FORWARDED
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
-        val (probability, prompt) = Prompts.classify(context.embedding(image)).getValue("forwarded")
+        val (probability, prompt) = classify(context.embedding(image)).getValue("forwarded")
         val messaging = isMessagingFolder(image.path)
         val cameraExif = context.metadata(image).hasCameraExif
         val miss = (1f - ZERO_SHOT_WEIGHT * probability) *

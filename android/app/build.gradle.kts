@@ -71,15 +71,6 @@ android {
     }
 }
 
-// Ships prompt embeddings generated in the lab, without committing them here (issue #107).
-val promptResourcesDir = layout.buildDirectory.dir("generated/resources/prompts")
-val copyPromptEmbeddings = tasks.register<Copy>("copyPromptEmbeddings") {
-    from(rootProject.file("../lab/src/cribrum_lab/prompt_embeddings.json"))
-    into(promptResourcesDir)
-}
-android.sourceSets.getByName("main").resources.directories.add(promptResourcesDir.get().asFile.path)
-tasks.named("preBuild") { dependsOn(copyPromptEmbeddings) }
-
 room {
     schemaDirectory("$projectDir/schemas")
 }
@@ -121,6 +112,27 @@ abstract class DownloadModel : DefaultTask() {
     }
 }
 
+abstract class CopyPromptEmbeddings : DefaultTask() {
+    @get:InputFile
+    abstract val inputFile: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val target = outputDirectory.file("prompt_embeddings.json").get().asFile
+        target.parentFile.mkdirs()
+        inputFile.get().asFile.copyTo(target, overwrite = true)
+    }
+}
+
+// Ships prompt embeddings generated in the lab, without committing them here.
+val copyPromptEmbeddings = tasks.register<CopyPromptEmbeddings>("copyPromptEmbeddings") {
+    inputFile.set(rootProject.file("../lab/src/cribrum_lab/prompt_embeddings.json"))
+    outputDirectory.set(layout.buildDirectory.dir("generated/prompts"))
+}
+
 // The MobileCLIP2-S0 image encoder, from the same revision and with the same SHA-256 as
 // lab/src/cribrum_lab/mobileclip.py, with its license. Packed in the APK, never committed.
 val downloadMobileClip = tasks.register<DownloadModel>("downloadMobileClip") {
@@ -140,6 +152,7 @@ val downloadMobileClip = tasks.register<DownloadModel>("downloadMobileClip") {
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(downloadMobileClip, DownloadModel::outputDirectory)
+        variant.sources.resources?.addGeneratedSourceDirectory(copyPromptEmbeddings, CopyPromptEmbeddings::outputDirectory)
     }
 }
 
