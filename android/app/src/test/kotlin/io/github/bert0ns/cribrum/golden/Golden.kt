@@ -6,6 +6,9 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import org.json.JSONObject
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.Base64
 
 val GOLDEN_ROOT = File("../../fixtures/golden").canonicalFile
 
@@ -19,6 +22,8 @@ data class ExpectedImage(
     val hasCameraExif: Boolean,
     val contentHash: String,
     val perceptualHash: String,
+    /** The lab's L2-normalized embedding. */
+    val embedding: FloatArray,
     val signals: List<ExpectedSignal>,
 ) {
     fun signal(detector: String): ExpectedSignal? = signals.singleOrNull { it.detector == detector }
@@ -42,6 +47,7 @@ object Golden {
                 hasCameraExif = entry.getBoolean("has_camera_exif"),
                 contentHash = entry.getString("content_hash"),
                 perceptualHash = entry.getString("perceptual_hash"),
+                embedding = floats(entry.getString("embedding")),
                 signals = (0 until signals.length()).map { i ->
                     val signal = signals.getJSONObject(i)
                     val evidence = signal.getJSONObject("evidence")
@@ -56,4 +62,10 @@ object Golden {
             )
         }.toList()
     }
+}
+
+/** Base64 of little-endian float32, as fixtures.py writes embeddings. */
+private fun floats(base64: String): FloatArray {
+    val buffer = ByteBuffer.wrap(Base64.getDecoder().decode(base64)).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+    return FloatArray(buffer.remaining()).also { buffer.get(it) }
 }

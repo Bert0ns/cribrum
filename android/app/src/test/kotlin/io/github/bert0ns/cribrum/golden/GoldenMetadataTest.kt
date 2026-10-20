@@ -25,6 +25,14 @@ class GoldenMetadataTest {
     }
 
     @Test
+    fun `every fixture carries a unit-length embedding`() {
+        for (expected in Golden.images) {
+            assertEquals(expected.relative, 512, expected.embedding.size)
+            assertEquals(expected.relative, 1f, expected.embedding.fold(0f) { sum, x -> sum + x * x }, 1e-4f)
+        }
+    }
+
+    @Test
     fun `metadata matches exactly`() {
         for (expected in Golden.images) {
             val meta = readMetadata(File(expected.image.path))
