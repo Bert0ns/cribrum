@@ -65,6 +65,7 @@ Each detector looks at an image (or at the image index) and emits **signals**. N
 | `SCREENSHOT` | Path and file name, image size equal to a screen resolution, no camera EXIF | Nearly deterministic |
 | `DOCUMENT` | Text coverage (PP-OCRv4 text detection) + MobileCLIP zero-shot classification | Slides, whiteboards, handwritten notes, homework, receipts, printed pages. Only detection runs: how much text there is matters, not what it says. |
 | `FORWARDED` | Messaging-app folder, missing camera EXIF, meme/sticker zero-shot prompts | Forwarded memes and greeting images |
+| `STICKER` | The file is in a messaging app's sticker folder (`WhatsApp Stickers`, `WhatsApp Backup Excluded Stickers`) | Nearly deterministic. On the first phone, 62% of the images were stickers. |
 
 ### MobileCLIP
 
@@ -180,6 +181,7 @@ interface ModelRuntime                   // LiteRT or ONNX Runtime behind one in
 The bottleneck of a recall-first design is review speed, so this screen is the heart of the app.
 
 - Candidates are grouped by category, and each group is sorted by confidence.
+- A sticker is listed under `STICKER` only, whatever else flags it. Stickers were 62% of the images on the first phone and took most of the blurry, document, near-duplicate and forwarded candidates, which hid the photos there. It stays a candidate and keeps its place in the review order: only the grouping changes.
 - In grids, likely-deletable images are **preselected**. One tap keeps an image.
 - Duplicate and burst groups have a "keep best, trash the rest" action, with side-by-side comparison.
 - Quick gestures and no unnecessary confirmations, except a final summary before trashing.

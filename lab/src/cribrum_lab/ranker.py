@@ -15,6 +15,7 @@ THRESHOLDS = {
     Category.SCREENSHOT: 0.5,
     Category.DOCUMENT: 0.5,
     Category.FORWARDED: 0.5,
+    Category.STICKER: 0.5,
 }
 """Score a signal needs to make an image a candidate. Starting points: the evaluation
 report picks them from the labeled sample, for recall."""
@@ -74,10 +75,13 @@ class Ranker:
     @staticmethod
     def by_category(ranked: Sequence[Candidate]) -> dict[Category, list[Candidate]]:
         """Candidates under each category they have a reason for, highest score first, each
-        score lowered by the candidate's protection."""
+        score lowered by the candidate's protection. A sticker is listed under STICKER only."""
         groups = defaultdict(list)
         for candidate in ranked:
-            for category in {s.category for s in candidate.reasons}:
+            categories = {s.category for s in candidate.reasons}
+            if Category.STICKER in categories:
+                categories = {Category.STICKER}  # stickers would crowd every other category
+            for category in categories:
                 groups[category].append(candidate)
         for category, candidates in groups.items():
             candidates.sort(

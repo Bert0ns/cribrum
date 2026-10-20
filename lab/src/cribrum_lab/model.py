@@ -20,6 +20,7 @@ class Category(Enum):
     SCREENSHOT = "screenshot"
     DOCUMENT = "document"
     FORWARDED = "forwarded"
+    STICKER = "sticker"
 
 
 class Protection(Enum):

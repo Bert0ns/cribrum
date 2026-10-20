@@ -202,3 +202,19 @@ def test_by_category_applies_protection_too():
     order = rank(image("people", blur(0.9), faces()), image("wall", blur(0.8)))
 
     assert names(Ranker.by_category(order)[Category.BLURRY]) == ["wall", "people"]
+
+
+def test_a_sticker_is_listed_only_as_a_sticker():
+    sticker = Signal("sticker", 1, Category.STICKER, 1.0)
+    order = Ranker({**THRESHOLDS, Category.STICKER: 0.5}).rank(
+        [image("sticker", blur(0.9), sticker), image("photo", blur(0.8))]
+    )
+
+    groups = Ranker.by_category(order)
+
+    assert {category: names(cs) for category, cs in groups.items()} == {
+        Category.BLURRY: ["photo"],
+        Category.STICKER: ["sticker"],
+    }
+    assert all(c.is_candidate for c in order)  # still a candidate, in the same order
+    assert names(order) == ["sticker", "photo"]
