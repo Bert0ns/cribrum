@@ -150,7 +150,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                     CategoryList(state.categories, model::open, model::openTrash)
                 }
                 is Screen.Category -> CategoryScreen(
-                    state.page, state.remaining, state.marked, screen.category in GROUP_CATEGORIES, model::toggle, model::applyPage,
+                    state.page, state.remaining, state.marked, screen.category in GROUP_CATEGORIES, model::toggle, model::applyPage, model::skip,
                     snackbar = snackbar,
                 )
                 Screen.Trash -> TrashScreen(

@@ -84,7 +84,7 @@ class CategoryScreenTest {
             var marked by remember { mutableStateOf(images.map { it.path }.toSet()) }
             CategoryScreen(page, 100, marked, grouped = false, onToggle = { image ->
                 marked = if (image.path in marked) marked - image.path else marked + image.path
-            }, onApply = { applied++ })
+            }, onApply = { applied++ }, onSkip = {})
         }
 
         compose.onNodeWithText("3 of 100 images to review. Confirm these to see the next ones.").assertExists()
@@ -99,9 +99,27 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `skip sits right of the trash button and skips without a summary`() {
+        var skipped = 0
+        var applied = 0
+        compose.setContent {
+            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, onSkip = { skipped++ })
+        }
+
+        val trash = compose.onNodeWithText("Trash 3, keep 0").fetchSemanticsNode().boundsInRoot
+        val skip = compose.onNodeWithText("Skip").fetchSemanticsNode().boundsInRoot
+        assertTrue("$skip right of $trash", skip.left >= trash.right)
+        compose.onNodeWithText("Skip").performClick()
+
+        assertEquals(1, skipped)
+        assertEquals(0, applied)
+        compose.onNodeWithText("Move 3 images to the trash?").assertDoesNotExist()
+    }
+
+    @Test
     fun `cancelling the summary trashes nothing`() {
         var applied = 0
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }) }
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, {}) }
 
         compose.onNodeWithText("The last 3 images to review.").assertExists()
         compose.onNodeWithText("Trash 3, keep 0").performClick()
@@ -113,7 +131,7 @@ class CategoryScreenTest {
     @Test
     fun `the undo snackbar shows above the trash button, not over it`() {
         val snackbar = SnackbarHostState()
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, snackbar = snackbar) }
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, {}, snackbar = snackbar) }
 
         compose.runOnIdle { scope.launch { snackbar.showSnackbar("3 images moved to the trash", "Undo") } }
 

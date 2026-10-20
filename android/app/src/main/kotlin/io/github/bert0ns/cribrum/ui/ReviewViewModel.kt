@@ -40,6 +40,8 @@ data class ReviewState(
     val selected: Set<String> = emptySet(),
     /** The last applied page, until the user undoes it or moves on. */
     val lastDecision: Decision? = null,
+    /** Ids of the groups skipped in the open category. They stay unreviewed and return when it is reopened. */
+    val skipped: Set<String> = emptySet(),
     val loading: Boolean = false,
     val storageMap: List<Folder> = emptyList(),
 )
@@ -55,7 +57,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
 
     fun open(category: Category) = load {
         val page = review.page(category)
-        it.copy(screen = Screen.Category(category), page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null)
+        it.copy(screen = Screen.Category(category), page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null, skipped = emptySet())
     }
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
@@ -78,7 +80,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
             state.screen == Screen.StorageMap ->
                 state.copy(screen = Screen.Settings, storageMap = emptyList())
             else ->
-                state.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null)
+                state.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null, skipped = emptySet())
         }
     }
 
@@ -91,15 +93,23 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val images = state.page.flatMap { group -> group.images.map { it.image } }
         val decision = review.apply(images.filter { it.path in state.marked }, images.filter { it.path !in state.marked })
-        val page = review.page(category)
+        val page = review.page(category, state.skipped)
         state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = decision)
+    }
+
+    /** Leaves the page for later without deciding anything: its images stay unreviewed. */
+    fun skip() = load { state ->
+        val category = (state.screen as? Screen.Category)?.category ?: return@load state
+        val skipped = state.skipped + state.page.map { it.id }
+        val page = review.page(category, skipped)
+        state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null, skipped = skipped)
     }
 
     fun undo() = load { state ->
         val decision = state.lastDecision ?: return@load state
         review.undo(decision)
         val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null)
-        val page = review.page(category)
+        val page = review.page(category, state.skipped)
         state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null)
     }
 
