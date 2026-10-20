@@ -78,9 +78,6 @@ fun categoryName(category: Category): String = stringResource(
 @Composable
 fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize()) {
-        if (categories.isEmpty()) {
-            item { Text(stringResource(R.string.nothing_to_review), Modifier.padding(16.dp)) }
-        }
         items(categories, key = { it.category }) { summary ->
             val canOpen = summary.hasDetector && summary.count > 0
             ListItem(
@@ -94,7 +91,8 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
                         },
                     )
                 },
-                modifier = Modifier.clickable(enabled = canOpen) { onOpen(summary.category) },
+                // Greyed out like a disabled button: there is nothing to open.
+                modifier = Modifier.clickable(enabled = canOpen) { onOpen(summary.category) }.alpha(if (canOpen) 1f else 0.5f),
             )
             HorizontalDivider()
         }

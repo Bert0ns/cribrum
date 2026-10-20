@@ -34,6 +34,8 @@ data class AnalysisContext(
 interface Detector {
     val id: String
     val version: Int
+
+    /** The category its signals are about, so the app can tell which categories it looks for. */
     val category: Category? get() = null
 
     suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal>
@@ -50,6 +52,8 @@ interface Detector {
 interface GroupDetector {
     val id: String
     val version: Int
+
+    /** As in [Detector]. */
     val category: Category? get() = null
 
     suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>>
