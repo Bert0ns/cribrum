@@ -27,22 +27,34 @@ class Gray(val width: Int, val height: Int, val pixels: FloatArray) {
  * detector that uses it.
  */
 fun loadGrayscale(file: File, maxSide: Int): Gray {
+    val (width, height, argb) = decode(file, maxSide)
+    return thumbnail(transpose(luminance(width, height, argb), orientation(file)), maxSide)
+}
+
+/** Decoded pixels as unpremultiplied ARGB, row by row, before EXIF orientation. */
+internal data class Argb(val width: Int, val height: Int, val pixels: IntArray)
+
+/**
+ * Decodes with Pillow's draft: a JPEG decodes straight at 1/2, 1/4 or 1/8 while both sides stay
+ * >= [draftSide]. Alpha is left as stored, since Pillow drops it when it converts to RGB or L.
+ */
+internal fun decode(file: File, draftSide: Int): Argb {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.path, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw UnreadableImage(file)
     val options = BitmapFactory.Options().apply {
         inPreferredConfig = Bitmap.Config.ARGB_8888
-        inPremultiplied = false // Pillow ignores alpha when it converts to luminance
-        // Pillow's draft: JPEG decodes straight at 1/2, 1/4 or 1/8 while both sides stay >= maxSide.
-        if (bounds.outMimeType == "image/jpeg") inSampleSize = draftScale(bounds.outWidth, bounds.outHeight, maxSide)
+        inPremultiplied = false
+        if (bounds.outMimeType == "image/jpeg") inSampleSize = draftScale(bounds.outWidth, bounds.outHeight, draftSide)
     }
     val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
-    val gray = try {
-        luminance(bitmap)
+    try {
+        val argb = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        return Argb(bitmap.width, bitmap.height, argb)
     } finally {
         bitmap.recycle()
     }
-    return thumbnail(transpose(gray, orientation(file)), maxSide)
 }
 
 internal fun draftScale(width: Int, height: Int, maxSide: Int): Int {
@@ -51,17 +63,19 @@ internal fun draftScale(width: Int, height: Int, maxSide: Int): Int {
 }
 
 /** Pillow's RGB to L: ITU-R 601-2 luma in 16-bit fixed point, rounded. */
-private fun luminance(bitmap: Bitmap): Gray {
-    val argb = IntArray(bitmap.width * bitmap.height)
-    bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
     val pixels = FloatArray(argb.size) { i ->
         val c = argb[i]
         (((c shr 16 and 0xff) * 19595 + (c shr 8 and 0xff) * 38470 + (c and 0xff) * 7471 + 0x8000) shr 16).toFloat()
     }
-    return Gray(bitmap.width, bitmap.height, pixels)
+    return Gray(width, height, pixels)
 }
 
-private fun orientation(file: File): Int = try {
+/** One 8-bit channel of [Argb], shifted by 16 for red, 8 for green, 0 for blue. */
+internal fun channel(image: Argb, shift: Int): Gray =
+    Gray(image.width, image.height, FloatArray(image.pixels.size) { (image.pixels[it] shr shift and 0xff).toFloat() })
+
+internal fun orientation(file: File): Int = try {
     ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
 } catch (_: IOException) {
     ExifInterface.ORIENTATION_NORMAL
@@ -176,20 +190,26 @@ private fun sinc(x: Double): Double = if (x == 0.0) 1.0 else sin(x * Math.PI) / 
 
 private fun lanczos(x: Double): Double = if (x >= -LANCZOS_SUPPORT && x < LANCZOS_SUPPORT) sinc(x) * sinc(x / 3) else 0.0
 
+/** A Pillow resampling filter: its support at scale 1 and its kernel. */
+internal class Filter(val support: Double, val kernel: (Double) -> Double)
+
+internal val LANCZOS = Filter(LANCZOS_SUPPORT, ::lanczos)
+internal val BILINEAR = Filter(1.0) { x -> if (Math.abs(x) < 1.0) 1.0 - Math.abs(x) else 0.0 }
+
 /** Per output pixel: the first input pixel it reads and its fixed-point weights. */
 private class Coefficients(val first: IntArray, val weights: Array<IntArray>)
 
 /** Pillow's precompute_coeffs and normalize_coeffs_8bpc. */
-private fun coefficients(inSize: Int, in0: Double, in1: Double, outSize: Int): Coefficients {
+private fun coefficients(inSize: Int, in0: Double, in1: Double, outSize: Int, filter: Filter): Coefficients {
     val scale = (in1 - in0) / outSize
     val filterScale = max(scale, 1.0)
-    val support = LANCZOS_SUPPORT * filterScale
+    val support = filter.support * filterScale
     val first = IntArray(outSize)
     val weights = Array(outSize) { xx ->
         val center = in0 + (xx + 0.5) * scale
         val xmin = max((center - support + 0.5).toInt(), 0)
         val xmax = min((center + support + 0.5).toInt(), inSize) - xmin
-        val k = DoubleArray(max(xmax, 0)) { x -> lanczos((x + xmin - center + 0.5) / filterScale) }
+        val k = DoubleArray(max(xmax, 0)) { x -> filter.kernel((x + xmin - center + 0.5) / filterScale) }
         val total = k.sum()
         first[xx] = xmin
         IntArray(k.size) { x ->
@@ -227,9 +247,18 @@ private fun floatCoefficients(inSize: Int, outSize: Int): FloatCoefficients {
 private fun clip8(sum: Long): Float = ((sum + (1L shl (PRECISION_BITS - 1))) shr PRECISION_BITS).coerceIn(0, 255).toFloat()
 
 /** Pillow's ImagingResample for 8-bit images: horizontal pass, then vertical, over the box. */
-internal fun resample(gray: Gray, outW: Int, outH: Int, x0: Double, y0: Double, x1: Double, y1: Double): Gray {
-    val horizontal = coefficients(gray.width, x0, x1, outW)
-    val vertical = coefficients(gray.height, y0, y1, outH)
+internal fun resample(
+    gray: Gray,
+    outW: Int,
+    outH: Int,
+    x0: Double,
+    y0: Double,
+    x1: Double,
+    y1: Double,
+    filter: Filter = LANCZOS,
+): Gray {
+    val horizontal = coefficients(gray.width, x0, x1, outW, filter)
+    val vertical = coefficients(gray.height, y0, y1, outH, filter)
     val needHorizontal = outW != gray.width || x0 != 0.0 || x1 != gray.width.toDouble()
     val needVertical = outH != gray.height || y0 != 0.0 || y1 != gray.height.toDouble()
     var image = gray
