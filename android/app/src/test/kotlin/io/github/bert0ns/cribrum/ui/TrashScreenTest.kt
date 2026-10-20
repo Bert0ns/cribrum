@@ -37,7 +37,7 @@ class TrashScreenTest {
         var restored = emptySet<String>()
         compose.setContent {
             var selected by remember { mutableStateOf(emptySet<String>()) }
-            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onRestore = { restored = selected }, onEmpty = {})
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = { restored = selected }, onEmpty = {})
         }
 
         compose.onNodeWithText("Restore 0").assertIsNotEnabled()
@@ -49,7 +49,7 @@ class TrashScreenTest {
 
     @Test
     fun `each image shows the days before it is purged`() {
-        compose.setContent { TrashScreen(trashed, emptySet(), {}, {}, {}) }
+        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}) }
 
         assertEquals(2, compose.onAllNodesWithText("26d left", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
@@ -57,7 +57,7 @@ class TrashScreenTest {
     @Test
     fun `emptying the trash asks first`() {
         var emptied = 0
-        compose.setContent { TrashScreen(trashed, emptySet(), {}, {}, onEmpty = { emptied++ }) }
+        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, onEmpty = { emptied++ }) }
 
         compose.onNodeWithText("Empty trash").performClick()
         assertEquals(0, emptied)
@@ -65,5 +65,22 @@ class TrashScreenTest {
         compose.onNodeWithText("Delete").performClick()
 
         assertEquals(1, emptied)
+    }
+
+    @Test
+    fun `stickers have their own section, selected all at once`() {
+        val sticker = TrashedImage(
+            ImageRef("/sdcard/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers/s.webp", 1, 0),
+            Instant.now(),
+            File("/sdcard/.cribrum-trash/y/s.webp"),
+        )
+        var chosen: List<TrashedImage> = emptyList()
+        compose.setContent { TrashScreen(trashed + sticker, emptySet(), {}, { items, _ -> chosen = items }, {}, {}) }
+
+        compose.onNodeWithText("2 images").assertExists()
+        compose.onNodeWithText("1 WhatsApp sticker").assertExists()
+        compose.onAllNodesWithText("Select all")[1].performClick()
+
+        assertEquals(listOf(sticker), chosen)
     }
 }

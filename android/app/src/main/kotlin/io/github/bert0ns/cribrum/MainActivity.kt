@@ -140,7 +140,9 @@ fun App(model: ReviewViewModel = viewModel()) {
                 is Screen.Category -> CategoryScreen(
                     state.page, state.remaining, state.marked, screen.category in GROUP_CATEGORIES, model::toggle, model::applyPage,
                 )
-                Screen.Trash -> TrashScreen(state.trashed, state.selected, model::select, model::restoreSelected, model::emptyTrash)
+                Screen.Trash -> TrashScreen(
+                    state.trashed, state.selected, model::select, model::selectAll, model::restoreSelected, model::emptyTrash,
+                )
             }
         }
     }

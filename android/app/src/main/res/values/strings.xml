@@ -57,6 +57,16 @@
     <string name="days_left">%1$dd left</string>
     <string name="restore">Restore %1$d</string>
     <string name="empty_trash">Empty trash</string>
+    <string name="select_all">Select all</string>
+    <string name="deselect_all">Deselect all</string>
+    <plurals name="trash_section_images">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+    </plurals>
+    <plurals name="trash_section_stickers">
+        <item quantity="one">%d WhatsApp sticker</item>
+        <item quantity="other">%d WhatsApp stickers</item>
+    </plurals>
     <plurals name="empty_trash_title">
         <item quantity="one">Delete %d image for good?</item>
         <item quantity="other">Delete %d images for good?</item>

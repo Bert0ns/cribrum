@@ -87,6 +87,11 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         it.copy(selected = if (path in it.selected) it.selected - path else it.selected + path)
     }
 
+    fun selectAll(items: List<TrashedImage>, select: Boolean) = mutableState.update {
+        val paths = items.map { item -> item.original.path }.toSet()
+        it.copy(selected = if (select) it.selected + paths else it.selected - paths)
+    }
+
     fun restoreSelected() = load { state ->
         review.restore(state.trashed.filter { it.original.path in state.selected }.map { it.original })
         state.copy(trashed = review.trashed(), selected = emptySet())
