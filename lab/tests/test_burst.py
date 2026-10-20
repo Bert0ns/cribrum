@@ -111,7 +111,8 @@ def test_undecodable_image_has_sharpness_zero_and_is_never_best_shot(shots):
     broken_path = shots.folder / "broken.jpg"
     broken_path.write_bytes(b"\xff\xd8\xff\xe0" + b"corrupt")
     broken_ref = ImageRef(broken_path, broken_path.stat().st_size, 0)
-    shots.meta[broken_ref] = ImageMetadata(640, 480, "image/jpeg", "Google", "Pixel 8", START + timedelta(seconds=1))
+    captured = START + timedelta(seconds=1)
+    shots.meta[broken_ref] = ImageMetadata(640, 480, "image/jpeg", "Google", "Pixel 8", captured)
 
     signals = shots.run()
 
