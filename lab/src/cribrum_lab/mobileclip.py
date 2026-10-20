@@ -1,6 +1,6 @@
-"""MobileCLIP-S0 image and text embeddings (docs/design.md, section 5).
+"""MobileCLIP2-S0 image and text embeddings (docs/design.md, section 5).
 
-The ONNX export from Xenova/mobileclip_s0 runs both here and on Android, so embeddings
+The ONNX export from plhery/mobileclip2-onnx runs both here and on Android, so embeddings
 computed in the lab match the app's. The files are downloaded once, pinned to a revision
 and checked against their SHA-256, into lab/data/models/.
 """
@@ -16,23 +16,25 @@ from tokenizers import Tokenizer
 from cribrum_lab import models
 from cribrum_lab.runtime import ModelRuntime, OnnxRuntime
 
-MODEL_ID = "mobileclip_s0"
+MODEL_ID = "mobileclip2_s0"
 DIMENSIONS = 512
 INPUT_SIDE = 256
 CONTEXT_LENGTH = 77
-LOGIT_SCALE = 100.0
-"""CLIP's learned temperature: turns cosine similarities into softmax logits."""
+LOGIT_SCALE = 64.33
+"""CLIP's learned temperature (`logit_scale.exp()` of the checkpoint): turns cosine
+similarities into softmax logits."""
 
 MODELS = models.MODELS / MODEL_ID
-_REVISION = "757d59c9c6870a76a4b0306f05f5061bca15c39f"
+_REPOSITORY = "plhery/mobileclip2-onnx"
+_REVISION = "ba95759a5bdbaca53e9111e2550a76ec09c8fd9e"
 _FILES = {
     "vision_model.onnx": (
-        "onnx/", "17d3c037b1d488c10c50e09f6009ea5a198caef4e0e8f4ea5617b7cb2d067ac0"
+        "onnx/s0/", "13d20ebfa8a8f63890eb2727fe4dc63009ff970f43e0f7d9d2ed999659f70c8a"
     ),
     "text_model.onnx": (
-        "onnx/", "f6e9bd5742bfc515889e901634d8a2ff2a57fab8564e4ad3760e800b1a51b77c"
+        "onnx/s0/", "df590d47744f2ee9f3ccb67c4414d17419568c05bca0c4d166f2faeedf8b92f3"
     ),
-    "tokenizer.json": ("", "72ed5c96db5729294468543e4bc75fce14ca63f58e37300290189ba1c1e52b85"),
+    "tokenizer.json": ("", "b556ac8c99757ffb677208af34bc8c6721572114111a6e0aaf5fa69ff0b8d842"),
 }  # fmt: skip
 """Folder in the repository and SHA-256 of each file."""
 
@@ -40,7 +42,7 @@ _FILES = {
 def model_file(name: str, folder: Path = MODELS) -> Path:
     """Path to a model file, downloaded and verified on first use."""
     prefix, sha256 = _FILES[name]
-    url = f"https://huggingface.co/Xenova/mobileclip_s0/resolve/{_REVISION}/{prefix}{name}"
+    url = f"https://huggingface.co/{_REPOSITORY}/resolve/{_REVISION}/{prefix}{name}"
     return models.fetch(url, sha256, folder / name)
 
 

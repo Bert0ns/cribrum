@@ -18,7 +18,7 @@ TEXT_WEIGHT = 0.8
 
 class DocumentDetector:
     id = "document"
-    version = 2
+    version = 3
     category = Category.DOCUMENT
     """Bump with prompts.VERSION too."""
 

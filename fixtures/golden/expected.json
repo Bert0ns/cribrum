@@ -1,5 +1,5 @@
 {
- "embedding_model": "mobileclip_s0",
+ "embedding_model": "mobileclip2_s0",
  "format_version": 1,
  "images": {
   "DCIM/Camera/blurred.jpg": {
@@ -46,12 +46,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.035",
-      "prompt": "a photo of a ticket or a bill",
+      "probability": "0.181",
+      "prompt": "a photo of a presentation slide on a screen",
       "text_coverage": "0.0000"
      },
-     "score": 0.035,
-     "version": 2
+     "score": 0.1805,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -59,11 +59,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "no",
-      "probability": "0.104",
+      "probability": "0.480",
       "prompt": "a viral image from social media"
      },
-     "score": 0.1843,
-     "version": 1
+     "score": 0.489,
+     "version": 2
     },
     {
      "category": "faces",
@@ -87,12 +87,12 @@
      "category": "near_duplicate",
      "detector": "near_duplicate",
      "evidence": {
-      "cosine": "0.944",
+      "cosine": "0.892",
       "distance": "32",
       "group": "b65ee79ffd07ceeb",
       "role": "inferior"
      },
-     "score": 0.7186,
+     "score": 0.4584,
      "version": 2
     }
    ],
@@ -142,12 +142,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.192",
+      "probability": "0.324",
       "prompt": "a photo of a document",
       "text_coverage": "0.0000"
      },
-     "score": 0.192,
-     "version": 2
+     "score": 0.3236,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -155,11 +155,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "no",
-      "probability": "0.231",
-      "prompt": "an emoji sticker"
+      "probability": "0.372",
+      "prompt": "a sticker"
      },
-     "score": 0.2875,
-     "version": 1
+     "score": 0.4014,
+     "version": 2
     },
     {
      "category": "faces",
@@ -226,12 +226,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.029",
+      "probability": "0.025",
       "prompt": "a photo of a presentation slide on a screen",
       "text_coverage": "0.0525"
      },
-     "score": 0.4369,
-     "version": 2
+     "score": 0.4347,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -239,11 +239,11 @@
      "evidence": {
       "camera_exif": "yes",
       "messaging_folder": "no",
-      "probability": "0.486",
-      "prompt": "an emoji sticker"
+      "probability": "0.205",
+      "prompt": "a sticker"
      },
-     "score": 0.4378,
-     "version": 1
+     "score": 0.1849,
+     "version": 2
     },
     {
      "category": "faces",
@@ -334,12 +334,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.051",
+      "probability": "0.033",
       "prompt": "a photo of a presentation slide on a screen",
       "text_coverage": "0.0279"
      },
-     "score": 0.2629,
-     "version": 2
+     "score": 0.2491,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -347,11 +347,11 @@
      "evidence": {
       "camera_exif": "yes",
       "messaging_folder": "no",
-      "probability": "0.207",
-      "prompt": "an emoji sticker"
+      "probability": "0.237",
+      "prompt": "a viral image from social media"
      },
-     "score": 0.1865,
-     "version": 1
+     "score": 0.2137,
+     "version": 2
     },
     {
      "category": "faces",
@@ -442,12 +442,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.043",
+      "probability": "0.028",
       "prompt": "a photo of a presentation slide on a screen",
       "text_coverage": "0.0455"
      },
-     "score": 0.3913,
-     "version": 2
+     "score": 0.3815,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -455,11 +455,11 @@
      "evidence": {
       "camera_exif": "yes",
       "messaging_folder": "no",
-      "probability": "0.342",
-      "prompt": "an emoji sticker"
+      "probability": "0.284",
+      "prompt": "a cartoon sticker"
      },
-     "score": 0.3077,
-     "version": 1
+     "score": 0.2559,
+     "version": 2
     },
     {
      "category": "faces",
@@ -483,7 +483,7 @@
      "category": "near_duplicate",
      "detector": "near_duplicate",
      "evidence": {
-      "cosine": "0.986",
+      "cosine": "0.985",
       "distance": "0",
       "group": "4042fc658169206f",
       "role": "inferior"
@@ -550,12 +550,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.114",
+      "probability": "0.245",
       "prompt": "a photo of a blackboard with writing",
       "text_coverage": "0.0000"
      },
-     "score": 0.1142,
-     "version": 2
+     "score": 0.2454,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -563,11 +563,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "no",
-      "probability": "0.087",
-      "prompt": "a good night greeting image"
+      "probability": "0.168",
+      "prompt": "a sticker"
      },
-     "score": 0.1706,
-     "version": 1
+     "score": 0.2359,
+     "version": 2
     },
     {
      "category": "faces",
@@ -592,7 +592,7 @@
   },
   "DCIM/Camera/texture.jpg": {
    "content_hash": "38e6179e16f7f1df",
-   "embedding": "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",
+   "embedding": "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",
    "has_camera_exif": true,
    "height": 480,
    "perceptual_hash": "f2d2187c383c7399",
@@ -635,12 +635,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.016",
-      "prompt": "a photo of a presentation slide on a screen",
+      "probability": "0.267",
+      "prompt": "a photo of a computer monitor showing text",
       "text_coverage": "0.0000"
      },
-     "score": 0.0159,
-     "version": 2
+     "score": 0.2674,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -648,11 +648,11 @@
      "evidence": {
       "camera_exif": "yes",
       "messaging_folder": "no",
-      "probability": "0.149",
-      "prompt": "an internet meme"
+      "probability": "0.458",
+      "prompt": "a viral image from social media"
      },
-     "score": 0.1341,
-     "version": 1
+     "score": 0.4119,
+     "version": 2
     },
     {
      "category": "faces",
@@ -711,7 +711,7 @@
   },
   "Documents/page.png": {
    "content_hash": "bedeaa0b7c155ed4",
-   "embedding": "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",
+   "embedding": "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",
    "has_camera_exif": false,
    "height": 800,
    "perceptual_hash": "afd0d0d2d0d2d0f6",
@@ -754,12 +754,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.926",
+      "probability": "0.881",
       "prompt": "a photo of a printed page of text",
       "text_coverage": "0.1376"
      },
-     "score": 0.9852,
-     "version": 2
+     "score": 0.9761,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -767,11 +767,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "no",
-      "probability": "0.014",
-      "prompt": "an internet meme"
+      "probability": "0.076",
+      "prompt": "a funny picture with text on top"
      },
-     "score": 0.1116,
-     "version": 1
+     "score": 0.1614,
+     "version": 2
     },
     {
      "category": "faces",
@@ -838,12 +838,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.018",
-      "prompt": "a photo of a presentation slide on a screen",
+      "probability": "0.261",
+      "prompt": "a photo of a computer monitor showing text",
       "text_coverage": "0.0000"
      },
-     "score": 0.0176,
-     "version": 2
+     "score": 0.2607,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -851,11 +851,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "no",
-      "probability": "0.175",
-      "prompt": "an internet meme"
+      "probability": "0.462",
+      "prompt": "a viral image from social media"
      },
-     "score": 0.2416,
-     "version": 1
+     "score": 0.474,
+     "version": 2
     },
     {
      "category": "faces",
@@ -879,12 +879,12 @@
      "category": "near_duplicate",
      "detector": "near_duplicate",
      "evidence": {
-      "cosine": "0.996",
+      "cosine": "0.997",
       "distance": "2",
       "group": "b65ee79ffd07ceeb",
       "role": "inferior"
      },
-     "score": 0.982,
+     "score": 0.9866,
      "version": 2
     }
    ],
@@ -934,12 +934,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.172",
-      "prompt": "a photo of a form or a contract",
+      "probability": "0.398",
+      "prompt": "a photo of a document",
       "text_coverage": "0.0000"
      },
-     "score": 0.1723,
-     "version": 2
+     "score": 0.3981,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -947,11 +947,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "no",
-      "probability": "0.005",
-      "prompt": "an emoji sticker"
+      "probability": "0.141",
+      "prompt": "a sticker"
      },
-     "score": 0.1038,
-     "version": 1
+     "score": 0.2144,
+     "version": 2
     },
     {
      "category": "faces",
@@ -1018,12 +1018,12 @@
      "category": "document",
      "detector": "document",
      "evidence": {
-      "probability": "0.016",
-      "prompt": "a photo of a presentation slide on a screen",
+      "probability": "0.267",
+      "prompt": "a photo of a computer monitor showing text",
       "text_coverage": "0.0000"
      },
-     "score": 0.0159,
-     "version": 2
+     "score": 0.2674,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -1031,11 +1031,11 @@
      "evidence": {
       "camera_exif": "yes",
       "messaging_folder": "yes",
-      "probability": "0.149",
-      "prompt": "an internet meme"
+      "probability": "0.458",
+      "prompt": "a viral image from social media"
      },
-     "score": 0.4805,
-     "version": 1
+     "score": 0.6472,
+     "version": 2
     },
     {
      "category": "faces",
@@ -1137,11 +1137,11 @@
      "detector": "document",
      "evidence": {
       "probability": "0.000",
-      "prompt": "a photo of a presentation slide on a screen",
+      "prompt": "a photo of a ticket or a bill",
       "text_coverage": "0.0142"
      },
-     "score": 0.1133,
-     "version": 2
+     "score": 0.1136,
+     "version": 3
     },
     {
      "category": "forwarded",
@@ -1149,11 +1149,11 @@
      "evidence": {
       "camera_exif": "no",
       "messaging_folder": "yes",
-      "probability": "1.000",
+      "probability": "0.994",
       "prompt": "an emoji sticker"
      },
-     "score": 0.9459,
-     "version": 1
+     "score": 0.9432,
+     "version": 2
     },
     {
      "category": "faces",
