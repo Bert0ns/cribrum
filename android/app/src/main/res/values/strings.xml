@@ -87,4 +87,14 @@
         <item quantity="other">Trashed images stay for %d days, then the app deletes them.</item>
     </plurals>
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
+    <string name="storage_map">Storage map</string>
+    <string name="storage_map_card_details">%1$s \u2022 image sizes</string>
+    <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s \u2022 image sizes</string>
+    <string name="storage_map_root">All explored folders</string>
+    <string name="storage_map_empty">No images indexed</string>
+    <string name="storage_map_no_subfolders">No subfolders</string>
+    <plurals name="storage_map_summary">
+        <item quantity="one">%1$s \u2022 %2$d image</item>
+        <item quantity="other">%1$s \u2022 %2$d images</item>
+    </plurals>
 </resources>

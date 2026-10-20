@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -44,10 +45,12 @@ import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
+import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.ScanStatus
 import io.github.bert0ns.cribrum.ui.Screen
 import io.github.bert0ns.cribrum.ui.SettingsScreen
+import io.github.bert0ns.cribrum.ui.StorageMapScreen
 import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
@@ -120,6 +123,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                             is Screen.Category -> categoryName(screen.category)
                             Screen.Trash -> stringResource(R.string.trash)
                             Screen.Settings -> stringResource(R.string.settings)
+                            Screen.StorageMap -> stringResource(R.string.storage_map)
                         },
                     )
                 },
@@ -138,7 +142,7 @@ fun App(model: ReviewViewModel = viewModel()) {
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             when (screen) {
                 Screen.Home -> {
@@ -152,7 +156,11 @@ fun App(model: ReviewViewModel = viewModel()) {
                 Screen.Trash -> TrashScreen(
                     state.trashed, state.selected, model::select, model::selectAll, model::restoreSelected, model::emptyTrash,
                 )
-                Screen.Settings -> SettingsScreen()
+                Screen.Settings -> SettingsScreen(onOpenStorageMap = model::openStorageMap)
+                Screen.StorageMap -> StorageMapScreen(
+                    currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
+                    onZoomIn = model::zoomStorageMap,
+                )
             }
         }
     }

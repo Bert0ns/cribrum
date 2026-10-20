@@ -167,6 +167,9 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         return ReviewState.entries.first { it.value == value }
     }
 
+    /** Every indexed image not in the trash, with its path, size, and mtime. */
+    suspend fun notTrashed(): List<ImageRef> = dao.notTrashed().map { ImageRef(it.path, it.size, it.mtimeNs) }
+
     /** Every image with its review state and signals, as the ranker takes them. */
     suspend fun indexedImages(): List<IndexedImage> = db.withTransaction {
         val signals = dao.allSignals().groupBy({ it.path }, ::signal)

@@ -134,6 +134,9 @@ interface IndexDao {
     @Query("SELECT path, size, mtime_ns FROM images ORDER BY path")
     suspend fun images(): List<StoredRef>
 
+    @Query("SELECT path, size, mtime_ns FROM images WHERE review_state != 'trashed' ORDER BY path")
+    suspend fun notTrashed(): List<StoredRef>
+
     @Query("DELETE FROM images WHERE path IN (:paths)")
     suspend fun forget(paths: List<String>)
 

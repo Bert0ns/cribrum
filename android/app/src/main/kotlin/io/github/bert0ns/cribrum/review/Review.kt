@@ -106,6 +106,9 @@ class Review(
         index.forget(images.map { it.path })
     }
 
+    /** Images not in the trash, for storage space exploration. */
+    suspend fun notTrashed(): List<ImageRef> = index.notTrashed()
+
     private fun singles(category: Category, candidates: List<Candidate>) = candidates.map {
         ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category))))
     }

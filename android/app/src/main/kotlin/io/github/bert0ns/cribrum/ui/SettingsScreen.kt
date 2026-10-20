@@ -20,7 +20,10 @@ import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.trash.RETENTION
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    onOpenStorageMap: () -> Unit = {},
+) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     @Suppress("DEPRECATION")
@@ -78,6 +81,15 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 supportingContent = {
                     Text(stringResource(R.string.settings_uninstall_warning))
                 },
+            )
+        }
+        item {
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.storage_map)) },
+                modifier = Modifier.clickable { onOpenStorageMap() },
             )
         }
     }

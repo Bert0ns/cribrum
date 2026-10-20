@@ -41,6 +41,16 @@ class ImageIndexTest {
     private fun test(block: suspend ImageIndex.() -> Unit) = runBlocking { index.block() }
 
     @Test
+    fun `notTrashed leaves out trashed images`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setReviewState(OTHER.path, ReviewState.TRASHED)
+        assertEquals(listOf(PHOTO), notTrashed())
+        setReviewState(OTHER.path, ReviewState.UNREVIEWED)
+        assertEquals(listOf(PHOTO, OTHER), notTrashed())
+    }
+
+    @Test
     fun `record reports new and changed images`() = test {
         assertTrue(record(PHOTO))
         assertFalse(record(PHOTO))
