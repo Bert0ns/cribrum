@@ -3,6 +3,7 @@ package io.github.bert0ns.cribrum.detectors
 
 import android.graphics.Bitmap
 import io.github.bert0ns.cribrum.imaging.TestImage
+import io.github.bert0ns.cribrum.imaging.unit
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -137,7 +138,8 @@ class BurstDetectorTest {
         val shots = Shots(folder.root, start)
         val sharp = shots.add("sharp", 0)
         val brokenFile = File(folder.root, "broken.jpg").apply {
-            writeBytes(byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte()) + "corrupt".toByteArray())
+            val jpegStart = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte())
+            writeBytes(jpegStart + "corrupt".toByteArray())
         }
         val brokenRef = brokenFile.toImageRef()
         shots.meta[brokenRef] = ImageMetadata(640, 480, "image/jpeg", "Google", "Pixel 8", start.plusSeconds(1))

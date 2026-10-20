@@ -38,12 +38,12 @@ class NearDuplicateDetector : GroupDetector {
         for (image in images) {
             val hash = try {
                 context.perceptualHash(image)
-            } catch (_: Exception) {
+            } catch (_: Exception) { // undecodable pixels: BitmapFactory returns null, files can vanish
                 continue
             }
             val vector = try {
                 context.embedding(image)
-            } catch (_: MissingEmbedding) {
+            } catch (_: MissingEmbedding) { // a run without embeddings: hashes alone
                 null
             }
             hashes += hash
@@ -68,17 +68,16 @@ class NearDuplicateDetector : GroupDetector {
                     "distance" to distance.toString(),
                 )
                 // Each measure scores 1 for an identical copy and 0.5 at its linking threshold.
-                val hashScore = 1.0 - distance / (2.0 * (MAX_DISTANCE + 1))
+                val scores = mutableListOf(1.0 - distance / (2.0 * (MAX_DISTANCE + 1)))
                 val vi = vectors[i]
                 val vBest = vectors[bestIdx]
-                val embeddingScore = if (vi != null && vBest != null) {
+                if (vi != null && vBest != null) {
                     val cosine = dot(vi, vBest)
                     evidence["cosine"] = "%.3f".format(Locale.ROOT, cosine)
-                    0.5 + 0.5 * (cosine - NEAR_DUPLICATE_MIN_COSINE) / (1.0 - NEAR_DUPLICATE_MIN_COSINE)
-                } else {
-                    null
+                    val margin = (cosine - NEAR_DUPLICATE_MIN_COSINE) / (1.0 - NEAR_DUPLICATE_MIN_COSINE)
+                    scores += 0.5 + 0.5 * margin
                 }
-                val score = if (isBest) 0f else maxOf(hashScore, embeddingScore ?: 0.0).toFloat().coerceIn(0f, 1f)
+                val score = if (isBest) 0f else scores.max().toFloat().coerceIn(0f, 1f)
                 result[members[i]] = listOf(Signal(id, version, Category.NEAR_DUPLICATE, score, evidence))
             }
         }

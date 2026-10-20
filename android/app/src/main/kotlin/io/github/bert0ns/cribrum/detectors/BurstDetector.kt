@@ -36,7 +36,7 @@ class BurstDetector : GroupDetector {
         for (image in images) {
             val meta = try {
                 context.metadata(image)
-            } catch (_: Exception) {
+            } catch (_: Exception) { // unreadable header: no capture time to cluster on
                 null
             }
             val capturedAt = meta?.capturedAt ?: continue
@@ -93,7 +93,7 @@ class BurstDetector : GroupDetector {
         return try {
             val gray = loadGrayscale(File(image.path), BlurDetector.MAX_SIDE)
             BlurDetector.measure(gray)?.second ?: 0.0
-        } catch (_: Exception) {
+        } catch (_: Exception) { // undecodable pixels: never the best shot
             0.0
         }
     }
