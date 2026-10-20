@@ -17,6 +17,7 @@ import java.io.IOException
 class ExactDuplicateDetector : GroupDetector {
     override val id = "exact_duplicate"
     override val version = 1
+    override val category = Category.EXACT_DUPLICATE
 
     override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
         val byHash = LinkedHashMap<String, MutableList<ImageRef>>()

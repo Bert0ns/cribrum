@@ -82,10 +82,19 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
             item { Text(stringResource(R.string.nothing_to_review), Modifier.padding(16.dp)) }
         }
         items(categories, key = { it.category }) { summary ->
+            val canOpen = summary.hasDetector && summary.count > 0
             ListItem(
                 headlineContent = { Text(categoryName(summary.category)) },
-                supportingContent = { Text(pluralStringResource(R.plurals.candidates, summary.count, summary.count)) },
-                modifier = Modifier.clickable { onOpen(summary.category) },
+                supportingContent = {
+                    Text(
+                        if (!summary.hasDetector) {
+                            stringResource(R.string.category_coming_soon)
+                        } else {
+                            pluralStringResource(R.plurals.candidates, summary.count, summary.count)
+                        },
+                    )
+                },
+                modifier = Modifier.clickable(enabled = canOpen) { onOpen(summary.category) },
             )
             HorizontalDivider()
         }

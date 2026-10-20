@@ -11,6 +11,7 @@ import io.github.bert0ns.cribrum.model.Signal
 class StickerDetector : Detector {
     override val id = "sticker"
     override val version = 1
+    override val category = Category.STICKER
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
         val inFolder = isStickerFolder(image.path)
