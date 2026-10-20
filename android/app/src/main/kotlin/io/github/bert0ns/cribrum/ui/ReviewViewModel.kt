@@ -10,6 +10,7 @@ import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.Decision
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
+import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.sync.withLock
 sealed interface Screen {
     data object Home : Screen
     data class Category(val category: io.github.bert0ns.cribrum.model.Category) : Screen
+    data object Trash : Screen
 }
 
 data class ReviewState(
@@ -31,6 +33,9 @@ data class ReviewState(
     val remaining: Int = 0,
     /** Paths marked for the trash on the current page. */
     val marked: Set<String> = emptySet(),
+    val trashed: List<TrashedImage> = emptyList(),
+    /** Paths selected on the trash screen. */
+    val selected: Set<String> = emptySet(),
     /** The last applied page, until the user undoes it or moves on. */
     val lastDecision: Decision? = null,
     val loading: Boolean = false,
@@ -49,6 +54,8 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         val page = review.page(category)
         it.copy(screen = Screen.Category(category), page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null)
     }
+
+    fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
 
     fun back() = load { it.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null) }
 
@@ -74,6 +81,21 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun dismissUndo() = mutableState.update { it.copy(lastDecision = null) }
+
+    fun select(item: TrashedImage) = mutableState.update {
+        val path = item.original.path
+        it.copy(selected = if (path in it.selected) it.selected - path else it.selected + path)
+    }
+
+    fun restoreSelected() = load { state ->
+        review.restore(state.trashed.filter { it.original.path in state.selected }.map { it.original })
+        state.copy(trashed = review.trashed(), selected = emptySet())
+    }
+
+    fun emptyTrash() = load { state ->
+        review.purge(state.trashed.map { it.original })
+        state.copy(trashed = review.trashed(), selected = emptySet())
+    }
 
     private fun marked(page: List<ReviewGroup>) =
         page.flatMap { it.images }.filter { it.suggestTrash }.map { it.image.path }.toSet()

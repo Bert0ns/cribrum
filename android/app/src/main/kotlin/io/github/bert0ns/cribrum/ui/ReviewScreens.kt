@@ -73,7 +73,7 @@ fun categoryName(category: Category): String = stringResource(
 )
 
 @Composable
-fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, modifier: Modifier = Modifier) {
+fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize()) {
         if (categories.isEmpty()) {
             item { Text(stringResource(R.string.nothing_to_review), Modifier.padding(16.dp)) }
@@ -85,6 +85,13 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
                 modifier = Modifier.clickable { onOpen(summary.category) },
             )
             HorizontalDivider()
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.trash)) },
+                leadingContent = { Icon(Icons.Default.Delete, null) },
+                modifier = Modifier.clickable(onClick = onTrash),
+            )
         }
     }
 }
