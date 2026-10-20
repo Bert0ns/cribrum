@@ -22,7 +22,7 @@ from cribrum_lab.model import GROUP_KEY, ROLE_KEY, Category, ImageRef, Signal
 
 MAX_GAP = timedelta(seconds=3)
 """EXIF capture times have 1 s resolution; manual bursts are often 1-2 s apart."""
-MIN_COSINE = 0.80
+BURST_MIN_COSINE = 0.80
 """Consecutive shots below this similarity are different subjects, whatever the time."""
 
 
@@ -85,7 +85,7 @@ def _bursts(
 def _alike(a: ImageRef, b: ImageRef, context: AnalysisContext) -> bool:
     """Recall first: without both embeddings, time alone decides."""
     try:
-        return float(np.dot(context.embedding(a), context.embedding(b))) >= MIN_COSINE
+        return float(np.dot(context.embedding(a), context.embedding(b))) >= BURST_MIN_COSINE
     except LookupError:
         return True
 

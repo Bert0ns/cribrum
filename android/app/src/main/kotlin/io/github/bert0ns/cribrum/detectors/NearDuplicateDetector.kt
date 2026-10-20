@@ -2,7 +2,6 @@
 // lab/src/cribrum_lab/detectors/near_duplicate.py.
 package io.github.bert0ns.cribrum.detectors
 
-import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.folders.isCameraFolder
 import io.github.bert0ns.cribrum.folders.isMessagingFolder
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
@@ -12,13 +11,15 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
+import java.util.Locale
 
 const val MAX_DISTANCE = 10
 /**
- * Embedding similarity that still links two images. A 75% crop of a photo scores about 0.90 with
- * MobileCLIP-S0; different photos of the same party stay under 0.8.
+ * Embedding similarity that still links two images. A 75% crop of a photo scores about
+ * 0.90 with MobileCLIP-S0; different photos of the same party stay under 0.8. MobileCLIP2-S0
+ * links about as many pairs at this threshold (docs/design.md, section 5).
  */
-const val MIN_COSINE = 0.90f
+const val NEAR_DUPLICATE_MIN_COSINE = 0.90f
 
 /**
  * Two images are linked when their perceptual hashes are within a Hamming distance, which catches
@@ -33,18 +34,24 @@ class NearDuplicateDetector : GroupDetector {
     override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
         val members = mutableListOf<ImageRef>()
         val hashes = mutableListOf<ULong>()
+        val vectors = mutableListOf<FloatArray?>()
         for (image in images) {
             val hash = try {
                 context.perceptualHash(image)
-            } catch (_: Exception) {
+            } catch (_: Exception) { // undecodable pixels: BitmapFactory returns null, files can vanish
                 continue
             }
+            val vector = try {
+                context.embedding(image)
+            } catch (_: MissingEmbedding) { // a run without embeddings: hashes alone
+                null
+            }
             hashes += hash
+            vectors += vector
             members += image
         }
 
-        // Embedding links (MIN_COSINE) will be combined with hash links once MobileCLIP is ported.
-        val links = hashLinks(hashes)
+        val links = hashLinks(hashes) + embeddingLinks(vectors)
         val result = LinkedHashMap<ImageRef, List<Signal>>()
         for (component in components(members.size, links)) {
             val prefs = component.map { preference(it, members[it], context) }
@@ -60,10 +67,17 @@ class NearDuplicateDetector : GroupDetector {
                     ROLE_KEY to role.value,
                     "distance" to distance.toString(),
                 )
-                val score = if (isBest) 0f else {
-                    val hashScore = 1.0 - distance / (2.0 * (MAX_DISTANCE + 1))
-                    hashScore.toFloat().coerceIn(0f, 1f)
+                // Each measure scores 1 for an identical copy and 0.5 at its linking threshold.
+                val scores = mutableListOf(1.0 - distance / (2.0 * (MAX_DISTANCE + 1)))
+                val vi = vectors[i]
+                val vBest = vectors[bestIdx]
+                if (vi != null && vBest != null) {
+                    val cosine = dot(vi, vBest)
+                    evidence["cosine"] = "%.3f".format(Locale.ROOT, cosine)
+                    val margin = (cosine - NEAR_DUPLICATE_MIN_COSINE) / (1.0 - NEAR_DUPLICATE_MIN_COSINE)
+                    scores += 0.5 + 0.5 * margin
                 }
+                val score = if (isBest) 0f else scores.max().toFloat().coerceIn(0f, 1f)
                 result[members[i]] = listOf(Signal(id, version, Category.NEAR_DUPLICATE, score, evidence))
             }
         }
@@ -75,6 +89,20 @@ class NearDuplicateDetector : GroupDetector {
         for (i in hashes.indices) {
             for (j in (i + 1) until hashes.size) {
                 if ((hashes[i] xor hashes[j]).countOneBits() <= MAX_DISTANCE) {
+                    links += i to j
+                }
+            }
+        }
+        return links
+    }
+
+    private fun embeddingLinks(vectors: List<FloatArray?>): List<Pair<Int, Int>> {
+        val links = mutableListOf<Pair<Int, Int>>()
+        for (i in vectors.indices) {
+            val vi = vectors[i] ?: continue
+            for (j in (i + 1) until vectors.size) {
+                val vj = vectors[j] ?: continue
+                if (dot(vi, vj) >= NEAR_DUPLICATE_MIN_COSINE) {
                     links += i to j
                 }
             }
@@ -106,13 +134,6 @@ class NearDuplicateDetector : GroupDetector {
             groups.getOrPut(root(i)) { mutableListOf() } += i
         }
         return groups.values.filter { it.size > 1 }
-    }
-
-    private fun groupId(path: String): String {
-        val digest = Algorithm.XXH3_64().createDigest()
-        val bytes = path.toByteArray()
-        digest.update(bytes, 0, bytes.size)
-        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private class CandidatePreference(

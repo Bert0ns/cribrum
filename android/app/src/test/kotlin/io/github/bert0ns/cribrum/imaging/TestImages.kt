@@ -3,6 +3,7 @@ package io.github.bert0ns.cribrum.imaging
 
 import android.graphics.Bitmap
 import java.io.File
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /** Luminance values row by row, as an editable image. */
@@ -62,4 +63,19 @@ class TestImage(val width: Int, val height: Int, val values: IntArray = IntArray
             return TestImage(400, 300, IntArray(400 * 300) { (level + random.nextGaussian() * spread).toInt().coerceIn(0, 255) })
         }
     }
+}
+
+/** A 512-float vector with the given leading values, L2-normalized: a fake embedding. */
+fun unit(vararg values: Float): FloatArray {
+    val vector = FloatArray(512)
+    var norm = 0f
+    for (i in values.indices) {
+        vector[i] = values[i]
+        norm += values[i] * values[i]
+    }
+    val length = sqrt(norm)
+    for (i in values.indices) {
+        vector[i] /= length
+    }
+    return vector
 }

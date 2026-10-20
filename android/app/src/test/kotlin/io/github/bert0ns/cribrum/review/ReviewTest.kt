@@ -68,7 +68,7 @@ class ReviewTest {
             listOf(
                 CategorySummary(Category.EXACT_DUPLICATE, 1, hasDetector = true),
                 CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = true),
-                CategorySummary(Category.BURST, 0, hasDetector = false),
+                CategorySummary(Category.BURST, 0, hasDetector = true),
                 CategorySummary(Category.BLURRY, 2, hasDetector = true),
                 CategorySummary(Category.BAD_EXPOSURE, 0, hasDetector = true),
                 CategorySummary(Category.SCREENSHOT, 0, hasDetector = true),

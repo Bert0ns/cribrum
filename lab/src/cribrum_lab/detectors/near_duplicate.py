@@ -17,7 +17,7 @@ from cribrum_lab.model import GROUP_KEY, ROLE_KEY, Category, ImageRef, Signal
 
 MAX_DISTANCE = 10
 """Hamming distance between 64-bit pHashes that still links two images."""
-MIN_COSINE = 0.90
+NEAR_DUPLICATE_MIN_COSINE = 0.90
 """Embedding similarity that still links two images. A 75% crop of a photo scores about
 0.90 with MobileCLIP-S0; different photos of the same party stay under 0.8. MobileCLIP2-S0
 links about as many pairs at this threshold (docs/design.md, section 5)."""
@@ -68,7 +68,8 @@ class NearDuplicateDetector:
         if vectors[i] is not None and vectors[best] is not None:
             cosine = float(vectors[i] @ vectors[best])
             evidence["cosine"] = f"{cosine:.3f}"
-            scores.append(0.5 + 0.5 * (cosine - MIN_COSINE) / (1.0 - MIN_COSINE))
+            margin = (cosine - NEAR_DUPLICATE_MIN_COSINE) / (1.0 - NEAR_DUPLICATE_MIN_COSINE)
+            scores.append(0.5 + 0.5 * margin)
         score = min(1.0, max(0.0, *scores))
         if i == best:
             evidence[ROLE_KEY], score = Role.BEST, 0.0
@@ -89,7 +90,7 @@ def _embedding_links(vectors: list[np.ndarray | None]) -> Iterable[tuple[int, in
         return
     matrix = np.stack([vectors[i] for i in indices])
     for start in range(0, len(matrix), _CHUNK):
-        similar = matrix[start : start + _CHUNK] @ matrix.T >= MIN_COSINE
+        similar = matrix[start : start + _CHUNK] @ matrix.T >= NEAR_DUPLICATE_MIN_COSINE
         for i, j in zip(*np.nonzero(similar), strict=True):
             yield indices[start + int(i)], indices[int(j)]
 
