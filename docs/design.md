@@ -45,7 +45,7 @@ Gallery apps are built for browsing, not for cleanup. They don't search the whol
 Two layers:
 
 1. **MediaStore**, Android's media index. It covers the gallery and `Android/media/com.whatsapp/WhatsApp/Media/...`. It does **not** index folders containing a `.nomedia` file, such as `WhatsApp Images/Sent`. That is exactly where clutter piles up unseen.
-2. **Deep scan** with `MANAGE_EXTERNAL_STORAGE`: a file system walk of shared storage that finds every image file, `.nomedia` folders included. Since Android 11, `Android/data` and `Android/obb` stay inaccessible even with this permission.
+2. **Deep scan** with `MANAGE_EXTERNAL_STORAGE`: a file system walk of shared storage that finds every image file, `.nomedia` folders included. The deep scan skips `.trashed-*` files (the system trash, which MediaStore hides by default) and `.pending-*` files (still being written), in both the lab and the app. Since Android 11, `Android/data` and `Android/obb` stay inaccessible even with this permission.
 
 Deep scan is the default (D7). The scanner merges both layers and identifies each file by its path, size, and modification time.
 

@@ -26,8 +26,12 @@ class FilesystemImageSource:
     Hidden folders and folders with a `.nomedia` file are included: that is where
     messaging apps keep media the gallery never shows. Files are recognized by their
     content, not their extension. Symlinks are skipped so no file is yielded twice, and
-    so are FIFOs and other special files, which would block or fail on read.
+    so are FIFOs and other special files, which would block or fail on read. Left out on
+    purpose: files in the system trash or still being written (`.trashed-*`,
+    `.pending-*`).
     """
+
+    SKIPPED_PREFIXES = (".trashed-", ".pending-")
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -36,6 +40,8 @@ class FilesystemImageSource:
         for folder, dirs, files in self.root.walk():
             dirs.sort()
             for name in sorted(files):
+                if name.startswith(self.SKIPPED_PREFIXES):
+                    continue
                 path = folder / name
                 try:
                     info = path.lstat()
@@ -44,6 +50,9 @@ class FilesystemImageSource:
                 except OSError:
                     continue  # unreadable or vanished during the scan
                 yield ImageRef(path, info.st_size, info.st_mtime_ns)
+
+
+SKIPPED_PREFIXES = FilesystemImageSource.SKIPPED_PREFIXES
 
 
 def _is_image(path: Path) -> bool:
