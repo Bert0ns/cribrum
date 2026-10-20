@@ -198,6 +198,7 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 - Quick gestures and no unnecessary confirmations, except a final summary before trashing.
 - "Never suggest this again" works per image and per folder.
 - A settings screen, opened from the home screen, shows app information and a warning that uninstalling leaves the trash folder on shared storage.
+- A storage map screen, opened from settings, displays a treemap of indexed image space across explored folders to reveal where space is concentrated.
 
 ## 9. Deletion and trash
 
