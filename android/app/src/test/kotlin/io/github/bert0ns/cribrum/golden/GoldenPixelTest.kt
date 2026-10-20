@@ -47,6 +47,7 @@ class GoldenPixelTest {
         }
     }
 
+    /** Group ids are hashes of the lab's paths, so they are compared by which images share one, not by value. */
     @Test
     fun `near duplicate reproduces groups from golden fixtures`() = runBlocking {
         val detector = NearDuplicateDetector()
@@ -69,9 +70,7 @@ class GoldenPixelTest {
                 assertEquals(expected.relative, want.category, got.kind.value)
                 assertEquals(expected.relative, want.evidence[ROLE_KEY], got.evidence[ROLE_KEY])
                 assertEquals(expected.relative, want.evidence["distance"], got.evidence["distance"])
-                if (want.evidence.containsKey("cosine")) {
-                    assertEquals(expected.relative, want.evidence["cosine"], got.evidence["cosine"])
-                }
+                assertEquals(expected.relative, want.evidence["cosine"], got.evidence["cosine"])
                 assertEquals(expected.relative, want.score, got.score, Golden.scoreTolerance)
 
                 val wantGroup = want.evidence[GROUP_KEY]!!
@@ -105,6 +104,8 @@ class GoldenPixelTest {
                 assertEquals(expected.relative, want.category, got.kind.value)
                 assertEquals(expected.relative, want.evidence[ROLE_KEY], got.evidence[ROLE_KEY])
                 assertEquals(expected.relative, want.evidence["shots"], got.evidence["shots"])
+                // Exact sharpness value may differ from Pillow; assert the key is present.
+                assertNotNull(expected.relative, got.evidence["sharpness"])
                 assertEquals(expected.relative, want.score, got.score, Golden.scoreTolerance)
 
                 val wantGroup = want.evidence[GROUP_KEY]!!

@@ -23,6 +23,20 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import kotlin.math.sqrt
 
+internal fun unit(vararg values: Float): FloatArray {
+    val vector = FloatArray(512)
+    var norm = 0f
+    for (i in values.indices) {
+        vector[i] = values[i]
+        norm += values[i] * values[i]
+    }
+    val length = sqrt(norm)
+    for (i in values.indices) {
+        vector[i] /= length
+    }
+    return vector
+}
+
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class NearDuplicateDetectorTest {
@@ -62,20 +76,6 @@ class NearDuplicateDetectorTest {
             }
         }
         return out
-    }
-
-    private fun unit(vararg values: Float): FloatArray {
-        val vector = FloatArray(512)
-        var norm = 0f
-        for (i in values.indices) {
-            vector[i] = values[i]
-            norm += values[i] * values[i]
-        }
-        val length = sqrt(norm)
-        for (i in values.indices) {
-            vector[i] /= length
-        }
-        return vector
     }
 
     private fun run(

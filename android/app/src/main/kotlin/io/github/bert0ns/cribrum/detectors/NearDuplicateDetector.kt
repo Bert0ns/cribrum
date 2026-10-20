@@ -2,7 +2,6 @@
 // lab/src/cribrum_lab/detectors/near_duplicate.py.
 package io.github.bert0ns.cribrum.detectors
 
-import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.folders.isCameraFolder
 import io.github.bert0ns.cribrum.folders.isMessagingFolder
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
@@ -20,7 +19,7 @@ const val MAX_DISTANCE = 10
  * 0.90 with MobileCLIP-S0; different photos of the same party stay under 0.8. MobileCLIP2-S0
  * links about as many pairs at this threshold (docs/design.md, section 5).
  */
-const val MIN_COSINE = 0.90f
+const val NEAR_DUPLICATE_MIN_COSINE = 0.90f
 
 /**
  * Two images are linked when their perceptual hashes are within a Hamming distance, which catches
@@ -68,27 +67,22 @@ class NearDuplicateDetector : GroupDetector {
                     ROLE_KEY to role.value,
                     "distance" to distance.toString(),
                 )
+                // Each measure scores 1 for an identical copy and 0.5 at its linking threshold.
                 val hashScore = 1.0 - distance / (2.0 * (MAX_DISTANCE + 1))
-                var maxScore = hashScore
-                if (vectors[i] != null && vectors[bestIdx] != null) {
-                    val cosine = dot(vectors[i]!!, vectors[bestIdx]!!)
+                val vi = vectors[i]
+                val vBest = vectors[bestIdx]
+                val embeddingScore = if (vi != null && vBest != null) {
+                    val cosine = dot(vi, vBest)
                     evidence["cosine"] = "%.3f".format(Locale.ROOT, cosine)
-                    val embeddingScore = 0.5 + 0.5 * (cosine - MIN_COSINE) / (1.0 - MIN_COSINE)
-                    maxScore = maxOf(maxScore, embeddingScore)
+                    0.5 + 0.5 * (cosine - NEAR_DUPLICATE_MIN_COSINE) / (1.0 - NEAR_DUPLICATE_MIN_COSINE)
+                } else {
+                    null
                 }
-                val score = if (isBest) 0f else maxScore.toFloat().coerceIn(0f, 1f)
+                val score = if (isBest) 0f else maxOf(hashScore, embeddingScore ?: 0.0).toFloat().coerceIn(0f, 1f)
                 result[members[i]] = listOf(Signal(id, version, Category.NEAR_DUPLICATE, score, evidence))
             }
         }
         return result
-    }
-
-    private fun dot(a: FloatArray, b: FloatArray): Float {
-        var sum = 0f
-        for (i in a.indices) {
-            sum += a[i] * b[i]
-        }
-        return sum
     }
 
     private fun hashLinks(hashes: List<ULong>): List<Pair<Int, Int>> {
@@ -109,7 +103,7 @@ class NearDuplicateDetector : GroupDetector {
             val vi = vectors[i] ?: continue
             for (j in (i + 1) until vectors.size) {
                 val vj = vectors[j] ?: continue
-                if (dot(vi, vj) >= MIN_COSINE) {
+                if (dot(vi, vj) >= NEAR_DUPLICATE_MIN_COSINE) {
                     links += i to j
                 }
             }
@@ -141,13 +135,6 @@ class NearDuplicateDetector : GroupDetector {
             groups.getOrPut(root(i)) { mutableListOf() } += i
         }
         return groups.values.filter { it.size > 1 }
-    }
-
-    private fun groupId(path: String): String {
-        val digest = Algorithm.XXH3_64().createDigest()
-        val bytes = path.toByteArray()
-        digest.update(bytes, 0, bytes.size)
-        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private class CandidatePreference(

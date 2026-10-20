@@ -2,7 +2,6 @@
 // lab/src/cribrum_lab/detectors/burst.py.
 package io.github.bert0ns.cribrum.detectors
 
-import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.imaging.loadGrayscale
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -15,7 +14,18 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.util.Locale
 
-// shortcut: sharpness only; add "eyes open" once a face detector exists.
+/** EXIF capture times have 1 s resolution; manual bursts are often 1-2 s apart. */
+val MAX_GAP: Duration = Duration.ofSeconds(3)
+/** Consecutive shots below this similarity are different subjects, whatever the time. */
+const val BURST_MIN_COSINE = 0.80f
+
+/**
+ * Photos from the same camera whose capture times are at most MAX_GAP apart are chained
+ * into a burst, as long as consecutive shots also look alike when both have an embedding.
+ * The sharpest shot, by the BLURRY measure, is the one to keep.
+ *
+ * shortcut: sharpness only; add "eyes open" once a face detector exists.
+ */
 class BurstDetector : GroupDetector {
     override val id = "burst"
     override val version = 1
@@ -64,6 +74,7 @@ class BurstDetector : GroupDetector {
         return bursts.filter { it.size > 1 }
     }
 
+    /** Recall first: without both embeddings, time alone decides. */
     private suspend fun alike(a: ImageRef, b: ImageRef, context: AnalysisContext): Boolean {
         val va = try {
             context.embedding(a)
@@ -75,15 +86,7 @@ class BurstDetector : GroupDetector {
         } catch (_: MissingEmbedding) {
             return true
         }
-        return dot(va, vb) >= MIN_COSINE
-    }
-
-    private fun dot(a: FloatArray, b: FloatArray): Float {
-        var sum = 0f
-        for (i in a.indices) {
-            sum += a[i] * b[i]
-        }
-        return sum
+        return dot(va, vb) >= BURST_MIN_COSINE
     }
 
     private fun sharpness(image: ImageRef): Double {
@@ -95,16 +98,9 @@ class BurstDetector : GroupDetector {
         }
     }
 
-    private fun groupId(path: String): String {
-        val digest = Algorithm.XXH3_64().createDigest()
-        val bytes = path.toByteArray()
-        digest.update(bytes, 0, bytes.size)
-        return digest.digest().joinToString("") { "%02x".format(it) }
-    }
-
     private fun signals(burst: List<ImageRef>): Map<ImageRef, List<Signal>> {
         val sharpness = burst.associateWith { sharpness(it) }
-        val best = burst.maxByOrNull { sharpness.getValue(it) }!!
+        val best = burst.maxBy { sharpness.getValue(it) }
         val groupId = groupId(burst[0].path)
         val bestSharpness = sharpness.getValue(best)
 
@@ -115,6 +111,7 @@ class BurstDetector : GroupDetector {
             val score = if (isBest) {
                 0.0f
             } else {
+                // 0.5 when as sharp as the best shot, up to 1 when it has no detail at all.
                 val ratio = if (bestSharpness > 0.0) sharpness.getValue(image) / bestSharpness else 1.0
                 (1.0 - 0.5 * minOf(1.0, ratio)).toFloat()
             }
@@ -127,11 +124,5 @@ class BurstDetector : GroupDetector {
             result[image] = listOf(Signal(id, version, Category.BURST, score, evidence))
         }
         return result
-    }
-
-    companion object {
-        val MAX_GAP: Duration = Duration.ofSeconds(3)
-        /** Consecutive shots below this similarity are different subjects, whatever the time. */
-        const val MIN_COSINE = 0.80f
     }
 }
