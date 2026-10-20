@@ -52,9 +52,6 @@ class FilesystemImageSource:
                 yield ImageRef(path, info.st_size, info.st_mtime_ns)
 
 
-SKIPPED_PREFIXES = FilesystemImageSource.SKIPPED_PREFIXES
-
-
 def _is_image(path: Path) -> bool:
     with path.open("rb") as file:
         head = file.read(_HEAD_SIZE)
