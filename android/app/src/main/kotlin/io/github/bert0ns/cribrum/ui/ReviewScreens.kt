@@ -69,6 +69,7 @@ fun categoryName(category: Category): String = stringResource(
         Category.SCREENSHOT -> R.string.category_screenshot
         Category.DOCUMENT -> R.string.category_document
         Category.FORWARDED -> R.string.category_forwarded
+        Category.STICKER -> R.string.category_sticker
     },
 )
 

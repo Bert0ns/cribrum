@@ -24,3 +24,11 @@ def is_camera_folder(path: Path) -> bool:
 
 def is_messaging_folder(path: Path) -> bool:
     return any(part.lower() in _MESSAGING_FOLDERS for part in path.parent.parts)
+
+
+def is_sticker_folder(path: Path) -> bool:
+    """A messaging app's sticker folder, such as WhatsApp's "WhatsApp Stickers" and "WhatsApp
+    Backup Excluded Stickers"."""
+    return is_messaging_folder(path) and any(
+        part.lower().endswith("stickers") for part in path.parent.parts
+    )

@@ -75,6 +75,15 @@
      "version": 1
     },
     {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
      "category": "near_duplicate",
      "detector": "near_duplicate",
      "evidence": {
@@ -160,6 +169,15 @@
      },
      "score": 0.0,
      "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
     }
    ],
    "width": 640
@@ -232,6 +250,15 @@
      "detector": "faces",
      "evidence": {
       "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
      },
      "score": 0.0,
      "version": 1
@@ -336,6 +363,15 @@
      "version": 1
     },
     {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
      "category": "near_duplicate",
      "detector": "near_duplicate",
      "evidence": {
@@ -430,6 +466,15 @@
      "detector": "faces",
      "evidence": {
       "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
      },
      "score": 0.0,
      "version": 1
@@ -532,6 +577,15 @@
      },
      "score": 0.0,
      "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
     }
    ],
    "width": 640
@@ -605,6 +659,15 @@
      "detector": "faces",
      "evidence": {
       "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
      },
      "score": 0.0,
      "version": 1
@@ -718,6 +781,15 @@
      },
      "score": 0.0,
      "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
     }
    ],
    "width": 600
@@ -790,6 +862,15 @@
      "detector": "faces",
      "evidence": {
       "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
      },
      "score": 0.0,
      "version": 1
@@ -880,6 +961,15 @@
      },
      "score": 0.0,
      "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
     }
    ],
    "width": 1080
@@ -957,6 +1047,15 @@
      "version": 1
     },
     {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "no"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
      "category": "exact_duplicate",
      "detector": "exact_duplicate",
      "evidence": {
@@ -992,6 +1091,90 @@
     }
    ],
    "width": 640
+  },
+  "WhatsApp/Media/WhatsApp Stickers/STK-20240501-WA0001.webp": {
+   "content_hash": "6c4b382b1685f2ed",
+   "has_camera_exif": false,
+   "height": 512,
+   "perceptual_hash": "95897a966161679e",
+   "signals": [
+    {
+     "category": "blurry",
+     "detector": "blur",
+     "evidence": {
+      "global_variance": "840.7",
+      "peak_variance": "1344.4"
+     },
+     "score": 0.0692,
+     "version": 1
+    },
+    {
+     "category": "bad_exposure",
+     "detector": "exposure",
+     "evidence": {
+      "bright_score": "0.000",
+      "case": "dark",
+      "dark_score": "0.000",
+      "flat_score": "0.000"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "screenshot",
+     "detector": "screenshot",
+     "evidence": {
+      "camera_exif": "no",
+      "path_match": "",
+      "screen_size": "no",
+      "size": "512x512"
+     },
+     "score": 0.3,
+     "version": 1
+    },
+    {
+     "category": "document",
+     "detector": "document",
+     "evidence": {
+      "probability": "0.000",
+      "prompt": "a photo of a presentation slide on a screen",
+      "text_coverage": "0.0142"
+     },
+     "score": 0.1133,
+     "version": 2
+    },
+    {
+     "category": "forwarded",
+     "detector": "forwarded",
+     "evidence": {
+      "camera_exif": "no",
+      "messaging_folder": "yes",
+      "probability": "1.000",
+      "prompt": "an emoji sticker"
+     },
+     "score": 0.9459,
+     "version": 1
+    },
+    {
+     "category": "faces",
+     "detector": "faces",
+     "evidence": {
+      "faces": "0"
+     },
+     "score": 0.0,
+     "version": 1
+    },
+    {
+     "category": "sticker",
+     "detector": "sticker",
+     "evidence": {
+      "sticker_folder": "yes"
+     },
+     "score": 1.0,
+     "version": 1
+    }
+   ],
+   "width": 512
   }
  },
  "tolerance": {

@@ -6,7 +6,7 @@ from cribrum_lab import fixtures, mobileclip
 
 EXPECTED = json.loads((fixtures.ROOT / "expected.json").read_text())
 HAS_MODEL = all((mobileclip.MODELS / name).exists() for name in mobileclip._FILES)
-WITHOUT_EMBEDDINGS = {"blur", "exposure", "screenshot", "faces", "exact_duplicate"}
+WITHOUT_EMBEDDINGS = {"blur", "exposure", "screenshot", "faces", "sticker", "exact_duplicate"}
 """Detectors whose output does not depend on embeddings, so CI can check them."""
 
 
@@ -33,7 +33,7 @@ def test_fixtures_are_synthetic_and_cover_every_detector():
     detectors = {s["detector"] for e in EXPECTED["images"].values() for s in e["signals"]}
 
     assert detectors == {
-        "blur", "exposure", "screenshot", "document", "forwarded", "faces",
+        "blur", "exposure", "screenshot", "document", "forwarded", "faces", "sticker",
         "exact_duplicate", "near_duplicate", "burst",
     }  # fmt: skip
 

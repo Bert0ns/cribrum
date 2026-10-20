@@ -61,7 +61,7 @@ class PipelineTest {
         assertEquals(emptyList<String>(), stats.failures)
         val screenshot = File(root, "Pictures/Screenshots/Screenshot_1.png").path
         assertEquals(64, runBlocking { index.metadata(screenshot) }!!.width)
-        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT), kinds("Pictures/Screenshots/Screenshot_1.png"))
+        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER), kinds("Pictures/Screenshots/Screenshot_1.png"))
         assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 

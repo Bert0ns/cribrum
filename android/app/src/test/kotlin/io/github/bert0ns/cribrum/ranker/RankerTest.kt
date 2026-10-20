@@ -214,6 +214,19 @@ class RankerTest {
     }
 
     @Test
+    fun `a sticker is listed only as a sticker`() {
+        val sticker = Signal("sticker", 1, Category.STICKER, 1f)
+        val order = Ranker(TEST_THRESHOLDS + (Category.STICKER to 0.5f))
+            .rank(listOf(image("sticker", blur(0.9f), sticker), image("photo", blur(0.8f))))
+
+        val groups = Ranker.byCategory(order).mapValues { names(it.value) }
+
+        assertEquals(mapOf(Category.BLURRY to listOf("photo"), Category.STICKER to listOf("sticker")), groups)
+        assertTrue(order.all { it.isCandidate }) // still a candidate, in the same order
+        assertEquals(listOf("sticker", "photo"), names(order))
+    }
+
+    @Test
     fun `thresholds are the lab's`() {
         val lab = java.io.File("../../lab/src/cribrum_lab/ranker.py").readText()
         for ((category, threshold) in THRESHOLDS) {

@@ -47,6 +47,7 @@ def test_first_run_stores_metadata_and_signals_of_every_detector(photos, index):
         Category.BLURRY,
         Category.BAD_EXPOSURE,
         Category.SCREENSHOT,
+        Category.STICKER,
         Protection.FACES,
     }
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
@@ -70,7 +71,7 @@ def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index
     stats = pipeline.run(photos, index)
 
     assert stats.new_or_changed == 1
-    without_embeddings = 4  # blur, exposure, screenshot, faces: the others need embeddings
+    without_embeddings = 5  # blur, exposure, screenshot, faces, sticker: the others need embeddings
     phash = 1
     assert stats.detector_runs == without_embeddings + phash + len(pipeline.GROUP_DETECTORS)
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"

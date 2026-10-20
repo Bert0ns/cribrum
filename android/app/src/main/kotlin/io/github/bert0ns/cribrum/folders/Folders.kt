@@ -16,3 +16,9 @@ private fun folders(path: String): List<String> = generateSequence(File(path).pa
 fun isCameraFolder(path: String): Boolean = "dcim" in folders(path)
 
 fun isMessagingFolder(path: String): Boolean = folders(path).any { it in MESSAGING_FOLDERS }
+
+/**
+ * A messaging app's sticker folder, such as WhatsApp's "WhatsApp Stickers" and "WhatsApp Backup
+ * Excluded Stickers".
+ */
+fun isStickerFolder(path: String): Boolean = isMessagingFolder(path) && folders(path).any { it.endsWith("stickers") }

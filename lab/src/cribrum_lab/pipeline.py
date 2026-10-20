@@ -26,6 +26,7 @@ from cribrum_lab.detectors.faces import FaceDetector
 from cribrum_lab.detectors.forwarded import ForwardedDetector
 from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
 from cribrum_lab.detectors.screenshot import ScreenshotDetector
+from cribrum_lab.detectors.sticker import StickerDetector
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.metadata import ImageMetadata, UnreadableImage, read_metadata
 from cribrum_lab.model import ImageRef, Signal
@@ -38,6 +39,7 @@ DETECTORS: list[Detector] = [
     DocumentDetector(),
     ForwardedDetector(),
     FaceDetector(),
+    StickerDetector(),
 ]
 GROUP_DETECTORS: list[GroupDetector] = [
     ExactDuplicateDetector(),

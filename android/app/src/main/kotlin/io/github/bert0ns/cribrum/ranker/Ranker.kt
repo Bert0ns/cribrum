@@ -21,6 +21,7 @@ val THRESHOLDS: Map<Category, Float> = mapOf(
     Category.SCREENSHOT to 0.5f,
     Category.DOCUMENT to 0.5f,
     Category.FORWARDED to 0.5f,
+    Category.STICKER to 0.5f,
 )
 
 /** How much a protection signal at score 1 lowers an image's likelihood. */
@@ -96,12 +97,14 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
     companion object {
         /**
          * Candidates under each category they have a reason for, highest score first, each score
-         * lowered by the candidate's protection.
+         * lowered by the candidate's protection. A sticker is listed under STICKER only.
          */
         fun byCategory(ranked: List<Candidate>): Map<Category, List<Candidate>> {
             val groups = mutableMapOf<Category, MutableList<Candidate>>()
             for (candidate in ranked) {
-                for (category in candidate.reasons.mapNotNull { it.kind as? Category }.toSet()) {
+                var categories = candidate.reasons.mapNotNull { it.kind as? Category }.toSet()
+                if (Category.STICKER in categories) categories = setOf(Category.STICKER) // they would crowd every other category
+                for (category in categories) {
                     groups.getOrPut(category) { mutableListOf() } += candidate
                 }
             }

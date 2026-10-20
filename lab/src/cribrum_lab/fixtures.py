@@ -71,6 +71,17 @@ def _screenshot() -> Image.Image:
     return screen
 
 
+def _sticker() -> Image.Image:
+    """A WhatsApp sticker: a shape on a transparent background, 512 px, as WebP."""
+    sticker = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(sticker)
+    draw.ellipse((56, 56, 456, 456), fill=(250, 200, 40, 255), outline=(60, 30, 10, 255), width=12)
+    draw.ellipse((170, 180, 220, 250), fill=(60, 30, 10, 255))
+    draw.ellipse((292, 180, 342, 250), fill=(60, 30, 10, 255))
+    draw.arc((150, 230, 362, 390), 20, 160, fill=(60, 30, 10, 255), width=14)
+    return sticker
+
+
 def _exif_camera() -> bytes:
     exif = Image.Exif()
     exif[0x010F] = "Google"
@@ -106,6 +117,8 @@ def write_images(root: Path) -> None:
     save("DCIM/Camera/bright.jpg", _frame(250), quality=92)
     save("Pictures/Screenshots/Screenshot_20240501-120000.png", _screenshot())
     save("Documents/page.png", _page())
+    sticker = "WhatsApp/Media/WhatsApp Stickers/STK-20240501-WA0001.webp"
+    save(sticker, _sticker(), lossless=True, exact=True)  # exact: transparent pixels stay black
     for second, blur in [(0, 4), (1, 0), (2, 2)]:
         image = _scene(shift=6 * second).filter(ImageFilter.GaussianBlur(blur))
         save(f"DCIM/Camera/burst-{second}.jpg", image, quality=92, exif=_burst_exif(second))
