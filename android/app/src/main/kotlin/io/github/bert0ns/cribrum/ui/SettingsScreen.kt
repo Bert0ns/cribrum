@@ -32,7 +32,7 @@ fun SettingsScreen(
     }
     val websiteUrl = stringResource(R.string.settings_website_url)
     val sourceUrl = stringResource(R.string.settings_source_url)
-    val retentionDays = remember { RETENTION.toDays().toInt() }
+    val retentionDays = RETENTION.toDays().toInt()
 
     LazyColumn(modifier.fillMaxSize()) {
         item {

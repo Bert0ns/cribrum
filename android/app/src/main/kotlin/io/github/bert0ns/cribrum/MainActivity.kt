@@ -40,8 +40,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
+import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
@@ -158,7 +158,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                 )
                 Screen.Settings -> SettingsScreen(onOpenStorageMap = model::openStorageMap)
                 Screen.StorageMap -> StorageMapScreen(
-                    currentFolder = state.storageMap.lastOrNull() ?: Folder("", "", 0L, 0),
+                    currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
                     onZoomIn = model::zoomStorageMap,
                 )
             }

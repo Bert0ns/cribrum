@@ -1,6 +1,10 @@
 package io.github.bert0ns.cribrum.ui
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -14,6 +18,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import io.github.bert0ns.cribrum.App
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.ReviewState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -61,6 +66,35 @@ class StorageMapScreenTest {
     }
 
     @Test
+    fun `tapping the map twice zooms into the folder once`() {
+        val zoomed = mutableListOf<Folder>()
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = { zoomed += it }) }
+
+        compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
+        assertEquals(emptyList<Folder>(), zoomed)
+        compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
+        assertEquals(listOf("DCIM"), zoomed.map { it.name })
+    }
+
+    @Test
+    fun `tapping the map of a folder without subfolders does not zoom`() {
+        val leaf = tree.children.first().children.single()
+        val zoomed = mutableListOf<Folder>()
+        compose.setContent { StorageMapScreen(currentFolder = leaf, onZoomIn = { zoomed += it }) }
+
+        repeat(2) { compose.onNodeWithTag("storage_map").performTouchInput { click(center) } }
+        assertEquals(emptyList<Folder>(), zoomed)
+    }
+
+    @Test
+    fun `images of size zero are not shown as an empty index`() {
+        val zeros = buildFolderTree(listOf(ImageRef("/a/1.jpg", 0L, 0L), ImageRef("/a/2.jpg", 0L, 0L)))
+        compose.setContent { StorageMapScreen(currentFolder = zeros, onZoomIn = {}) }
+
+        compose.onNodeWithText("No images indexed").assertDoesNotExist()
+    }
+
+    @Test
     fun `storage map shows empty message when there are no images`() {
         compose.setContent {
             StorageMapScreen(
@@ -99,6 +133,8 @@ class StorageMapScreenTest {
     fun `storage map opens from settings and displays indexed folders`() = runBlocking<Unit> {
         app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
         app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
+        app.index.record(ImageRef("/storage/emulated/0/Old/gone.jpg", 5_000_000L, 1L))
+        app.index.setReviewState("/storage/emulated/0/Old/gone.jpg", ReviewState.TRASHED)
 
         // viewModel() caches the first Application it sees, which is stale after another test class.
         val model = ReviewViewModel(app)
@@ -111,6 +147,7 @@ class StorageMapScreenTest {
         compose.onNodeWithText("DCIM").assertIsDisplayed()
         compose.onNodeWithText("Pictures").assertIsDisplayed()
         compose.onNodeWithText("/storage/emulated/0").assertIsDisplayed()
+        compose.onNodeWithText("Old").assertDoesNotExist()
     }
 
     @Test

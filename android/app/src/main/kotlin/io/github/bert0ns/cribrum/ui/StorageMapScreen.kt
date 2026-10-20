@@ -38,11 +38,22 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
+
+private const val SATURATION = 0.6f
+
+@Composable
+private fun summary(size: Long, imageCount: Int): String = pluralStringResource(
+    R.plurals.storage_map_summary,
+    imageCount,
+    Formatter.formatShortFileSize(LocalContext.current, size),
+    imageCount,
+)
 
 @Composable
 fun StorageMapScreen(
@@ -50,7 +61,6 @@ fun StorageMapScreen(
     onZoomIn: (Folder) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val density = LocalDensity.current
     var selectedBlock by remember(currentFolder) { mutableStateOf<TreemapBlock?>(null) }
 
@@ -71,14 +81,13 @@ fun StorageMapScreen(
                 val headline = targetFolder.path.ifEmpty { stringResource(R.string.storage_map_root) }
                 val size = if (isDirectFiles) targetFolder.directSize else targetFolder.size
                 val count = if (isDirectFiles) targetFolder.directImageCount else targetFolder.imageCount
-                val imageSizes = stringResource(R.string.storage_map_image_sizes)
+                val summary = summary(size, count)
 
-                val details = listOfNotNull(
-                    if (isDirectFiles) stringResource(R.string.storage_map_direct_files) else null,
-                    Formatter.formatShortFileSize(context, size),
-                    pluralStringResource(R.plurals.storage_map_images, count, count),
-                    imageSizes,
-                ).joinToString(" \u2022 ")
+                val details = if (isDirectFiles) {
+                    stringResource(R.string.storage_map_card_details_direct, summary)
+                } else {
+                    stringResource(R.string.storage_map_card_details, summary)
+                }
 
                 Text(
                     text = headline,
@@ -93,7 +102,7 @@ fun StorageMapScreen(
             }
         }
 
-        if (currentFolder.size <= 0L) {
+        if (currentFolder.imageCount <= 0) {
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text(
                     text = stringResource(R.string.storage_map_empty),
@@ -125,11 +134,12 @@ fun StorageMapScreen(
                 Canvas(
                     modifier = Modifier
                         .fillMaxSize()
+                        .testTag("storage_map")
                         .pointerInput(blocks) {
                             detectTapGestures(
                                 onTap = { offset ->
                                     val hit = topLevelBlockAt(blocks, offset.x.toDouble(), offset.y.toDouble())
-                                    if (hit != null && hit == selectedBlock && !hit.isDirectFiles) {
+                                    if (hit != null && hit == selectedBlock && !hit.isDirectFiles && hit.folder != currentFolder) {
                                         onZoomIn(hit.folder)
                                     } else {
                                         selectedBlock = if (selectedBlock == hit) null else hit
@@ -144,13 +154,8 @@ fun StorageMapScreen(
                         val topLeft = Offset(rect.left.toFloat(), rect.top.toFloat())
                         val size = Size(rect.width.toFloat(), rect.height.toFloat())
 
-                        val hue = folderHue(block.hueIndex)
                         val lightness = (0.50f + block.depth * 0.08f).coerceAtMost(0.85f)
-                        val color = if (block.isDirectFiles && block.depth > 0) {
-                            Color.hsl(hue, 0.40f, lightness)
-                        } else {
-                            Color.hsl(hue, 0.70f, lightness)
-                        }
+                        val color = Color.hsl(folderHue(block.hueIndex), SATURATION, lightness)
 
                         drawRoundRect(
                             color = color,
@@ -190,16 +195,10 @@ fun StorageMapScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     itemsIndexed(subfolders) { index, folder ->
-                        val hue = folderHue(index)
-                        val iconColor = Color.hsl(hue, 0.80f, 0.45f)
+                        val iconColor = Color.hsl(folderHue(index), SATURATION, 0.50f)
                         ListItem(
                             headlineContent = { Text(folder.name) },
-                            supportingContent = {
-                                Text(
-                                    Formatter.formatShortFileSize(context, folder.size) + " \u2022 " +
-                                        pluralStringResource(R.plurals.storage_map_images, folder.imageCount, folder.imageCount),
-                                )
-                            },
+                            supportingContent = { Text(summary(folder.size, folder.imageCount)) },
                             leadingContent = {
                                 Box(
                                     modifier = Modifier
