@@ -14,13 +14,28 @@ android {
         minSdk = 30 // Android 11: scoped storage rules and MANAGE_EXTERNAL_STORAGE (design §4, §9)
         targetSdk = 37
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionCode = 1
-        versionName = "0.1.0"
+        // The release workflow sets both from the version it publishes.
+        versionCode = providers.gradleProperty("versionCode").orNull?.toInt() ?: 1
+        versionName = providers.gradleProperty("versionName").orNull ?: "0.1.0"
+    }
+
+    signingConfigs {
+        // The release key, which the release workflow writes from repository secrets. Without it a
+        // release build comes out unsigned, and Android refuses to install it.
+        providers.environmentVariable("CRIBRUM_KEYSTORE").orNull?.let { keystore ->
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = providers.environmentVariable("CRIBRUM_KEYSTORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("CRIBRUM_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("CRIBRUM_KEYSTORE_PASSWORD").get()
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 
