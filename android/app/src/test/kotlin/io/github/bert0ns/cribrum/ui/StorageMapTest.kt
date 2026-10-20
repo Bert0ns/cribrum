@@ -1,6 +1,7 @@
 package io.github.bert0ns.cribrum.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -125,5 +126,49 @@ class StorageMapTest {
         assertEquals(0L, tree.size)
         assertEquals(0, tree.imageCount)
         assertTrue(tree.children.isEmpty())
+    }
+
+    @Test
+    fun `rect contains point`() {
+        val r = Rect(10.0, 20.0, 50.0, 40.0)
+        assertTrue(r.contains(10.0, 20.0))
+        assertTrue(r.contains(30.0, 40.0))
+        assertTrue(r.contains(60.0, 60.0))
+        assertFalse(r.contains(9.9, 20.0))
+        assertFalse(r.contains(60.1, 40.0))
+    }
+
+    @Test
+    fun `layoutTreemap recursive blocks and hues`() {
+        val images = listOf(
+            "/DCIM/Camera/IMG_001.jpg" to 3000L,
+            "/DCIM/Screenshots/scr.png" to 1000L,
+            "/Pictures/vacation.jpg" to 6000L,
+        )
+        val tree = buildFolderTree(images)
+        val blocks = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0)
+        assertTrue(blocks.isNotEmpty())
+
+        val dcimBlocks = blocks.filter { it.folder.name == "DCIM" || it.folder.path.contains("DCIM") }
+        val picBlocks = blocks.filter { it.folder.name == "Pictures" || it.folder.path.contains("Pictures") }
+
+        assertTrue(dcimBlocks.isNotEmpty())
+        assertTrue(picBlocks.isNotEmpty())
+        // Top level folders have different hue indices
+        val dcimHue = dcimBlocks.first().hueIndex
+        val picHue = picBlocks.first().hueIndex
+        assertTrue(dcimHue != picHue)
+    }
+
+    @Test
+    fun `layoutTreemap skips tiny rectangles`() {
+        val images = listOf(
+            "/Huge/huge.jpg" to 1_000_000L,
+            "/Tiny/tiny.jpg" to 1L,
+        )
+        val tree = buildFolderTree(images)
+        // With minSize = 2.0 on 100x100 bounds, Tiny gets 1e-4 width which is < 2.0
+        val blocks = layoutTreemap(tree, bounds, gap = 0.0, minSize = 2.0)
+        assertFalse(blocks.any { it.folder.name == "Tiny" })
     }
 }

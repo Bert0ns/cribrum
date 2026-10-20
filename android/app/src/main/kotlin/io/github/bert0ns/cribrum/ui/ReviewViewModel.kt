@@ -24,6 +24,7 @@ sealed interface Screen {
     data class Category(val category: io.github.bert0ns.cribrum.model.Category) : Screen
     data object Trash : Screen
     data object Settings : Screen
+    data object StorageMap : Screen
 }
 
 data class ReviewState(
@@ -40,6 +41,8 @@ data class ReviewState(
     /** The last applied page, until the user undoes it or moves on. */
     val lastDecision: Decision? = null,
     val loading: Boolean = false,
+    val storageMap: Folder? = null,
+    val storageMapZoom: List<Folder> = emptyList(),
 )
 
 class ReviewViewModel(application: Application) : AndroidViewModel(application) {
@@ -60,7 +63,28 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
 
     fun openSettings() = load { it.copy(screen = Screen.Settings) }
 
-    fun back() = load { it.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null) }
+    fun openStorageMap() = load { state ->
+        val notTrashed = app.index.indexedImages()
+            .filter { it.reviewState != io.github.bert0ns.cribrum.model.ReviewState.TRASHED }
+            .map { it.ref.path to it.ref.size }
+        val root = buildFolderTree(notTrashed)
+        state.copy(screen = Screen.StorageMap, storageMap = root, storageMapZoom = emptyList())
+    }
+
+    fun zoomStorageMap(folder: Folder) = load { state ->
+        state.copy(storageMapZoom = state.storageMapZoom + folder)
+    }
+
+    fun back() = load { state ->
+        when {
+            state.screen == Screen.StorageMap && state.storageMapZoom.isNotEmpty() ->
+                state.copy(storageMapZoom = state.storageMapZoom.dropLast(1))
+            state.screen == Screen.StorageMap ->
+                state.copy(screen = Screen.Settings, storageMapZoom = emptyList())
+            else ->
+                state.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null)
+        }
+    }
 
     fun toggle(image: ImageRef) = mutableState.update {
         it.copy(marked = if (image.path in it.marked) it.marked - image.path else it.marked + image.path)
