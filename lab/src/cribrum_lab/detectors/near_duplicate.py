@@ -19,7 +19,8 @@ MAX_DISTANCE = 10
 """Hamming distance between 64-bit pHashes that still links two images."""
 MIN_COSINE = 0.90
 """Embedding similarity that still links two images. A 75% crop of a photo scores about
-0.90 with MobileCLIP-S0; different photos of the same party stay under 0.8."""
+0.90 with MobileCLIP-S0; different photos of the same party stay under 0.8. MobileCLIP2-S0
+links about as many pairs at this threshold (docs/design.md, section 5)."""
 _CHUNK = 1024
 
 
