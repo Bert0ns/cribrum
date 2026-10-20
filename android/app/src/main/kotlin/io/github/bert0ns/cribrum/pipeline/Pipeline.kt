@@ -8,6 +8,7 @@ import io.github.bert0ns.cribrum.detectors.BlurDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
+import io.github.bert0ns.cribrum.detectors.ForwardedDetector
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
 import io.github.bert0ns.cribrum.detectors.NearDuplicateDetector
@@ -35,7 +36,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-val DETECTORS: List<Detector> = listOf(BlurDetector(), ExposureDetector(), ScreenshotDetector(), StickerDetector())
+val DETECTORS: List<Detector> = listOf(
+    BlurDetector(),
+    ExposureDetector(),
+    ScreenshotDetector(),
+    StickerDetector(),
+    ForwardedDetector(),
+)
 val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector(), NearDuplicateDetector())
 val DETECTOR_CATEGORIES: Set<Category> =
     (DETECTORS.mapNotNull { it.category } + GROUP_DETECTORS.mapNotNull { it.category }).toSet()

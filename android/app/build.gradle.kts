@@ -71,6 +71,15 @@ android {
     }
 }
 
+// Ships prompt embeddings generated in the lab, without committing them here (issue #107).
+val promptResourcesDir = layout.buildDirectory.dir("generated/resources/prompts")
+val copyPromptEmbeddings = tasks.register<Copy>("copyPromptEmbeddings") {
+    from(rootProject.file("../lab/src/cribrum_lab/prompt_embeddings.json"))
+    into(promptResourcesDir)
+}
+android.sourceSets.getByName("main").resources.directories.add(promptResourcesDir.get().asFile.path)
+tasks.named("preBuild") { dependsOn(copyPromptEmbeddings) }
+
 room {
     schemaDirectory("$projectDir/schemas")
 }

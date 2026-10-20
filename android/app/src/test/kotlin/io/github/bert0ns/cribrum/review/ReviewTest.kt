@@ -73,7 +73,7 @@ class ReviewTest {
                 CategorySummary(Category.BAD_EXPOSURE, 0, hasDetector = true),
                 CategorySummary(Category.SCREENSHOT, 0, hasDetector = true),
                 CategorySummary(Category.DOCUMENT, 0, hasDetector = false),
-                CategorySummary(Category.FORWARDED, 0, hasDetector = false),
+                CategorySummary(Category.FORWARDED, 0, hasDetector = true),
                 CategorySummary(Category.STICKER, 0, hasDetector = true),
             ),
             categories(),

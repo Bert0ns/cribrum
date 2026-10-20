@@ -18,9 +18,9 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -90,7 +90,8 @@ class PipelineTest {
         val stats = run()
 
         assertEquals(1, stats.newOrChanged)
-        assertEquals(DETECTORS.size + 1 + GROUP_DETECTORS.size, stats.detectorRuns)
+        val withoutEmbeddings = 4 // blur, exposure, screenshot, sticker: the others need embeddings
+        assertEquals(withoutEmbeddings + 1 + GROUP_DETECTORS.size, stats.detectorRuns)
         assertFalse(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 
@@ -176,6 +177,7 @@ class PipelineTest {
         assertEquals(
             setOf(
                 Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER,
+                Category.FORWARDED,
                 Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE,
             ),
             DETECTOR_CATEGORIES,
