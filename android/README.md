@@ -42,3 +42,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 | `io.github.bert0ns.cribrum.ui` | Compose screens | `cribrum_lab.labeling` (the lab's only UI) |
 | `io.github.bert0ns.cribrum.detectors` | `Detector`, `GroupDetector`, `AnalysisContext`, and the detectors ported so far | `cribrum_lab.detectors` |
 | `io.github.bert0ns.cribrum.hashing`, `.folders` | Content hash (xxHash3), camera and messaging folders | `cribrum_lab.hashing`, `cribrum_lab.folders` |
+| `io.github.bert0ns.cribrum.imaging` | `loadGrayscale`: Pillow's decoding, luminance and Lanczos thumbnail, step by step | `cribrum_lab.imaging` |
