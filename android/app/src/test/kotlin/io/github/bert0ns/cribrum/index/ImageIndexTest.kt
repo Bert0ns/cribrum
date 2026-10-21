@@ -147,6 +147,19 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `the embeddings size is the bytes of their vectors`() = test {
+        record(PHOTO)
+        record(OTHER)
+        assertEquals(0L, embeddingBytes())
+
+        setEmbeddings("clip", 1, mapOf(PHOTO.path to FloatArray(4), OTHER.path to FloatArray(8)))
+        assertEquals(4L * 4 + 4 * 8, embeddingBytes())
+
+        deleteEmbeddings()
+        assertEquals(0L, embeddingBytes())
+    }
+
+    @Test
     fun `deleting the embeddings gives their pages back to the file`() = test {
         repeat(100) {
             record(ImageRef("/photos/$it.jpg", 1, 1))

@@ -208,6 +208,9 @@ interface IndexDao {
     @Query("SELECT count(*) FROM embeddings")
     suspend fun embeddingCount(): Int
 
+    @Query("SELECT coalesce(sum(length(vector)), 0) FROM embeddings")
+    suspend fun embeddingBytes(): Long
+
     @Query("DELETE FROM analyses WHERE path IN (:paths) AND detector_id IN (:detectorIds)")
     suspend fun forgetAnalyses(paths: List<String>, detectorIds: List<String>)
 
