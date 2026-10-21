@@ -4,12 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
+import io.github.bert0ns.cribrum.millis
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
+import io.github.bert0ns.cribrum.saveNoise
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.File
-import kotlin.random.Random
 import kotlin.system.measureNanoTime
 
 /**
@@ -25,19 +26,7 @@ class MobileClipSpeedDeviceTest {
         folder.deleteRecursively()
     }
 
-    /** Noise in blocks, so the encoders can't make the files trivially small. */
-    private fun save(name: String, width: Int, height: Int, format: Bitmap.CompressFormat): File {
-        val random = Random(width)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val row = IntArray(width)
-        for (y in 0 until height) {
-            if (y % 8 == 0) for (x in 0 until width step 8) row.fill(0xff000000.toInt() or random.nextInt(0xffffff), x, minOf(x + 8, width))
-            bitmap.setPixels(row, 0, width, 0, y, width, 1)
-        }
-        return File(folder, name).also { file -> file.outputStream().use { bitmap.compress(format, 90, it) } }
-    }
-
-    private fun millis(nanos: Long, count: Int) = "%.1f".format(nanos / 1e6 / count)
+    private fun save(name: String, width: Int, height: Int, format: Bitmap.CompressFormat) = saveNoise(folder, name, width, height, format)
 
     @Test
     fun reportsMillisecondsPerImage() {
