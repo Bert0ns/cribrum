@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -54,7 +55,7 @@ fun SettingsScreen(
     hapticsEnabled: Boolean = true,
     onHapticsChange: (Boolean) -> Unit = {},
 ) {
-    val haptics = LocalHaptics.current
+    val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
 
@@ -75,7 +76,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton({
                     confirmingEmbeddings = false
-                    haptics(Haptic.TRASH)
+                    haptics.performHapticFeedback(Haptic.TRASH.type)
                     onDeleteEmbeddings()
                 }) { Text(stringResource(R.string.delete)) }
             },

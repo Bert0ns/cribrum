@@ -2,8 +2,8 @@ package io.github.bert0ns.cribrum.ui
 
 import android.content.SharedPreferences
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.core.content.edit
@@ -13,7 +13,7 @@ import androidx.core.content.edit
  * types are the platform's own, so the phone's touch feedback setting still applies on top of ours.
  */
 enum class Haptic(val type: HapticFeedbackType) {
-    /** Images go to the trash. */
+    /** A destructive confirmation: images go to the trash, or the embeddings are deleted. */
     TRASH(HapticFeedbackType.Reject),
 
     /** A decision that keeps things as they are. */
@@ -34,13 +34,16 @@ class HapticsSetting(private val preferences: SharedPreferences) {
     }
 }
 
-/** Gives the feedback of the current setting. It does nothing unless [App] provides it, as in the tests of a single screen. */
-val LocalHaptics = staticCompositionLocalOf<(Haptic) -> Unit> { {} }
-
+/**
+ * Gives the feedback of the setting to everything below: off silences the platform's own feedback
+ * too, such as the long press on a thumbnail.
+ */
 @Composable
-fun rememberHaptics(enabled: Boolean): (Haptic) -> Unit {
-    val feedback = LocalHapticFeedback.current
-    return remember(feedback, enabled) {
-        if (enabled) ({ haptic: Haptic -> feedback.performHapticFeedback(haptic.type) }) else ({ _: Haptic -> })
-    }
+fun WithHaptics(enabled: Boolean, content: @Composable () -> Unit) {
+    val platform = LocalHapticFeedback.current
+    CompositionLocalProvider(LocalHapticFeedback provides if (enabled) platform else NoHaptics, content = content)
+}
+
+private object NoHaptics : HapticFeedback {
+    override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {}
 }

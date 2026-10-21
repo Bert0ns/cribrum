@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -185,10 +187,10 @@ class CategoryScreenTest {
         compose.onNodeWithText("Move 3 images to the trash?").assertExists()
     }
 
-    private fun haptics(page: List<ReviewGroup>, marked: Set<String>, act: () -> Unit): List<Haptic> {
-        val given = mutableListOf<Haptic>()
+    private fun haptics(page: List<ReviewGroup>, marked: Set<String>, act: () -> Unit): List<HapticFeedbackType> {
+        val feedback = RecordingHaptics()
         compose.setContent {
-            CompositionLocalProvider(LocalHaptics provides { given += it }) {
+            CompositionLocalProvider(LocalHapticFeedback provides feedback) {
                 var now by remember { mutableStateOf(marked) }
                 CategoryScreen(page, 3, now, false, { image ->
                     now = if (image.path in now) now - image.path else now + image.path
@@ -196,7 +198,7 @@ class CategoryScreenTest {
             }
         }
         act()
-        return given
+        return feedback.types
     }
 
     @Test
@@ -206,12 +208,12 @@ class CategoryScreenTest {
             compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
         }
 
-        assertEquals(listOf(Haptic.TICK, Haptic.TICK), given)
+        assertEquals(listOf(Haptic.TICK.type, Haptic.TICK.type), given)
     }
 
     @Test
     fun `skipping gives a tick`() {
-        assertEquals(listOf(Haptic.TICK), haptics(page, emptySet()) { compose.onNodeWithText("Skip").performClick() })
+        assertEquals(listOf(Haptic.TICK.type), haptics(page, emptySet()) { compose.onNodeWithText("Skip").performClick() })
     }
 
     @Test
@@ -221,7 +223,7 @@ class CategoryScreenTest {
             compose.onNodeWithText("Move to trash").performClick()
         }
 
-        assertEquals(listOf(Haptic.TRASH), given)
+        assertEquals(listOf(Haptic.TRASH.type), given)
     }
 
     @Test
@@ -231,7 +233,7 @@ class CategoryScreenTest {
             compose.onNodeWithText("Move to trash").performClick()
         }
 
-        assertEquals(listOf(Haptic.KEEP), given)
+        assertEquals(listOf(Haptic.KEEP.type), given)
     }
 
     @Test
@@ -241,7 +243,8 @@ class CategoryScreenTest {
             compose.onNodeWithText("Never suggest this folder or its subfolders").performClick()
         }
 
-        assertEquals(listOf(Haptic.KEEP), given)
+        // The long press that opens the image is the platform's own.
+        assertEquals(listOf(HapticFeedbackType.LongPress, Haptic.KEEP.type), given)
     }
 
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
