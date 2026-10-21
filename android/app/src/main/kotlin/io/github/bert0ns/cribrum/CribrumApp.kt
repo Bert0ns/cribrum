@@ -2,7 +2,7 @@ package io.github.bert0ns.cribrum
 
 import android.app.Application
 import io.github.bert0ns.cribrum.index.ImageIndex
-import io.github.bert0ns.cribrum.ranker.Thresholds
+import io.github.bert0ns.cribrum.review.Thresholds
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.TrashRetention
 

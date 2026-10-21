@@ -137,6 +137,18 @@ class ReviewTest {
     }
 
     @Test
+    fun `at the lowest threshold the best copy of a group is still not a candidate`() = test {
+        image("DCIM/d.jpg", duplicate("g", Role.BEST))
+        image("Download/d.jpg", duplicate("g", Role.INFERIOR))
+
+        thresholds = THRESHOLDS + (Category.EXACT_DUPLICATE to Thresholds.MIN)
+
+        val group = page(Category.EXACT_DUPLICATE).groups.single()
+        assertEquals(listOf(false, true), group.images.map { it.suggestTrash })
+        assertEquals(1, categories().single { it.category == Category.EXACT_DUPLICATE }.count)
+    }
+
+    @Test
     fun `candidate counts at other thresholds leave the ones in use alone`() = test {
         image("a.jpg", blurry(0.9f))
         image("b.jpg", blurry(0.45f))

@@ -76,8 +76,7 @@ class Review(
         return Category.entries.associateWith { byCategory[it]?.size ?: 0 }
     }
 
-    private suspend fun byCategory(thresholds: Map<Category, Float>) =
-        Ranker.byCategory(Ranker(thresholds).rank(index.indexedImages(), index.excludedFolders()))
+    private suspend fun byCategory(thresholds: Map<Category, Float>) = Ranker.byCategory(Ranker(thresholds).rank(index.indexedImages(), index.excludedFolders()))
 
     /**
      * The first page of a category: groups in the ranker's order, never split across pages. Groups

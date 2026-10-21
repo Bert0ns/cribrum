@@ -26,6 +26,7 @@ import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.pipeline.DETECTOR_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
+import io.github.bert0ns.cribrum.review.Thresholds
 import kotlin.math.roundToInt
 
 /** The score a signal needs to make an image a candidate, per category (docs/design.md §6.1). */
@@ -64,7 +65,8 @@ fun ThresholdsScreen(
                             value = shown,
                             onValueChange = { shown = (it * 20).roundToInt() / 20f },
                             onValueChangeFinished = { onChange(category, shown) },
-                            steps = 19,
+                            valueRange = Thresholds.RANGE,
+                            steps = 18,
                             modifier = Modifier.semantics { contentDescription = name },
                         )
                         Text(pluralStringResource(R.plurals.candidates, count, count))

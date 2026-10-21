@@ -134,7 +134,10 @@ class ReviewViewModel @JvmOverloads constructor(
         return copy(retentionDays = days, pendingRetention = null)
     }
 
-    fun openThresholds() = load { it.copy(screen = Screen.Thresholds).withThresholds(app.thresholds.values) }
+    /** The defaults' counts are read once: they only change with a scan, and the screen stays open for one slider at a time. */
+    fun openThresholds() = load {
+        it.copy(screen = Screen.Thresholds, defaultCounts = review.counts(THRESHOLDS)).withThresholds(app.thresholds.values)
+    }
 
     /** Applies at once: the signals are in the index, so the lists only need ranking again. */
     fun setThreshold(category: Category, value: Float) = load {
@@ -147,7 +150,7 @@ class ReviewViewModel @JvmOverloads constructor(
         it.withThresholds(app.thresholds.values)
     }
 
-    private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds), defaultCounts = review.counts(THRESHOLDS))
+    private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds))
 
     fun openStorageMap() = load { state ->
         val root = buildFolderTree(review.notTrashed())
