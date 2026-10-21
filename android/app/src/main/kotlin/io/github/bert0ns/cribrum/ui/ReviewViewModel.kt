@@ -56,6 +56,8 @@ data class ReviewState(
     val pendingRetention: RetentionChange? = null,
     /** Folders the user asked never to be suggested again, shown in settings. */
     val excludedFolders: List<String> = emptyList(),
+    /** Embeddings stored in the index, shown in settings. */
+    val embeddingCount: Int = 0,
     /** The folder the user just excluded, until they undo it or move on. */
     val lastExclusion: String? = null,
 )
@@ -83,9 +85,12 @@ class ReviewViewModel @JvmOverloads constructor(
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
 
     /** Only the embeddings go: the next scan computes them again. */
-    fun deleteEmbeddings() = load { state -> state.also { app.index.deleteEmbeddings() } }
+    fun deleteEmbeddings() = load { state ->
+        app.index.deleteEmbeddings()
+        state.copy(embeddingCount = app.index.embeddingCount())
+    }
 
-    fun openSettings() = load { it.copy(screen = Screen.Settings, excludedFolders = app.index.excludedFolders()) }
+    fun openSettings() = load { it.copy(screen = Screen.Settings, excludedFolders = app.index.excludedFolders(), embeddingCount = app.index.embeddingCount()) }
 
     /** Hides the image's folder, subfolders included, and shows the page again without it. */
     fun excludeFolder(image: ImageRef) = load { state ->

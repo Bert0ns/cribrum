@@ -147,6 +147,24 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `deleting the embeddings gives their pages back to the file`() = test {
+        repeat(100) {
+            record(ImageRef("/photos/$it.jpg", 1, 1))
+            setEmbeddings("clip", 1, mapOf("/photos/$it.jpg" to FloatArray(512) { value -> value.toFloat() }))
+        }
+        assertEquals(100, embeddingCount())
+
+        deleteEmbeddings()
+
+        assertEquals(0, embeddingCount())
+        val db = database.openHelper.readableDatabase
+        db.query("PRAGMA freelist_count").use {
+            it.moveToFirst()
+            assertEquals(0, it.getInt(0)) // a plain DELETE leaves the pages in the file
+        }
+    }
+
+    @Test
     fun `forgetting analyses drops the signals of the chosen detectors only`() = test {
         record(PHOTO)
         setSignals(PHOTO.path, "blur", 1, listOf(BLUR))

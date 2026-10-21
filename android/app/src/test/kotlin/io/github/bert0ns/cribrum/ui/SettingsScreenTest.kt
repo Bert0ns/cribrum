@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -151,18 +152,36 @@ class SettingsScreenTest {
     @Test
     fun `deleting the embeddings asks first and says when they come back`() {
         var deleted = 0
-        compose.setContent { SettingsScreen(onDeleteEmbeddings = { deleted++ }) }
+        compose.setContent { SettingsScreen(embeddingCount = 120, onDeleteEmbeddings = { deleted++ }) }
 
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("120 embeddings stored. Deleting them frees their space.").assertIsDisplayed()
         compose.onNodeWithText("Delete embeddings").performClick()
 
         compose.onNodeWithText("Delete the embeddings?").assertIsDisplayed()
-        compose.onNodeWithText("The app stores one embedding per image to find duplicates, documents and forwarded images. They come back the next time you press Scan now, which takes a few minutes. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
+        compose.onNodeWithText("The app stores one embedding per image to find duplicates, documents and forwarded images. They are computed again at the next scan. A scan starts when you open the app, so that can be soon, and a full one takes a while: about 15 to 20 minutes for 10,000 images. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(0, deleted)
 
         compose.onNodeWithText("Delete embeddings").performClick()
         compose.onNodeWithText("Delete").performClick()
         assertEquals(1, deleted)
+    }
+
+    @Test
+    fun `deleting the embeddings is off while a scan runs and when none are stored`() {
+        compose.setContent { SettingsScreen(embeddingCount = 5, scanning = true) }
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("Delete embeddings").assertIsNotEnabled()
+        compose.onNodeWithText("Wait for the scan to finish.").assertIsDisplayed()
+    }
+
+    @Test
+    fun `settings says when no embeddings are stored`() {
+        compose.setContent { SettingsScreen(embeddingCount = 0) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("No embeddings stored.").assertIsDisplayed()
+        compose.onNodeWithText("Delete embeddings").assertIsNotEnabled()
     }
 }

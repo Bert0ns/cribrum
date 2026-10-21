@@ -12,6 +12,8 @@ import io.github.bert0ns.cribrum.model.Kind
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.SignalIdentity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.nio.ByteBuffer
@@ -102,8 +104,18 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         return dao.perceptualHash(path)?.toULong(16)
     }
 
-    /** Deletes every stored embedding and nothing else: the next pipeline run computes them again. */
-    suspend fun deleteEmbeddings() = dao.deleteAllEmbeddings()
+    /**
+     * Deletes every stored embedding and nothing else: the next pipeline run computes them again.
+     * A plain DELETE leaves the file as big as it was, so the pages go back to the system with a
+     * VACUUM, which can't run inside a transaction or while another statement is running: call
+     * it when no scan is.
+     */
+    suspend fun deleteEmbeddings() {
+        dao.deleteAllEmbeddings()
+        withContext(Dispatchers.IO) { db.openHelper.writableDatabase.execSQL("VACUUM") }
+    }
+
+    suspend fun embeddingCount(): Int = dao.embeddingCount()
 
     /** Drops what these detectors stored for these images, signals included, so a run analyzes them again. */
     suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = db.withTransaction {

@@ -43,6 +43,9 @@ fun SettingsScreen(
     onCancelRetention: () -> Unit = {},
     excludedFolders: List<String> = emptyList(),
     onRemoveExcludedFolder: (String) -> Unit = {},
+    embeddingCount: Int = 0,
+    /** A scan writes embeddings as it goes: deleting them under it would leave the images it already did without results. */
+    scanning: Boolean = false,
     onDeleteEmbeddings: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -197,8 +200,16 @@ fun SettingsScreen(
         item {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_delete_embeddings)) },
-                supportingContent = { Text(stringResource(R.string.settings_delete_embeddings_summary)) },
-                modifier = Modifier.clickable { confirmingEmbeddings = true },
+                supportingContent = {
+                    Text(
+                        when {
+                            scanning -> stringResource(R.string.settings_delete_embeddings_scanning)
+                            embeddingCount == 0 -> stringResource(R.string.settings_no_embeddings)
+                            else -> pluralStringResource(R.plurals.settings_embeddings_stored, embeddingCount, embeddingCount)
+                        },
+                    )
+                },
+                modifier = Modifier.clickable(enabled = !scanning && embeddingCount > 0) { confirmingEmbeddings = true },
             )
         }
     }

@@ -202,6 +202,9 @@ interface IndexDao {
     @Query("DELETE FROM embeddings")
     suspend fun deleteAllEmbeddings()
 
+    @Query("SELECT count(*) FROM embeddings")
+    suspend fun embeddingCount(): Int
+
     @Query("DELETE FROM analyses WHERE path IN (:paths) AND detector_id IN (:detectorIds)")
     suspend fun forgetAnalyses(paths: List<String>, detectorIds: List<String>)
 

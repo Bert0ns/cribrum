@@ -140,11 +140,14 @@ class MeanColorEmbedder:
     """Embeds an image as its mean color, padded to MobileCLIP's 512 values."""
 
     id = "mean_color"
-    version = 1
+
+    def __init__(self, version=1, scale=1.0):
+        self.version = version
+        self.scale = scale
 
     def embed_pixels(self, pixels):
         vectors = np.ones((len(pixels), 512))
-        vectors[:, :3] = pixels.mean(axis=(2, 3))
+        vectors[:, :3] = self.scale * pixels.mean(axis=(2, 3))
         return vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
 
 
@@ -227,6 +230,61 @@ def test_the_next_run_after_deleting_the_embeddings_computes_them_again(photos, 
     assert run().detector_runs == 3 + 3  # embeddings, then the detector
     assert len(index.embeddings("mean_color", 1)) == 3
     assert index.signals(photos / "DCIM/Camera/a.png") == before
+
+
+def every_signal(index):
+    return {
+        image.path: sorted(index.signals(image.path), key=lambda s: s.detector_id)
+        for image in index.images()
+    }
+
+
+def test_group_detectors_do_not_rerun_with_the_same_vectors_after_deleting_the_embeddings(
+    photos, index
+):
+    pipeline.run(photos, index, embedder=MeanColorEmbedder())
+    before = every_signal(index)
+
+    index.delete_embeddings()
+    stats = pipeline.run(photos, index, embedder=MeanColorEmbedder())
+
+    readers = sum(getattr(d, "uses_embeddings", False) for d in pipeline.DETECTORS)
+    assert stats.detector_runs == 3 + 3 * readers  # embeddings, then document and forwarded
+    assert every_signal(index) == before
+
+
+def test_a_new_embedder_version_reruns_the_embedding_detectors_and_the_group_detectors(
+    photos, index
+):
+    pipeline.run(photos, index, embedder=MeanColorEmbedder())
+
+    stats = pipeline.run(photos, index, embedder=MeanColorEmbedder(version=2))
+
+    readers = sum(getattr(d, "uses_embeddings", False) for d in pipeline.DETECTORS)
+    assert stats.detector_runs == 3 + 3 * readers + len(pipeline.GROUP_DETECTORS)
+
+
+def test_a_detectors_signal_follows_the_embedding_it_read(photos, index):
+    class Reader(EmbeddingDetector):
+        uses_embeddings = True
+
+    path = photos / "DCIM/Camera/a.png"
+    pipeline.run(
+        photos, index, detectors=[Reader()], group_detectors=[], embedder=MeanColorEmbedder()
+    )
+    [before] = index.signals(path)
+
+    pipeline.run(
+        photos,
+        index,
+        detectors=[Reader()],
+        group_detectors=[],
+        embedder=MeanColorEmbedder(version=2, scale=4.0),
+    )
+
+    [after] = index.signals(path)
+    assert after.score == pytest.approx(index.embeddings("mean_color", 2)[path][0])
+    assert after.score != pytest.approx(before.score)
 
 
 def test_only_the_document_and_forwarded_detectors_read_embeddings():

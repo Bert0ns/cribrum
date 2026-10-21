@@ -48,16 +48,16 @@ class Detector(Protocol):
 
     Bump `version` whenever the output for the same input can change, so stored
     signals from older versions get recomputed.
+
+    A detector that reads the embedding also sets `uses_embeddings = True`, so a new
+    embedding makes its stored result stale. A Protocol can't make an attribute optional:
+    the pipeline reads it with `getattr`, and a detector without it is false.
     """
 
     id: str
     version: int
     category: Category | None
     """The category its signals are about, so the app can tell which categories it looks for."""
-
-    uses_embeddings: bool
-    """Optional, false when absent: true when `analyze` reads the embedding, so a new one
-    makes the stored result stale."""
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]: ...
 

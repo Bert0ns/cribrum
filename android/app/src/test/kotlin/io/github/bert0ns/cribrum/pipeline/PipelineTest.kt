@@ -18,6 +18,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -187,14 +188,13 @@ class PipelineTest {
     }
 
     /** Embeds an image as its mean color, padded to MobileCLIP's 512 values. */
-    private class MeanColorEmbedder : Embedder {
+    private class MeanColorEmbedder(override val version: Int = 1, private val scale: Float = 1f) : Embedder {
         override val id = "mean_color"
-        override val version = 1
 
         override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> = pixels.map { image ->
             val plane = image.size / 3
             val vector = FloatArray(512) { 1f }
-            for (c in 0 until 3) vector[c] = (0 until plane).sumOf { image[c * plane + it].toDouble() }.toFloat() / plane
+            for (c in 0 until 3) vector[c] = scale * (0 until plane).sumOf { image[c * plane + it].toDouble() }.toFloat() / plane
             val norm = kotlin.math.sqrt(vector.sumOf { it.toDouble() * it }).toFloat()
             FloatArray(512) { vector[it] / norm }
         }
@@ -273,6 +273,48 @@ class PipelineTest {
         assertEquals(3 + 3, stats.detectorRuns) // embeddings, then the detector
         assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
         assertEquals(before, runBlocking { index.signals(File(root, "DCIM/Camera/a.png").path) })
+    }
+
+    private fun everySignal() = runBlocking { index.images().associate { it.path to index.signals(it.path).sortedBy { s -> s.detectorId } } }
+
+    @Test
+    fun `after deleting the embeddings the detectors reading them run again and the group detectors, with the same vectors, do not`() {
+        photos()
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
+        val before = everySignal()
+
+        runBlocking { index.deleteEmbeddings() }
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        val readers = DETECTORS.count { it.usesEmbeddings }
+        assertEquals(3 + 3 * readers, stats.detectorRuns) // embeddings, then document and forwarded; no group run
+        assertEquals(before, everySignal())
+    }
+
+    @Test
+    fun `a new embedder version reruns the detectors reading embeddings and the group detectors`() {
+        photos()
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder(version = 2)))
+
+        val readers = DETECTORS.count { it.usesEmbeddings }
+        assertEquals(3 + 3 * readers + GROUP_DETECTORS.size, stats.detectorRuns)
+    }
+
+    @Test
+    fun `a detector's signal follows the embedding it read`() {
+        photos()
+        val detectors = listOf(EmbeddingDetector())
+        run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = MeanColorEmbedder()))
+        val path = File(root, "DCIM/Camera/a.png").path
+        val before = runBlocking { index.signals(path) }.single().score
+
+        run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = MeanColorEmbedder(version = 2, scale = 4f)))
+
+        val after = runBlocking { index.signals(path) }.single().score
+        assertEquals(runBlocking { index.embeddings("mean_color", 2) }.getValue(path)[0], after, 0f)
+        assertNotEquals(before, after)
     }
 
     @Test
