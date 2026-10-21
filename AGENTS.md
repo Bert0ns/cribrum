@@ -42,6 +42,19 @@ Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` o
 
 They come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
 
+## Routines
+
+Routines that keep the codebase healthy are issue templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). Nothing runs on its own. The maintainer opens an issue from a template and says "prendi in mano l'issue numero X", and the issue body is the whole prompt. Each routine starts from the commit its previous run recorded in a `Covered commit:` comment on the last closed issue with the same label, and records its own when it finishes. No routine merges anything.
+
+| Template | Covers | Suggested model |
+|---|---|---|
+| `routine-drift` | `docs/design.md` against the code, and lab against android | Gemini 3.8 high or Sonnet 5.5 high |
+| `routine-hygiene` | Dead code, duplication and needless abstractions in what changed | Sonnet 5.5 high |
+| `routine-dependencies` | Gradle, uv and skills updates, in one PR | Sonnet 5.5 high |
+| `routine-audit` | A deep review of one area, chosen in rotation | Opus 5.5 xhigh or Gemini 4 Argon |
+
+The maintainer picks the model when opening the issue. Per-PR reviews stay with the `code-review` skill, run by a different model or subscription from the one that wrote the PR. Opus 5.5 high reviews PRs that change `docs/design.md` or the ranker.
+
 ## Commits and pull requests
 
 Every commit subject and every PR title uses `type(scope): subject`. The `commit-format` CI job checks them.
