@@ -8,20 +8,31 @@ import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
+import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.review.PAGE_SIZE
+import io.github.bert0ns.cribrum.review.Review
+import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.io.File
+import java.time.Duration
+import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
 class ReviewViewModelTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
     private val app = ApplicationProvider.getApplicationContext<CribrumApp>()
 
     @Before
@@ -104,6 +115,64 @@ class ReviewViewModelTest {
         model.undo()
         settle(model) { it.state.value.lastDecision == null }
         assertEquals(listOf("/sdcard/b.jpg"), paths(model))
+    }
+
+    /** A file in a trash of its own, trashed [daysAgo] days ago (the trash reads its time from origin.properties). */
+    private fun trashed(trash: AppTrash, volume: File, name: String, daysAgo: Long) = runBlocking {
+        val image = File(volume, name).apply { writeText(name) }.toImageRef()
+        trash.moveToTrash(listOf(image))
+        val origin = trash.trashed().single { it.original == image }.file.parentFile!!.resolve("origin.properties")
+        origin.writeText(
+            origin.readLines().joinToString("\n") { line ->
+                if (line.startsWith("trashed_at=")) "trashed_at=${Instant.now() - Duration.ofDays(daysAgo)}" else line
+            },
+        )
+    }
+
+    private fun modelWithTrash(vararg daysAgo: Long): ReviewViewModel {
+        val volume = folder.newFolder("storage")
+        val trash = AppTrash({ listOf(volume) })
+        daysAgo.forEach { trashed(trash, volume, "$it.jpg", it) }
+        return ReviewViewModel(app, Review(app.index, trash))
+    }
+
+    @Test
+    fun `lowering the retention asks first when images would be purged, and cancel keeps the setting`() {
+        app.trashRetention.days = 90
+        val model = modelWithTrash(20, 2)
+        settle(model) { it.state.value.retentionDays == 90 }
+
+        model.chooseRetention(7)
+        settle(model) { it.state.value.pendingRetention != null }
+        assertEquals(RetentionChange(days = 7, expiring = 1), model.state.value.pendingRetention)
+        assertEquals(90, model.state.value.retentionDays)
+
+        model.cancelRetention()
+        assertNull(model.state.value.pendingRetention)
+        assertEquals(90, model.state.value.retentionDays)
+        assertEquals(90, app.trashRetention.days)
+
+        model.chooseRetention(7)
+        settle(model) { it.state.value.pendingRetention != null }
+        model.confirmRetention()
+        settle(model) { it.state.value.retentionDays == 7 }
+        assertNull(model.state.value.pendingRetention)
+        assertEquals(7, app.trashRetention.days)
+    }
+
+    @Test
+    fun `raising the retention, or lowering it when nothing would expire, needs no confirmation`() {
+        app.trashRetention.days = 30
+        val model = modelWithTrash(2)
+        settle(model) { it.state.value.retentionDays == 30 }
+
+        model.chooseRetention(90)
+        settle(model) { it.state.value.retentionDays == 90 }
+        model.chooseRetention(14)
+        settle(model) { it.state.value.retentionDays == 14 }
+
+        assertNull(model.state.value.pendingRetention)
+        assertEquals(14, app.trashRetention.days)
     }
 
     private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()

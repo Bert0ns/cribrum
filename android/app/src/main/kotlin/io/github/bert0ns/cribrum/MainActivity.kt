@@ -31,7 +31,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -172,18 +171,14 @@ fun App(model: ReviewViewModel = viewModel()) {
                     model::restoreSelected,
                     model::emptyTrash,
                 )
-                Screen.Settings -> {
-                    val retention = (context.applicationContext as CribrumApp).trashRetention
-                    var retentionDays by remember { mutableIntStateOf(retention.days) }
-                    SettingsScreen(
-                        onOpenStorageMap = model::openStorageMap,
-                        retentionDays = retentionDays,
-                        onRetentionChange = {
-                            retention.days = it
-                            retentionDays = it
-                        },
-                    )
-                }
+                Screen.Settings -> SettingsScreen(
+                    onOpenStorageMap = model::openStorageMap,
+                    retentionDays = state.retentionDays,
+                    onRetentionChange = model::chooseRetention,
+                    pendingRetention = state.pendingRetention,
+                    onConfirmRetention = model::confirmRetention,
+                    onCancelRetention = model::cancelRetention,
+                )
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
                     baseHue = trailHue(state.storageMap),

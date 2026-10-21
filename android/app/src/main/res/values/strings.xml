@@ -89,6 +89,10 @@
         <item quantity="one">%d day</item>
         <item quantity="other">%d days</item>
     </plurals>
+    <plurals name="settings_trash_retention_confirm">
+        <item quantity="one">The next scan deletes the %1$d trashed image older than %2$d days. This cannot be undone.</item>
+        <item quantity="other">The next scan deletes the %1$d trashed images older than %2$d days. This cannot be undone.</item>
+    </plurals>
     <string name="settings_trash_retention_applies">Applies to the images already in the trash too.</string>
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
     <string name="storage_map">Storage map</string>

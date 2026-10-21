@@ -21,6 +21,8 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.time.Duration
+import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 class ReviewTest {
@@ -196,6 +198,19 @@ class ReviewTest {
         assertEquals(ReviewState.KEPT, index.reviewState(image.path))
         assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY).groups)
         assertEquals(emptyList<Any>(), trashed())
+    }
+
+    @Test
+    fun `a shorter retention counts the trashed images it would purge`() = test {
+        val old = image("old.jpg", blurry(0.9f))
+        val recent = image("recent.jpg", blurry(0.8f))
+        apply(listOf(old, recent), emptyList())
+
+        val inTenDays = Instant.now() + Duration.ofDays(10)
+
+        assertEquals(2, expiring(Duration.ofDays(7), inTenDays))
+        assertEquals(0, expiring(Duration.ofDays(14), inTenDays))
+        assertEquals(0, expiring(Duration.ofDays(7)))
     }
 
     @Test

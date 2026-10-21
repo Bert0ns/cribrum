@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -49,6 +50,8 @@ class SettingsScreenTest {
 
         compose.onNodeWithContentDescription("Settings").performClick()
 
+        // The view model changes screen on its own scope, after it has read the retention.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Version", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Settings").assertIsDisplayed()
         // The release workflow sets the version, so it can't be a literal here.
         val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
@@ -76,6 +79,28 @@ class SettingsScreenTest {
 
         assertEquals(7, days)
         compose.onNodeWithText("7 days").assertIsDisplayed()
+    }
+
+    @Test
+    fun `lowering the retention below some trashed images asks before deleting them`() {
+        var confirmed = 0
+        var cancelled = 0
+        compose.setContent {
+            SettingsScreen(
+                retentionDays = 90,
+                pendingRetention = RetentionChange(days = 7, expiring = 3),
+                onConfirmRetention = { confirmed++ },
+                onCancelRetention = { cancelled++ },
+            )
+        }
+
+        compose.onNodeWithText("Delete 3 images for good?").assertIsDisplayed()
+        compose.onNodeWithText("The next scan deletes the 3 trashed images older than 7 days. This cannot be undone.").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(listOf(0, 1), listOf(confirmed, cancelled))
+
+        compose.onNodeWithText("Delete").performClick()
+        assertEquals(listOf(1, 1), listOf(confirmed, cancelled))
     }
 
     @Test

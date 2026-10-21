@@ -16,6 +16,8 @@ import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Ranker
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import java.time.Duration
+import java.time.Instant
 
 /** Images shown at once: a few screens of thumbnails, reviewed and applied together. */
 const val PAGE_SIZE = 48
@@ -97,6 +99,9 @@ class Review(
     }
 
     suspend fun trashed(): List<TrashedImage> = trash.trashed()
+
+    /** How many trashed images are older than [retention] at [now]: what the next scan would delete for good. */
+    suspend fun expiring(retention: Duration, now: Instant = Instant.now()): Int = trash.trashed().count { it.trashedAt + retention <= now }
 
     /** Restoring from the trash is a decision to keep: the image is not suggested again for the same reasons. */
     suspend fun restore(images: List<ImageRef>): List<ImageRef> {

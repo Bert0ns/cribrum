@@ -5,12 +5,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +33,9 @@ fun SettingsScreen(
     onOpenStorageMap: () -> Unit = {},
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     onRetentionChange: (Int) -> Unit = {},
+    pendingRetention: RetentionChange? = null,
+    onConfirmRetention: () -> Unit = {},
+    onCancelRetention: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -42,6 +47,25 @@ fun SettingsScreen(
     val websiteUrl = stringResource(R.string.settings_website_url)
     val sourceUrl = stringResource(R.string.settings_source_url)
     var choosingRetention by remember { mutableStateOf(false) }
+
+    if (pendingRetention != null) {
+        AlertDialog(
+            onDismissRequest = onCancelRetention,
+            title = { Text(pluralStringResource(R.plurals.empty_trash_title, pendingRetention.expiring, pendingRetention.expiring)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.settings_trash_retention_confirm,
+                        pendingRetention.expiring,
+                        pendingRetention.expiring,
+                        pendingRetention.days,
+                    ),
+                )
+            },
+            confirmButton = { TextButton(onConfirmRetention) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { TextButton(onCancelRetention) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     LazyColumn(modifier.fillMaxSize()) {
         item {
