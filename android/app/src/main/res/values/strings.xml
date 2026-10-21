@@ -119,7 +119,7 @@
     <string name="settings_storage_index_size">%s, without the embeddings</string>
     <string name="settings_storage_cache">Cache</string>
     <string name="settings_storage_trash">Files in the trash</string>
-    <string name="settings_embeddings_size">%s of vector data</string>
+    <string name="settings_embeddings_size">About %s, an estimate</string>
     <string name="settings_delete_embeddings">Delete embeddings</string>
     <plurals name="settings_embeddings_stored">
         <item quantity="one">%d embedding stored. Deleting it frees its space.</item>

@@ -345,7 +345,7 @@ class ReviewViewModelTest {
         settle(model) { it.state.value.storage != null }
         val storage = model.state.value.storage!!
         assertEquals(10L, storage.trash)
-        assertEquals(16L, storage.embeddings)
+        assertEquals(true, storage.embeddings > 0)
         assertEquals(true, storage.index > 0)
 
         model.deleteEmbeddings()
