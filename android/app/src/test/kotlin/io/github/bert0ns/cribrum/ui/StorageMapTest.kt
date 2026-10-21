@@ -157,10 +157,113 @@ class StorageMapTest {
 
         assertTrue(dcimBlocks.isNotEmpty())
         assertTrue(picBlocks.isNotEmpty())
-        // Top level folders have different hue indices
-        val dcimHue = dcimBlocks.first().hueIndex
-        val picHue = picBlocks.first().hueIndex
+        // Top level folders have different hues
+        val dcimHue = dcimBlocks.first().hue
+        val picHue = picBlocks.first().hue
         assertTrue(dcimHue != picHue)
+    }
+
+    @Test
+    fun `largest child inherits the hue of its parent`() {
+        assertEquals(200f, childHue(200f, rank = 0), 0.001f)
+    }
+
+    @Test
+    fun `other children get other hues around the parent`() {
+        val hues = (0..5).map { childHue(350f, it) }
+        assertEquals(hues.size, hues.toSet().size)
+        assertTrue(hues.all { it in 0f..360f })
+    }
+
+    @Test
+    fun `largest top-level block takes the base hue`() {
+        val tree = buildFolderTree(
+            listOf(
+                ref("/Big/a.jpg", 9000L),
+                ref("/Small/b.jpg", 1000L),
+            ),
+        )
+        val blocks = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0, baseHue = 123f)
+        assertEquals(123f, blocks.first { it.folder.name == "Big" }.hue, 0.001f)
+        assertTrue(blocks.first { it.folder.name == "Small" }.hue != 123f)
+    }
+
+    @Test
+    fun `a folder keeps its hue when zooming into it`() {
+        val tree = buildFolderTree(
+            listOf(
+                ref("/A/x.jpg", 9000L),
+                ref("/B/Big/y.jpg", 3000L),
+                ref("/B/Small/z.jpg", 1000L),
+            ),
+        )
+        val b = tree.children.first { it.name == "B" }
+        val hueOfBInRoot = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0)
+            .first { it.folder == b }.hue
+
+        val inB = layoutTreemap(b, bounds, gap = 1.0, minSize = 2.0, baseHue = trailHue(listOf(tree, b)))
+        assertEquals(hueOfBInRoot, inB.first { it.folder.name == "Big" }.hue, 0.001f)
+    }
+
+    @Test
+    fun `a folder keeps its hue through three levels of zoom`() {
+        val tree = buildFolderTree(
+            listOf(
+                ref("/A/x.jpg", 20_000L),
+                ref("/B/D/d.jpg", 5000L),
+                ref("/B/C/Big/y.jpg", 3000L),
+                ref("/B/C/Small/z.jpg", 1000L),
+            ),
+        )
+        val b = tree.children.first { it.name == "B" }
+        val c = b.children.first { it.name == "C" }
+        // B is the second child of the root and C the second child of B.
+        val hueOfB = childHue(ROOT_HUE, 1)
+        val hueOfC = childHue(hueOfB, 1)
+        assertEquals(hueOfB, trailHue(listOf(tree, b)), 0.001f)
+        assertEquals(hueOfC, trailHue(listOf(tree, b, c)), 0.001f)
+
+        val inB = layoutTreemap(b, bounds, gap = 1.0, minSize = 2.0, baseHue = trailHue(listOf(tree, b)))
+        assertEquals(hueOfC, inB.first { it.folder == c }.hue, 0.001f)
+
+        val inC = layoutTreemap(c, bounds, gap = 1.0, minSize = 2.0, baseHue = trailHue(listOf(tree, b, c)))
+        val big = inC.first { it.folder.name == "Big" }
+        val small = inC.first { it.folder.name == "Small" }
+        assertEquals(hueOfC, big.hue, 0.001f)
+        assertEquals(childHue(hueOfC, 1), small.hue, 0.001f)
+        assertTrue(small.hue != big.hue)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `a trail with a folder that is not a child of the previous one fails`() {
+        val tree = buildFolderTree(listOf(ref("/A/x.jpg", 1L), ref("/B/y.jpg", 1L)))
+        trailHue(listOf(tree, Folder(name = "Z", path = "/Z", size = 1L, imageCount = 1)))
+    }
+
+    @Test
+    fun `a block is the same block after the map is laid out in other bounds`() {
+        val tree = buildFolderTree(listOf(ref("/A/x.jpg", 9000L), ref("/B/y.jpg", 1000L)))
+        val before = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0)
+        val after = layoutTreemap(tree, MapRect(0.0, 0.0, 100.0, 80.0), gap = 1.0, minSize = 2.0)
+        val a = before.first { it.folder.name == "A" }
+        assertTrue(a.rect != after.first { it.folder.name == "A" }.rect)
+        assertTrue(after.first { it.folder.name == "A" }.isSameBlockAs(a))
+        assertFalse(after.first { it.folder.name == "B" }.isSameBlockAs(a))
+        assertFalse(a.isSameBlockAs(null))
+    }
+
+    @Test
+    fun `trail hue of the root is the root hue`() {
+        val tree = buildFolderTree(listOf(ref("/A/x.jpg", 1L), ref("/B/y.jpg", 1L)))
+        assertEquals(ROOT_HUE, trailHue(listOf(tree)), 0.001f)
+    }
+
+    @Test
+    fun `a rect encloses itself and rects inside it but not its neighbours`() {
+        val r = MapRect(0.0, 0.0, 50.0, 100.0)
+        assertTrue(r.encloses(r))
+        assertTrue(r.encloses(MapRect(1.0, 1.0, 10.0, 10.0)))
+        assertFalse(r.encloses(MapRect(50.0, 0.0, 50.0, 100.0)))
     }
 
     @Test
@@ -188,7 +291,8 @@ class StorageMapTest {
         )
         val blocks = layoutTreemap(folder, bounds, gap = 1.0, minSize = 2.0)
         val directFilesBlock = blocks.first { it.isDirectFiles }
-        assertTrue("hueIndex must be >= 0 but was ${directFilesBlock.hueIndex}", directFilesBlock.hueIndex >= 0)
+        // Camera is rank 0, so the direct files are rank 1.
+        assertEquals(childHue(ROOT_HUE, 1), directFilesBlock.hue, 0.001f)
     }
 
     @Test

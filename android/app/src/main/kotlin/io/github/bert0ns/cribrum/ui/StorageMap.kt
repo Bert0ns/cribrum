@@ -14,6 +14,9 @@ data class MapRect(
     val bottom: Double get() = top + height
     val area: Double get() = width * height
 
+    fun encloses(other: MapRect): Boolean =
+        other.left >= left && other.right <= right && other.top >= top && other.bottom <= bottom
+
     fun contains(x: Double, y: Double): Boolean =
         x in left..right && y in top..bottom
 }
@@ -198,11 +201,32 @@ data class TreemapBlock(
     val folder: Folder,
     val isDirectFiles: Boolean,
     val depth: Int,
-    val hueIndex: Int,
+    val hue: Float,
 )
 
-/** Returns a distinct hue in degrees (0..360) for a top-level block index. */
-fun folderHue(hueIndex: Int): Float = ((hueIndex * 137.5f) % 360f + 360f) % 360f
+/** True when both blocks show the same folder (or its direct files), wherever they sit on screen. */
+fun TreemapBlock.isSameBlockAs(other: TreemapBlock?): Boolean =
+    other != null && folder.path == other.folder.path && isDirectFiles == other.isDirectFiles
+
+/** Hue in degrees of the map root. */
+const val ROOT_HUE = 210f
+
+private const val GOLDEN_ANGLE = 137.5f
+
+/**
+ * Hue of the child at [rank] among its siblings, ordered by size. The largest child keeps the
+ * hue of its parent, so a folder keeps its color when the map zooms into it. The others are
+ * spread around it by the golden angle.
+ */
+fun childHue(parentHue: Float, rank: Int): Float = ((parentHue + rank * GOLDEN_ANGLE) % 360f + 360f) % 360f
+
+/** Hue of the last folder of a zoom [trail] that starts at the map root. */
+fun trailHue(trail: List<Folder>): Float =
+    trail.zipWithNext().fold(ROOT_HUE) { hue, (parent, child) ->
+        val rank = parent.children.indexOfFirst { it.path == child.path }
+        require(rank >= 0) { "${child.path} is not a child of ${parent.path}" }
+        childHue(hue, rank)
+    }
 
 /** One rectangle to place: a subfolder, or the images that sit directly in [folder]. */
 private class Slot(val folder: Folder, val size: Long, val isDirectFiles: Boolean)
@@ -210,17 +234,18 @@ private class Slot(val folder: Folder, val size: Long, val isDirectFiles: Boolea
 /**
  * Recursively lays out a treemap for [folder] inside [bounds] with a [gap] between nesting levels.
  * Rectangles whose width or height is less than [minSize] are omitted. The blocks of [folder]
- * itself have depth 0 and one hue each.
+ * itself have depth 0 and one hue each, spread around [baseHue]; the blocks inside them share it.
  */
 fun layoutTreemap(
     folder: Folder,
     bounds: MapRect,
     gap: Double,
     minSize: Double,
+    baseHue: Float = ROOT_HUE,
 ): List<TreemapBlock> {
     val blocks = mutableListOf<TreemapBlock>()
 
-    fun fill(current: Folder, area: MapRect, depth: Int, hueIndex: Int?) {
+    fun fill(current: Folder, area: MapRect, depth: Int, hue: Float?) {
         val slots = current.children.filter { it.size > 0L }.map { Slot(it, it.size, isDirectFiles = false) } +
             listOfNotNull(
                 // A folder without subfolders is drawn as itself, not as "files in this folder".
@@ -231,8 +256,8 @@ fun layoutTreemap(
         for ((i, slot) in slots.withIndex()) {
             val rect = rects[i]
             if (rect.width < minSize || rect.height < minSize) continue
-            val hue = hueIndex ?: i
-            blocks.add(TreemapBlock(rect, slot.folder, slot.isDirectFiles, depth, hue))
+            val blockHue = hue ?: childHue(baseHue, i)
+            blocks.add(TreemapBlock(rect, slot.folder, slot.isDirectFiles, depth, blockHue))
             if (!slot.isDirectFiles && slot.folder.children.isNotEmpty()) {
                 val inner = MapRect(
                     left = rect.left + gap,
@@ -240,12 +265,12 @@ fun layoutTreemap(
                     width = max(0.0, rect.width - 2 * gap),
                     height = max(0.0, rect.height - 2 * gap),
                 )
-                fill(slot.folder, inner, depth + 1, hue)
+                fill(slot.folder, inner, depth + 1, blockHue)
             }
         }
     }
 
-    fill(folder, bounds, depth = 0, hueIndex = null)
+    fill(folder, bounds, depth = 0, hue = null)
     return blocks
 }
 
