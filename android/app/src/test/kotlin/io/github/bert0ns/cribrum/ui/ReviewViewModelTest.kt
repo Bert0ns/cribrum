@@ -9,6 +9,7 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.PAGE_SIZE
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.trash.AppTrash
@@ -237,6 +238,49 @@ class ReviewViewModelTest {
         assertNull(model.state.value.lastExclusion)
         assertEquals(setOf("/sdcard/B/b.jpg"), model.state.value.marked)
         assertEquals(emptyList<String>(), runBlocking { app.index.excludedFolders() })
+    }
+
+    @Test
+    fun `a threshold set in settings changes the lists at once, is stored, and reset restores the defaults`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        blurry("/sdcard/b.jpg", 0.6f)
+        blurry("/sdcard/c.jpg", 0.45f)
+        val model = ReviewViewModel(app)
+        model.openThresholds()
+        settle(model) { it.state.value.screen == Screen.Thresholds && it.state.value.thresholdCounts.isNotEmpty() }
+        assertEquals(3, model.state.value.thresholdCounts[Category.BLURRY])
+
+        model.setThreshold(Category.BLURRY, 0.7f)
+        settle(model) { it.state.value.thresholds[Category.BLURRY] == 0.7f }
+
+        assertEquals(1, model.state.value.thresholdCounts[Category.BLURRY])
+        assertEquals(3, model.state.value.defaultCounts[Category.BLURRY])
+        assertEquals(0.7f, app.thresholds.values[Category.BLURRY])
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Settings }
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home && it.state.value.categories.isNotEmpty() }
+        assertEquals(1, model.state.value.categories.single { it.category == Category.BLURRY }.count)
+
+        model.openSettings()
+        settle(model) { it.state.value.screen == Screen.Settings }
+        model.openThresholds()
+        settle(model) { it.state.value.screen == Screen.Thresholds }
+        model.resetThresholds()
+        settle(model) { it.state.value.thresholds == THRESHOLDS }
+
+        assertEquals(3, model.state.value.thresholdCounts[Category.BLURRY])
+        assertEquals(THRESHOLDS, app.thresholds.values)
+    }
+
+    @Test
+    fun `back from the thresholds returns to settings`() {
+        val model = ReviewViewModel(app)
+        model.openThresholds()
+        settle(model) { it.state.value.screen == Screen.Thresholds }
+
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Settings }
     }
 
     private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()

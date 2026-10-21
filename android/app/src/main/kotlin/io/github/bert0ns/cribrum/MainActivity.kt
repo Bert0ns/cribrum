@@ -51,6 +51,7 @@ import io.github.bert0ns.cribrum.ui.ScanStatus
 import io.github.bert0ns.cribrum.ui.Screen
 import io.github.bert0ns.cribrum.ui.SettingsScreen
 import io.github.bert0ns.cribrum.ui.StorageMapScreen
+import io.github.bert0ns.cribrum.ui.ThresholdsScreen
 import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
@@ -139,6 +140,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                             Screen.Trash -> stringResource(R.string.trash)
                             Screen.Settings -> stringResource(R.string.settings)
                             Screen.StorageMap -> stringResource(R.string.storage_map)
+                            Screen.Thresholds -> stringResource(R.string.settings_thresholds)
                         },
                     )
                 },
@@ -185,6 +187,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                 )
                 Screen.Settings -> SettingsScreen(
                     onOpenStorageMap = model::openStorageMap,
+                    onOpenThresholds = model::openThresholds,
                     retentionDays = state.retentionDays,
                     onRetentionChange = model::chooseRetention,
                     pendingRetention = state.pendingRetention,
@@ -195,6 +198,13 @@ fun App(model: ReviewViewModel = viewModel()) {
                     embeddingCount = state.embeddingCount,
                     scanning = progress != null,
                     onDeleteEmbeddings = model::deleteEmbeddings,
+                )
+                Screen.Thresholds -> ThresholdsScreen(
+                    state.thresholds,
+                    state.thresholdCounts,
+                    state.defaultCounts,
+                    model::setThreshold,
+                    model::resetThresholds,
                 )
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,

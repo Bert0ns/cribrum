@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.Decision
 import io.github.bert0ns.cribrum.review.Page
@@ -30,6 +31,7 @@ sealed interface Screen {
     data object Trash : Screen
     data object Settings : Screen
     data object StorageMap : Screen
+    data object Thresholds : Screen
 }
 
 /** A lower retention that would purge [expiring] trashed images at the next scan, waiting for the user's confirmation. */
@@ -58,13 +60,17 @@ data class ReviewState(
     val excludedFolders: List<String> = emptyList(),
     /** Embeddings stored in the index, shown in settings. */
     val embeddingCount: Int = 0,
+    /** The thresholds in use, and how many candidates each category lists at them and at the defaults. */
+    val thresholds: Map<Category, Float> = THRESHOLDS,
+    val thresholdCounts: Map<Category, Int> = emptyMap(),
+    val defaultCounts: Map<Category, Int> = emptyMap(),
     /** The folder the user just excluded, until they undo it or move on. */
     val lastExclusion: String? = null,
 )
 
 class ReviewViewModel @JvmOverloads constructor(
     application: Application,
-    private val review: Review = (application as CribrumApp).let { Review(it.index, it.trash) },
+    private val review: Review = (application as CribrumApp).let { Review(it.index, it.trash, thresholds = { it.thresholds.values }) },
 ) : AndroidViewModel(application) {
     private val app = application as CribrumApp
     private val mutableState = MutableStateFlow(ReviewState())
@@ -128,6 +134,24 @@ class ReviewViewModel @JvmOverloads constructor(
         return copy(retentionDays = days, pendingRetention = null)
     }
 
+    /** The defaults' counts are read once: they only change with a scan, and the screen stays open for one slider at a time. */
+    fun openThresholds() = load {
+        it.copy(screen = Screen.Thresholds, defaultCounts = review.counts(THRESHOLDS)).withThresholds(app.thresholds.values)
+    }
+
+    /** Applies at once: the signals are in the index, so the lists only need ranking again. */
+    fun setThreshold(category: Category, value: Float) = load {
+        app.thresholds[category] = value
+        it.withThresholds(app.thresholds.values)
+    }
+
+    fun resetThresholds() = load {
+        app.thresholds.reset()
+        it.withThresholds(app.thresholds.values)
+    }
+
+    private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds))
+
     fun openStorageMap() = load { state ->
         val root = buildFolderTree(review.notTrashed())
         state.copy(screen = Screen.StorageMap, storageMap = listOf(root))
@@ -143,6 +167,8 @@ class ReviewViewModel @JvmOverloads constructor(
                 state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.StorageMap ->
                 state.copy(screen = Screen.Settings, storageMap = emptyList())
+            state.screen == Screen.Thresholds ->
+                state.copy(screen = Screen.Settings)
             else ->
                 state.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet())
         }
