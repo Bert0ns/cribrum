@@ -15,7 +15,7 @@ data class StorageUse(
     val cache: Long?,
     /** The index file without the [embeddings]' data. */
     val index: Long,
-    /** The data of the stored vectors, not the pages that hold it. */
+    /** An estimate of what the stored vectors take in the index file. */
     val embeddings: Long,
     /** The files in the `.cribrum-trash` folders. */
     val trash: Long,

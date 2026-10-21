@@ -147,16 +147,60 @@ class ImageIndexTest {
     }
 
     @Test
-    fun `the embeddings size is the bytes of their vectors`() = test {
+    fun `the embeddings estimate is one page per embedding`() = test {
         record(PHOTO)
         record(OTHER)
         assertEquals(0L, embeddingBytes())
 
-        setEmbeddings("clip", 1, mapOf(PHOTO.path to FloatArray(4), OTHER.path to FloatArray(8)))
-        assertEquals(4L * 4 + 4 * 8, embeddingBytes())
+        setEmbeddings("clip", 1, mapOf(PHOTO.path to FloatArray(512), OTHER.path to FloatArray(512)))
+        assertEquals(2 * 4096L, embeddingBytes())
 
         deleteEmbeddings()
         assertEquals(0L, embeddingBytes())
+    }
+
+    @Test
+    fun `the file size grows with the data and is zero without a file`() = test {
+        assertEquals(0L, fileBytes()) // in memory
+        val onDisk = ImageIndex.open(ApplicationProvider.getApplicationContext(), "size-test.sqlite")
+        try {
+            val empty = onDisk.fileBytes()
+            repeat(300) { onDisk.record(ImageRef("/photos/$it.jpg", 1, 1)) }
+            assertTrue(onDisk.fileBytes() > empty)
+        } finally {
+            onDisk.close()
+            ApplicationProvider.getApplicationContext<android.content.Context>().deleteDatabase("size-test.sqlite")
+        }
+    }
+
+    /** The index line (file minus the estimate) is what the file is left with after the delete. */
+    @Test
+    fun `the embeddings estimate is close to what deleting them frees`() = test {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val vectors = (0 until 300).associate { "/photos/$it.jpg" to FloatArray(512) { i -> i.toFloat() } }
+
+        // Closing checkpoints the write-ahead log, as the system does in time, so the files hold what the data takes.
+        fun <T> onDisk(block: suspend ImageIndex.() -> T): T {
+            val opened = ImageIndex.open(context, "estimate-test.sqlite")
+            return try {
+                runBlocking { opened.block() }
+            } finally {
+                opened.close()
+            }
+        }
+        try {
+            onDisk {
+                vectors.keys.forEach { record(ImageRef(it, 1, 1)) }
+                setEmbeddings("clip", 1, vectors)
+            }
+            val shown = onDisk { fileBytes() - embeddingBytes() }
+            onDisk { deleteEmbeddings() }
+            val left = onDisk { fileBytes() }
+
+            assertTrue("shown $shown, left $left", kotlin.math.abs(shown - left) <= left / 5)
+        } finally {
+            context.deleteDatabase("estimate-test.sqlite")
+        }
     }
 
     @Test

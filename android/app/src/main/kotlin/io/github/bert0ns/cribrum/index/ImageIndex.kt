@@ -119,8 +119,13 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun imageCount(): Int = dao.imageCount()
 
-    /** The bytes of the stored vectors: their data, not the pages SQLite keeps them in (`dbstat` is not in Android's SQLite). */
-    suspend fun embeddingBytes(): Long = dao.embeddingBytes()
+    /**
+     * What the embeddings take in the file, estimated as one page each. A 512-dimension vector is 2 KB, so with its
+     * key a row fills a bit more than half a 4 KB page and the next row does not fit beside it.
+     * shortcut: wrong for vectors much smaller or larger than a page, when the model changes. (`dbstat` is not in
+     * Android's SQLite, so the real figure is not available.)
+     */
+    suspend fun embeddingBytes(): Long = dao.embeddingCount() * withContext(Dispatchers.IO) { db.openHelper.readableDatabase.pageSize }
 
     /** What the database takes on disk, its write-ahead log included. */
     suspend fun fileBytes(): Long = withContext(Dispatchers.IO) {
