@@ -4,10 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.test.core.app.ApplicationProvider
+import io.github.bert0ns.cribrum.millis
+import io.github.bert0ns.cribrum.saveNoise
 import org.junit.After
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import kotlin.random.Random
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.system.measureNanoTime
 
 /**
@@ -23,26 +26,15 @@ class TextSpeedDeviceTest {
         folder.deleteRecursively()
     }
 
-    private fun save(name: String, width: Int, height: Int, format: Bitmap.CompressFormat): File {
-        val random = Random(width)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val row = IntArray(width)
-        for (y in 0 until height) {
-            if (y % 8 == 0) for (x in 0 until width step 8) row.fill(0xff000000.toInt() or random.nextInt(0xffffff), x, minOf(x + 8, width))
-            bitmap.setPixels(row, 0, width, 0, y, width, 1)
-        }
-        return File(folder, name).also { file -> file.outputStream().use { bitmap.compress(format, 90, it) } }
-    }
-
-    private fun millis(nanos: Long, count: Int) = "%.1f".format(nanos / 1e6 / count)
+    private fun images() = listOf(
+        saveNoise(folder, "camera.jpg", 4000, 3000, Bitmap.CompressFormat.JPEG),
+        saveNoise(folder, "whatsapp.jpg", 1600, 1200, Bitmap.CompressFormat.JPEG),
+        saveNoise(folder, "screenshot.png", 1080, 2400, Bitmap.CompressFormat.PNG),
+    )
 
     @Test
     fun reportsMillisecondsPerImage() {
-        val images = listOf(
-            save("camera.jpg", 4000, 3000, Bitmap.CompressFormat.JPEG),
-            save("whatsapp.jpg", 1600, 1200, Bitmap.CompressFormat.JPEG),
-            save("screenshot.png", 1080, 2400, Bitmap.CompressFormat.PNG),
-        )
+        val images = images()
         val rounds = 5
         for (image in images) {
             preprocess(image)
@@ -52,9 +44,26 @@ class TextSpeedDeviceTest {
         val load = measureNanoTime { textCoverage(images[0]) }
         Log.i(TAG, "text model load and first image: ${millis(load, 1)} ms")
         for (image in images) {
-            val nanos = measureNanoTime { repeat(rounds) { textCoverage(image) } }
+            var coverage = -1f
+            val nanos = measureNanoTime { repeat(rounds) { coverage = textCoverage(image) } }
             Log.i(TAG, "text coverage ${image.name}: ${millis(nanos, rounds)} ms")
+            assertTrue("${image.name}: $coverage", coverage in 0f..1f)
         }
+    }
+
+    /** The scan runs one image per core at once, sharing the model. */
+    @Test
+    fun reportsImagesPerSecondOnEveryCore() {
+        val images = images()
+        val threads = Runtime.getRuntime().availableProcessors()
+        val perThread = 6
+        textCoverage(images[0]) // loads the model
+        val coverages = ConcurrentLinkedQueue<Float>()
+        val nanos = measureNanoTime {
+            List(threads) { t -> Thread { repeat(perThread) { coverages += textCoverage(images[(t + it) % images.size]) } }.apply(Thread::start) }.forEach(Thread::join)
+        }
+        Log.i(TAG, "text coverage on $threads threads: %.1f images per second".format(threads * perThread / (nanos / 1e9)))
+        assertTrue(coverages.toString(), coverages.size == threads * perThread && coverages.all { it in 0f..1f })
     }
 
     private companion object {
