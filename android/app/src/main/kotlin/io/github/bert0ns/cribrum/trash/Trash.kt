@@ -19,17 +19,15 @@ import java.util.UUID
 /** Folder at the root of each storage volume. Hidden, and with a `.nomedia` so galleries skip it. */
 const val TRASH_FOLDER = ".cribrum-trash"
 
-val RETENTION: Duration = Duration.ofDays(30)
-
 data class TrashedImage(
     /** Where the image was, with the size and mtime it had: moving keeps both. */
     val original: ImageRef,
     val trashedAt: Instant,
     /** The file inside the trash. */
     val file: File,
-) {
-    val purgeAt: Instant get() = trashedAt + RETENTION
-}
+    /** When the trash purges it, under the retention the user has chosen now. */
+    val purgeAt: Instant,
+)
 
 interface Trash {
     /** Moves images to the trash. Returns the ones moved: a file gone or changed since its scan stays put. */
@@ -43,7 +41,7 @@ interface Trash {
     /** Deletes images from the trash for good. */
     suspend fun purge(images: List<ImageRef>)
 
-    /** Deletes what has been in the trash for longer than [RETENTION]. Returns what it deleted. */
+    /** Deletes what has been in the trash for longer than the retention the user chose. Returns what it deleted. */
     suspend fun purgeExpired(): List<ImageRef>
 }
 
@@ -57,6 +55,8 @@ class AppTrash(
     /** The storage volume roots: each file goes to the trash on its own volume. */
     private val volumes: () -> List<File>,
     private val clock: Clock = Clock.systemUTC(),
+    /** Read on every call, so a change applies to the images already in the trash. */
+    private val retention: () -> Duration = { TrashRetention.DEFAULT },
     /** Told about every path that appeared or disappeared, so MediaStore can catch up. */
     private val changed: (List<String>) -> Unit = {},
 ) : Trash {
@@ -134,10 +134,12 @@ class AppTrash(
         val path = origin.getProperty("path") ?: return null
         val file = File(folder, File(path).name).takeIf { it.isFile } ?: return null
         return runCatching {
+            val trashedAt = Instant.parse(origin.getProperty("trashed_at"))
             TrashedImage(
                 ImageRef(path, origin.getProperty("size").toLong(), origin.getProperty("mtime_ns").toLong()),
-                Instant.parse(origin.getProperty("trashed_at")),
+                trashedAt,
                 file,
+                trashedAt + retention(),
             )
         }.getOrNull()
     }
@@ -152,11 +154,16 @@ class AppTrash(
     companion object {
         private const val ORIGIN = "origin.properties"
 
-        fun forDevice(context: Context, clock: Clock = Clock.systemUTC()): AppTrash {
+        fun forDevice(
+            context: Context,
+            clock: Clock = Clock.systemUTC(),
+            retention: () -> Duration = { TrashRetention.DEFAULT },
+        ): AppTrash {
             val storage = context.getSystemService(StorageManager::class.java)
             return AppTrash(
                 volumes = { storage.storageVolumes.mapNotNull { it.directory } },
                 clock = clock,
+                retention = retention,
                 changed = { paths ->
                     if (paths.isNotEmpty()) MediaScannerConnection.scanFile(context, paths.toTypedArray(), null, null)
                 },

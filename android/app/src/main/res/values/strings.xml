@@ -84,10 +84,12 @@
     <string name="settings_website_url">https://cribrum.bertons.me</string>
     <string name="settings_source">Source code</string>
     <string name="settings_source_url">https://github.com/Bert0ns/cribrum</string>
-    <plurals name="settings_trash_retention">
-        <item quantity="one">Trashed images stay for %d day, then the app deletes them.</item>
-        <item quantity="other">Trashed images stay for %d days, then the app deletes them.</item>
+    <string name="settings_trash_retention">Keep trashed images for</string>
+    <plurals name="settings_trash_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
     </plurals>
+    <string name="settings_trash_retention_applies">Applies to the images already in the trash too.</string>
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
     <string name="storage_map">Storage map</string>
     <string name="storage_map_card_details">%1$s \u2022 image sizes</string>

@@ -29,7 +29,8 @@ class TrashScreenTest {
     val compose = createComposeRule()
 
     private val trashed = listOf("a.jpg", "b.jpg").map {
-        TrashedImage(ImageRef("/sdcard/DCIM/$it", 1, 0), Instant.now() - Duration.ofDays(3), File("/sdcard/.cribrum-trash/x/$it"))
+        val trashedAt = Instant.now() - Duration.ofDays(3)
+        TrashedImage(ImageRef("/sdcard/DCIM/$it", 1, 0), trashedAt, File("/sdcard/.cribrum-trash/x/$it"), trashedAt + Duration.ofDays(30))
     }
 
     @Test
@@ -73,6 +74,7 @@ class TrashScreenTest {
             ImageRef("/sdcard/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Stickers/s.webp", 1, 0),
             Instant.now(),
             File("/sdcard/.cribrum-trash/y/s.webp"),
+            Instant.now() + Duration.ofDays(30),
         )
         var chosen: List<TrashedImage> = emptyList()
         compose.setContent { TrashScreen(trashed + sticker, emptySet(), {}, { items, _ -> chosen = items }, {}, {}) }

@@ -36,7 +36,7 @@ Gallery apps are built for browsing, not for cleanup. They don't search the whol
 | D3 | **On-device analysis only.** | Privacy, zero cost, works offline. Cloud classifiers were evaluated (cheap, roughly $1–2 per 10,000 images) and postponed. The architecture keeps them pluggable (see §7). |
 | D4 | **Recall over precision.** | Missing a deletable image is worse than surfacing one the user wants to keep. Thresholds start low, any single detector can make an image a candidate, and protection signals only lower an image in the ordering, never remove it from the candidates. |
 | D5 | **Photo age is not a deletion signal.** | An old photo may be old precisely because it survived earlier cleanups. Per-image review state replaces age (see §6.3). |
-| D6 | **Nothing is deleted without confirmation, and deletions go to a 30-day trash first.** | Mistakes must be recoverable. |
+| D6 | **Nothing is deleted without confirmation, and deletions go to a trash first, kept 30 days by default.** | Mistakes must be recoverable. How long is a user setting. |
 | D7 | **Personal, sideloaded distribution first.** | Allows the "All files access" permission (`MANAGE_EXTERNAL_STORAGE`) without Play Store review. |
 | D8 | **Local images only.** | Cloud libraries need their own cleanup, but they are a separate, future problem (see §11). |
 
@@ -150,7 +150,7 @@ interface Ranker {                       // combines signals into candidates and
     fun rank(images: List<IndexedImage>): List<Candidate>
 }
 
-interface Trash {                        // app-managed trash, 30-day retention
+interface Trash {                        // app-managed trash, retention set by the user (30 days by default)
     suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef>
     suspend fun restore(images: List<ImageRef>): List<ImageRef>
     suspend fun trashed(): List<TrashedImage>
@@ -200,14 +200,14 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 - Duplicate and burst groups have a "keep best, trash the rest" action, with side-by-side comparison.
 - Quick gestures and no unnecessary confirmations, except a final summary before trashing.
 - "Never suggest this again" works per image and per folder.
-- A settings screen, opened from the home screen, shows app information and a warning that uninstalling leaves the trash folder on shared storage.
+- A settings screen, opened from the home screen, shows app information, the trash retention choice, and a warning that uninstalling leaves the trash folder on shared storage.
 - A storage map screen, opened from settings, shows a treemap of indexed image space across explored folders to reveal where space is concentrated. It counts indexed images that are not in the trash. Single-child parent folders without direct files collapse so the map starts at the first branching point. A folder keeps its color when you zoom into it: its largest subfolder inherits the folder's hue and the others spread around it. The selected folder gets a thick outline in the theme's text color and the other folders dim.
 
 ## 9. Deletion and trash
 
-The system trash (`MediaStore.createTrashRequest`, Android 11+) only works for files MediaStore indexes, so it misses `.nomedia` folders. Cribrum therefore keeps its **own trash**: files move to an app-managed folder together with their original path, and are purged after 30 days. One mechanism covers every file.
+The system trash (`MediaStore.createTrashRequest`, Android 11+) only works for files MediaStore indexes, so it misses `.nomedia` folders. Cribrum therefore keeps its **own trash**: files move to an app-managed folder together with their original path, and are purged after a retention the user sets in the settings screen: 7, 14, 30, 60 or 90 days, 30 by default. One mechanism covers every file.
 
-The trash is a `.cribrum-trash` folder at the root of each storage volume, with a `.nomedia` file so galleries skip it. Each trashed file gets its own folder there, holding the file under its own name and an `origin.properties` with its original path, size, mtime and the time it was trashed. Moving is a rename on the same volume: it is instant, and it keeps the mtime, so a restored file is the same `ImageRef` as before. Because the trash lives on shared storage and needs no database, it survives an uninstall and can be restored by hand. A file that changed since its scan is not trashed, and a restore never overwrites a file that took the original path. The trash is the only code that deletes files: it purges an item 30 days after trashing it, or when the user empties the trash.
+The trash is a `.cribrum-trash` folder at the root of each storage volume, with a `.nomedia` file so galleries skip it. Each trashed file gets its own folder there, holding the file under its own name and an `origin.properties` with its original path, size, mtime and the time it was trashed. Moving is a rename on the same volume: it is instant, and it keeps the mtime, so a restored file is the same `ImageRef` as before. Because the trash lives on shared storage and needs no database, it survives an uninstall and can be restored by hand. A file that changed since its scan is not trashed, and a restore never overwrites a file that took the original path. The trash is the only code that deletes files. The retention is read on every purge, not stored with the item, so a change applies to the items already in the trash too: lowering it purges what is now older than the new value at the next scan. It purges an item once the retention has passed since trashing it, or when the user empties the trash.
 
 A trashed image stays in the index, as `TRASHED`, while its file is in the trash: the scan does not find it, but does not forget it either. Its signals and review state are still there if it comes back. The index forgets it when the trash purges it.
 
