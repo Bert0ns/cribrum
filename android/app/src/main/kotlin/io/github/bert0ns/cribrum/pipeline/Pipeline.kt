@@ -7,6 +7,7 @@ import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.BlurDetector
 import io.github.bert0ns.cribrum.detectors.BurstDetector
 import io.github.bert0ns.cribrum.detectors.Detector
+import io.github.bert0ns.cribrum.detectors.DocumentDetector
 import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
 import io.github.bert0ns.cribrum.detectors.FaceDetector
@@ -42,6 +43,7 @@ val DETECTORS: List<Detector> = listOf(
     BlurDetector(),
     ExposureDetector(),
     ScreenshotDetector(),
+    DocumentDetector(),
     ForwardedDetector(),
     FaceDetector(),
     StickerDetector(),
