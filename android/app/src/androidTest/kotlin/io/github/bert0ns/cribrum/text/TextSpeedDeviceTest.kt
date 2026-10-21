@@ -16,7 +16,8 @@ import kotlin.system.measureNanoTime
 /**
  * How long text coverage takes per image on the phone (docs/design.md §5). The numbers go to
  * logcat under the tag "cribrum-speed". The detector's cost depends on the image's size, not on
- * what is in it, so noise stands in for photos.
+ * what is in it, so noise stands in for photos. Run it on a non-debuggable build: a debuggable one
+ * runs the Kotlin preprocessing about three times slower.
  */
 class TextSpeedDeviceTest {
     private val folder = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, "text-speed-test").apply { mkdirs() }
@@ -35,9 +36,9 @@ class TextSpeedDeviceTest {
     @Test
     fun reportsMillisecondsPerImage() {
         val images = images()
-        val rounds = 5
+        val rounds = 10
         for (image in images) {
-            preprocess(image)
+            repeat(WARMUP) { preprocess(image) }
             val nanos = measureNanoTime { repeat(rounds) { preprocess(image) } }
             Log.i(TAG, "text preprocess ${image.name}: ${millis(nanos, rounds)} ms")
         }
@@ -45,6 +46,7 @@ class TextSpeedDeviceTest {
         Log.i(TAG, "text model load and first image: ${millis(load, 1)} ms")
         for (image in images) {
             var coverage = -1f
+            repeat(WARMUP) { textCoverage(image) }
             val nanos = measureNanoTime { repeat(rounds) { coverage = textCoverage(image) } }
             Log.i(TAG, "text coverage ${image.name}: ${millis(nanos, rounds)} ms")
             assertTrue("${image.name}: $coverage", coverage in 0f..1f)
@@ -56,17 +58,22 @@ class TextSpeedDeviceTest {
     fun reportsImagesPerSecondOnEveryCore() {
         val images = images()
         val threads = Runtime.getRuntime().availableProcessors()
-        val perThread = 6
-        textCoverage(images[0]) // loads the model
+        val perThread = 10
         val coverages = ConcurrentLinkedQueue<Float>()
-        val nanos = measureNanoTime {
+        fun everyCore() = measureNanoTime {
             List(threads) { t -> Thread { repeat(perThread) { coverages += textCoverage(images[(t + it) % images.size]) } }.apply(Thread::start) }.forEach(Thread::join)
         }
+        repeat(2) { everyCore() } // the runtime's JIT compiles the hot loops during the first rounds
+        coverages.clear()
+        val nanos = everyCore()
         Log.i(TAG, "text coverage on $threads threads: %.1f images per second".format(threads * perThread / (nanos / 1e9)))
         assertTrue(coverages.toString(), coverages.size == threads * perThread && coverages.all { it in 0f..1f })
     }
 
     private companion object {
         const val TAG = "cribrum-speed"
+
+        /** Rounds before timing: the runtime's JIT compiles the hot loops during the first ones, which a scan of thousands of images mostly runs without. */
+        const val WARMUP = 15
     }
 }
