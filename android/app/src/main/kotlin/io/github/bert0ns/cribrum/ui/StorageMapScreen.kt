@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
 
 private const val SATURATION = 0.6f
+private const val DIMMED_ALPHA = 0.35f
 
 @Composable
 private fun summary(size: Long, imageCount: Int): String = pluralStringResource(
@@ -60,8 +61,10 @@ fun StorageMapScreen(
     currentFolder: Folder,
     onZoomIn: (Folder) -> Unit,
     modifier: Modifier = Modifier,
+    baseHue: Float = ROOT_HUE,
 ) {
     val density = LocalDensity.current
+    val selectionColor = MaterialTheme.colorScheme.onSurface
     var selectedBlock by remember(currentFolder) { mutableStateOf<TreemapBlock?>(null) }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -122,12 +125,13 @@ fun StorageMapScreen(
                 val gapPx = with(density) { 1.5.dp.toPx().toDouble() }
                 val minSizePx = with(density) { 3.dp.toPx().toDouble() }
 
-                val blocks = remember(currentFolder, widthPx, heightPx) {
+                val blocks = remember(currentFolder, baseHue, widthPx, heightPx) {
                     layoutTreemap(
                         folder = currentFolder,
                         bounds = MapRect(0.0, 0.0, widthPx, heightPx),
                         gap = gapPx,
                         minSize = minSizePx,
+                        baseHue = baseHue,
                     )
                 }
 
@@ -148,6 +152,7 @@ fun StorageMapScreen(
                             )
                         },
                 ) {
+                    val selected = selectedBlock
                     for (block in blocks) {
                         val rect = block.rect
                         val r = CornerRadius(4.dp.toPx(), 4.dp.toPx())
@@ -155,7 +160,8 @@ fun StorageMapScreen(
                         val size = Size(rect.width.toFloat(), rect.height.toFloat())
 
                         val lightness = (0.50f + block.depth * 0.08f).coerceAtMost(0.85f)
-                        val color = Color.hsl(folderHue(block.hueIndex), SATURATION, lightness)
+                        val color = Color.hsl(block.hue, SATURATION, lightness)
+                            .copy(alpha = if (selected == null || selected.rect.encloses(rect)) 1f else DIMMED_ALPHA)
 
                         drawRoundRect(
                             color = color,
@@ -164,16 +170,22 @@ fun StorageMapScreen(
                             cornerRadius = r,
                             style = Fill,
                         )
+                    }
 
-                        if (selectedBlock == block) {
-                            drawRoundRect(
-                                color = Color.White,
-                                topLeft = topLeft,
-                                size = size,
-                                cornerRadius = r,
-                                style = Stroke(width = 3.dp.toPx()),
-                            )
-                        }
+                    if (selected != null) {
+                        // Drawn last and inset by half the stroke, so no block covers it or clips it.
+                        val stroke = 4.dp.toPx()
+                        val rect = selected.rect
+                        drawRoundRect(
+                            color = selectionColor,
+                            topLeft = Offset(rect.left.toFloat() + stroke / 2, rect.top.toFloat() + stroke / 2),
+                            size = Size(
+                                (rect.width.toFloat() - stroke).coerceAtLeast(0f),
+                                (rect.height.toFloat() - stroke).coerceAtLeast(0f),
+                            ),
+                            cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+                            style = Stroke(width = stroke),
+                        )
                     }
                 }
             }
@@ -195,7 +207,7 @@ fun StorageMapScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     itemsIndexed(subfolders) { index, folder ->
-                        val iconColor = Color.hsl(folderHue(index), SATURATION, 0.50f)
+                        val iconColor = Color.hsl(childHue(baseHue, index), SATURATION, 0.50f)
                         ListItem(
                             headlineContent = { Text(folder.name) },
                             supportingContent = { Text(summary(folder.size, folder.imageCount)) },

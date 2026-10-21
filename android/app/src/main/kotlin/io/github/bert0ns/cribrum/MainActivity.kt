@@ -54,6 +54,7 @@ import io.github.bert0ns.cribrum.ui.StorageMapScreen
 import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
+import io.github.bert0ns.cribrum.ui.trailHue
 
 class MainActivity : ComponentActivity() {
     /** Checked again on every resume: the user grants it in the system settings, outside the app. */
@@ -159,6 +160,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                 Screen.Settings -> SettingsScreen(onOpenStorageMap = model::openStorageMap)
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
+                    baseHue = trailHue(state.storageMap),
                     onZoomIn = model::zoomStorageMap,
                 )
             }
