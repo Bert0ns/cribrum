@@ -157,7 +157,7 @@ class StorageMapTest {
 
         assertTrue(dcimBlocks.isNotEmpty())
         assertTrue(picBlocks.isNotEmpty())
-        // Top level folders have different hue indices
+        // Top level folders have different hues
         val dcimHue = dcimBlocks.first().hue
         val picHue = picBlocks.first().hue
         assertTrue(dcimHue != picHue)
@@ -206,6 +206,35 @@ class StorageMapTest {
     }
 
     @Test
+    fun `a folder keeps its hue through three levels of zoom`() {
+        val tree = buildFolderTree(
+            listOf(
+                ref("/A/x.jpg", 20_000L),
+                ref("/B/D/d.jpg", 5000L),
+                ref("/B/C/Big/y.jpg", 3000L),
+                ref("/B/C/Small/z.jpg", 1000L),
+            ),
+        )
+        val b = tree.children.first { it.name == "B" }
+        val c = b.children.first { it.name == "C" }
+        // B is the second child of the root and C the second child of B.
+        val hueOfB = childHue(ROOT_HUE, 1)
+        val hueOfC = childHue(hueOfB, 1)
+        assertEquals(hueOfB, trailHue(listOf(tree, b)), 0.001f)
+        assertEquals(hueOfC, trailHue(listOf(tree, b, c)), 0.001f)
+
+        val inB = layoutTreemap(b, bounds, gap = 1.0, minSize = 2.0, baseHue = trailHue(listOf(tree, b)))
+        assertEquals(hueOfC, inB.first { it.folder == c }.hue, 0.001f)
+
+        val inC = layoutTreemap(c, bounds, gap = 1.0, minSize = 2.0, baseHue = trailHue(listOf(tree, b, c)))
+        val big = inC.first { it.folder.name == "Big" }
+        val small = inC.first { it.folder.name == "Small" }
+        assertEquals(hueOfC, big.hue, 0.001f)
+        assertEquals(childHue(hueOfC, 1), small.hue, 0.001f)
+        assertTrue(small.hue != big.hue)
+    }
+
+    @Test
     fun `trail hue of the root is the root hue`() {
         val tree = buildFolderTree(listOf(ref("/A/x.jpg", 1L), ref("/B/y.jpg", 1L)))
         assertEquals(ROOT_HUE, trailHue(listOf(tree)), 0.001f)
@@ -244,7 +273,8 @@ class StorageMapTest {
         )
         val blocks = layoutTreemap(folder, bounds, gap = 1.0, minSize = 2.0)
         val directFilesBlock = blocks.first { it.isDirectFiles }
-        assertTrue("hue must be in 0..360 but was ${directFilesBlock.hue}", directFilesBlock.hue in 0f..360f)
+        // Camera is rank 0, so the direct files are rank 1.
+        assertEquals(childHue(ROOT_HUE, 1), directFilesBlock.hue, 0.001f)
     }
 
     @Test
