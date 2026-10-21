@@ -45,7 +45,7 @@ data class ReviewItem(
     val score: Float = 0f,
 )
 
-data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true)
+data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true, val bytes: Long = 0)
 
 /** The groups shown now, and how many candidates the category has left in all, these included and the skipped ones not. */
 data class Page(val groups: List<ReviewGroup>, val remaining: Int)
@@ -59,11 +59,12 @@ class Review(
     private val ranker: Ranker = Ranker(),
     private val detectorCategories: Set<Category> = DETECTOR_CATEGORIES,
 ) {
-    /** Every category in fixed order, with its candidate count and whether it has a detector. */
+    /** Every category in fixed order, with its candidate count and size, and whether it has a detector. */
     suspend fun categories(): List<CategorySummary> {
         val byCategory = Ranker.byCategory(ranker.rank(index.indexedImages(), index.excludedFolders()))
         return Category.entries.map { category ->
-            CategorySummary(category, byCategory[category]?.size ?: 0, category in detectorCategories)
+            val candidates = byCategory[category].orEmpty()
+            CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
         }
     }
 

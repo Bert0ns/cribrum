@@ -77,10 +77,10 @@ class ReviewTest {
 
         assertEquals(
             listOf(
-                CategorySummary(Category.EXACT_DUPLICATE, 1, hasDetector = true),
+                CategorySummary(Category.EXACT_DUPLICATE, 1, hasDetector = true, bytes = 14),
                 CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = true),
                 CategorySummary(Category.BURST, 0, hasDetector = true),
-                CategorySummary(Category.BLURRY, 2, hasDetector = true),
+                CategorySummary(Category.BLURRY, 2, hasDetector = true, bytes = 10),
                 CategorySummary(Category.BAD_EXPOSURE, 0, hasDetector = true),
                 CategorySummary(Category.SCREENSHOT, 0, hasDetector = true),
                 CategorySummary(Category.DOCUMENT, 0, hasDetector = true),
@@ -89,6 +89,21 @@ class ReviewTest {
             ),
             categories(),
         )
+    }
+
+    @Test
+    fun `a category counts the bytes of its candidates and leaves out the best copy of a group`() = test {
+        image("a.jpg", blurry(0.9f)) // 5 bytes: the file holds its own path
+        image("bb.jpg", blurry(0.8f)) // 6
+        image("c.jpg", blurry(0.1f)) // below the threshold, not a candidate
+        image("DCIM/d.jpg", duplicate("g", Role.BEST))
+        image("Download/d.jpg", duplicate("g", Role.INFERIOR)) // 14
+
+        val bytes = categories().associate { it.category to it.bytes }
+
+        assertEquals(11L, bytes[Category.BLURRY])
+        assertEquals(14L, bytes[Category.EXACT_DUPLICATE])
+        assertEquals(0L, bytes[Category.SCREENSHOT])
     }
 
     @Test

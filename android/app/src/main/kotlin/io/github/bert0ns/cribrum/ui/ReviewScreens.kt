@@ -90,7 +90,8 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
                         if (!summary.hasDetector) {
                             stringResource(R.string.category_coming_soon)
                         } else {
-                            pluralStringResource(R.plurals.candidates, summary.count, summary.count)
+                            val count = pluralStringResource(R.plurals.candidates, summary.count, summary.count)
+                            if (summary.count == 0) count else stringResource(R.string.category_line_with_space, count, Formatter.formatShortFileSize(LocalContext.current, summary.bytes))
                         },
                     )
                 },

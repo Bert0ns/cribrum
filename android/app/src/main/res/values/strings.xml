@@ -23,6 +23,7 @@
         <item quantity="one">%d image to review</item>
         <item quantity="other">%d images to review</item>
     </plurals>
+    <string name="category_line_with_space">%1$s · can free %2$s</string>
     <plurals name="page_more">
         <item quantity="one">%1$d of %2$d image to review. Confirm these to see the next ones.</item>
         <item quantity="other">%1$d of %2$d images to review. Confirm these to see the next ones.</item>

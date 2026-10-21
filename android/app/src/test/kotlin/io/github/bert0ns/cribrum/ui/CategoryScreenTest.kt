@@ -40,15 +40,25 @@ class CategoryScreenTest {
     @Test
     fun `category list shows candidate count and opens on tap`() {
         var opened: Category? = null
-        val categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true))
+        val categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true, bytes = 3_000_000))
         compose.setContent {
             CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
         }
 
         compose.onNodeWithText("Blurry").assertExists()
-        compose.onNodeWithText("3 images to review").assertExists()
+        compose.onNodeWithText("3 images to review · can free 3.0 MB").assertExists()
         compose.onNodeWithText("Blurry").assertIsEnabled().performClick()
         assertEquals(Category.BLURRY, opened)
+    }
+
+    @Test
+    fun `category list shows no space for a category without candidates`() {
+        val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
+        compose.setContent {
+            CategoryList(categories = categories, onOpen = {}, onTrash = {})
+        }
+
+        compose.onNodeWithText("can free", substring = true).assertDoesNotExist()
     }
 
     @Test
