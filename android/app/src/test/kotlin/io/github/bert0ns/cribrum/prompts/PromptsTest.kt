@@ -5,6 +5,7 @@ import io.github.bert0ns.cribrum.mobileclip.MODEL_ID
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -45,6 +46,15 @@ class PromptsTest {
         val totalProbability = classes.values.fold(0f) { sum, (prob, _) -> sum + prob }
         assertEquals(1.0f, totalProbability, 1e-5f)
         assertEquals("a photo of a receipt", classes["document"]?.second)
+    }
+
+    @Test
+    fun `a saturated class stays at most one`() {
+        for (text in PROMPTS.values.flatten()) {
+            for ((name, probability) in classify(promptVector(text))) {
+                assertTrue("$text: $name ${probability.first}", probability.first <= 1f)
+            }
+        }
     }
 
     @Test

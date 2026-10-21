@@ -90,7 +90,8 @@ def classify(embedding: np.ndarray) -> dict[str, tuple[float, str]]:
     for name, prompts in PROMPTS.items():
         indices = [texts.index(prompt) for prompt in prompts]
         best = max(indices, key=lambda i: probabilities[i])
-        result[name] = (float(probabilities[indices].sum()), texts[best])
+        # float32 sums can land a hair above 1, which Signal refuses
+        result[name] = (min(1.0, float(probabilities[indices].sum())), texts[best])
     return result
 
 

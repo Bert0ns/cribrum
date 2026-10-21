@@ -56,6 +56,12 @@ def test_class_probabilities_sum_to_one():
     assert classes["document"][1] == "a photo of a receipt"
 
 
+@pytest.mark.parametrize("text", [p for ps in prompts.PROMPTS.values() for p in ps])
+def test_a_saturated_class_stays_at_most_one(text):
+    for probability, _ in prompts.classify(prompt_vector(text)).values():
+        assert probability <= 1.0
+
+
 @pytest.mark.parametrize("text", prompts.PROMPTS["document"])
 def test_document_prompts_score_high_as_documents(text):
     signal = analyze(DocumentDetector(coverage=lambda _: 0.0), text)
