@@ -215,6 +215,7 @@ private fun AppContent(model: ReviewViewModel) {
                     excludedFolders = state.excludedFolders,
                     onRemoveExcludedFolder = model::removeExcludedFolder,
                     embeddingCount = state.embeddingCount,
+                    storage = state.storage,
                     scanning = progress != null,
                     onDeleteEmbeddings = model::deleteEmbeddings,
                     hapticsEnabled = state.hapticsEnabled,

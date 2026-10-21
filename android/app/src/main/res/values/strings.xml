@@ -113,6 +113,13 @@
     <string name="thresholds_reset">Reset to defaults</string>
     <string name="settings_excluded_folders">Excluded folders</string>
     <string name="settings_no_excluded_folders">No folders are excluded.</string>
+    <string name="settings_storage">Storage</string>
+    <string name="settings_storage_app">App</string>
+    <string name="settings_storage_index">Index database</string>
+    <string name="settings_storage_index_size">%s, without the embeddings</string>
+    <string name="settings_storage_cache">Cache</string>
+    <string name="settings_storage_trash">Files in the trash</string>
+    <string name="settings_embeddings_size">%s of vector data</string>
     <string name="settings_delete_embeddings">Delete embeddings</string>
     <plurals name="settings_embeddings_stored">
         <item quantity="one">%d embedding stored. Deleting it frees its space.</item>

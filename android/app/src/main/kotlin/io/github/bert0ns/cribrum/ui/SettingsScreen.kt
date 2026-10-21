@@ -1,5 +1,6 @@
 package io.github.bert0ns.cribrum.ui
 
+import android.text.format.Formatter
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -49,6 +50,7 @@ fun SettingsScreen(
     excludedFolders: List<String> = emptyList(),
     onRemoveExcludedFolder: (String) -> Unit = {},
     embeddingCount: Int = 0,
+    storage: StorageUse? = null,
     /** A scan writes embeddings as it goes: deleting them under it would leave the images it already did without results. */
     scanning: Boolean = false,
     onDeleteEmbeddings: () -> Unit = {},
@@ -220,20 +222,45 @@ fun SettingsScreen(
         item {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
         }
+        if (storage != null) {
+            item {
+                Text(
+                    text = stringResource(R.string.settings_storage),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
+                )
+            }
+            storage.app?.let { item { Size(R.string.settings_storage_app, size(it)) } }
+            item { Size(R.string.settings_storage_index, stringResource(R.string.settings_storage_index_size, size(storage.index))) }
+            storage.cache?.let { item { Size(R.string.settings_storage_cache, size(it)) } }
+            item { Size(R.string.settings_storage_trash, size(storage.trash)) }
+        }
         item {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_delete_embeddings)) },
                 supportingContent = {
-                    Text(
-                        when {
-                            scanning -> stringResource(R.string.settings_delete_embeddings_scanning)
-                            embeddingCount == 0 -> stringResource(R.string.settings_no_embeddings)
-                            else -> pluralStringResource(R.plurals.settings_embeddings_stored, embeddingCount, embeddingCount)
-                        },
-                    )
+                    Column {
+                        Text(
+                            when {
+                                scanning -> stringResource(R.string.settings_delete_embeddings_scanning)
+                                embeddingCount == 0 -> stringResource(R.string.settings_no_embeddings)
+                                else -> pluralStringResource(R.plurals.settings_embeddings_stored, embeddingCount, embeddingCount)
+                            },
+                        )
+                        if (storage != null && embeddingCount > 0) {
+                            Text(stringResource(R.string.settings_embeddings_size, size(storage.embeddings)))
+                        }
+                    }
                 },
                 modifier = Modifier.clickable(enabled = !scanning && embeddingCount > 0) { confirmingEmbeddings = true },
             )
         }
     }
 }
+
+@Composable
+private fun Size(label: Int, size: String) = ListItem(headlineContent = { Text(stringResource(label)) }, supportingContent = { Text(size) })
+
+@Composable
+private fun size(bytes: Long) = Formatter.formatShortFileSize(LocalContext.current, bytes)

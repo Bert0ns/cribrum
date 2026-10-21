@@ -328,4 +328,28 @@ class ReviewViewModelTest {
         model.refresh()
         settle(model) { !it.state.value.indexEmpty }
     }
+
+    @Test
+    fun `settings measures the trash and the embeddings, and measures again after a delete`() {
+        val volume = folder.newFolder()
+        val trash = AppTrash({ listOf(volume) })
+        val image = File(volume, "a.jpg").apply { writeText("0123456789") }.toImageRef()
+        runBlocking {
+            app.index.record(image)
+            trash.moveToTrash(listOf(image))
+            app.index.setEmbeddings("clip", 1, mapOf(image.path to FloatArray(4)))
+        }
+        val model = ReviewViewModel(app, Review(app.index, trash))
+
+        model.openSettings()
+        settle(model) { it.state.value.storage != null }
+        val storage = model.state.value.storage!!
+        assertEquals(10L, storage.trash)
+        assertEquals(16L, storage.embeddings)
+        assertEquals(true, storage.index > 0)
+
+        model.deleteEmbeddings()
+        settle(model) { it.state.value.storage?.embeddings == 0L }
+        assertEquals(10L, model.state.value.storage?.trash)
+    }
 }

@@ -63,6 +63,8 @@ data class ReviewState(
     val excludedFolders: List<String> = emptyList(),
     /** Embeddings stored in the index, shown in settings. */
     val embeddingCount: Int = 0,
+    /** What Cribrum takes on the phone, shown in settings. */
+    val storage: StorageUse? = null,
     /** The thresholds in use, and how many candidates each category lists at them and at the defaults. */
     val thresholds: Map<Category, Float> = THRESHOLDS,
     val thresholdCounts: Map<Category, Int> = emptyMap(),
@@ -98,10 +100,18 @@ class ReviewViewModel @JvmOverloads constructor(
     /** Only the embeddings go: the next scan computes them again. */
     fun deleteEmbeddings() = load { state ->
         app.index.deleteEmbeddings()
-        state.copy(embeddingCount = app.index.embeddingCount())
+        state.copy(embeddingCount = app.index.embeddingCount(), storage = measureStorage(app, review))
     }
 
-    fun openSettings() = load { it.copy(screen = Screen.Settings, excludedFolders = app.index.excludedFolders(), embeddingCount = app.index.embeddingCount()) }
+    /** Measures the sizes each time it opens: the trash and the index change on other screens and in scans. */
+    fun openSettings() = load {
+        it.copy(
+            screen = Screen.Settings,
+            excludedFolders = app.index.excludedFolders(),
+            embeddingCount = app.index.embeddingCount(),
+            storage = measureStorage(app, review),
+        )
+    }
 
     /** Hides the image's folder, subfolders included, and shows the page again without it. */
     fun excludeFolder(image: ImageRef) = load { state ->

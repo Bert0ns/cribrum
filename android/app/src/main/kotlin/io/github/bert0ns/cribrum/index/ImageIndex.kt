@@ -119,6 +119,15 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun imageCount(): Int = dao.imageCount()
 
+    /** The bytes of the stored vectors: their data, not the pages SQLite keeps them in (`dbstat` is not in Android's SQLite). */
+    suspend fun embeddingBytes(): Long = dao.embeddingBytes()
+
+    /** What the database takes on disk, its write-ahead log included. */
+    suspend fun fileBytes(): Long = withContext(Dispatchers.IO) {
+        val path = db.openHelper.readableDatabase.path ?: return@withContext 0L
+        listOf("", "-wal", "-shm").sumOf { File(path + it).length() }
+    }
+
     /** Drops what these detectors stored for these images, signals included, so a run analyzes them again. */
     suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = db.withTransaction {
         paths.chunked(SQL_VARIABLES).forEach { dao.forgetAnalyses(it, detectorIds.toList()) }

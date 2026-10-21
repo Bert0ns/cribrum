@@ -1,6 +1,7 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.content.Context
+import android.text.format.Formatter
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -229,5 +230,32 @@ class SettingsScreenTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
         compose.onNodeWithText("No embeddings stored.").assertIsDisplayed()
         compose.onNodeWithText("Delete embeddings").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `settings lists the four sizes and the embeddings next to their delete item`() {
+        compose.setContent { SettingsScreen(storage = StorageUse(app = 20_000_000, cache = 3_000_000, index = 1_000_000, embeddings = 5_000_000, trash = 42_000_000), embeddingCount = 3) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("App").assertExists()
+        compose.onNodeWithText(Formatter.formatShortFileSize(context, 20_000_000)).assertExists()
+        compose.onNodeWithText("Cache").assertExists()
+        compose.onNodeWithText(Formatter.formatShortFileSize(context, 3_000_000)).assertExists()
+        compose.onNodeWithText("Index database").assertExists()
+        compose.onNodeWithText(Formatter.formatShortFileSize(context, 1_000_000), substring = true).assertExists()
+        compose.onNodeWithText("Files in the trash").assertExists()
+        compose.onNodeWithText(Formatter.formatShortFileSize(context, 42_000_000)).assertExists()
+        compose.onNodeWithText("3 embeddings stored. Deleting them frees their space.").assertExists()
+        compose.onNodeWithText(Formatter.formatShortFileSize(context, 5_000_000), substring = true).assertExists()
+    }
+
+    @Test
+    fun `settings hides the app and cache lines when Android does not say`() {
+        compose.setContent { SettingsScreen(storage = StorageUse(app = null, cache = null, index = 1_000_000, embeddings = 0, trash = 0)) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("Index database").assertExists()
+        compose.onNodeWithText("App").assertDoesNotExist()
+        compose.onNodeWithText("Cache").assertDoesNotExist()
     }
 }
