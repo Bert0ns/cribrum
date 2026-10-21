@@ -159,9 +159,21 @@ val downloadMobileClip = tasks.register<DownloadModel>("downloadMobileClip") {
     outputDirectory.set(layout.buildDirectory.dir("generated/mobileclip"))
 }
 
+// PP-OCRv4 text detection, from the same revision and with the same SHA-256 as
+// lab/src/cribrum_lab/text.py. Packed in the APK as a resource, never committed.
+val downloadPpocr = tasks.register<DownloadModel>("downloadPpocr") {
+    files.put(
+        "ppocr/ch_PP-OCRv4_det_infer.onnx",
+        "https://huggingface.co/SWHL/RapidOCR/resolve/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx " +
+            "d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9",
+    )
+    outputDirectory.set(layout.buildDirectory.dir("generated/ppocr"))
+}
+
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(downloadMobileClip, DownloadModel::outputDirectory)
+        variant.sources.resources?.addGeneratedSourceDirectory(downloadPpocr, DownloadModel::outputDirectory)
         variant.sources.resources?.addGeneratedSourceDirectory(copyPromptEmbeddings, CopyFiles::outputDirectory)
         variant.sources.resources?.addGeneratedSourceDirectory(copyYuNet, CopyFiles::outputDirectory)
     }

@@ -177,7 +177,7 @@ class PipelineTest {
         assertEquals(
             setOf(
                 Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER,
-                Category.FORWARDED,
+                Category.DOCUMENT, Category.FORWARDED,
                 Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE, Category.BURST,
             ),
             DETECTOR_CATEGORIES,
