@@ -17,10 +17,13 @@ import io.github.bert0ns.cribrum.pipeline.ScanProgress
 
 /** The running scan with a progress bar, or a button that starts one. */
 @Composable
-fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier = Modifier) {
+fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier = Modifier, indexEmpty: Boolean = false) {
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
-            progress == null -> OutlinedButton(onClick = onScan) { Text(stringResource(R.string.scan_now)) }
+            progress == null -> {
+                if (indexEmpty) Text(stringResource(R.string.scan_empty))
+                OutlinedButton(onClick = onScan) { Text(stringResource(R.string.scan_now)) }
+            }
             progress.total == 0 -> {
                 Text(stringResource(R.string.scan_step_scan, progress.done))
                 LinearProgressIndicator(Modifier.fillMaxWidth())

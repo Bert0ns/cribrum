@@ -117,6 +117,8 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun embeddingCount(): Int = dao.embeddingCount()
 
+    suspend fun imageCount(): Int = dao.imageCount()
+
     /** Drops what these detectors stored for these images, signals included, so a run analyzes them again. */
     suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = db.withTransaction {
         paths.chunked(SQL_VARIABLES).forEach { dao.forgetAnalyses(it, detectorIds.toList()) }

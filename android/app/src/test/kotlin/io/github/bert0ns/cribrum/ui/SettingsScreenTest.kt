@@ -205,7 +205,7 @@ class SettingsScreenTest {
         compose.onNodeWithText("Delete embeddings").performClick()
 
         compose.onNodeWithText("Delete the embeddings?").assertIsDisplayed()
-        compose.onNodeWithText("The app stores one embedding per image to find duplicates, documents and forwarded images. They are computed again at the next scan. A scan starts when you open the app, so that can be soon, and a full one takes a while: about 15 to 20 minutes for 10,000 images. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
+        compose.onNodeWithText("The app stores one embedding per image to find duplicates, documents and forwarded images. They are computed again at the next scan, which you start with Scan now or which runs by itself at night while the phone charges. A full one takes a while: about 15 to 20 minutes for 10,000 images. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(0, deleted)
 
