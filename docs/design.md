@@ -229,3 +229,5 @@ Goal: prove that the detectors work on real data before writing the app.
 - **Desktop and iOS:** reachable through Kotlin Multiplatform / Compose Multiplatform.
 - **Learning from decisions:** adjust per-category thresholds from the user's keep/trash history.
 - **Recall level as a setting:** the user picks how many of the deletable images the candidates should catch, trading a longer review for fewer misses. The lab would export one set of thresholds per level instead of one.
+- **Compression instead of deletion:** for images the user wants to keep but that take a lot of space, offer to recompress them (a lower JPEG quality, or HEIC or AVIF) or downscale them. The original would go to the trash like any deletion, so a bad result can be undone, and EXIF metadata and the mtime would be kept.
+- **Profiling the app:** profile a full first scan and the review screens on a real phone (Android Studio profiler, Macrobenchmark) and fix the hot spots. §5 already records the per-image cost of MobileCLIP and text coverage. The first target is the total time of a first scan of 10,000 photos.
