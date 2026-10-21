@@ -158,6 +158,7 @@ fun CategoryScreen(
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onExcludeFolder: (ImageRef) -> Unit = {},
 ) {
+    val haptics = LocalHaptics.current
     var showSummary by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<ImageRef?>(null) }
     val images = page.flatMap { it.images }
@@ -189,7 +190,10 @@ fun CategoryScreen(
                         item.image,
                         item.image.path in marked,
                         if (item.isBest) stringResource(R.string.best_copy) else null,
-                        onTap = { onToggle(item.image) },
+                        onTap = {
+                            haptics(Haptic.TICK)
+                            onToggle(item.image)
+                        },
                         onHold = { fullSize = item.image },
                     )
                 }
@@ -201,7 +205,10 @@ fun CategoryScreen(
                 Button(onClick = { showSummary = true }, Modifier.weight(1f)) {
                     Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
                 }
-                OutlinedButton(onClick = { onSkip(page.map { it.id }.toSet()) }) { Text(stringResource(R.string.skip)) }
+                OutlinedButton(onClick = {
+                    haptics(Haptic.TICK)
+                    onSkip(page.map { it.id }.toSet())
+                }) { Text(stringResource(R.string.skip)) }
             }
         }
     }
@@ -214,6 +221,7 @@ fun CategoryScreen(
             confirmButton = {
                 TextButton({
                     showSummary = false
+                    haptics(if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH)
                     onApply()
                 }) { Text(stringResource(R.string.summary_confirm)) }
             },
@@ -223,6 +231,7 @@ fun CategoryScreen(
     fullSize?.let { image ->
         FullSize(image, onExcludeFolder = {
             fullSize = null
+            haptics(Haptic.KEEP)
             onExcludeFolder(image)
         }) { fullSize = null }
     }

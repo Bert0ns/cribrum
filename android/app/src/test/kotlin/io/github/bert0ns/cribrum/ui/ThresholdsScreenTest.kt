@@ -1,5 +1,6 @@
 package io.github.bert0ns.cribrum.ui
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
@@ -70,5 +71,23 @@ class ThresholdsScreenTest {
         compose.onNodeWithText("Reset to defaults").performClick()
 
         assertEquals(1, resets)
+    }
+
+    @Test
+    fun `each step of a slider gives a tick, and reset gives a confirm`() {
+        val given = mutableListOf<Haptic>()
+        compose.setContent {
+            CompositionLocalProvider(LocalHaptics provides { given += it }) {
+                ThresholdsScreen(THRESHOLDS, emptyMap(), emptyMap(), { _, _ -> }, {})
+            }
+        }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasContentDescription("Blurry"))
+        compose.onNodeWithContentDescription("Blurry").performSemanticsAction(SemanticsActions.SetProgress) { it(0.75f) }
+        assertEquals(listOf(Haptic.TICK), given)
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Reset to defaults"))
+        compose.onNodeWithText("Reset to defaults").performClick()
+        assertEquals(listOf(Haptic.TICK, Haptic.KEEP), given)
     }
 }

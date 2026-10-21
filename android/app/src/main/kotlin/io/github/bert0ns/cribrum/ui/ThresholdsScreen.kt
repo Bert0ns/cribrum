@@ -39,6 +39,7 @@ fun ThresholdsScreen(
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptics = LocalHaptics.current
     LazyColumn(modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(16.dp)) {
@@ -63,7 +64,11 @@ fun ThresholdsScreen(
                     Column {
                         Slider(
                             value = shown,
-                            onValueChange = { shown = (it * 20).roundToInt() / 20f },
+                            onValueChange = {
+                                val step = (it * 20).roundToInt() / 20f
+                                if (step != shown) haptics(Haptic.TICK)
+                                shown = step
+                            },
                             onValueChangeFinished = { onChange(category, shown) },
                             valueRange = Thresholds.RANGE,
                             steps = 18,
@@ -79,7 +84,10 @@ fun ThresholdsScreen(
             )
         }
         item {
-            OutlinedButton(onReset, Modifier.fillMaxWidth().padding(16.dp)) { Text(stringResource(R.string.thresholds_reset)) }
+            OutlinedButton({
+                haptics(Haptic.KEEP)
+                onReset()
+            }, Modifier.fillMaxWidth().padding(16.dp)) { Text(stringResource(R.string.thresholds_reset)) }
         }
     }
 }
