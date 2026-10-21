@@ -32,6 +32,24 @@ Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` o
 
 They come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
 
+## Commits and pull requests
+
+Every commit subject and every PR title uses `type(scope): subject`. The `commit-format` CI job checks them.
+
+- Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`. Add `!` before the colon for a breaking change.
+- Scopes: `android`, `lab`, `site`, `skills`. Leave the scope out when a change spans the repo.
+- Subject: imperative, lowercase after the colon, no trailing period, at most 72 characters for the whole line. Example: `feat(android): add the DOCUMENT detector`.
+- The body follows `unslop` (plain words, no em dashes) and explains why. `unslop` asks for sentence case in headings, but the lowercase subject wins for commit subjects and PR titles.
+- The check skips `Merge pull request #N from ...`, `Merge branch ...` and `Merge remote-tracking branch ...` commits, and the `Revert "..."` commits and PR titles that GitHub's Revert button writes.
+
+The person merging picks the merge method by size:
+
+- Small change: squash merge. The PR title becomes the commit.
+- Medium change, with commits that each make sense alone: rebase merge.
+- Large change: merge commit.
+
+Rebase and merge keep every commit, so every commit in a PR must follow the format, not only the title. Fix review findings with a new conventional commit (`fix(android): ...`), or squash the fix into the commit it fixes before the PR is merged.
+
 ## Layout
 
 - `lab/`: Python 3.12+, `src/` layout, tests under `lab/tests/` (pytest).
