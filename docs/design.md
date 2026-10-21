@@ -199,6 +199,7 @@ interface ModelRuntime                   // ONNX Runtime behind one interface
 The bottleneck of a recall-first design is review speed, so this screen is the heart of the app.
 
 - The home screen lists every category in fixed order (`Category.entries`). A category without an Android detector yet shows a short "coming soon" line, an empty one shows 0 images to review, and tapping either opens nothing.
+- Each category with candidates also says how much space they can free, summed from the `size` of its candidates ("128 images to review · can free 412 MB"). The best copy of a duplicate or burst group is not a candidate, so it is not counted. An image can be a candidate in two categories (a blurry screenshot), so the figures overlap and are never added into a total. The space is freed only when the trash is emptied, hence "can free". The order stays fixed.
 - Candidates are grouped by category, and each group is sorted by confidence.
 - A sticker is listed under `STICKER` only, whatever else flags it. Stickers were 62% of the images on the first phone and took most of the blurry, document, near-duplicate and forwarded candidates, which hid the photos there. It stays a candidate and keeps its place in the review order: only the grouping changes.
 - In grids, likely-deletable images are **preselected**. One tap keeps an image.
