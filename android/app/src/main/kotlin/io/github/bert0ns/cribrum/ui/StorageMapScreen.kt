@@ -143,16 +143,17 @@ fun StorageMapScreen(
                             detectTapGestures(
                                 onTap = { offset ->
                                     val hit = topLevelBlockAt(blocks, offset.x.toDouble(), offset.y.toDouble())
-                                    if (hit != null && hit == selectedBlock && !hit.isDirectFiles && hit.folder != currentFolder) {
+                                    if (hit != null && hit.isSameBlockAs(selectedBlock) && !hit.isDirectFiles && hit.folder != currentFolder) {
                                         onZoomIn(hit.folder)
                                     } else {
-                                        selectedBlock = if (selectedBlock == hit) null else hit
+                                        selectedBlock = if (hit?.isSameBlockAs(selectedBlock) == true) null else hit
                                     }
                                 },
                             )
                         },
                 ) {
-                    val selected = selectedBlock
+                    // The selection keeps the old pixel rect when the map is laid out again.
+                    val selected = blocks.firstOrNull { it.depth == 0 && it.isSameBlockAs(selectedBlock) }
                     for (block in blocks) {
                         val rect = block.rect
                         val r = CornerRadius(4.dp.toPx(), 4.dp.toPx())

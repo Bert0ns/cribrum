@@ -241,6 +241,18 @@ class StorageMapTest {
     }
 
     @Test
+    fun `a block is the same block after the map is laid out in other bounds`() {
+        val tree = buildFolderTree(listOf(ref("/A/x.jpg", 9000L), ref("/B/y.jpg", 1000L)))
+        val before = layoutTreemap(tree, bounds, gap = 1.0, minSize = 2.0)
+        val after = layoutTreemap(tree, MapRect(0.0, 0.0, 100.0, 80.0), gap = 1.0, minSize = 2.0)
+        val a = before.first { it.folder.name == "A" }
+        assertTrue(a.rect != after.first { it.folder.name == "A" }.rect)
+        assertTrue(after.first { it.folder.name == "A" }.isSameBlockAs(a))
+        assertFalse(after.first { it.folder.name == "B" }.isSameBlockAs(a))
+        assertFalse(a.isSameBlockAs(null))
+    }
+
+    @Test
     fun `trail hue of the root is the root hue`() {
         val tree = buildFolderTree(listOf(ref("/A/x.jpg", 1L), ref("/B/y.jpg", 1L)))
         assertEquals(ROOT_HUE, trailHue(listOf(tree)), 0.001f)

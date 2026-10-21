@@ -204,6 +204,10 @@ data class TreemapBlock(
     val hue: Float,
 )
 
+/** True when both blocks show the same folder (or its direct files), wherever they sit on screen. */
+fun TreemapBlock.isSameBlockAs(other: TreemapBlock?): Boolean =
+    other != null && folder.path == other.folder.path && isDirectFiles == other.isDirectFiles
+
 /** Hue in degrees of the map root. */
 const val ROOT_HUE = 210f
 
