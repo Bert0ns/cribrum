@@ -38,7 +38,7 @@ data class ReviewItem(
 
 data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true)
 
-/** The groups shown now, and how many candidates the category has left in all, these included. */
+/** The groups shown now, and how many candidates the category has left in all, these included and the skipped ones not. */
 data class Page(val groups: List<ReviewGroup>, val remaining: Int)
 
 /** What applying a page did, so it can be undone. */
@@ -58,11 +58,15 @@ class Review(
         }
     }
 
-    /** The first page of a category: groups in the ranker's order, never split across pages. */
-    suspend fun page(category: Category): Page {
+    /**
+     * The first page of a category: groups in the ranker's order, never split across pages. Groups
+     * whose id is in [skipped] are left out, and they are not counted in the remaining candidates.
+     */
+    suspend fun page(category: Category, skipped: Set<String> = emptySet()): Page {
         val images = index.indexedImages()
         val candidates = Ranker.byCategory(ranker.rank(images))[category].orEmpty()
-        val groups = if (category in GROUP_CATEGORIES) groups(category, candidates, images) else singles(category, candidates)
+        val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images) else singles(category, candidates))
+            .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()
         var size = 0
         for (group in groups) {
@@ -70,7 +74,8 @@ class Review(
             page += group
             size += group.images.size
         }
-        return Page(page, candidates.size)
+        val skippedCandidates = hidden.sumOf { group -> group.images.count { it.suggestTrash } }
+        return Page(page, candidates.size - skippedCandidates)
     }
 
     /**

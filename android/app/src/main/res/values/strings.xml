@@ -34,8 +34,10 @@
     <string name="back">Back</string>
     <string name="trash">Trash</string>
     <string name="review_hint">Marked images go to the trash. Tap one to keep it, hold it to see it full size.</string>
+    <string name="review_done">No more images to review. Skipped ones come back when you open this category again.</string>
     <string name="best_copy">Best</string>
     <string name="apply">Trash %1$d, keep %2$d</string>
+    <string name="skip">Skip</string>
     <plurals name="summary_title">
         <item quantity="one">Move %d image to the trash?</item>
         <item quantity="other">Move %d images to the trash?</item>

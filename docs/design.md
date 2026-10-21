@@ -194,6 +194,7 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 - Candidates are grouped by category, and each group is sorted by confidence.
 - A sticker is listed under `STICKER` only, whatever else flags it. Stickers were 62% of the images on the first phone and took most of the blurry, document, near-duplicate and forwarded candidates, which hid the photos there. It stays a candidate and keeps its place in the review order: only the grouping changes.
 - In grids, likely-deletable images are **preselected**. One tap keeps an image.
+- A "Skip" button, to the right of the trash button, leaves the current page for later. It decides nothing: the images stay `UNREVIEWED`, and nothing is stored. They are left out of the next pages while the category stays open, and show up again the next time it is opened.
 - Duplicate and burst groups have a "keep best, trash the rest" action, with side-by-side comparison.
 - Quick gestures and no unnecessary confirmations, except a final summary before trashing.
 - "Never suggest this again" works per image and per folder.

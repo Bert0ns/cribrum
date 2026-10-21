@@ -93,6 +93,30 @@ class ReviewTest {
     }
 
     @Test
+    fun `skipped groups leave the page and the count without changing their review state`() = test {
+        val first = image("a.jpg", blurry(0.9f))
+        val second = image("b.jpg", blurry(0.8f))
+
+        val page = page(Category.BLURRY, skipped = setOf(first.path))
+
+        assertEquals(listOf(second), page.groups.flatMap { g -> g.images.map { it.image } })
+        assertEquals(1, page.remaining)
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(first.path))
+        assertEquals(2, page(Category.BLURRY).remaining)
+    }
+
+    @Test
+    fun `skipping a duplicate group leaves out its best copy too`() = test {
+        image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+
+        val page = page(Category.EXACT_DUPLICATE, skipped = setOf("g"))
+
+        assertEquals(emptyList<ReviewGroup>(), page.groups)
+        assertEquals(0, page.remaining)
+    }
+
+    @Test
     fun `a duplicate group shows its best copy first, kept, next to the copies to trash`() = test {
         val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
         val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
