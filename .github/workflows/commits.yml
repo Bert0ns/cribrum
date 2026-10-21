@@ -1,0 +1,37 @@
+name: commits
+
+# No path filter and no branch filter: this job can be a required check.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  commit-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check the PR title and every commit subject
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          format='^(feat|fix|docs|test|refactor|perf|build|ci|chore)(\((android|lab|site|skills)\))?!?: [a-z](.*[^.])?$'
+          skip='^Merge (pull request #[0-9]+ from |branch )'
+          bad=0
+          check() {
+            if ! grep -Eq "$format" <<<"$2" || [ "${#2}" -gt 72 ]; then
+              echo "::error::$1 does not follow 'type(scope): subject' (lowercase, no final period, at most 72 characters): $2"
+              bad=1
+            fi
+          }
+          check "PR title" "$TITLE"
+          while IFS= read -r subject; do
+            grep -Eq "$skip" <<<"$subject" || check "Commit" "$subject"
+          done < <(git log --format=%s "$BASE..$HEAD")
+          exit "$bad"
