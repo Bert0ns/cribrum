@@ -54,7 +54,7 @@ class ReviewViewModelTest {
         model.open(Category.BLURRY)
         settle(model) { paths(it).size == PAGE_SIZE }
 
-        model.skip()
+        model.skip(shownIds(model))
         settle(model) { paths(it) == listOf("/sdcard/b.jpg") }
 
         assertEquals(1, model.state.value.remaining)
@@ -70,4 +70,41 @@ class ReviewViewModelTest {
         settle(model) { paths(it).size == PAGE_SIZE }
         assertEquals(PAGE_SIZE + 1, model.state.value.remaining)
     }
+
+    @Test
+    fun `a second skip of the page already skipped does not skip the next one unseen`() {
+        repeat(PAGE_SIZE) { blurry("/sdcard/a$it.jpg", 0.9f) }
+        blurry("/sdcard/b.jpg", 0.5f)
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        val shown = shownIds(model)
+
+        model.skip(shown)
+        model.skip(shown)
+        settle(model) { paths(it) == listOf("/sdcard/b.jpg") }
+
+        assertEquals(1, model.state.value.remaining)
+    }
+
+    @Test
+    fun `applying or undoing after a skip keeps the skipped images out`() {
+        repeat(PAGE_SIZE) { blurry("/sdcard/a$it.jpg", 0.9f) }
+        blurry("/sdcard/b.jpg", 0.5f)
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        model.skip(shownIds(model))
+        settle(model) { paths(it) == listOf("/sdcard/b.jpg") }
+
+        // The file is not on disk, so nothing moves, but the page is rebuilt and the decision can be undone.
+        model.applyPage()
+        settle(model) { it.state.value.lastDecision != null }
+        assertEquals(listOf("/sdcard/b.jpg"), paths(model))
+        model.undo()
+        settle(model) { it.state.value.lastDecision == null }
+        assertEquals(listOf("/sdcard/b.jpg"), paths(model))
+    }
+
+    private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()
 }

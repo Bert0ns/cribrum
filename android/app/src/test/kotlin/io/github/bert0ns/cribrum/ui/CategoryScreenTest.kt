@@ -100,10 +100,10 @@ class CategoryScreenTest {
 
     @Test
     fun `skip sits right of the trash button and skips without a summary`() {
-        var skipped = 0
+        var skipped = emptySet<String>()
         var applied = 0
         compose.setContent {
-            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, onSkip = { skipped++ })
+            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, onSkip = { skipped = it })
         }
 
         val trash = compose.onNodeWithText("Trash 3, keep 0").fetchSemanticsNode().boundsInRoot
@@ -111,9 +111,17 @@ class CategoryScreenTest {
         assertTrue("$skip right of $trash", skip.left >= trash.right)
         compose.onNodeWithText("Skip").performClick()
 
-        assertEquals(1, skipped)
+        assertEquals(images.map { it.path }.toSet(), skipped)
         assertEquals(0, applied)
         compose.onNodeWithText("Move 3 images to the trash?").assertDoesNotExist()
+    }
+
+    @Test
+    fun `an empty page says there is nothing more and offers no buttons`() {
+        compose.setContent { CategoryScreen(emptyList(), 0, emptySet(), false, {}, {}, {}) }
+
+        compose.onNodeWithText("No more images to review. Skipped ones come back when you open this category again.").assertExists()
+        compose.onNodeWithText("Skip").assertDoesNotExist()
     }
 
     @Test

@@ -8,6 +8,7 @@ import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.Decision
+import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.trash.TrashedImage
@@ -56,8 +57,7 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     fun refresh() = load { it.copy(categories = review.categories()) }
 
     fun open(category: Category) = load {
-        val page = review.page(category)
-        it.copy(screen = Screen.Category(category), page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null, skipped = emptySet())
+        it.copy(screen = Screen.Category(category), lastDecision = null, skipped = emptySet()).showing(review.page(category))
     }
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
@@ -93,24 +93,21 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val images = state.page.flatMap { group -> group.images.map { it.image } }
         val decision = review.apply(images.filter { it.path in state.marked }, images.filter { it.path !in state.marked })
-        val page = review.page(category, state.skipped)
-        state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = decision)
+        state.showing(review.page(category, state.skipped)).copy(lastDecision = decision)
     }
 
-    /** Leaves the page for later without deciding anything: its images stay unreviewed. */
-    fun skip() = load { state ->
+    /** Leaves the groups [ids] for later without deciding anything: their images stay unreviewed. */
+    fun skip(ids: Set<String>) = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
-        val skipped = state.skipped + state.page.map { it.id }
-        val page = review.page(category, skipped)
-        state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null, skipped = skipped)
+        val skipped = state.skipped + ids
+        state.showing(review.page(category, skipped)).copy(lastDecision = null, skipped = skipped)
     }
 
     fun undo() = load { state ->
         val decision = state.lastDecision ?: return@load state
         review.undo(decision)
         val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null)
-        val page = review.page(category, state.skipped)
-        state.copy(page = page.groups, remaining = page.remaining, marked = marked(page.groups), lastDecision = null)
+        state.showing(review.page(category, state.skipped)).copy(lastDecision = null)
     }
 
     fun dismissUndo() = mutableState.update { it.copy(lastDecision = null) }
@@ -135,8 +132,11 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
         state.copy(trashed = review.trashed(), selected = emptySet())
     }
 
-    private fun marked(page: List<ReviewGroup>) =
-        page.flatMap { it.images }.filter { it.suggestTrash }.map { it.image.path }.toSet()
+    private fun ReviewState.showing(page: Page) = copy(
+        page = page.groups,
+        remaining = page.remaining,
+        marked = page.groups.flatMap { it.images }.filter { it.suggestTrash }.map { it.image.path }.toSet(),
+    )
 
     /** One change at a time: the index and the trash see decisions in the order they were made. */
     private fun load(change: suspend (ReviewState) -> ReviewState) {

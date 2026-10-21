@@ -150,7 +150,8 @@ fun CategoryScreen(
     grouped: Boolean,
     onToggle: (ImageRef) -> Unit,
     onApply: () -> Unit,
-    onSkip: () -> Unit,
+    /** Gets the ids of the groups on screen, so a skip is of what the user saw. */
+    onSkip: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     /** Shown right above the button, which a snackbar at the bottom of the screen would cover. */
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
@@ -167,7 +168,7 @@ fun CategoryScreen(
                 val position = if (remaining > shown) R.plurals.page_more else R.plurals.page_last
                 Text(pluralStringResource(position, remaining, shown, remaining), style = MaterialTheme.typography.titleSmall)
             }
-            Text(stringResource(R.string.review_hint), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(if (images.isEmpty()) R.string.review_done else R.string.review_hint), style = MaterialTheme.typography.bodySmall)
         }
         LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f)) {
             for (group in page) {
@@ -189,7 +190,7 @@ fun CategoryScreen(
                 Button(onClick = { showSummary = true }, Modifier.weight(1f)) {
                     Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
                 }
-                OutlinedButton(onClick = onSkip) { Text(stringResource(R.string.skip)) }
+                OutlinedButton(onClick = { onSkip(page.map { it.id }.toSet()) }) { Text(stringResource(R.string.skip)) }
             }
         }
     }
