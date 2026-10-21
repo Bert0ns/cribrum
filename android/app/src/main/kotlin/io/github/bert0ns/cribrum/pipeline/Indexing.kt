@@ -39,7 +39,11 @@ import java.util.concurrent.TimeUnit
 
 object Indexing {
     const val WORK = "index"
-    private const val PERIODIC_WORK = "index-daily"
+
+    /** On every scan request, so the progress covers the nightly one too. */
+    const val TAG = "index-scan"
+    private const val NIGHTLY_WORK = "index-nightly"
+    private const val LEGACY_DAILY_WORK = "index-daily"
     const val STEP = "step"
     const val DONE = "done"
     const val TOTAL = "total"
@@ -47,15 +51,18 @@ object Indexing {
 
     /** Starts a scan now, unless one is running. */
     fun scanNow(context: Context) {
-        WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<IndexWorker>().build())
+        WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<IndexWorker>().addTag(TAG).build())
     }
 
     /**
      * Later passes only process new or changed files, so a daily one while charging is cheap.
-     * UPDATE rather than KEEP, so an install that has the old request without the delay gets the new one.
+     * KEEP, so the delay to the night is computed once: UPDATE would measure a new delay from the
+     * original enqueue time. The first request had no delay and a name of its own, which is cancelled.
      */
-    fun schedulePeriodic(context: Context) {
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.UPDATE, dailyRequest())
+    fun schedulePeriodic(context: Context, now: ZonedDateTime = ZonedDateTime.now()) {
+        val manager = WorkManager.getInstance(context)
+        manager.cancelUniqueWork(LEGACY_DAILY_WORK)
+        manager.enqueueUniquePeriodicWork(NIGHTLY_WORK, ExistingPeriodicWorkPolicy.KEEP, dailyRequest(now))
     }
 
     /**
@@ -70,11 +77,12 @@ object Indexing {
         return PeriodicWorkRequestBuilder<IndexWorker>(1, TimeUnit.DAYS)
             .setConstraints(constraints)
             .setInitialDelay(Duration.between(now, next))
+            .addTag(TAG)
             .build()
     }
 
-    /** The running scan's progress, or null when none runs. */
-    fun progress(context: Context): Flow<ScanProgress?> = WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(WORK).map { infos ->
+    /** The running scan's progress, from "Scan now" or the nightly request, or null when none runs. */
+    fun progress(context: Context): Flow<ScanProgress?> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
         infos.firstOrNull { it.state == WorkInfo.State.RUNNING }?.progress?.let {
             ScanProgress(it.getString(STEP).orEmpty(), it.getInt(DONE, 0), it.getInt(TOTAL, 0))
         }
