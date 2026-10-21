@@ -5,6 +5,7 @@ import io.github.bert0ns.cribrum.detectors.BlurDetector
 import io.github.bert0ns.cribrum.detectors.BurstDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
+import io.github.bert0ns.cribrum.detectors.FaceDetector
 import io.github.bert0ns.cribrum.detectors.NearDuplicateDetector
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -17,7 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
-/** BLURRY, BAD_EXPOSURE, perceptual hashes, NEAR_DUPLICATE and BURST against golden fixtures. */
+/** BLURRY, BAD_EXPOSURE, FACES, perceptual hashes, NEAR_DUPLICATE and BURST against golden fixtures. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class GoldenPixelTest {
@@ -38,6 +39,9 @@ class GoldenPixelTest {
 
     @Test
     fun `exposure scores and cases match`() = check(ExposureDetector(), sameCase = true)
+
+    @Test
+    fun `faces scores match`() = check(FaceDetector())
 
     @Test
     fun `perceptual hashes match exactly`() {

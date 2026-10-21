@@ -112,25 +112,35 @@ abstract class DownloadModel : DefaultTask() {
     }
 }
 
-abstract class CopyPromptEmbeddings : DefaultTask() {
-    @get:InputFile
-    abstract val inputFile: RegularFileProperty
+abstract class CopyFiles : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    abstract val inputFiles: ConfigurableFileCollection
 
     @get:OutputDirectory
     abstract val outputDirectory: DirectoryProperty
 
     @TaskAction
     fun copy() {
-        val target = outputDirectory.file("prompt_embeddings.json").get().asFile
-        target.parentFile.mkdirs()
-        inputFile.get().asFile.copyTo(target, overwrite = true)
+        outputDirectory.get().asFile.run { deleteRecursively(); mkdirs() } // a renamed input must not leave its old copy in the APK
+        for (file in inputFiles) file.copyTo(outputDirectory.file(file.name).get().asFile, overwrite = true)
     }
 }
 
 // Ships prompt embeddings generated in the lab, without committing them here.
-val copyPromptEmbeddings = tasks.register<CopyPromptEmbeddings>("copyPromptEmbeddings") {
-    inputFile.set(rootProject.file("../lab/src/cribrum_lab/prompt_embeddings.json"))
+val copyPromptEmbeddings = tasks.register<CopyFiles>("copyPromptEmbeddings") {
+    inputFiles.from(rootProject.file("../lab/src/cribrum_lab/prompt_embeddings.json"))
     outputDirectory.set(layout.buildDirectory.dir("generated/prompts"))
+}
+
+// The YuNet face detector with its license, which the lab already commits (230 KB): the app runs
+// the same file.
+val copyYuNet = tasks.register<CopyFiles>("copyYuNet") {
+    inputFiles.from(
+        rootProject.file("../lab/src/cribrum_lab/assets/face_detection_yunet_2023mar.onnx"),
+        rootProject.file("../lab/src/cribrum_lab/assets/LICENSE.yunet"),
+    )
+    outputDirectory.set(layout.buildDirectory.dir("generated/yunet"))
 }
 
 // The MobileCLIP2-S0 image encoder, from the same revision and with the same SHA-256 as
@@ -152,7 +162,8 @@ val downloadMobileClip = tasks.register<DownloadModel>("downloadMobileClip") {
 androidComponents {
     onVariants { variant ->
         variant.sources.assets?.addGeneratedSourceDirectory(downloadMobileClip, DownloadModel::outputDirectory)
-        variant.sources.resources?.addGeneratedSourceDirectory(copyPromptEmbeddings, CopyPromptEmbeddings::outputDirectory)
+        variant.sources.resources?.addGeneratedSourceDirectory(copyPromptEmbeddings, CopyFiles::outputDirectory)
+        variant.sources.resources?.addGeneratedSourceDirectory(copyYuNet, CopyFiles::outputDirectory)
     }
 }
 

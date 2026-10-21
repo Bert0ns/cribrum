@@ -10,6 +10,7 @@ import io.github.bert0ns.cribrum.index.memoryIndex
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Kind
+import io.github.bert0ns.cribrum.model.Protection
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
@@ -66,7 +67,7 @@ class PipelineTest {
         val screenshot = File(root, "Pictures/Screenshots/Screenshot_1.png").path
         assertEquals(64, runBlocking { index.metadata(screenshot) }!!.width)
         assertNotNull(runBlocking { index.perceptualHash(screenshot) })
-        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.STICKER), kinds("Pictures/Screenshots/Screenshot_1.png"))
+        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), kinds("Pictures/Screenshots/Screenshot_1.png"))
         assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 
