@@ -24,7 +24,7 @@ The deterministic checks must pass before a PR is ready, and a red check means i
 - `android/`: `./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug`, and `./gradlew ktlintFormat` fixes the formatting
 - `python3 lab/scripts/check_parity.py` checks that lab and android agree on detector ids, versions and thresholds. When you change one side, change the other, and bump the detector version if its output changes.
 
-CI runs `lab`, `android` and `parity` on every PR, and `main` requires them to pass.
+CI runs `lab`, `android`, `parity` and `commit-format` on every PR, and `main` is meant to require them to pass (branch protection).
 
 ## Skills
 
