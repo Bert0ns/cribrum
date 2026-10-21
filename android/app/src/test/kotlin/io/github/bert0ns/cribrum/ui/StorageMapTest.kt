@@ -234,6 +234,12 @@ class StorageMapTest {
         assertTrue(small.hue != big.hue)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `a trail with a folder that is not a child of the previous one fails`() {
+        val tree = buildFolderTree(listOf(ref("/A/x.jpg", 1L), ref("/B/y.jpg", 1L)))
+        trailHue(listOf(tree, Folder(name = "Z", path = "/Z", size = 1L, imageCount = 1)))
+    }
+
     @Test
     fun `trail hue of the root is the root hue`() {
         val tree = buildFolderTree(listOf(ref("/A/x.jpg", 1L), ref("/B/y.jpg", 1L)))

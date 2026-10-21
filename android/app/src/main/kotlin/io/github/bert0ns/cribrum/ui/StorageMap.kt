@@ -207,17 +207,21 @@ data class TreemapBlock(
 /** Hue in degrees of the map root. */
 const val ROOT_HUE = 210f
 
+private const val GOLDEN_ANGLE = 137.5f
+
 /**
  * Hue of the child at [rank] among its siblings, ordered by size. The largest child keeps the
  * hue of its parent, so a folder keeps its color when the map zooms into it. The others are
  * spread around it by the golden angle.
  */
-fun childHue(parentHue: Float, rank: Int): Float = ((parentHue + rank * 137.5f) % 360f + 360f) % 360f
+fun childHue(parentHue: Float, rank: Int): Float = ((parentHue + rank * GOLDEN_ANGLE) % 360f + 360f) % 360f
 
 /** Hue of the last folder of a zoom [trail] that starts at the map root. */
 fun trailHue(trail: List<Folder>): Float =
     trail.zipWithNext().fold(ROOT_HUE) { hue, (parent, child) ->
-        childHue(hue, parent.children.indexOfFirst { it.path == child.path })
+        val rank = parent.children.indexOfFirst { it.path == child.path }
+        require(rank >= 0) { "${child.path} is not a child of ${parent.path}" }
+        childHue(hue, rank)
     }
 
 /** One rectangle to place: a subfolder, or the images that sit directly in [folder]. */
