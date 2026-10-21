@@ -15,11 +15,12 @@ interface ModelRuntime {
     fun run(inputs: Map<String, Tensor>): Map<String, Tensor>
 }
 
-/** ONNX Runtime on the CPU, on every core. */
-class OnnxRuntime(model: ByteArray) : ModelRuntime {
+/** ONNX Runtime on the CPU, on every core unless [threads] says otherwise. */
+class OnnxRuntime(model: ByteArray, threads: Int? = null) : ModelRuntime {
     private val environment = OrtEnvironment.getEnvironment()
     private val session = OrtSession.SessionOptions().use { options ->
         options.setSessionLogLevel(OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR) // warnings about unused initializers are noise
+        threads?.let(options::setIntraOpNumThreads)
         environment.createSession(model, options)
     }
 

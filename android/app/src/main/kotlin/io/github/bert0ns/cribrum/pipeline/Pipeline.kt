@@ -9,6 +9,7 @@ import io.github.bert0ns.cribrum.detectors.BurstDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.ExactDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ExposureDetector
+import io.github.bert0ns.cribrum.detectors.FaceDetector
 import io.github.bert0ns.cribrum.detectors.ForwardedDetector
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
@@ -41,8 +42,9 @@ val DETECTORS: List<Detector> = listOf(
     BlurDetector(),
     ExposureDetector(),
     ScreenshotDetector(),
-    StickerDetector(),
     ForwardedDetector(),
+    FaceDetector(),
+    StickerDetector(),
 )
 val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector(), NearDuplicateDetector(), BurstDetector())
 val DETECTOR_CATEGORIES: Set<Category> =
