@@ -1,6 +1,7 @@
 package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -182,6 +183,65 @@ class CategoryScreenTest {
         assertTrue("$message over $button", message.bottom <= button.top)
         compose.onNodeWithText("Trash 3, keep 0").performClick()
         compose.onNodeWithText("Move 3 images to the trash?").assertExists()
+    }
+
+    private fun haptics(page: List<ReviewGroup>, marked: Set<String>, act: () -> Unit): List<Haptic> {
+        val given = mutableListOf<Haptic>()
+        compose.setContent {
+            CompositionLocalProvider(LocalHaptics provides { given += it }) {
+                var now by remember { mutableStateOf(marked) }
+                CategoryScreen(page, 3, now, false, { image ->
+                    now = if (image.path in now) now - image.path else now + image.path
+                }, {}, {}, onExcludeFolder = {})
+            }
+        }
+        act()
+        return given
+    }
+
+    @Test
+    fun `selecting and unselecting an image gives a tick, and nothing else`() {
+        val given = haptics(page, emptySet()) {
+            compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
+            compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
+        }
+
+        assertEquals(listOf(Haptic.TICK, Haptic.TICK), given)
+    }
+
+    @Test
+    fun `skipping gives a tick`() {
+        assertEquals(listOf(Haptic.TICK), haptics(page, emptySet()) { compose.onNodeWithText("Skip").performClick() })
+    }
+
+    @Test
+    fun `opening the summary gives nothing, and trashing is a strong pulse`() {
+        val given = haptics(page, images.map { it.path }.toSet()) {
+            compose.onNodeWithText("Trash 3, keep 0").performClick()
+            compose.onNodeWithText("Move to trash").performClick()
+        }
+
+        assertEquals(listOf(Haptic.TRASH), given)
+    }
+
+    @Test
+    fun `confirming a page with nothing to trash is a lighter confirm`() {
+        val given = haptics(page, emptySet()) {
+            compose.onNodeWithText("Trash 0, keep 3").performClick()
+            compose.onNodeWithText("Move to trash").performClick()
+        }
+
+        assertEquals(listOf(Haptic.KEEP), given)
+    }
+
+    @Test
+    fun `excluding a folder is a lighter confirm`() {
+        val given = haptics(page, emptySet()) {
+            compose.onAllNodesWithContentDescription("img2.jpg")[0].performTouchInput { longClick() }
+            compose.onNodeWithText("Never suggest this folder or its subfolders").performClick()
+        }
+
+        assertEquals(listOf(Haptic.KEEP), given)
     }
 
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)

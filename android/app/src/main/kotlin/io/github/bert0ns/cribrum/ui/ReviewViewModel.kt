@@ -56,6 +56,7 @@ data class ReviewState(
     val storageMap: List<Folder> = emptyList(),
     val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     val pendingRetention: RetentionChange? = null,
+    val hapticsEnabled: Boolean = true,
     /** Folders the user asked never to be suggested again, shown in settings. */
     val excludedFolders: List<String> = emptyList(),
     /** Embeddings stored in the index, shown in settings. */
@@ -79,7 +80,9 @@ class ReviewViewModel @JvmOverloads constructor(
 
     init {
         // The first read of the preferences can block, so it stays off the main thread.
-        load { it.copy(retentionDays = withContext(Dispatchers.IO) { app.trashRetention.days }) }
+        load {
+            withContext(Dispatchers.IO) { it.copy(retentionDays = app.trashRetention.days, hapticsEnabled = app.haptics.enabled) }
+        }
     }
 
     fun refresh() = load { it.copy(categories = review.categories()) }
@@ -126,6 +129,11 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     fun confirmRetention() = load { state -> state.pendingRetention?.let { state.withRetention(it.days) } ?: state }
+
+    fun setHaptics(enabled: Boolean) = load {
+        app.haptics.enabled = enabled
+        it.copy(hapticsEnabled = enabled)
+    }
 
     fun cancelRetention() = mutableState.update { it.copy(pendingRetention = null) }
 

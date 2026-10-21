@@ -301,4 +301,18 @@ class ReviewViewModelTest {
         assertEquals(listOf("/sdcard/a.jpg"), paths(model))
         runBlocking { assertEquals(1, app.index.signals("/sdcard/a.jpg").size) }
     }
+
+    @Test
+    fun `haptic feedback is on until the user turns it off, and the choice is kept`() {
+        val model = ReviewViewModel(app)
+        settle(model) { true }
+        assertEquals(true, model.state.value.hapticsEnabled)
+
+        model.setHaptics(false)
+        settle(model) { !it.state.value.hapticsEnabled }
+
+        val next = ReviewViewModel(app)
+        settle(next) { true }
+        assertEquals(false, next.state.value.hapticsEnabled)
+    }
 }

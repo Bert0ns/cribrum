@@ -29,6 +29,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,8 @@ import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
 import io.github.bert0ns.cribrum.ui.Folder
+import io.github.bert0ns.cribrum.ui.Haptic
+import io.github.bert0ns.cribrum.ui.LocalHaptics
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.ScanStatus
 import io.github.bert0ns.cribrum.ui.Screen
@@ -55,6 +58,7 @@ import io.github.bert0ns.cribrum.ui.ThresholdsScreen
 import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
+import io.github.bert0ns.cribrum.ui.rememberHaptics
 import io.github.bert0ns.cribrum.ui.trailHue
 import java.io.File
 
@@ -84,10 +88,17 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(model: ReviewViewModel = viewModel()) {
+    val state by model.state.collectAsStateWithLifecycle()
+    CompositionLocalProvider(LocalHaptics provides rememberHaptics(state.hapticsEnabled)) { AppContent(model) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppContent(model: ReviewViewModel) {
     val context = LocalContext.current
+    val haptics = LocalHaptics.current
     val state by model.state.collectAsStateWithLifecycle()
     val progress by remember { Indexing.progress(context) }.collectAsStateWithLifecycle(null)
     val snackbar = remember { SnackbarHostState() }
@@ -118,14 +129,24 @@ fun App(model: ReviewViewModel = viewModel()) {
     LaunchedEffect(decision) {
         if (decision == null || trashedMessage == null) return@LaunchedEffect
         val result = snackbar.showSnackbar(trashedMessage, undo, withDismissAction = true, duration = SnackbarDuration.Long)
-        if (result == SnackbarResult.ActionPerformed) model.undo() else model.dismissUndo()
+        if (result == SnackbarResult.ActionPerformed) {
+            haptics(Haptic.TICK)
+            model.undo()
+        } else {
+            model.dismissUndo()
+        }
     }
     val exclusion = state.lastExclusion
     val excludedMessage = exclusion?.let { stringResource(R.string.excluded_folder_snackbar, File(it).name) }
     LaunchedEffect(exclusion) {
         if (exclusion == null || excludedMessage == null) return@LaunchedEffect
         val result = snackbar.showSnackbar(excludedMessage, undo, withDismissAction = true, duration = SnackbarDuration.Long)
-        if (result == SnackbarResult.ActionPerformed) model.undoExclusion() else model.dismissExclusion()
+        if (result == SnackbarResult.ActionPerformed) {
+            haptics(Haptic.TICK)
+            model.undoExclusion()
+        } else {
+            model.dismissExclusion()
+        }
     }
     BackHandler(state.screen != Screen.Home) { model.back() }
     val screen = state.screen
@@ -198,6 +219,8 @@ fun App(model: ReviewViewModel = viewModel()) {
                     embeddingCount = state.embeddingCount,
                     scanning = progress != null,
                     onDeleteEmbeddings = model::deleteEmbeddings,
+                    hapticsEnabled = state.hapticsEnabled,
+                    onHapticsChange = model::setHaptics,
                 )
                 Screen.Thresholds -> ThresholdsScreen(
                     state.thresholds,

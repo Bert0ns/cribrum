@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
@@ -16,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +30,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.trash.TrashRetention
@@ -48,7 +51,10 @@ fun SettingsScreen(
     /** A scan writes embeddings as it goes: deleting them under it would leave the images it already did without results. */
     scanning: Boolean = false,
     onDeleteEmbeddings: () -> Unit = {},
+    hapticsEnabled: Boolean = true,
+    onHapticsChange: (Boolean) -> Unit = {},
 ) {
+    val haptics = LocalHaptics.current
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
 
@@ -69,6 +75,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton({
                     confirmingEmbeddings = false
+                    haptics(Haptic.TRASH)
                     onDeleteEmbeddings()
                 }) { Text(stringResource(R.string.delete)) }
             },
@@ -164,6 +171,14 @@ fun SettingsScreen(
         }
         item {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_haptics)) },
+                supportingContent = { Text(stringResource(R.string.settings_haptics_hint)) },
+                trailingContent = { Switch(hapticsEnabled, null) },
+                modifier = Modifier.toggleable(hapticsEnabled, role = Role.Switch, onValueChange = onHapticsChange),
+            )
         }
         item {
             ListItem(

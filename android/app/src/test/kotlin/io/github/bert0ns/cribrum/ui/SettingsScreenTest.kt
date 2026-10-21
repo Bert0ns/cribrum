@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -114,6 +115,37 @@ class SettingsScreenTest {
         compose.onNodeWithText("Detection thresholds").performClick()
 
         assertEquals(1, opened)
+    }
+
+    @Test
+    fun `the haptic switch is on as set and reports a change`() {
+        var enabled = true
+        compose.setContent {
+            SettingsScreen(hapticsEnabled = enabled, onHapticsChange = { enabled = it })
+        }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Haptic feedback"))
+        compose.onNodeWithText("Haptic feedback").assertIsOn()
+        compose.onNodeWithText("Haptic feedback").performClick()
+
+        assertEquals(false, enabled)
+    }
+
+    @Test
+    fun `deleting the embeddings is a strong pulse once confirmed`() {
+        val given = mutableListOf<Haptic>()
+        compose.setContent {
+            CompositionLocalProvider(LocalHaptics provides { given += it }) {
+                SettingsScreen(embeddingCount = 5)
+            }
+        }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("Delete embeddings").performClick()
+        assertEquals(emptyList<Haptic>(), given)
+        compose.onNodeWithText("Delete").performClick()
+
+        assertEquals(listOf(Haptic.TRASH), given)
     }
 
     @Test
