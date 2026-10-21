@@ -1,22 +1,46 @@
 name: lab
 
+# Both jobs run on every pull request, so they can be required checks. A workflow-level path
+# filter would leave a skipped required check pending forever. The lab job skips its steps
+# when nothing it covers changed, and still reports success.
 on:
   push:
     branches: [main]
-    paths: ["lab/**", "fixtures/**", ".github/workflows/lab.yml"]
   pull_request:
-    paths: ["lab/**", "fixtures/**", ".github/workflows/lab.yml"]
 
 jobs:
-  check:
+  lab:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: lab
     steps:
       - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v7
-      - run: uv sync --locked
-      - run: uv run ruff check
-      - run: uv run ruff format --check
-      - run: uv run pytest
+        with:
+          fetch-depth: 0
+      - id: changed
+        working-directory: .
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ! files=$(git diff --name-only "$BASE" HEAD) || grep -qE '^(lab|fixtures)/|^\.github/workflows/lab\.yml$' <<< "$files"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.changed.outputs.run
+        uses: astral-sh/setup-uv@v7
+      - if: steps.changed.outputs.run
+        run: uv sync --locked
+      - if: steps.changed.outputs.run
+        run: uv run ruff check
+      - if: steps.changed.outputs.run
+        run: uv run ruff format --check
+      - if: steps.changed.outputs.run
+        run: uv run pytest
+
+  # Lab and android must agree on detector ids, versions and thresholds. It reads source text
+  # only, so it is quick and always runs.
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 lab/scripts/check_parity.py
