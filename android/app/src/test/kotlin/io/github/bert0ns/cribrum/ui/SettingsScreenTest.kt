@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.test.assertIsDisplayed
@@ -133,19 +135,20 @@ class SettingsScreenTest {
 
     @Test
     fun `deleting the embeddings is a strong pulse once confirmed`() {
-        val given = mutableListOf<Haptic>()
+        val feedback = RecordingHaptics()
+        val given = feedback.types
         compose.setContent {
-            CompositionLocalProvider(LocalHaptics provides { given += it }) {
+            CompositionLocalProvider(LocalHapticFeedback provides feedback) {
                 SettingsScreen(embeddingCount = 5)
             }
         }
 
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
         compose.onNodeWithText("Delete embeddings").performClick()
-        assertEquals(emptyList<Haptic>(), given)
+        assertEquals(emptyList<HapticFeedbackType>(), given)
         compose.onNodeWithText("Delete").performClick()
 
-        assertEquals(listOf(Haptic.TRASH), given)
+        assertEquals(listOf(Haptic.TRASH.type), given)
     }
 
     @Test

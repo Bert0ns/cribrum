@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -158,7 +159,7 @@ fun CategoryScreen(
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onExcludeFolder: (ImageRef) -> Unit = {},
 ) {
-    val haptics = LocalHaptics.current
+    val haptics = LocalHapticFeedback.current
     var showSummary by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<ImageRef?>(null) }
     val images = page.flatMap { it.images }
@@ -191,7 +192,7 @@ fun CategoryScreen(
                         item.image.path in marked,
                         if (item.isBest) stringResource(R.string.best_copy) else null,
                         onTap = {
-                            haptics(Haptic.TICK)
+                            haptics.performHapticFeedback(Haptic.TICK.type)
                             onToggle(item.image)
                         },
                         onHold = { fullSize = item.image },
@@ -206,7 +207,7 @@ fun CategoryScreen(
                     Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
                 }
                 OutlinedButton(onClick = {
-                    haptics(Haptic.TICK)
+                    haptics.performHapticFeedback(Haptic.TICK.type)
                     onSkip(page.map { it.id }.toSet())
                 }) { Text(stringResource(R.string.skip)) }
             }
@@ -221,7 +222,7 @@ fun CategoryScreen(
             confirmButton = {
                 TextButton({
                     showSummary = false
-                    haptics(if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH)
+                    haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
                     onApply()
                 }) { Text(stringResource(R.string.summary_confirm)) }
             },
@@ -231,7 +232,7 @@ fun CategoryScreen(
     fullSize?.let { image ->
         FullSize(image, onExcludeFolder = {
             fullSize = null
-            haptics(Haptic.KEEP)
+            haptics.performHapticFeedback(Haptic.KEEP.type)
             onExcludeFolder(image)
         }) { fullSize = null }
     }

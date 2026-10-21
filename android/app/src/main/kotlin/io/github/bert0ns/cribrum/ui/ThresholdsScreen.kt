@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -39,7 +40,7 @@ fun ThresholdsScreen(
     onReset: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = LocalHaptics.current
+    val haptics = LocalHapticFeedback.current
     LazyColumn(modifier.fillMaxSize()) {
         item {
             Column(Modifier.padding(16.dp)) {
@@ -66,7 +67,7 @@ fun ThresholdsScreen(
                             value = shown,
                             onValueChange = {
                                 val step = (it * 20).roundToInt() / 20f
-                                if (step != shown) haptics(Haptic.TICK)
+                                if (step != shown) haptics.performHapticFeedback(Haptic.TICK.type)
                                 shown = step
                             },
                             onValueChangeFinished = { onChange(category, shown) },
@@ -85,7 +86,7 @@ fun ThresholdsScreen(
         }
         item {
             OutlinedButton({
-                haptics(Haptic.KEEP)
+                haptics.performHapticFeedback(Haptic.KEEP.type)
                 onReset()
             }, Modifier.fillMaxWidth().padding(16.dp)) { Text(stringResource(R.string.thresholds_reset)) }
         }
