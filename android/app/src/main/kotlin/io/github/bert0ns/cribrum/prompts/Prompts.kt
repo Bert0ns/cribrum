@@ -91,7 +91,8 @@ fun classify(embedding: FloatArray): Map<String, Pair<Float, String>> {
     return PROMPTS.mapValues { (_, classPrompts) ->
         val indices = classPrompts.map { texts.indexOf(it) }
         val best = indices.maxBy { probabilities[it] }
-        indices.fold(0f) { sum, i -> sum + probabilities[i] } to texts[best]
+        // Float sums can land a hair above 1, which Signal refuses.
+        minOf(1f, indices.fold(0f) { sum, i -> sum + probabilities[i] }) to texts[best]
     }
 }
 

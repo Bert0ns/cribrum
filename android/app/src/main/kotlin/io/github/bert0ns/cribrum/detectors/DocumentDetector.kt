@@ -27,8 +27,7 @@ class DocumentDetector(private val coverage: (File) -> Float = ::textCoverage) :
         val (probability, prompt) = classify(context.embedding(image)).getValue("document")
         val coverage = coverage(File(image.path))
         val textChance = TEXT_WEIGHT * min(1f, coverage / FULL_COVERAGE)
-        // Float sums of probabilities can land a hair above 1; the lab's doubles don't.
-        val score = (1f - (1f - probability) * (1f - textChance)).coerceIn(0f, 1f)
+        val score = 1f - (1f - probability) * (1f - textChance)
         val evidence = mapOf(
             "prompt" to prompt,
             "probability" to "%.3f".format(Locale.ROOT, probability),
