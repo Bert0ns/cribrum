@@ -135,6 +135,7 @@ class ReviewTest {
         val group = page(Category.EXACT_DUPLICATE).groups.single()
 
         assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
+        assertFalse(group.hasExcludedCopy)
     }
 
     @Test
@@ -161,7 +162,7 @@ class ReviewTest {
         assertEquals(1, page(Category.BLURRY).remaining)
         assertEquals(0, categories().first { it.category == Category.SCREENSHOT }.count)
         assertEquals(1, categories().first { it.category == Category.BLURRY }.count)
-        assertEquals(listOf(File(kept.path).parent), excludedFolders())
+        assertEquals(listOf(File(kept.path).parent), index.excludedFolders())
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(sub.path))
     }
 
@@ -173,7 +174,7 @@ class ReviewTest {
         removeExcludedFolder(File(a.path).parent!!)
 
         assertEquals(listOf(a), shown(page(Category.BLURRY)))
-        assertEquals(emptyList<String>(), excludedFolders())
+        assertEquals(emptyList<String>(), index.excludedFolders())
     }
 
     @Test
@@ -186,6 +187,7 @@ class ReviewTest {
 
         val group = page(Category.EXACT_DUPLICATE).groups.single()
         assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
+        assertTrue(group.hasExcludedCopy)
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(excludedCopy.path))
     }
 
@@ -196,7 +198,9 @@ class ReviewTest {
 
         excludeFolderOf(best)
 
-        assertEquals(listOf(ReviewItem(copy, true, score = 1f)), page(Category.EXACT_DUPLICATE).groups.single().images)
+        val group = page(Category.EXACT_DUPLICATE).groups.single()
+        assertEquals(listOf(ReviewItem(copy, true, score = 1f)), group.images)
+        assertTrue(group.hasExcludedCopy)
     }
 
     @Test

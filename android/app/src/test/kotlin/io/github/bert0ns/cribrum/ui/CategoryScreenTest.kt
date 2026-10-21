@@ -134,10 +134,18 @@ class CategoryScreenTest {
         }
 
         compose.onAllNodesWithContentDescription("img2.jpg")[0].performTouchInput { longClick() }
-        compose.onNodeWithText("Never suggest this folder").performClick()
+        compose.onNodeWithText("Never suggest this folder or its subfolders").performClick()
 
         assertEquals(images[1], excluded)
-        compose.onNodeWithText("Never suggest this folder").assertDoesNotExist()
+        compose.onNodeWithText("Never suggest this folder or its subfolders").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a group with a copy in an excluded folder says so`() {
+        val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = true)), hasExcludedCopy = true)
+        compose.setContent { CategoryScreen(listOf(group), 1, emptySet(), grouped = true, {}, {}, {}) }
+
+        compose.onNodeWithText("Another copy is in an excluded folder").assertExists()
     }
 
     @Test

@@ -316,4 +316,12 @@ class ImageIndexTest {
         assertEquals(listOf(BLUR), signals(PHOTO.path))
         assertEquals(ReviewState.UNREVIEWED, reviewState(PHOTO.path))
     }
+
+    @Test
+    fun `a trailing separator does not change the excluded folder`() = test {
+        excludeFolder("/photos/a/")
+        excludeFolder("/photos/a")
+
+        assertEquals(listOf("/photos/a"), excludedFolders())
+    }
 }

@@ -201,5 +201,43 @@ class ReviewViewModelTest {
         settle(model) { paths(it).size == 3 }
     }
 
+    @Test
+    fun `excluding a folder keeps the marks the user changed on the page`() {
+        blurry("/sdcard/A/a.jpg", 0.9f)
+        blurry("/sdcard/A/b.jpg", 0.8f)
+        blurry("/sdcard/B/c.jpg", 0.7f)
+        blurry("/sdcard/C/d.jpg", 0.6f)
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 4 }
+        model.toggle(ImageRef("/sdcard/A/a.jpg", 1_000, 1L))
+
+        model.excludeFolder(ImageRef("/sdcard/C/d.jpg", 1_000, 1L))
+        settle(model) { paths(it).size == 3 }
+
+        assertEquals(setOf("/sdcard/A/b.jpg", "/sdcard/B/c.jpg"), model.state.value.marked)
+    }
+
+    @Test
+    fun `undoing an exclusion brings the images back and keeps the marks`() {
+        blurry("/sdcard/A/a.jpg", 0.9f)
+        blurry("/sdcard/B/b.jpg", 0.8f)
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 2 }
+        model.toggle(ImageRef("/sdcard/A/a.jpg", 1_000, 1L))
+
+        model.excludeFolder(ImageRef("/sdcard/B/b.jpg", 1_000, 1L))
+        settle(model) { it.state.value.lastExclusion == "/sdcard/B" }
+        assertEquals(listOf("/sdcard/A/a.jpg"), paths(model))
+
+        model.undoExclusion()
+        settle(model) { paths(it).size == 2 }
+
+        assertNull(model.state.value.lastExclusion)
+        assertEquals(setOf("/sdcard/B/b.jpg"), model.state.value.marked)
+        assertEquals(emptyList<String>(), runBlocking { app.index.excludedFolders() })
+    }
+
     private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()
 }

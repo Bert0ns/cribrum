@@ -13,6 +13,7 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.SignalIdentity
 import org.json.JSONObject
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.LocalDateTime
@@ -169,7 +170,8 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun excludedFolders(): List<String> = dao.excludedFolders()
 
-    suspend fun excludeFolder(path: String) = dao.insertExcludedFolder(ExcludedFolderRow(path))
+    /** Stored without a trailing separator, which [isExcluded][io.github.bert0ns.cribrum.folders.isExcluded] relies on. */
+    suspend fun excludeFolder(path: String) = dao.insertExcludedFolder(ExcludedFolderRow(File(path).path))
 
     suspend fun removeExcludedFolder(path: String) = dao.deleteExcludedFolder(path)
 

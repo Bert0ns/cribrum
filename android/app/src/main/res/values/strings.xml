@@ -97,7 +97,9 @@
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
     <string name="settings_excluded_folders">Excluded folders</string>
     <string name="settings_no_excluded_folders">No folders are excluded.</string>
-    <string name="exclude_folder">Never suggest this folder</string>
+    <string name="exclude_folder">Never suggest this folder or its subfolders</string>
+    <string name="excluded_folder_snackbar">Excluded %1$s and its subfolders</string>
+    <string name="excluded_copy">Another copy is in an excluded folder</string>
     <string name="remove">Remove</string>
     <string name="storage_map">Storage map</string>
     <string name="storage_map_card_details">%1$s \u2022 image sizes</string>

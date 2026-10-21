@@ -173,7 +173,16 @@ fun CategoryScreen(
         }
         LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f)) {
             for (group in page) {
-                if (grouped) item(span = { GridItemSpan(maxLineSpan) }, key = "header-${group.id}") { HorizontalDivider(Modifier.padding(vertical = 4.dp)) }
+                if (grouped) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "header-${group.id}") {
+                        Column {
+                            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                            if (group.hasExcludedCopy) {
+                                Text(stringResource(R.string.excluded_copy), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
+                            }
+                        }
+                    }
+                }
                 items(group.images, key = { it.image.path }) { item ->
                     Tile(
                         item.image,
@@ -218,7 +227,10 @@ fun CategoryScreen(
     }
 }
 
-/** The image at full size, to tell real blur from a small thumbnail. Pinch to zoom, tap to close. It also offers to never suggest the image's folder again. */
+/**
+ * The image at full size, to tell real blur from a small thumbnail. Pinch to zoom, tap to close.
+ * It also offers to never suggest the image's folder again.
+ */
 @Composable
 private fun FullSize(image: ImageRef, onExcludeFolder: () -> Unit, onClose: () -> Unit) {
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {

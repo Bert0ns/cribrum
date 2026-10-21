@@ -55,6 +55,7 @@ import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
 import io.github.bert0ns.cribrum.ui.trailHue
+import java.io.File
 
 class MainActivity : ComponentActivity() {
     /** Checked again on every resume: the user grants it in the system settings, outside the app. */
@@ -114,6 +115,13 @@ fun App(model: ReviewViewModel = viewModel()) {
         if (decision == null || trashedMessage == null) return@LaunchedEffect
         val result = snackbar.showSnackbar(trashedMessage, undo, withDismissAction = true, duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) model.undo() else model.dismissUndo()
+    }
+    val exclusion = state.lastExclusion
+    val excludedMessage = exclusion?.let { stringResource(R.string.excluded_folder_snackbar, File(it).name) }
+    LaunchedEffect(exclusion) {
+        if (exclusion == null || excludedMessage == null) return@LaunchedEffect
+        val result = snackbar.showSnackbar(excludedMessage, undo, withDismissAction = true, duration = SnackbarDuration.Long)
+        if (result == SnackbarResult.ActionPerformed) model.undoExclusion() else model.dismissExclusion()
     }
     BackHandler(state.screen != Screen.Home) { model.back() }
     val screen = state.screen

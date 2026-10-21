@@ -17,9 +17,9 @@ import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Ranker
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import java.io.File
 import java.time.Duration
 import java.time.Instant
-import java.io.File
 
 /** Images shown at once: a few screens of thumbnails, reviewed and applied together. */
 const val PAGE_SIZE = 48
@@ -29,7 +29,12 @@ const val PAGE_SIZE = 48
  * also holds its best copy, which is never a candidate: it is shown, and kept, so the user can
  * compare the copies side by side.
  */
-data class ReviewGroup(val id: String, val images: List<ReviewItem>)
+data class ReviewGroup(
+    val id: String,
+    val images: List<ReviewItem>,
+    /** A copy sits in an excluded folder. It is not listed, so the screen says it exists. */
+    val hasExcludedCopy: Boolean = false,
+)
 
 data class ReviewItem(
     val image: ImageRef,
@@ -119,13 +124,11 @@ class Review(
         index.forget(images.map { it.path })
     }
 
-    suspend fun excludedFolders(): List<String> = index.excludedFolders()
-
     /**
-     * Never suggests the folder of [image] again, subfolders included. Its images stay in the
-     * index with their signals, so removing the exclusion needs no new scan.
+     * Never suggests the folder of [image] again, subfolders included, and returns the folder. Its
+     * images stay in the index with their signals, so removing the exclusion needs no new scan.
      */
-    suspend fun excludeFolderOf(image: ImageRef) = index.excludeFolder(File(image.path).parent!!)
+    suspend fun excludeFolderOf(image: ImageRef): String = File(image.path).parent!!.also { index.excludeFolder(it) }
 
     suspend fun removeExcludedFolder(folder: String) = index.removeExcludedFolder(folder)
 
@@ -139,12 +142,18 @@ class Review(
     /** Members in an [excluded] folder are left out: the review never lists, trashes or keeps them. */
     private fun groups(category: Category, candidates: List<Candidate>, images: List<IndexedImage>, excluded: List<String>): List<ReviewGroup> {
         val members = mutableMapOf<String, MutableList<Pair<IndexedImage, Role>>>()
+        val withExcludedCopy = mutableSetOf<String>()
         for (image in images) {
-            if (image.reviewState == ReviewState.TRASHED || isExcluded(image.ref.path, excluded)) continue
+            if (image.reviewState == ReviewState.TRASHED) continue
+            val isExcluded = isExcluded(image.ref.path, excluded)
             for (signal in image.signals) {
                 if (signal.kind != category) continue
                 val group = signal.evidence[GROUP_KEY] ?: continue
                 val role = Role.entries.firstOrNull { it.value == signal.evidence[ROLE_KEY] } ?: continue
+                if (isExcluded) {
+                    withExcludedCopy += group
+                    continue
+                }
                 members.getOrPut(group) { mutableListOf() } += image to role
             }
         }
@@ -166,7 +175,7 @@ class Review(
                     score = candidateScores[image.ref.path] ?: 0f,
                 )
             }
-            ReviewGroup(group, items.sortedByDescending { it.isBest })
+            ReviewGroup(group, items.sortedByDescending { it.isBest }, group in withExcludedCopy)
         }
     }
 
