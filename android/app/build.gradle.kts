@@ -72,6 +72,11 @@ android {
     }
 }
 
+// Pinned, so a plugin update cannot change the rules.
+ktlint {
+    version.set("1.5.0")
+}
+
 room {
     schemaDirectory("$projectDir/schemas")
 }
