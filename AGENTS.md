@@ -42,6 +42,17 @@ Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` o
 
 They come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
 
+## Routines
+
+Routines that keep the codebase healthy are issue templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). Nothing runs on its own. The maintainer opens an issue from a template and says "prendi in mano l'issue numero X", and the issue body is the whole prompt. Each routine starts from the commit its previous run recorded in a `Covered commit:` comment on the last closed issue with the same label, and records its own when it finishes. No routine merges anything.
+
+| Template | Covers |
+|---|---|
+| `routine-drift` | `docs/design.md` against the code, and lab against android |
+| `routine-hygiene` | Dead code, duplication and needless abstractions in what changed |
+| `routine-dependencies` | Gradle, uv and skills updates, in one PR |
+| `routine-audit` | A deep review of one area, chosen in rotation |
+
 ## Commits and pull requests
 
 Every commit subject and every PR title uses `type(scope): subject`. The `commit-format` CI job checks them.
