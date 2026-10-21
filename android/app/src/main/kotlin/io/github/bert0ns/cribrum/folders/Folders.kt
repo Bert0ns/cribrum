@@ -22,3 +22,6 @@ fun isMessagingFolder(path: String): Boolean = folders(path).any { it in MESSAGI
  * Excluded Stickers".
  */
 fun isStickerFolder(path: String): Boolean = isMessagingFolder(path) && folders(path).any { it.endsWith("stickers") }
+
+/** Whether [path] is in a folder the user excluded, or in one of its subfolders (docs/design.md §6.3). [excluded] holds folder paths. */
+fun isExcluded(path: String, excluded: Collection<String>): Boolean = excluded.any { path.startsWith("$it/") }

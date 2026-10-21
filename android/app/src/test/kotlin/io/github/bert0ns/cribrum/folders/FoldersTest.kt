@@ -17,6 +17,17 @@ class FoldersTest {
     }
 
     @Test
+    fun `an excluded folder covers its subfolders but not a sibling that shares its name`() {
+        val excluded = listOf("/storage/emulated/0/Pictures/Family")
+
+        assertTrue(isExcluded("/storage/emulated/0/Pictures/Family/a.jpg", excluded))
+        assertTrue(isExcluded("/storage/emulated/0/Pictures/Family/2020/a.jpg", excluded))
+        assertFalse(isExcluded("/storage/emulated/0/Pictures/Family2/a.jpg", excluded))
+        assertFalse(isExcluded("/storage/emulated/0/Pictures/a.jpg", excluded))
+        assertFalse(isExcluded("/storage/emulated/0/Pictures/Family/a.jpg", emptyList()))
+    }
+
+    @Test
     fun `messaging folders are the lab's`() {
         val lab = File("../../lab/src/cribrum_lab/folders.py").readText()
         val block = lab.substringAfter("_MESSAGING_FOLDERS = {").substringBefore("}")

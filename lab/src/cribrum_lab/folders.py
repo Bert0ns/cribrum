@@ -1,5 +1,6 @@
 """What a file's folder says about where the image came from."""
 
+from collections.abc import Iterable
 from pathlib import Path
 
 _MESSAGING_FOLDERS = {
@@ -32,3 +33,8 @@ def is_sticker_folder(path: Path) -> bool:
     return is_messaging_folder(path) and any(
         part.lower().endswith("stickers") for part in path.parent.parts
     )
+
+
+def is_excluded(path: Path, excluded: Iterable[Path]) -> bool:
+    """The user excluded a folder of the path (docs/design.md, section 6.3): subfolders count."""
+    return any(path.is_relative_to(folder) for folder in excluded)

@@ -13,6 +13,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Entity(tableName = "images")
 data class ImageRow(
@@ -100,6 +102,10 @@ data class GroupRunRow(
     @ColumnInfo(name = "detector_version") val detectorVersion: Int,
     val fingerprint: String,
 )
+
+/** Folders the user excluded (docs/design.md §6.3). Their images are scanned but never candidates. */
+@Entity(tableName = "excluded_folders")
+data class ExcludedFolderRow(@PrimaryKey val path: String)
 
 data class StoredRef(val path: String, val size: Long, @ColumnInfo(name = "mtime_ns") val mtimeNs: Long)
 
@@ -240,6 +246,15 @@ interface IndexDao {
 
     @Query("SELECT path, size, mtime_ns, review_state FROM images ORDER BY path")
     suspend fun states(): List<StoredState>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertExcludedFolder(folder: ExcludedFolderRow)
+
+    @Query("DELETE FROM excluded_folders WHERE path = :path")
+    suspend fun deleteExcludedFolder(path: String)
+
+    @Query("SELECT path FROM excluded_folders ORDER BY path")
+    suspend fun excludedFolders(): List<String>
 }
 
 /**
@@ -249,10 +264,17 @@ interface IndexDao {
 @Database(
     entities = [
         ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, EmbeddingRow::class,
-        GroupRunRow::class,
+        GroupRunRow::class, ExcludedFolderRow::class,
     ],
-    version = 1,
+    version = 2,
 )
 abstract class IndexDatabase : RoomDatabase() {
     abstract fun dao(): IndexDao
+}
+
+/** Version 1 had no excluded folders: the user's index is kept as it is. */
+val MIGRATION_1_2 = object : Migration(1, 2) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `excluded_folders` (`path` TEXT NOT NULL, PRIMARY KEY(`path`))")
+    }
 }

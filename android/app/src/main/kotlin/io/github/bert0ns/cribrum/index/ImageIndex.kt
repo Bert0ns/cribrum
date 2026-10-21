@@ -13,6 +13,7 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.SignalIdentity
 import org.json.JSONObject
+import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.LocalDateTime
@@ -167,6 +168,13 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         return ReviewState.entries.first { it.value == value }
     }
 
+    suspend fun excludedFolders(): List<String> = dao.excludedFolders()
+
+    /** Stored without a trailing separator, which [isExcluded][io.github.bert0ns.cribrum.folders.isExcluded] relies on. */
+    suspend fun excludeFolder(path: String) = dao.insertExcludedFolder(ExcludedFolderRow(File(path).path))
+
+    suspend fun removeExcludedFolder(path: String) = dao.deleteExcludedFolder(path)
+
     /** Every indexed image not in the trash, with its path, size, and mtime. */
     suspend fun notTrashed(): List<ImageRef> = dao.notTrashed().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
@@ -193,7 +201,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     companion object {
-        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).build())
+        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2).build())
     }
 }
 

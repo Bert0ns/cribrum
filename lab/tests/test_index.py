@@ -253,3 +253,26 @@ def test_protection_signals_round_trip(index):
 
     assert index.signals(PHOTO.path) == [faces]
     assert index.indexed_images()[0].signals == (faces,)
+
+
+def test_excluded_folders_are_listed_added_once_and_removed(index):
+    index.exclude_folder(Path("/photos/b"))
+    index.exclude_folder(Path("/photos/a"))
+    index.exclude_folder(Path("/photos/a"))
+
+    assert index.excluded_folders() == [Path("/photos/a"), Path("/photos/b")]
+
+    index.remove_excluded_folder(Path("/photos/a"))
+
+    assert index.excluded_folders() == [Path("/photos/b")]
+
+
+def test_excluding_a_folder_leaves_its_images_and_their_signals_alone(index):
+    index.record(PHOTO)
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+
+    index.exclude_folder(PHOTO.path.parent)
+    index.remove_excluded_folder(PHOTO.path.parent)
+
+    assert index.signals(PHOTO.path) == [BLUR]
+    assert index.review_state(PHOTO.path) is ReviewState.UNREVIEWED

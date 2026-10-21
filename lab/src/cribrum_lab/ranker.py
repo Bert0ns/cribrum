@@ -1,9 +1,11 @@
 """Turns signals into candidates and a review order (docs/design.md, section 6)."""
 
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
+from cribrum_lab.folders import is_excluded
 from cribrum_lab.model import Category, IndexedImage, Protection, ReviewState, Signal
 
 THRESHOLDS = {
@@ -47,18 +49,22 @@ class Ranker:
     def __init__(self, thresholds: Mapping[Category, float] = THRESHOLDS) -> None:
         self.thresholds = thresholds
 
-    def rank(self, images: Sequence[IndexedImage]) -> list[Candidate]:
+    def rank(
+        self, images: Sequence[IndexedImage], excluded_folders: Iterable[Path] = ()
+    ) -> list[Candidate]:
         """The "review everything" order: every unreviewed image, most likely deletable first.
 
         Candidates always come before the other images. Protection signals lower an image
         within its part of the order but never move a candidate behind a non-candidate.
         A kept image is listed again only for a signal it did not have when the user kept
         it, such as a new duplicate group or a new role in its group. A newer detector
-        version or a higher score is not new. Trashed images are never listed.
+        version or a higher score is not new. Trashed images are never listed, nor are those in an
+        excluded folder.
         """
+        excluded = list(excluded_folders)
         ranked = []
         for image in images:
-            if image.review_state is ReviewState.TRASHED:
+            if image.review_state is ReviewState.TRASHED or is_excluded(image.ref.path, excluded):
                 continue
             reasons = [s for s in image.signals if self._passes(s)]
             if image.review_state is ReviewState.KEPT:

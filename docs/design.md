@@ -1,7 +1,7 @@
 # Cribrum — Design Document
 
 - **Status:** Draft
-- **Last updated:** 2026-10-18
+- **Last updated:** 2026-10-21
 
 ## 1. Problem
 
@@ -109,6 +109,11 @@ Each image carries a review state:
 - `KEPT`: the user reviewed it and chose to keep it. It is not suggested again unless a **new** signal appears. For example, a higher-resolution copy shows up and turns this one into the inferior duplicate. Keeping an image records the identity of each signal it has (category, group, role). A signal is new when its identity is not among them: a newer detector version, a higher score or a retuned threshold is not new.
 - `TRASHED`: in the app trash.
 
+**Excluded folders** are a second user decision, kept apart from the review state because it covers a folder instead of one image. The index stores a list of folder paths. The ranker leaves out every image under one of them, like a trashed image, and so does the review screen: those images are in no category, no count and no group. Detectors still run on them and the index keeps their signals, so their duplicates still count and removing an exclusion brings the images back at once, without a rescan. An exclusion never touches a review state: nothing marks an excluded image `KEPT`, and nothing trashes it.
+
+- An exclusion covers the folder **and its subfolders**. A folder is a subtree to the user (`Pictures/Family/2020` belongs to `Pictures/Family`), and excluding each subfolder by hand would be tedious. A sibling that only shares the name prefix (`Family2`) is not covered.
+- A duplicate or burst group with a copy in an excluded folder is still offered for the copies outside it. The excluded copy is not listed in the group, so "keep best, trash the rest" never trashes it, and it is not marked `KEPT`. When the excluded copy is the best one, the group shows the other copies without it, and they can still be trashed, since the excluded copy stays as the survivor. A group whose only candidates are excluded is not offered at all.
+
 ### 6.4 "Review everything" mode
 
 All `UNREVIEWED` images, ordered from most to least likely deletable. Going through all of them eventually brings false negatives to zero by construction. A missed image just shows up later in the order.
@@ -186,6 +191,7 @@ interface ModelRuntime                   // ONNX Runtime behind one interface
 | `phash` | Near-duplicates |
 | `embedding` | MobileCLIP vector |
 | `review_state` | §6.3 |
+| `excluded_folders` (separate table) | Folders the user excluded, §6.3 |
 | `signals` (separate table) | Detector output, keyed by image + detector id + version |
 
 ## 8. Review UX
@@ -199,7 +205,7 @@ The bottleneck of a recall-first design is review speed, so this screen is the h
 - A "Skip" button, to the right of the trash button, leaves the current page for later. It decides nothing: the images stay `UNREVIEWED`, and nothing is stored. They are left out of the next pages while the category stays open, and show up again the next time it is opened.
 - Duplicate and burst groups have a "keep best, trash the rest" action, with side-by-side comparison.
 - Quick gestures and no unnecessary confirmations, except a final summary before trashing.
-- "Never suggest this again" works per image and per folder.
+- "Never suggest this again" works per image and per folder. Keeping an image covers the image. For a folder, holding an image to see it full size offers "Never suggest this folder or its subfolders", which excludes the image's folder at once (§6.3). A snackbar names the folder and has an Undo button, and the marks the user set on the page stay as they are. Settings lists the excluded folders and removes one. A duplicate group with a copy in an excluded folder says so, since that copy is not listed.
 - A settings screen, opened from the home screen, shows app information, the trash retention choice, and a warning that uninstalling leaves the trash folder on shared storage.
 - A storage map screen, opened from settings, shows a treemap of indexed image space across explored folders to reveal where space is concentrated. It counts indexed images that are not in the trash. Single-child parent folders without direct files collapse so the map starts at the first branching point. A folder keeps its color when you zoom into it: its largest subfolder inherits the folder's hue and the others spread around it. The selected folder gets a thick outline in the theme's text color and the other folders dim.
 

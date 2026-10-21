@@ -5,10 +5,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,6 +41,8 @@ fun SettingsScreen(
     pendingRetention: RetentionChange? = null,
     onConfirmRetention: () -> Unit = {},
     onCancelRetention: () -> Unit = {},
+    excludedFolders: List<String> = emptyList(),
+    onRemoveExcludedFolder: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -141,6 +148,30 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.storage_map)) },
                 modifier = Modifier.clickable { onOpenStorageMap() },
+            )
+        }
+        item {
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
+        item {
+            Text(
+                text = stringResource(R.string.settings_excluded_folders),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
+            )
+        }
+        if (excludedFolders.isEmpty()) {
+            item { ListItem(headlineContent = { Text(stringResource(R.string.settings_no_excluded_folders)) }) }
+        }
+        items(excludedFolders, key = { it }) { folder ->
+            ListItem(
+                headlineContent = { Text(folder) },
+                trailingContent = {
+                    IconButton({ onRemoveExcludedFolder(folder) }) {
+                        Icon(Icons.Default.Close, stringResource(R.string.remove))
+                    }
+                },
             )
         }
     }

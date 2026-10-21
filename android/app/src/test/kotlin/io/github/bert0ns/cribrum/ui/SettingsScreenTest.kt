@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -123,5 +124,27 @@ class SettingsScreenTest {
 
         compose.onNodeWithText("https://github.com/Bert0ns/cribrum").performClick()
         assertEquals(listOf("https://cribrum.bertons.me", "https://github.com/Bert0ns/cribrum"), opened)
+    }
+
+    @Test
+    fun `settings screen lists excluded folders and removes one`() {
+        val removed = mutableListOf<String>()
+        compose.setContent {
+            SettingsScreen(excludedFolders = listOf("/sdcard/Pictures/Family", "/sdcard/Memes"), onRemoveExcludedFolder = { removed += it })
+        }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("/sdcard/Memes"))
+        compose.onNodeWithText("/sdcard/Memes").assertExists()
+        compose.onAllNodesWithContentDescription("Remove")[0].performClick()
+
+        assertEquals(listOf("/sdcard/Pictures/Family"), removed)
+    }
+
+    @Test
+    fun `settings screen says when no folder is excluded`() {
+        compose.setContent { SettingsScreen() }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("No folders are excluded."))
+        compose.onNodeWithText("No folders are excluded.").assertExists()
     }
 }
