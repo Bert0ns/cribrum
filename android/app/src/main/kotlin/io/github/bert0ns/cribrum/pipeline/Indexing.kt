@@ -53,12 +53,11 @@ object Indexing {
     }
 
     /** The running scan's progress, or null when none runs. */
-    fun progress(context: Context): Flow<ScanProgress?> =
-        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(WORK).map { infos ->
-            infos.firstOrNull { it.state == WorkInfo.State.RUNNING }?.progress?.let {
-                ScanProgress(it.getString(STEP).orEmpty(), it.getInt(DONE, 0), it.getInt(TOTAL, 0))
-            }
+    fun progress(context: Context): Flow<ScanProgress?> = WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(WORK).map { infos ->
+        infos.firstOrNull { it.state == WorkInfo.State.RUNNING }?.progress?.let {
+            ScanProgress(it.getString(STEP).orEmpty(), it.getInt(DONE, 0), it.getInt(TOTAL, 0))
         }
+    }
 
     /** Every storage volume walked in full, then what MediaStore knows on top. */
     fun deviceSource(context: Context): ImageSource {

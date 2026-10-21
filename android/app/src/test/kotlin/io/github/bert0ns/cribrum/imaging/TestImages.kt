@@ -23,18 +23,22 @@ class TestImage(val width: Int, val height: Int, val values: IntArray = IntArray
         var image = this
         repeat(3) {
             val out = TestImage(width, height)
-            for (y in 0 until height) for (x in 0 until width) {
-                var sum = 0
-                var count = 0
-                for (dy in -radius..radius) for (dx in -radius..radius) {
-                    val sx = x + dx
-                    val sy = y + dy
-                    if (sx in 0 until width && sy in 0 until height) {
-                        sum += image[sx, sy]
-                        count++
+            for (y in 0 until height) {
+                for (x in 0 until width) {
+                    var sum = 0
+                    var count = 0
+                    for (dy in -radius..radius) {
+                        for (dx in -radius..radius) {
+                            val sx = x + dx
+                            val sy = y + dy
+                            if (sx in 0 until width && sy in 0 until height) {
+                                sum += image[sx, sy]
+                                count++
+                            }
+                        }
                     }
+                    out[x, y] = sum / count
                 }
-                out[x, y] = sum / count
             }
             image = out
         }

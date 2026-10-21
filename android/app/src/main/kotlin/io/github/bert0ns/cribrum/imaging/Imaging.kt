@@ -72,8 +72,7 @@ private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
 }
 
 /** One 8-bit channel of [Argb], shifted by 16 for red, 8 for green, 0 for blue. */
-internal fun channel(image: Argb, shift: Int): Gray =
-    Gray(image.width, image.height, FloatArray(image.pixels.size) { (image.pixels[it] shr shift and 0xff).toFloat() })
+internal fun channel(image: Argb, shift: Int): Gray = Gray(image.width, image.height, FloatArray(image.pixels.size) { (image.pixels[it] shr shift and 0xff).toFloat() })
 
 internal fun orientation(file: File): Int = try {
     ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -89,17 +88,19 @@ internal fun transpose(gray: Gray, orientation: Int): Gray {
     val outW = if (swapped) h else w
     val outH = if (swapped) w else h
     val out = FloatArray(w * h)
-    for (y in 0 until outH) for (x in 0 until outW) {
-        val (sx, sy) = when (orientation) {
-            2 -> w - 1 - x to y // mirrored
-            3 -> w - 1 - x to h - 1 - y // rotated 180
-            4 -> x to h - 1 - y // flipped
-            5 -> y to x // transposed
-            6 -> y to h - 1 - x // rotated 90 clockwise
-            7 -> w - 1 - y to h - 1 - x // transversed
-            else -> w - 1 - y to x // 8: rotated 90 counterclockwise
+    for (y in 0 until outH) {
+        for (x in 0 until outW) {
+            val (sx, sy) = when (orientation) {
+                2 -> w - 1 - x to y // mirrored
+                3 -> w - 1 - x to h - 1 - y // rotated 180
+                4 -> x to h - 1 - y // flipped
+                5 -> y to x // transposed
+                6 -> y to h - 1 - x // rotated 90 clockwise
+                7 -> w - 1 - y to h - 1 - x // transversed
+                else -> w - 1 - y to x // 8: rotated 90 counterclockwise
+            }
+            out[y * outW + x] = gray[sx, sy]
         }
-        out[y * outW + x] = gray[sx, sy]
     }
     return Gray(outW, outH, out)
 }
@@ -129,20 +130,24 @@ internal fun resize(gray: Gray, outW: Int, outH: Int): Gray {
     val firstRow = vertical.first[0]
     val lastRow = vertical.first[outH - 1] + vertical.weights[outH - 1].size
     val intermediate = FloatArray(outW * (lastRow - firstRow))
-    for (y in firstRow until lastRow) for (x in 0 until outW) {
-        val w = horizontal.weights[x]
-        val firstX = horizontal.first[x]
-        var sum = 0.0
-        for (i in w.indices) sum += gray[firstX + i, y] * w[i]
-        intermediate[(y - firstRow) * outW + x] = sum.toFloat()
+    for (y in firstRow until lastRow) {
+        for (x in 0 until outW) {
+            val w = horizontal.weights[x]
+            val firstX = horizontal.first[x]
+            var sum = 0.0
+            for (i in w.indices) sum += gray[firstX + i, y] * w[i]
+            intermediate[(y - firstRow) * outW + x] = sum.toFloat()
+        }
     }
     val out = FloatArray(outW * outH)
-    for (y in 0 until outH) for (x in 0 until outW) {
-        val w = vertical.weights[y]
-        val firstY = vertical.first[y]
-        var sum = 0.0
-        for (i in w.indices) sum += intermediate[(firstY - firstRow + i) * outW + x] * w[i]
-        out[y * outW + x] = sum.toFloat()
+    for (y in 0 until outH) {
+        for (x in 0 until outW) {
+            val w = vertical.weights[y]
+            val firstY = vertical.first[y]
+            var sum = 0.0
+            for (i in w.indices) sum += intermediate[(firstY - firstRow + i) * outW + x] * w[i]
+            out[y * outW + x] = sum.toFloat()
+        }
     }
     return Gray(outW, outH, out)
 }
@@ -169,16 +174,18 @@ internal fun reduce(gray: Gray, factorX: Int, factorY: Int): Gray {
     val outW = (gray.width + factorX - 1) / factorX
     val outH = (gray.height + factorY - 1) / factorY
     val out = FloatArray(outW * outH)
-    for (y in 0 until outH) for (x in 0 until outW) {
-        var sum = 0L
-        var count = 0
-        for (yy in y * factorY until min((y + 1) * factorY, gray.height)) {
-            for (xx in x * factorX until min((x + 1) * factorX, gray.width)) {
-                sum += gray[xx, yy].toLong()
-                count++
+    for (y in 0 until outH) {
+        for (x in 0 until outW) {
+            var sum = 0L
+            var count = 0
+            for (yy in y * factorY until min((y + 1) * factorY, gray.height)) {
+                for (xx in x * factorX until min((x + 1) * factorX, gray.width)) {
+                    sum += gray[xx, yy].toLong()
+                    count++
+                }
             }
+            out[y * outW + x] = ((sum + count / 2) / count).toFloat()
         }
-        out[y * outW + x] = ((sum + count / 2) / count).toFloat()
     }
     return Gray(outW, outH, out)
 }
@@ -267,22 +274,26 @@ internal fun resample(
         val firstRow = vertical.first[0]
         val lastRow = vertical.first[outH - 1] + vertical.weights[outH - 1].size
         val out = FloatArray(outW * (lastRow - firstRow))
-        for (y in firstRow until lastRow) for (x in 0 until outW) {
-            val w = horizontal.weights[x]
-            var sum = 0L
-            for (i in w.indices) sum += image[horizontal.first[x] + i, y].toLong() * w[i]
-            out[(y - firstRow) * outW + x] = clip8(sum)
+        for (y in firstRow until lastRow) {
+            for (x in 0 until outW) {
+                val w = horizontal.weights[x]
+                var sum = 0L
+                for (i in w.indices) sum += image[horizontal.first[x] + i, y].toLong() * w[i]
+                out[(y - firstRow) * outW + x] = clip8(sum)
+            }
         }
         image = Gray(outW, lastRow - firstRow, out)
         rowOffset = firstRow
     }
     if (needVertical) {
         val out = FloatArray(image.width * outH)
-        for (y in 0 until outH) for (x in 0 until image.width) {
-            val w = vertical.weights[y]
-            var sum = 0L
-            for (i in w.indices) sum += image[x, vertical.first[y] - rowOffset + i].toLong() * w[i]
-            out[y * image.width + x] = clip8(sum)
+        for (y in 0 until outH) {
+            for (x in 0 until image.width) {
+                val w = vertical.weights[y]
+                var sum = 0L
+                for (i in w.indices) sum += image[x, vertical.first[y] - rowOffset + i].toLong() * w[i]
+                out[y * image.width + x] = clip8(sum)
+            }
         }
         image = Gray(image.width, outH, out)
     }

@@ -17,9 +17,7 @@ private val STORED: JSONObject by lazy {
 }
 
 /** An image embedding that sits exactly on a prompt: the class it belongs to wins. */
-fun promptVector(text: String): FloatArray {
-    return decodeVector(STORED.getJSONObject("prompts").getString(text))
-}
+fun promptVector(text: String): FloatArray = decodeVector(STORED.getJSONObject("prompts").getString(text))
 
 @RunWith(RobolectricTestRunner::class)
 class PromptsTest {

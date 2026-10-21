@@ -24,6 +24,7 @@ private val PNG = bytes(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) + ZEROS
 private val GIF = ascii("GIF89a") + ZEROS
 private val WEBP = ascii("RIFF") + ByteArray(4) + ascii("WEBPVP8 ") + ByteArray(8)
 private val HEIC = bytes(0, 0, 0, 0x18) + ascii("ftypheic") + ByteArray(12)
+
 /** MIAF profile: the HEIF brand appears only among the compatible brands. */
 private val MIAF_HEIC = bytes(0, 0, 0, 0x1c) + ascii("ftypmiaf") + ByteArray(4) + ascii("mif1heic") + ByteArray(8)
 private val AVIF = bytes(0, 0, 0, 0x1c) + ascii("ftypavif") + ByteArray(4) + ascii("mif1miaf") + ByteArray(8)
@@ -35,11 +36,12 @@ class ImageSourceTest {
 
     private val root by lazy { folder.root }
 
-    private fun write(path: String, content: ByteArray): File =
-        File(root, path).apply { parentFile!!.mkdirs(); writeBytes(content) }
+    private fun write(path: String, content: ByteArray): File = File(root, path).apply {
+        parentFile!!.mkdirs()
+        writeBytes(content)
+    }
 
-    private fun scanned(): List<String> =
-        runBlocking { FilesystemImageSource(root).scan().toList() }.map { File(it.path).relativeTo(root).path }
+    private fun scanned(): List<String> = runBlocking { FilesystemImageSource(root).scan().toList() }.map { File(it.path).relativeTo(root).path }
 
     @Test
     fun `finds every supported format`() {

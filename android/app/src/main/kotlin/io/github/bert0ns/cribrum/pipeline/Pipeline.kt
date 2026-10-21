@@ -129,7 +129,9 @@ class Pipeline(
 
         val images = index.images().filter { it.path in found }
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
-        val embeddings = if (embedder == null) emptyMap() else {
+        val embeddings = if (embedder == null) {
+            emptyMap()
+        } else {
             embed(embedder, readable, stats, progress)
             index.embeddings(embedder.id, embedder.version)
         }
@@ -205,7 +207,9 @@ class Pipeline(
         val tasks = images.mapNotNull { image ->
             val todo = detectors.filter { !index.isAnalyzed(image.path, it.id, it.version) }
             val needsPhash = index.perceptualHash(image.path) == null
-            if (todo.isEmpty() && !needsPhash) null else {
+            if (todo.isEmpty() && !needsPhash) {
+                null
+            } else {
                 AnalysisTask(image, index.metadata(image.path)!!, embeddings[image.path], todo, needsPhash)
             }
         }
@@ -250,7 +254,7 @@ class Pipeline(
                     },
                     onFailure = {
                         stats.failures += "${outcome.image.path}: perceptual hash: ${it.javaClass.simpleName}: ${it.message}"
-                    }
+                    },
                 )
             }
             progress("detectors", ++done, tasks.size)
@@ -277,14 +281,11 @@ class Pipeline(
         Result.failure(error)
     }
 
-    private suspend fun cachedContentHash(image: ImageRef): String =
-        index.contentHash(image.path) ?: contentHash(image).also { index.setContentHash(image.path, it) }
+    private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHash(image).also { index.setContentHash(image.path, it) }
 
-    private suspend fun storedPerceptualHash(image: ImageRef): ULong =
-        index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
+    private suspend fun storedPerceptualHash(image: ImageRef): ULong = index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
 
-    private suspend fun storedMetadata(image: ImageRef): ImageMetadata =
-        index.metadata(image.path) ?: throw UnreadableImage(File(image.path))
+    private suspend fun storedMetadata(image: ImageRef): ImageMetadata = index.metadata(image.path) ?: throw UnreadableImage(File(image.path))
 
     /** As the lab's: the same image set and model give the same text. */
     private fun fingerprint(images: List<ImageRef>, model: String): String {

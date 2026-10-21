@@ -140,13 +140,16 @@ class Review(
         return order.map { group ->
             val items = members[group].orEmpty().map { (image, role) ->
                 val best = role == Role.BEST
-                ReviewItem(image.ref, suggestTrash = !best && image.ref.path in candidateScores, isBest = best,
-                    score = candidateScores[image.ref.path] ?: 0f)
+                ReviewItem(
+                    image.ref,
+                    suggestTrash = !best && image.ref.path in candidateScores,
+                    isBest = best,
+                    score = candidateScores[image.ref.path] ?: 0f,
+                )
             }
             ReviewGroup(group, items.sortedByDescending { it.isBest })
         }
     }
 
-    private fun score(candidate: Candidate, category: Category) =
-        candidate.reasons.filter { it.kind == category }.maxOf { it.score }
+    private fun score(candidate: Candidate, category: Category) = candidate.reasons.filter { it.kind == category }.maxOf { it.score }
 }

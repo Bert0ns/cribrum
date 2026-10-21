@@ -35,7 +35,10 @@ class ReviewTest {
     fun close() = index.close()
 
     private fun image(path: String, vararg signals: Signal): ImageRef = runBlocking {
-        val file = File(volume, path).apply { parentFile!!.mkdirs(); writeText(path) }
+        val file = File(volume, path).apply {
+            parentFile!!.mkdirs()
+            writeText(path)
+        }
         val ref = file.toImageRef()
         index.record(ref)
         signals.groupBy { it.detectorId }.forEach { (id, s) -> index.setSignals(ref.path, id, 1, s) }
@@ -45,12 +48,18 @@ class ReviewTest {
     private fun blurry(score: Float) = Signal("blur", 1, Category.BLURRY, score)
 
     private fun duplicate(group: String, role: Role) = Signal(
-        "exact_duplicate", 1, Category.EXACT_DUPLICATE, if (role == Role.BEST) 0f else 1f,
+        "exact_duplicate",
+        1,
+        Category.EXACT_DUPLICATE,
+        if (role == Role.BEST) 0f else 1f,
         mapOf(GROUP_KEY to group, ROLE_KEY to role.value),
     )
 
     private fun nearDuplicate(group: String, role: Role, score: Float = if (role == Role.BEST) 0f else 0.8f) = Signal(
-        "near_duplicate", 2, Category.NEAR_DUPLICATE, score,
+        "near_duplicate",
+        2,
+        Category.NEAR_DUPLICATE,
+        score,
         mapOf(GROUP_KEY to group, ROLE_KEY to role.value, "distance" to "4"),
     )
 

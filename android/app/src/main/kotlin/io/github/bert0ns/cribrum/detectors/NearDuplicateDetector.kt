@@ -14,6 +14,7 @@ import io.github.bert0ns.cribrum.model.Signal
 import java.util.Locale
 
 const val MAX_DISTANCE = 10
+
 /**
  * Embedding similarity that still links two images. A 75% crop of a photo scores about
  * 0.90 with MobileCLIP-S0; different photos of the same party stay under 0.8. MobileCLIP2-S0

@@ -19,9 +19,9 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Rule
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
@@ -43,8 +43,7 @@ class PipelineTest {
     @After
     fun close() = index.close()
 
-    private fun save(path: String, seed: Int = 0): File =
-        TestImage.texture(64, 48, seed).save(File(root, path).apply { parentFile!!.mkdirs() })
+    private fun save(path: String, seed: Int = 0): File = TestImage.texture(64, 48, seed).save(File(root, path).apply { parentFile!!.mkdirs() })
 
     private fun photos() {
         save("DCIM/Camera/a.png")
@@ -125,7 +124,10 @@ class PipelineTest {
     @Test
     fun `unreadable image gets no per-image analysis`() {
         photos()
-        val broken = File(root, "Download/broken.jpg").apply { parentFile!!.mkdirs(); writeBytes(byteArrayOf(-1, -40, -1, -32) + ByteArray(16)) }
+        val broken = File(root, "Download/broken.jpg").apply {
+            parentFile!!.mkdirs()
+            writeBytes(byteArrayOf(-1, -40, -1, -32) + ByteArray(16))
+        }
 
         val stats = run()
 
@@ -235,8 +237,7 @@ class PipelineTest {
         override val id = "embedding_user"
         override val version = 1
 
-        override suspend fun analyze(image: ImageRef, context: AnalysisContext) =
-            listOf(Signal(id, version, Category.DOCUMENT, context.embedding(image)[0]))
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext) = listOf(Signal(id, version, Category.DOCUMENT, context.embedding(image)[0]))
     }
 
     @Test

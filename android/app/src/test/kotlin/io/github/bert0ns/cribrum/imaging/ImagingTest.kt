@@ -12,8 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 
-private fun gray(width: Int, height: Int, vararg values: Int) =
-    Gray(width, height, FloatArray(values.size) { values[it].toFloat() })
+private fun gray(width: Int, height: Int, vararg values: Int) = Gray(width, height, FloatArray(values.size) { values[it].toFloat() })
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

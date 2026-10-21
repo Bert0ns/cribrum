@@ -128,7 +128,10 @@ abstract class CopyFiles : DefaultTask() {
 
     @TaskAction
     fun copy() {
-        outputDirectory.get().asFile.run { deleteRecursively(); mkdirs() } // a renamed input must not leave its old copy in the APK
+        outputDirectory.get().asFile.run {
+            deleteRecursively()
+            mkdirs()
+        } // a renamed input must not leave its old copy in the APK
         for (file in inputFiles) file.copyTo(outputDirectory.file(file.name).get().asFile, overwrite = true)
     }
 }

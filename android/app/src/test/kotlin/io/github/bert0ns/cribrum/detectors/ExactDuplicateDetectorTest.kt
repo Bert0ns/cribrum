@@ -21,12 +21,14 @@ class ExactDuplicateDetectorTest {
     val folder = TemporaryFolder()
 
     private fun write(name: String, content: String): ImageRef {
-        val file = File(folder.root, name).apply { parentFile!!.mkdirs(); writeText(content) }
+        val file = File(folder.root, name).apply {
+            parentFile!!.mkdirs()
+            writeText(content)
+        }
         return ImageRef(file.path, content.length.toLong(), 0)
     }
 
-    private fun run(images: List<ImageRef>, context: AnalysisContext = AnalysisContext()) =
-        runBlocking { ExactDuplicateDetector().analyze(images, context) }
+    private fun run(images: List<ImageRef>, context: AnalysisContext = AnalysisContext()) = runBlocking { ExactDuplicateDetector().analyze(images, context) }
 
     private fun Map<ImageRef, List<Signal>>.evidence(image: ImageRef, key: String) = getValue(image).single().evidence[key]
 
@@ -65,7 +67,10 @@ class ExactDuplicateDetectorTest {
     @Test
     fun `unique sizes are never hashed`() {
         val hashed = mutableListOf<ImageRef>()
-        val context = AnalysisContext(contentHash = { hashed += it; "same" })
+        val context = AnalysisContext(contentHash = {
+            hashed += it
+            "same"
+        })
 
         assertEquals(emptyMap<ImageRef, List<Signal>>(), run(listOf(write("a.jpg", "a"), write("b.jpg", "bb")), context))
         assertEquals(emptyList<ImageRef>(), hashed)

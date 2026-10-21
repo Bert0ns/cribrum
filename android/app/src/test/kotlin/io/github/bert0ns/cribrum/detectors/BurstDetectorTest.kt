@@ -64,8 +64,7 @@ class BurstDetectorTest {
         }
     }
 
-    private fun role(signals: Map<ImageRef, List<Signal>>, image: ImageRef): String =
-        signals.getValue(image).single().evidence.getValue(ROLE_KEY)
+    private fun role(signals: Map<ImageRef, List<Signal>>, image: ImageRef): String = signals.getValue(image).single().evidence.getValue(ROLE_KEY)
 
     @Test
     fun `shots seconds apart form a burst with the sharpest as best`() {

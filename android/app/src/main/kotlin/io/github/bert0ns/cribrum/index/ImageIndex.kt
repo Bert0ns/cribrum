@@ -55,8 +55,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     /** Images whose metadata was never read, leaving out the unreadable ones. */
-    suspend fun withoutMetadata(): List<ImageRef> =
-        dao.withoutMetadata().map { ImageRef(it.path, it.size, it.mtimeNs) }
+    suspend fun withoutMetadata(): List<ImageRef> = dao.withoutMetadata().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
     /** Marks an image whose header can't be decoded, so it isn't retried until it changes. */
     suspend fun setUnreadable(path: String) = require(dao.setUnreadable(path), path)
@@ -65,7 +64,12 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun setMetadata(path: String, metadata: ImageMetadata) = require(
         dao.setMetadata(
-            path, metadata.width, metadata.height, metadata.mime, metadata.cameraMake, metadata.cameraModel,
+            path,
+            metadata.width,
+            metadata.height,
+            metadata.mime,
+            metadata.cameraMake,
+            metadata.cameraModel,
             metadata.capturedAt?.format(ISO_SECONDS),
         ),
         path,
@@ -73,7 +77,11 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun metadata(path: String): ImageMetadata? = dao.metadata(path)?.let {
         ImageMetadata(
-            it.width, it.height, it.mime, it.cameraMake, it.cameraModel,
+            it.width,
+            it.height,
+            it.mime,
+            it.cameraMake,
+            it.cameraModel,
             it.capturedAt?.let { text -> LocalDateTime.parse(text) },
         )
     }
@@ -86,65 +94,57 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     /** Stored as hex text: SQLite integers are signed and a hash may use all 64 bits. */
-    suspend fun setPerceptualHash(path: String, hash: ULong) =
-        require(dao.setPerceptualHash(path, hash.toString(16).padStart(16, '0')), path)
+    suspend fun setPerceptualHash(path: String, hash: ULong) = require(dao.setPerceptualHash(path, hash.toString(16).padStart(16, '0')), path)
 
     suspend fun perceptualHash(path: String): ULong? {
         requireRecorded(path)
         return dao.perceptualHash(path)?.toULong(16)
     }
 
-    suspend fun setEmbeddings(model: String, modelVersion: Int, vectors: Map<String, FloatArray>) =
-        db.withTransaction {
-            for ((path, vector) in vectors) {
-                requireRecorded(path)
-                val bytes = ByteBuffer.allocate(4 * vector.size).order(ByteOrder.LITTLE_ENDIAN)
-                bytes.asFloatBuffer().put(vector)
-                dao.putEmbedding(EmbeddingRow(path, model, modelVersion, bytes.array()))
-            }
+    suspend fun setEmbeddings(model: String, modelVersion: Int, vectors: Map<String, FloatArray>) = db.withTransaction {
+        for ((path, vector) in vectors) {
+            requireRecorded(path)
+            val bytes = ByteBuffer.allocate(4 * vector.size).order(ByteOrder.LITTLE_ENDIAN)
+            bytes.asFloatBuffer().put(vector)
+            dao.putEmbedding(EmbeddingRow(path, model, modelVersion, bytes.array()))
         }
+    }
 
     /** Every stored embedding of this model version, loaded at once for group detectors. */
-    suspend fun embeddings(model: String, modelVersion: Int): Map<String, FloatArray> =
-        dao.embeddings(model, modelVersion).associate { row ->
-            val floats = ByteBuffer.wrap(row.vector).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
-            row.path to FloatArray(floats.remaining()).also { floats.get(it) }
-        }
+    suspend fun embeddings(model: String, modelVersion: Int): Map<String, FloatArray> = dao.embeddings(model, modelVersion).associate { row ->
+        val floats = ByteBuffer.wrap(row.vector).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        row.path to FloatArray(floats.remaining()).also { floats.get(it) }
+    }
 
     /** Replaces whatever this detector stored for the image, from any version. */
-    suspend fun setSignals(path: String, detectorId: String, detectorVersion: Int, signals: List<Signal>) =
-        setSignalsOfMany(detectorId, detectorVersion, mapOf(path to signals))
+    suspend fun setSignals(path: String, detectorId: String, detectorVersion: Int, signals: List<Signal>) = setSignalsOfMany(detectorId, detectorVersion, mapOf(path to signals))
 
     /** [setSignals] for many images in one transaction, as group detectors need. */
-    suspend fun setSignalsOfMany(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>) =
-        db.withTransaction {
-            for ((path, imageSignals) in signals) {
-                requireRecorded(path)
-                dao.deleteAnalysis(path, detectorId)
-                dao.insertAnalysis(AnalysisRow(path, detectorId, detectorVersion))
-                dao.insertSignals(
-                    imageSignals.map {
-                        SignalRow(
-                            path = path,
-                            detectorId = it.detectorId,
-                            detectorVersion = it.detectorVersion,
-                            category = it.kind.value,
-                            score = it.score.toDouble(),
-                            evidence = JSONObject(it.evidence).toString(),
-                        )
-                    },
-                )
-            }
+    suspend fun setSignalsOfMany(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>) = db.withTransaction {
+        for ((path, imageSignals) in signals) {
+            requireRecorded(path)
+            dao.deleteAnalysis(path, detectorId)
+            dao.insertAnalysis(AnalysisRow(path, detectorId, detectorVersion))
+            dao.insertSignals(
+                imageSignals.map {
+                    SignalRow(
+                        path = path,
+                        detectorId = it.detectorId,
+                        detectorVersion = it.detectorVersion,
+                        category = it.kind.value,
+                        score = it.score.toDouble(),
+                        evidence = JSONObject(it.evidence).toString(),
+                    )
+                },
+            )
         }
+    }
 
-    suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? =
-        dao.groupFingerprint(detectorId, detectorVersion)
+    suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? = dao.groupFingerprint(detectorId, detectorVersion)
 
-    suspend fun setGroupFingerprint(detectorId: String, detectorVersion: Int, fingerprint: String) =
-        dao.putGroupRun(GroupRunRow(detectorId, detectorVersion, fingerprint))
+    suspend fun setGroupFingerprint(detectorId: String, detectorVersion: Int, fingerprint: String) = dao.putGroupRun(GroupRunRow(detectorId, detectorVersion, fingerprint))
 
-    suspend fun isAnalyzed(path: String, detectorId: String, detectorVersion: Int): Boolean =
-        dao.analyses(path, detectorId, detectorVersion) > 0
+    suspend fun isAnalyzed(path: String, detectorId: String, detectorVersion: Int): Boolean = dao.analyses(path, detectorId, detectorVersion) > 0
 
     suspend fun signals(path: String): List<Signal> = dao.signals(path).map(::signal)
 
@@ -193,8 +193,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     companion object {
-        fun open(context: Context, name: String = "index.sqlite"): ImageIndex =
-            ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).build())
+        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).build())
     }
 }
 

@@ -50,9 +50,11 @@ class BlurDetector : Detector {
             }
             // A portrait with a blurred background still has a sharp region: score on that one.
             var peak = 0.0
-            for (rows in split(h, TILES)) for (columns in split(w, TILES)) {
-                if (rows.isEmpty() || columns.isEmpty()) continue // images narrower than TILES px
-                peak = maxOf(peak, variance(rows.flatMap { y -> columns.map { x -> laplacian[y * w + x] } }))
+            for (rows in split(h, TILES)) {
+                for (columns in split(w, TILES)) {
+                    if (rows.isEmpty() || columns.isEmpty()) continue // images narrower than TILES px
+                    peak = maxOf(peak, variance(rows.flatMap { y -> columns.map { x -> laplacian[y * w + x] } }))
+                }
             }
             return variance(laplacian.asList()) to peak
         }

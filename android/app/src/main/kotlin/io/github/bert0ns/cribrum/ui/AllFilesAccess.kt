@@ -20,8 +20,7 @@ import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
 
 /** The system screen where the user grants this app All files access (docs/design.md §4, D7). */
-fun allFilesAccessSettings(context: Context) =
-    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.fromParts("package", context.packageName, null))
+fun allFilesAccessSettings(context: Context) = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.fromParts("package", context.packageName, null))
 
 @Composable
 fun AllFilesAccess(onGrant: () -> Unit, modifier: Modifier = Modifier) {
