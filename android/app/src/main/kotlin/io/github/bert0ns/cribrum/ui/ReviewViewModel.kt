@@ -40,6 +40,8 @@ data class RetentionChange(val days: Int, val expiring: Int)
 data class ReviewState(
     val screen: Screen = Screen.Home,
     val categories: List<CategorySummary> = emptyList(),
+    /** Nothing is indexed yet, so the home screen points to "Scan now". */
+    val indexEmpty: Boolean = false,
     val page: List<ReviewGroup> = emptyList(),
     /** Candidates the open category has left, the page included. */
     val remaining: Int = 0,
@@ -85,7 +87,7 @@ class ReviewViewModel @JvmOverloads constructor(
         }
     }
 
-    fun refresh() = load { it.copy(categories = review.categories()) }
+    fun refresh() = load { it.copy(categories = review.categories(), indexEmpty = app.index.imageCount() == 0) }
 
     fun open(category: Category) = load {
         it.copy(screen = Screen.Category(category), lastDecision = null, lastExclusion = null, skipped = emptySet()).showing(review.page(category))

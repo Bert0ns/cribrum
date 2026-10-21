@@ -1,5 +1,5 @@
-// Background indexing with WorkManager (docs/design.md §4): a scan when the app asks for one, and
-// an incremental one every day while the phone charges.
+// Background indexing with WorkManager (docs/design.md §4): a scan when the user asks for one, and
+// an incremental one every night while the phone charges.
 package io.github.bert0ns.cribrum.pipeline
 
 import android.app.NotificationChannel
@@ -15,6 +15,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.ForegroundInfo
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -31,6 +32,9 @@ import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.Duration
+import java.time.LocalTime
+import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 
 object Indexing {
@@ -39,17 +43,34 @@ object Indexing {
     const val STEP = "step"
     const val DONE = "done"
     const val TOTAL = "total"
+    private val NIGHT_START = LocalTime.of(2, 0)
 
     /** Starts a scan now, unless one is running. */
     fun scanNow(context: Context) {
         WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<IndexWorker>().build())
     }
 
-    /** Later passes only process new or changed files, so a daily one while charging is cheap. */
+    /**
+     * Later passes only process new or changed files, so a daily one while charging is cheap.
+     * UPDATE rather than KEEP, so an install that has the old request without the delay gets the new one.
+     */
     fun schedulePeriodic(context: Context) {
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.UPDATE, dailyRequest())
+    }
+
+    /**
+     * WorkManager has no time of day, so the first run waits for [NIGHT_START] and the daily period keeps
+     * later runs about a day apart. Charging and a battery that is not low decide when it actually starts.
+     * shortcut: a run held back by the constraints shifts later runs, when it matters add a flex window.
+     */
+    fun dailyRequest(now: ZonedDateTime = ZonedDateTime.now()): PeriodicWorkRequest {
         val constraints = Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build()
-        val request = PeriodicWorkRequestBuilder<IndexWorker>(1, TimeUnit.DAYS).setConstraints(constraints).build()
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(PERIODIC_WORK, ExistingPeriodicWorkPolicy.KEEP, request)
+        var next = now.toLocalDate().atTime(NIGHT_START).atZone(now.zone)
+        if (!next.isAfter(now)) next = now.toLocalDate().plusDays(1).atTime(NIGHT_START).atZone(now.zone)
+        return PeriodicWorkRequestBuilder<IndexWorker>(1, TimeUnit.DAYS)
+            .setConstraints(constraints)
+            .setInitialDelay(Duration.between(now, next))
+            .build()
     }
 
     /** The running scan's progress, or null when none runs. */

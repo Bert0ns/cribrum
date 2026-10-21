@@ -16,6 +16,7 @@ import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -314,5 +315,17 @@ class ReviewViewModelTest {
         val next = ReviewViewModel(app)
         settle(next) { true }
         assertEquals(false, next.state.value.hapticsEnabled)
+    }
+
+    @Test
+    fun `the home screen knows whether anything is indexed`() {
+        val model = ReviewViewModel(app)
+        model.refresh()
+        settle(model) { it.state.value.categories.isNotEmpty() }
+        assertTrue(model.state.value.indexEmpty)
+
+        blurry("/sdcard/a.jpg", 0.9f)
+        model.refresh()
+        settle(model) { !it.state.value.indexEmpty }
     }
 }

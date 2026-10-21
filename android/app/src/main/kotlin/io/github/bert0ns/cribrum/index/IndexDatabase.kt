@@ -202,6 +202,9 @@ interface IndexDao {
     @Query("DELETE FROM embeddings")
     suspend fun deleteAllEmbeddings()
 
+    @Query("SELECT count(*) FROM images")
+    suspend fun imageCount(): Int
+
     @Query("SELECT count(*) FROM embeddings")
     suspend fun embeddingCount(): Int
 

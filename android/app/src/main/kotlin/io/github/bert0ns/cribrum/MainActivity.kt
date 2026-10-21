@@ -102,13 +102,12 @@ private fun AppContent(model: ReviewViewModel) {
     val progress by remember { Indexing.progress(context) }.collectAsStateWithLifecycle(null)
     val snackbar = remember { SnackbarHostState() }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    // A scan on every start, and a daily one: later passes only look at new or changed files.
+    // Opening the app starts no scan: the nightly one and "Scan now" do (design §4).
     LaunchedEffect(Unit) {
         Indexing.schedulePeriodic(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notifications.launch(Manifest.permission.POST_NOTIFICATIONS) // the scan's progress notification
         }
-        Indexing.scanNow(context)
     }
     // New candidates show up as the scan stores them.
     LaunchedEffect(progress == null) {
@@ -183,7 +182,7 @@ private fun AppContent(model: ReviewViewModel) {
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             when (screen) {
                 Screen.Home -> {
-                    ScanStatus(progress, onScan = { Indexing.scanNow(context) })
+                    ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty)
                     CategoryList(state.categories, model::open, model::openTrash)
                 }
                 is Screen.Category -> CategoryScreen(
