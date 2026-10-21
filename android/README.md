@@ -8,10 +8,12 @@ You need JDK 21 or newer (Robolectric needs it for the unit tests on SDK 37) and
 
 ```bash
 cd android
-./gradlew assembleDebug testDebugUnitTest lintDebug
+./gradlew ktlintCheck assembleDebug testDebugUnitTest lintDebug
 ```
 
-Unit tests run on the JVM with Robolectric, so they need no phone. CI runs the same command on every pull request that touches `android/`, and keeps the debug APK as an artifact.
+`./gradlew ktlintFormat` fixes the formatting that `ktlintCheck` reports (rules in `.editorconfig`).
+
+Unit tests run on the JVM with Robolectric, so they need no phone. CI runs the same command on every pull request that changes `android/`, `fixtures/` or `lab/src/`, and keeps the debug APK as an artifact.
 
 Detector tests compare with the lab's golden fixtures (`fixtures/golden`), decoding them with Android's own decoders through Robolectric's native graphics.
 

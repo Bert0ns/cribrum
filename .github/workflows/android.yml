@@ -1,27 +1,43 @@
 name: android
 
+# Runs on every pull request, so it can be a required check. The steps are skipped when nothing
+# the app builds from changed, and the job still reports success. The app reads the lab's source
+# (ranker, index, screens, folders), its prompt embeddings and its YuNet model, so any change
+# under lab/src counts.
 on:
   push:
     branches: [main]
-    paths: ["android/**", "fixtures/**", "lab/src/cribrum_lab/ranker.py", "lab/src/cribrum_lab/index.py", "lab/src/cribrum_lab/screens.py", "lab/src/cribrum_lab/folders.py", "lab/src/cribrum_lab/assets/**", ".github/workflows/android.yml"]
   pull_request:
-    paths: ["android/**", "fixtures/**", "lab/src/cribrum_lab/ranker.py", "lab/src/cribrum_lab/index.py", "lab/src/cribrum_lab/screens.py", "lab/src/cribrum_lab/folders.py", "lab/src/cribrum_lab/assets/**", ".github/workflows/android.yml"]
 
 jobs:
-  check:
+  android:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: android
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+        with:
+          fetch-depth: 0
+      - id: changed
+        working-directory: .
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if ! files=$(git diff --name-only "$BASE" HEAD) || grep -qE '^(android|fixtures|lab/src)/|^\.github/workflows/android\.yml$' <<< "$files"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.changed.outputs.run
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
-      - run: ./gradlew assembleDebug testDebugUnitTest lintDebug
-      - uses: actions/upload-artifact@v5
+      - if: steps.changed.outputs.run
+        uses: gradle/actions/setup-gradle@v5
+      - if: steps.changed.outputs.run
+        run: ./gradlew ktlintCheck assembleDebug testDebugUnitTest lintDebug
+      - if: steps.changed.outputs.run
+        uses: actions/upload-artifact@v5
         with:
           name: cribrum-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk

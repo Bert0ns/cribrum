@@ -16,6 +16,16 @@ Most of the code in this repository is written by AI coding agents. Read this fi
 - Photo age must not be used as a deletion signal.
 - Keep the Python lab (`lab/`) and the Android app (`android/`) structurally parallel: same component names, same interfaces.
 
+## Checks
+
+The deterministic checks must pass before a PR is ready, and a red check means it is not. Run them locally first:
+
+- `lab/`: `uv run ruff check && uv run ruff format --check && uv run pytest`
+- `android/`: `./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug`, and `./gradlew ktlintFormat` fixes the formatting
+- `python3 lab/scripts/check_parity.py` checks that lab and android agree on detector ids, versions and thresholds. When you change one side, change the other, and bump the detector version if its output changes.
+
+CI runs `lab`, `android` and `parity` on every PR, and `main` requires them to pass.
+
 ## Skills
 
 Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` only holds symlinks to them). Read a skill's `SKILL.md` before the task it covers.
