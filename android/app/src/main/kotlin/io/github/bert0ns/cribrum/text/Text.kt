@@ -56,5 +56,6 @@ fun textCoverage(file: File, runtime: ModelRuntime = defaultRuntime): Float {
 
 private val defaultRuntime: ModelRuntime by lazy {
     val stream = object {}.javaClass.getResourceAsStream(DETECTOR_RESOURCE) ?: error("Resource $DETECTOR_RESOURCE not found on classpath")
-    OnnxRuntime(stream.use { it.readBytes() })
+    // One thread: every pipeline worker runs it at once.
+    OnnxRuntime(stream.use { it.readBytes() }, threads = 1)
 }
