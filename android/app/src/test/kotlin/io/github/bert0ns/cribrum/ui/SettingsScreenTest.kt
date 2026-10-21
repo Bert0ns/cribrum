@@ -106,6 +106,17 @@ class SettingsScreenTest {
     }
 
     @Test
+    fun `settings screen opens the detection thresholds`() {
+        var opened = 0
+        compose.setContent { SettingsScreen(onOpenThresholds = { opened++ }) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Detection thresholds"))
+        compose.onNodeWithText("Detection thresholds").performClick()
+
+        assertEquals(1, opened)
+    }
+
+    @Test
     fun `settings screen opens website and source links`() {
         val opened = mutableListOf<String>()
         val uriHandler = object : UriHandler {

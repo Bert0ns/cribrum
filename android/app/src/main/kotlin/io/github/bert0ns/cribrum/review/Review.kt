@@ -15,6 +15,7 @@ import io.github.bert0ns.cribrum.pipeline.DETECTOR_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Candidate
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Ranker
+import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import java.io.File
@@ -56,17 +57,27 @@ data class Decision(val trashed: List<ImageRef>, val kept: List<ImageRef>, val f
 class Review(
     private val index: ImageIndex,
     private val trash: Trash,
-    private val ranker: Ranker = Ranker(),
+    /** Read on every call, so a threshold the user changes applies to the next list without a scan. */
+    private val thresholds: () -> Map<Category, Float> = { THRESHOLDS },
     private val detectorCategories: Set<Category> = DETECTOR_CATEGORIES,
 ) {
     /** Every category in fixed order, with its candidate count and size, and whether it has a detector. */
     suspend fun categories(): List<CategorySummary> {
-        val byCategory = Ranker.byCategory(ranker.rank(index.indexedImages(), index.excludedFolders()))
+        val byCategory = byCategory(thresholds())
         return Category.entries.map { category ->
             val candidates = byCategory[category].orEmpty()
             CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
         }
     }
+
+    /** How many candidates each category would list at [thresholds], which are the ones in use by default. */
+    suspend fun counts(thresholds: Map<Category, Float> = this.thresholds()): Map<Category, Int> {
+        val byCategory = byCategory(thresholds)
+        return Category.entries.associateWith { byCategory[it]?.size ?: 0 }
+    }
+
+    private suspend fun byCategory(thresholds: Map<Category, Float>) =
+        Ranker.byCategory(Ranker(thresholds).rank(index.indexedImages(), index.excludedFolders()))
 
     /**
      * The first page of a category: groups in the ranker's order, never split across pages. Groups
@@ -75,7 +86,7 @@ class Review(
     suspend fun page(category: Category, skipped: Set<String> = emptySet()): Page {
         val excluded = index.excludedFolders()
         val images = index.indexedImages()
-        val candidates = Ranker.byCategory(ranker.rank(images, excluded))[category].orEmpty()
+        val candidates = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))[category].orEmpty()
         val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates))
             .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()

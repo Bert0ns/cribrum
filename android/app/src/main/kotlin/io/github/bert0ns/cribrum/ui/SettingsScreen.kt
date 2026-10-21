@@ -36,6 +36,7 @@ import io.github.bert0ns.cribrum.trash.TrashRetention
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onOpenStorageMap: () -> Unit = {},
+    onOpenThresholds: () -> Unit = {},
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     onRetentionChange: (Int) -> Unit = {},
     pendingRetention: RetentionChange? = null,
@@ -163,6 +164,12 @@ fun SettingsScreen(
         }
         item {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_thresholds)) },
+                modifier = Modifier.clickable { onOpenThresholds() },
+            )
         }
         item {
             ListItem(

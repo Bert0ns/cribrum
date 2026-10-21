@@ -9,6 +9,7 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -31,7 +32,8 @@ class ReviewTest {
 
     private val index = memoryIndex()
     private val volume by lazy { folder.newFolder("storage") }
-    private val review by lazy { Review(index, AppTrash({ listOf(volume) })) }
+    private var thresholds: Map<Category, Float> = THRESHOLDS
+    private val review by lazy { Review(index, AppTrash({ listOf(volume) }), thresholds = { thresholds }) }
 
     @After
     fun close() = index.close()
@@ -104,6 +106,48 @@ class ReviewTest {
         assertEquals(11L, bytes[Category.BLURRY])
         assertEquals(14L, bytes[Category.EXACT_DUPLICATE])
         assertEquals(0L, bytes[Category.SCREENSHOT])
+    }
+
+    @Test
+    fun `changing a threshold changes the lists on the next read, with no new scan`() = test {
+        image("a.jpg", blurry(0.9f))
+        image("b.jpg", blurry(0.6f))
+        image("c.jpg", blurry(0.45f))
+        suspend fun blurryCount() = categories().single { it.category == Category.BLURRY }.count
+
+        assertEquals(3, blurryCount())
+
+        thresholds = THRESHOLDS + (Category.BLURRY to 0.7f)
+        assertEquals(1, blurryCount())
+        assertEquals(1, page(Category.BLURRY).remaining)
+
+        thresholds = THRESHOLDS + (Category.BLURRY to 0.1f)
+        assertEquals(3, blurryCount())
+    }
+
+    @Test
+    fun `a lowered threshold does not list a kept image again`() = test {
+        val kept = image("a.jpg", blurry(0.3f))
+        index.setReviewState(kept.path, ReviewState.KEPT)
+
+        thresholds = THRESHOLDS + (Category.BLURRY to 0.2f)
+
+        assertEquals(0, categories().single { it.category == Category.BLURRY }.count)
+        assertEquals(ReviewState.KEPT, index.reviewState(kept.path))
+    }
+
+    @Test
+    fun `candidate counts at other thresholds leave the ones in use alone`() = test {
+        image("a.jpg", blurry(0.9f))
+        image("b.jpg", blurry(0.45f))
+        image("c.jpg", Signal("document", 1, Category.DOCUMENT, 0.3f))
+
+        val counts = counts(THRESHOLDS + (Category.BLURRY to 0.7f))
+
+        assertEquals(1, counts[Category.BLURRY])
+        assertEquals(1, counts[Category.DOCUMENT])
+        assertEquals(0, counts[Category.SCREENSHOT])
+        assertEquals(2, categories().single { it.category == Category.BLURRY }.count)
     }
 
     @Test
