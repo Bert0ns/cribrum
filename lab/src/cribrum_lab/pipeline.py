@@ -126,7 +126,7 @@ def run(
     readable = [i for i in images if i.path not in unreadable]
     embeddings = {}
     if embedder is not None:
-        _embed(embedder, index, readable, jobs, stats, progress)
+        _embed(embedder, index, detectors, readable, jobs, stats, progress)
         embeddings = index.embeddings(embedder.id, embedder.version)
 
     tasks = []
@@ -210,6 +210,7 @@ def _analyze(
 def _embed(
     embedder: Embedder,
     index: ImageIndex,
+    detectors: Sequence[Detector],
     images: list[ImageRef],
     jobs: int,
     stats: Stats,
@@ -229,6 +230,11 @@ def _embed(
         for batch_start in range(0, len(decoded), EMBEDDING_BATCH):
             batch = decoded[batch_start : batch_start + EMBEDDING_BATCH]
             vectors = embedder.embed_pixels(np.stack([pixels for _, pixels in batch]))
+            # A detector's result belongs to the embedding it read: a new one means analyzing again.
+            index.forget_analyses(
+                [image.path for image, _ in batch],
+                [d.id for d in detectors if getattr(d, "uses_embeddings", False)],
+            )
             index.set_embeddings(
                 embedder.id,
                 embedder.version,

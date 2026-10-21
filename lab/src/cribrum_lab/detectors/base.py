@@ -48,6 +48,10 @@ class Detector(Protocol):
 
     Bump `version` whenever the output for the same input can change, so stored
     signals from older versions get recomputed.
+
+    A detector that reads the embedding also sets `uses_embeddings = True`, so a new
+    embedding makes its stored result stale. A Protocol can't make an attribute optional:
+    the pipeline reads it with `getattr`, and a detector without it is false.
     """
 
     id: str

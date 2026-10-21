@@ -100,7 +100,10 @@ fun App(model: ReviewViewModel = viewModel()) {
         Indexing.scanNow(context)
     }
     // New candidates show up as the scan stores them.
-    LaunchedEffect(progress == null) { if (state.screen == Screen.Home) model.refresh() }
+    LaunchedEffect(progress == null) {
+        if (state.screen == Screen.Home) model.refresh()
+        if (state.screen == Screen.Settings) model.openSettings() // the scan changed the embedding count
+    }
     val decision = state.lastDecision
     val trashedMessage = decision?.let {
         val trashed = pluralStringResource(R.plurals.trashed_snackbar, it.trashed.size, it.trashed.size)
@@ -189,6 +192,9 @@ fun App(model: ReviewViewModel = viewModel()) {
                     onCancelRetention = model::cancelRetention,
                     excludedFolders = state.excludedFolders,
                     onRemoveExcludedFolder = model::removeExcludedFolder,
+                    embeddingCount = state.embeddingCount,
+                    scanning = progress != null,
+                    onDeleteEmbeddings = model::deleteEmbeddings,
                 )
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,

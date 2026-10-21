@@ -47,6 +47,9 @@ interface Detector {
     /** The category its signals are about, so the app can tell which categories it looks for. */
     val category: Category? get() = null
 
+    /** True when [analyze] reads the embedding, so a new embedding means its stored result is stale. */
+    val usesEmbeddings: Boolean get() = false
+
     suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal>
 }
 

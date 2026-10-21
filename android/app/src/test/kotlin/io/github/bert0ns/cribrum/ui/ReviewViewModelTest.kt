@@ -240,4 +240,21 @@ class ReviewViewModelTest {
     }
 
     private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()
+
+    @Test
+    fun `deleting the embeddings updates the count and keeps the candidates`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        runBlocking { app.index.setEmbeddings("clip", 1, mapOf("/sdcard/a.jpg" to floatArrayOf(1f))) }
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it) == listOf("/sdcard/a.jpg") }
+        model.openSettings()
+        settle(model) { it.state.value.embeddingCount == 1 }
+
+        model.deleteEmbeddings()
+        settle(model) { it.state.value.embeddingCount == 0 }
+        assertEquals(emptyMap<String, FloatArray>(), runBlocking { app.index.embeddings("clip", 1) })
+        assertEquals(listOf("/sdcard/a.jpg"), paths(model))
+        runBlocking { assertEquals(1, app.index.signals("/sdcard/a.jpg").size) }
+    }
 }

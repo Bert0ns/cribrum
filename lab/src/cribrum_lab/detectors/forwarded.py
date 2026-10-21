@@ -21,6 +21,7 @@ class ForwardedDetector:
     version = 2
     category = Category.FORWARDED
     """Bump with prompts.VERSION."""
+    uses_embeddings = True
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
         probability, prompt = prompts.classify(context.embedding(image))["forwarded"]

@@ -23,6 +23,7 @@ class DocumentDetector(private val coverage: (File) -> Float = ::textCoverage) :
     /** Bump with [VERSION]. */
     override val version = 3
     override val category = Category.DOCUMENT
+    override val usesEmbeddings = true
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
         val (probability, prompt) = classify(context.embedding(image)).getValue("document")

@@ -126,6 +126,57 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `deleting the embeddings leaves the rest of the index as it was`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setMetadata(PHOTO.path, META)
+        setEmbeddings("clip", 1, mapOf(PHOTO.path to floatArrayOf(1f), OTHER.path to floatArrayOf(2f)))
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+        setReviewState(PHOTO.path, ReviewState.KEPT)
+        excludeFolder("/photos/memes")
+
+        deleteEmbeddings()
+
+        assertEquals(emptyMap<String, FloatArray>(), embeddings("clip", 1))
+        assertEquals(listOf(PHOTO, OTHER), images())
+        assertEquals(META, metadata(PHOTO.path))
+        assertEquals(listOf(BLUR), signals(PHOTO.path))
+        assertTrue(isAnalyzed(PHOTO.path, "blur", 1))
+        assertEquals(ReviewState.KEPT, reviewState(PHOTO.path))
+        assertEquals(listOf("/photos/memes"), excludedFolders())
+    }
+
+    @Test
+    fun `deleting the embeddings gives their pages back to the file`() = test {
+        repeat(100) {
+            record(ImageRef("/photos/$it.jpg", 1, 1))
+            setEmbeddings("clip", 1, mapOf("/photos/$it.jpg" to FloatArray(512) { value -> value.toFloat() }))
+        }
+        assertEquals(100, embeddingCount())
+
+        deleteEmbeddings()
+
+        assertEquals(0, embeddingCount())
+        val db = database.openHelper.readableDatabase
+        db.query("PRAGMA freelist_count").use {
+            it.moveToFirst()
+            assertEquals(0, it.getInt(0)) // a plain DELETE leaves the pages in the file
+        }
+    }
+
+    @Test
+    fun `forgetting analyses drops the signals of the chosen detectors only`() = test {
+        record(PHOTO)
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+        setSignals(PHOTO.path, "document", 1, listOf(Signal("document", 1, Category.DOCUMENT, 0.9f)))
+
+        forgetAnalyses(listOf(PHOTO.path), listOf("document"))
+
+        assertFalse(isAnalyzed(PHOTO.path, "document", 1))
+        assertEquals(listOf(BLUR), signals(PHOTO.path))
+    }
+
+    @Test
     fun `signals are stored per detector version`() = test {
         record(PHOTO)
         val screenshot = Signal("screenshot", 3, Category.SCREENSHOT, 0.9f)
