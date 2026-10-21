@@ -52,13 +52,13 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `category list says how much space the candidates can free`() {
-        val categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true, bytes = 3_000_000))
+    fun `category list shows no space for a category without candidates`() {
+        val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
         compose.setContent {
             CategoryList(categories = categories, onOpen = {}, onTrash = {})
         }
 
-        compose.onNodeWithText("3 images to review · can free 3.0 MB").assertExists()
+        compose.onNodeWithText("can free", substring = true).assertDoesNotExist()
     }
 
     @Test

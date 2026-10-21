@@ -91,7 +91,7 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
                             stringResource(R.string.category_coming_soon)
                         } else {
                             val count = pluralStringResource(R.plurals.candidates, summary.count, summary.count)
-                            if (summary.count == 0) count else "$count · " + stringResource(R.string.can_free, Formatter.formatShortFileSize(LocalContext.current, summary.bytes))
+                            if (summary.count == 0) count else stringResource(R.string.category_line_with_space, count, Formatter.formatShortFileSize(LocalContext.current, summary.bytes))
                         },
                     )
                 },
