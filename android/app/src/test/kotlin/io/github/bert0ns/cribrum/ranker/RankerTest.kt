@@ -44,6 +44,16 @@ private fun names(candidates: List<Candidate>) = candidates.map { it.image.ref.p
 
 class RankerTest {
     @Test
+    fun `images in an excluded folder are never listed, whatever their signals`() {
+        val order = Ranker(TEST_THRESHOLDS).rank(
+            listOf(image("/pics/family/a.jpg", blur(0.9f)), image("/pics/family/2020/b.jpg"), image("/pics/other/c.jpg", blur(0.9f))),
+            excludedFolders = listOf("/pics/family"),
+        )
+
+        assertEquals(listOf("/pics/other/c.jpg"), names(order))
+    }
+
+    @Test
     fun `any signal past its threshold makes a candidate`() {
         val blurry = image("blurry", blur(0.6f), screenshot(0.1f))
         val screen = image("screen", blur(0.1f), screenshot(0.9f))

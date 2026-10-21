@@ -71,8 +71,12 @@ CREATE TABLE IF NOT EXISTS group_runs (
     detector_version INTEGER NOT NULL,
     fingerprint TEXT NOT NULL
 );
+-- Folders the user excluded (docs/design.md, section 6.3): scanned, but never candidates.
+CREATE TABLE IF NOT EXISTS excluded_folders (
+    path TEXT PRIMARY KEY
+);
 """
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 """Bump on every schema change: an index from another version is refused, not misread."""
 
 
@@ -347,6 +351,18 @@ class ImageIndex:
         ).fetchone()
         _require(row, path)
         return ReviewState(row[0])
+
+    def exclude_folder(self, path: Path) -> None:
+        with self._db:
+            self._db.execute("INSERT OR IGNORE INTO excluded_folders VALUES (?)", (str(path),))
+
+    def remove_excluded_folder(self, path: Path) -> None:
+        with self._db:
+            self._db.execute("DELETE FROM excluded_folders WHERE path = ?", (str(path),))
+
+    def excluded_folders(self) -> list[Path]:
+        rows = self._db.execute("SELECT path FROM excluded_folders ORDER BY path")
+        return [Path(path) for (path,) in rows]
 
     def indexed_images(self) -> list[IndexedImage]:
         """Every image with its review state and signals, as the ranker takes them."""

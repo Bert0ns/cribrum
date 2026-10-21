@@ -175,5 +175,31 @@ class ReviewViewModelTest {
         assertEquals(14, app.trashRetention.days)
     }
 
+    @Test
+    fun `excluding a folder hides its images, and removing the exclusion from settings brings them back`() {
+        blurry("/sdcard/Family/a.jpg", 0.9f)
+        blurry("/sdcard/Family/2020/b.jpg", 0.9f)
+        blurry("/sdcard/Other/c.jpg", 0.8f)
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 3 }
+
+        model.excludeFolder(ImageRef("/sdcard/Family/a.jpg", 1_000, 1L))
+        settle(model) { paths(it) == listOf("/sdcard/Other/c.jpg") }
+        assertEquals(1, model.state.value.remaining)
+
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home }
+        model.openSettings()
+        settle(model) { it.state.value.excludedFolders == listOf("/sdcard/Family") }
+        model.removeExcludedFolder("/sdcard/Family")
+        settle(model) { it.state.value.excludedFolders.isEmpty() }
+
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home }
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 3 }
+    }
+
     private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()
 }

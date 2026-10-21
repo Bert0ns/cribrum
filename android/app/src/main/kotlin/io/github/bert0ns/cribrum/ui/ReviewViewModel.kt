@@ -54,6 +54,8 @@ data class ReviewState(
     val storageMap: List<Folder> = emptyList(),
     val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     val pendingRetention: RetentionChange? = null,
+    /** Folders the user asked never to be suggested again, shown in settings. */
+    val excludedFolders: List<String> = emptyList(),
 )
 
 class ReviewViewModel @JvmOverloads constructor(
@@ -78,7 +80,19 @@ class ReviewViewModel @JvmOverloads constructor(
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
 
-    fun openSettings() = load { it.copy(screen = Screen.Settings) }
+    fun openSettings() = load { it.copy(screen = Screen.Settings, excludedFolders = review.excludedFolders()) }
+
+    /** Hides the image's folder, subfolders included, and shows the page again without it. */
+    fun excludeFolder(image: ImageRef) = load { state ->
+        val category = (state.screen as? Screen.Category)?.category ?: return@load state
+        review.excludeFolderOf(image)
+        state.showing(review.page(category, state.skipped))
+    }
+
+    fun removeExcludedFolder(folder: String) = load { state ->
+        review.removeExcludedFolder(folder)
+        state.copy(excludedFolders = review.excludedFolders())
+    }
 
     /** Asks first when the new retention would purge trashed images at the next scan: that cannot be undone. */
     fun chooseRetention(days: Int) = load { state ->

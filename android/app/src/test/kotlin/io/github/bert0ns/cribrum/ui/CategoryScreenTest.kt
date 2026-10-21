@@ -8,9 +8,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
@@ -122,6 +124,20 @@ class CategoryScreenTest {
 
         compose.onNodeWithText("No more images to review. Skipped ones come back when you open this category again.").assertExists()
         compose.onNodeWithText("Skip").assertDoesNotExist()
+    }
+
+    @Test
+    fun `holding an image offers to never suggest its folder again`() {
+        var excluded: ImageRef? = null
+        compose.setContent {
+            CategoryScreen(page, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = { excluded = it })
+        }
+
+        compose.onAllNodesWithContentDescription("img2.jpg")[0].performTouchInput { longClick() }
+        compose.onNodeWithText("Never suggest this folder").performClick()
+
+        assertEquals(images[1], excluded)
+        compose.onNodeWithText("Never suggest this folder").assertDoesNotExist()
     }
 
     @Test

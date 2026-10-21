@@ -2,6 +2,7 @@
 // docs/design.md §6.
 package io.github.bert0ns.cribrum.ranker
 
+import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.IndexedImage
 import io.github.bert0ns.cribrum.model.Protection
@@ -56,12 +57,12 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
      * its part of the order but never move a candidate behind a non-candidate. A kept image is
      * listed again only for a signal it did not have when the user kept it, such as a new
      * duplicate group or a new role in its group. A newer detector version or a higher score is
-     * not new. Trashed images are never listed.
+     * not new. Trashed images are never listed, nor are those in an excluded folder.
      */
-    fun rank(images: List<IndexedImage>): List<Candidate> {
+    fun rank(images: List<IndexedImage>, excludedFolders: Collection<String> = emptyList()): List<Candidate> {
         val ranked = mutableListOf<Candidate>()
         for (image in images) {
-            if (image.reviewState == ReviewState.TRASHED) continue
+            if (image.reviewState == ReviewState.TRASHED || isExcluded(image.ref.path, excludedFolders)) continue
             var reasons = image.signals.filter(::passes)
             if (image.reviewState == ReviewState.KEPT) {
                 reasons = reasons.filter { it.identity !in image.seenWhenKept }

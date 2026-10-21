@@ -162,6 +162,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                     model::applyPage,
                     model::skip,
                     snackbar = snackbar,
+                    onExcludeFolder = model::excludeFolder,
                 )
                 Screen.Trash -> TrashScreen(
                     state.trashed,
@@ -178,6 +179,8 @@ fun App(model: ReviewViewModel = viewModel()) {
                     pendingRetention = state.pendingRetention,
                     onConfirmRetention = model::confirmRetention,
                     onCancelRetention = model::cancelRetention,
+                    excludedFolders = state.excludedFolders,
+                    onRemoveExcludedFolder = model::removeExcludedFolder,
                 )
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,

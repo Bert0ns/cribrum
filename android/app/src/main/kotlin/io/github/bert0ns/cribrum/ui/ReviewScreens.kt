@@ -155,6 +155,7 @@ fun CategoryScreen(
     modifier: Modifier = Modifier,
     /** Shown right above the button, which a snackbar at the bottom of the screen would cover. */
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    onExcludeFolder: (ImageRef) -> Unit = {},
 ) {
     var showSummary by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<ImageRef?>(null) }
@@ -209,12 +210,17 @@ fun CategoryScreen(
             dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
-    fullSize?.let { FullSize(it) { fullSize = null } }
+    fullSize?.let { image ->
+        FullSize(image, onExcludeFolder = {
+            fullSize = null
+            onExcludeFolder(image)
+        }) { fullSize = null }
+    }
 }
 
-/** The image at full size, to tell real blur from a small thumbnail. Pinch to zoom, tap to close. */
+/** The image at full size, to tell real blur from a small thumbnail. Pinch to zoom, tap to close. It also offers to never suggest the image's folder again. */
 @Composable
-private fun FullSize(image: ImageRef, onClose: () -> Unit) {
+private fun FullSize(image: ImageRef, onExcludeFolder: () -> Unit, onClose: () -> Unit) {
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         var scale by remember { mutableFloatStateOf(1f) }
         var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
@@ -239,12 +245,10 @@ private fun FullSize(image: ImageRef, onClose: () -> Unit) {
                     translationY = offset.y
                 },
             )
-            Text(
-                image.path,
-                color = Color.White,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
-            )
+            Column(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
+                Text(image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                TextButton(onExcludeFolder) { Text(stringResource(R.string.exclude_folder)) }
+            }
         }
     }
 }

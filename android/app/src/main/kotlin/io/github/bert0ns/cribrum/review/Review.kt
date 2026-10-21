@@ -2,6 +2,7 @@
 // every decision applied to the trash and the index together, so each one can be undone.
 package io.github.bert0ns.cribrum.review
 
+import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -18,6 +19,7 @@ import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import java.time.Duration
 import java.time.Instant
+import java.io.File
 
 /** Images shown at once: a few screens of thumbnails, reviewed and applied together. */
 const val PAGE_SIZE = 48
@@ -54,7 +56,7 @@ class Review(
 ) {
     /** Every category in fixed order, with its candidate count and whether it has a detector. */
     suspend fun categories(): List<CategorySummary> {
-        val byCategory = Ranker.byCategory(ranker.rank(index.indexedImages()))
+        val byCategory = Ranker.byCategory(ranker.rank(index.indexedImages(), index.excludedFolders()))
         return Category.entries.map { category ->
             CategorySummary(category, byCategory[category]?.size ?: 0, category in detectorCategories)
         }
@@ -65,9 +67,10 @@ class Review(
      * whose id is in [skipped] are left out, and they are not counted in the remaining candidates.
      */
     suspend fun page(category: Category, skipped: Set<String> = emptySet()): Page {
+        val excluded = index.excludedFolders()
         val images = index.indexedImages()
-        val candidates = Ranker.byCategory(ranker.rank(images))[category].orEmpty()
-        val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images) else singles(category, candidates))
+        val candidates = Ranker.byCategory(ranker.rank(images, excluded))[category].orEmpty()
+        val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates))
             .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()
         var size = 0
@@ -116,6 +119,16 @@ class Review(
         index.forget(images.map { it.path })
     }
 
+    suspend fun excludedFolders(): List<String> = index.excludedFolders()
+
+    /**
+     * Never suggests the folder of [image] again, subfolders included. Its images stay in the
+     * index with their signals, so removing the exclusion needs no new scan.
+     */
+    suspend fun excludeFolderOf(image: ImageRef) = index.excludeFolder(File(image.path).parent!!)
+
+    suspend fun removeExcludedFolder(folder: String) = index.removeExcludedFolder(folder)
+
     /** Images not in the trash, for storage space exploration. */
     suspend fun notTrashed(): List<ImageRef> = index.notTrashed()
 
@@ -123,10 +136,11 @@ class Review(
         ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category))))
     }
 
-    private fun groups(category: Category, candidates: List<Candidate>, images: List<IndexedImage>): List<ReviewGroup> {
+    /** Members in an [excluded] folder are left out: the review never lists, trashes or keeps them. */
+    private fun groups(category: Category, candidates: List<Candidate>, images: List<IndexedImage>, excluded: List<String>): List<ReviewGroup> {
         val members = mutableMapOf<String, MutableList<Pair<IndexedImage, Role>>>()
         for (image in images) {
-            if (image.reviewState == ReviewState.TRASHED) continue
+            if (image.reviewState == ReviewState.TRASHED || isExcluded(image.ref.path, excluded)) continue
             for (signal in image.signals) {
                 if (signal.kind != category) continue
                 val group = signal.evidence[GROUP_KEY] ?: continue

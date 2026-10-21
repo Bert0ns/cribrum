@@ -147,6 +147,69 @@ class ReviewTest {
         assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 0.8f)), group.images)
     }
 
+    private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
+
+    @Test
+    fun `excluding the folder of an image hides its images from every category and the counts`() = test {
+        val kept = image("Pictures/Family/a.jpg", blurry(0.9f), Signal("shot", 1, Category.SCREENSHOT, 0.9f))
+        val sub = image("Pictures/Family/2020/b.jpg", blurry(0.9f))
+        val other = image("Pictures/Other/c.jpg", blurry(0.9f))
+
+        excludeFolderOf(kept)
+
+        assertEquals(listOf(other), shown(page(Category.BLURRY)))
+        assertEquals(1, page(Category.BLURRY).remaining)
+        assertEquals(0, categories().first { it.category == Category.SCREENSHOT }.count)
+        assertEquals(1, categories().first { it.category == Category.BLURRY }.count)
+        assertEquals(listOf(File(kept.path).parent), excludedFolders())
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(sub.path))
+    }
+
+    @Test
+    fun `removing the exclusion brings the images back without a new scan`() = test {
+        val a = image("Pictures/Family/a.jpg", blurry(0.9f))
+        excludeFolderOf(a)
+
+        removeExcludedFolder(File(a.path).parent!!)
+
+        assertEquals(listOf(a), shown(page(Category.BLURRY)))
+        assertEquals(emptyList<String>(), excludedFolders())
+    }
+
+    @Test
+    fun `a group is still offered for the copies outside an excluded folder, and the excluded copy stays out of it`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+        val excludedCopy = image("Family/a.jpg", duplicate("g", Role.INFERIOR))
+
+        excludeFolderOf(excludedCopy)
+
+        val group = page(Category.EXACT_DUPLICATE).groups.single()
+        assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(excludedCopy.path))
+    }
+
+    @Test
+    fun `when the best copy is excluded the others are still offered, without it, and it is never touched`() = test {
+        val best = image("Family/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+
+        excludeFolderOf(best)
+
+        assertEquals(listOf(ReviewItem(copy, true, score = 1f)), page(Category.EXACT_DUPLICATE).groups.single().images)
+    }
+
+    @Test
+    fun `a group whose only candidates are excluded is not offered`() = test {
+        image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val excludedCopy = image("Family/a.jpg", duplicate("g", Role.INFERIOR))
+
+        excludeFolderOf(excludedCopy)
+
+        assertEquals(emptyList<ReviewGroup>(), page(Category.EXACT_DUPLICATE).groups)
+        assertEquals(0, page(Category.EXACT_DUPLICATE).remaining)
+    }
+
     @Test
     fun `applying trashes and keeps, and the page moves on`() = test {
         val bad = image("bad.jpg", blurry(0.9f))

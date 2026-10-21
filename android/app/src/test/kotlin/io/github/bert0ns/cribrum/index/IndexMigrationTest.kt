@@ -2,7 +2,6 @@ package io.github.bert0ns.cribrum.index
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.model.ImageRef
 import kotlinx.coroutines.runBlocking
@@ -53,8 +52,9 @@ class IndexMigrationTest {
             it.execSQL("INSERT INTO images (path, size, mtime_ns) VALUES ('/photos/a.jpg', 100, 1)")
         }
 
-        ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, NAME).build()).use {
+        ImageIndex.open(context, NAME).use {
             assertEquals(listOf(ImageRef("/photos/a.jpg", 100, 1)), runBlocking { it.images() })
+            assertEquals(emptyList<String>(), runBlocking { it.excludedFolders() })
         }
     }
 }

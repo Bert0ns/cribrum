@@ -291,4 +291,29 @@ class ImageIndexTest {
         assertEquals(listOf(faces), signals(PHOTO.path))
         assertEquals(listOf(faces), indexedImages().single().signals)
     }
+
+    @Test
+    fun `excluded folders are listed, added once and removed`() = test {
+        excludeFolder("/photos/b")
+        excludeFolder("/photos/a")
+        excludeFolder("/photos/a")
+
+        assertEquals(listOf("/photos/a", "/photos/b"), excludedFolders())
+
+        removeExcludedFolder("/photos/a")
+
+        assertEquals(listOf("/photos/b"), excludedFolders())
+    }
+
+    @Test
+    fun `excluding a folder leaves its images and their signals alone`() = test {
+        record(PHOTO)
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+
+        excludeFolder("/photos")
+        removeExcludedFolder("/photos")
+
+        assertEquals(listOf(BLUR), signals(PHOTO.path))
+        assertEquals(ReviewState.UNREVIEWED, reviewState(PHOTO.path))
+    }
 }

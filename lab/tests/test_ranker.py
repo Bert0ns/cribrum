@@ -218,3 +218,17 @@ def test_a_sticker_is_listed_only_as_a_sticker():
     }
     assert all(c.is_candidate for c in order)  # still a candidate, in the same order
     assert names(order) == ["sticker", "photo"]
+
+
+def test_images_in_an_excluded_folder_are_never_listed_whatever_their_signals():
+    ranker = Ranker(THRESHOLDS)
+    order = ranker.rank(
+        [
+            image("/pics/family/a.jpg", blur(0.9)),
+            image("/pics/family/2020/b.jpg"),
+            image("/pics/family2/c.jpg", blur(0.9)),
+        ],
+        excluded_folders=[Path("/pics/family")],
+    )
+
+    assert names(order) == ["c.jpg"]
