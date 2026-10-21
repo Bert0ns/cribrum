@@ -43,6 +43,7 @@ fun SettingsScreen(
     onCancelRetention: () -> Unit = {},
     excludedFolders: List<String> = emptyList(),
     onRemoveExcludedFolder: (String) -> Unit = {},
+    onDeleteEmbeddings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -54,6 +55,22 @@ fun SettingsScreen(
     val websiteUrl = stringResource(R.string.settings_website_url)
     val sourceUrl = stringResource(R.string.settings_source_url)
     var choosingRetention by remember { mutableStateOf(false) }
+    var confirmingEmbeddings by remember { mutableStateOf(false) }
+
+    if (confirmingEmbeddings) {
+        AlertDialog(
+            onDismissRequest = { confirmingEmbeddings = false },
+            title = { Text(stringResource(R.string.settings_delete_embeddings_title)) },
+            text = { Text(stringResource(R.string.settings_delete_embeddings_confirm)) },
+            confirmButton = {
+                TextButton({
+                    confirmingEmbeddings = false
+                    onDeleteEmbeddings()
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = { TextButton({ confirmingEmbeddings = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     if (pendingRetention != null) {
         AlertDialog(
@@ -172,6 +189,16 @@ fun SettingsScreen(
                         Icon(Icons.Default.Close, stringResource(R.string.remove))
                     }
                 },
+            )
+        }
+        item {
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_delete_embeddings)) },
+                supportingContent = { Text(stringResource(R.string.settings_delete_embeddings_summary)) },
+                modifier = Modifier.clickable { confirmingEmbeddings = true },
             )
         }
     }

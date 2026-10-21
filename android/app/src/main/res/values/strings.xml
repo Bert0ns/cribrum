@@ -97,6 +97,10 @@
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
     <string name="settings_excluded_folders">Excluded folders</string>
     <string name="settings_no_excluded_folders">No folders are excluded.</string>
+    <string name="settings_delete_embeddings">Delete embeddings</string>
+    <string name="settings_delete_embeddings_summary">Frees their space. They are computed again at the next scan.</string>
+    <string name="settings_delete_embeddings_title">Delete the embeddings?</string>
+    <string name="settings_delete_embeddings_confirm">The app stores one embedding per image to find duplicates, documents and forwarded images. They come back the next time you press Scan now, which takes a few minutes. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.</string>
     <string name="exclude_folder">Never suggest this folder or its subfolders</string>
     <string name="excluded_folder_snackbar">Excluded %1$s and its subfolders</string>
     <string name="excluded_copy">Another copy is in an excluded folder</string>

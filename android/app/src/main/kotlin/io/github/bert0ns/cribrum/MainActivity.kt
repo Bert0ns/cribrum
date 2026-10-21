@@ -189,6 +189,7 @@ fun App(model: ReviewViewModel = viewModel()) {
                     onCancelRetention = model::cancelRetention,
                     excludedFolders = state.excludedFolders,
                     onRemoveExcludedFolder = model::removeExcludedFolder,
+                    onDeleteEmbeddings = model::deleteEmbeddings,
                 )
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,

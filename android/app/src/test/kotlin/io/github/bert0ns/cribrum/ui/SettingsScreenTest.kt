@@ -147,4 +147,22 @@ class SettingsScreenTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("No folders are excluded."))
         compose.onNodeWithText("No folders are excluded.").assertExists()
     }
+
+    @Test
+    fun `deleting the embeddings asks first and says when they come back`() {
+        var deleted = 0
+        compose.setContent { SettingsScreen(onDeleteEmbeddings = { deleted++ }) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("Delete embeddings").performClick()
+
+        compose.onNodeWithText("Delete the embeddings?").assertIsDisplayed()
+        compose.onNodeWithText("The app stores one embedding per image to find duplicates, documents and forwarded images. They come back the next time you press Scan now, which takes a few minutes. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(0, deleted)
+
+        compose.onNodeWithText("Delete embeddings").performClick()
+        compose.onNodeWithText("Delete").performClick()
+        assertEquals(1, deleted)
+    }
 }

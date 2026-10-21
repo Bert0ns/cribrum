@@ -209,6 +209,32 @@ def test_detector_needing_embeddings_waits_for_a_run_with_them(photos, index):
     assert stats.detector_runs == 3 + 3  # embeddings, then the detector
 
 
+def test_the_next_run_after_deleting_the_embeddings_computes_them_again(photos, index):
+    class Reader(EmbeddingDetector):
+        uses_embeddings = True
+
+    def run():
+        return pipeline.run(
+            photos, index, detectors=[Reader()], group_detectors=[], embedder=MeanColorEmbedder()
+        )
+
+    run()
+    before = index.signals(photos / "DCIM/Camera/a.png")
+
+    index.delete_embeddings()
+
+    assert index.signals(photos / "DCIM/Camera/a.png") == before  # candidates stay until a scan
+    assert run().detector_runs == 3 + 3  # embeddings, then the detector
+    assert len(index.embeddings("mean_color", 1)) == 3
+    assert index.signals(photos / "DCIM/Camera/a.png") == before
+
+
+def test_only_the_document_and_forwarded_detectors_read_embeddings():
+    users = [d.id for d in pipeline.DETECTORS if getattr(d, "uses_embeddings", False)]
+
+    assert users == ["document", "forwarded"]
+
+
 def test_every_category_has_a_detector():
     detectors = [*pipeline.DETECTORS, *pipeline.GROUP_DETECTORS]
 

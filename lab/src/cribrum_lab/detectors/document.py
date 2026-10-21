@@ -21,6 +21,7 @@ class DocumentDetector:
     version = 3
     category = Category.DOCUMENT
     """Bump with prompts.VERSION too."""
+    uses_embeddings = True
 
     def __init__(self, coverage: Callable[[Path], float] = text.text_coverage) -> None:
         self._coverage = coverage

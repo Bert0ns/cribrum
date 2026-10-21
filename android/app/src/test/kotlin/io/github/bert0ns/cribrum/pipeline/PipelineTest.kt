@@ -236,6 +236,7 @@ class PipelineTest {
     private class EmbeddingDetector : Detector {
         override val id = "embedding_user"
         override val version = 1
+        override val usesEmbeddings = true
 
         override suspend fun analyze(image: ImageRef, context: AnalysisContext) = listOf(Signal(id, version, Category.DOCUMENT, context.embedding(image)[0]))
     }
@@ -253,5 +254,29 @@ class PipelineTest {
 
         assertEquals(0, stats.skipped)
         assertEquals(3 + 3, stats.detectorRuns) // embeddings, then the detector
+    }
+
+    @Test
+    fun `the next run after deleting the embeddings computes them again and reruns the detectors reading them`() {
+        photos()
+        val pipeline = { Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = MeanColorEmbedder()) }
+        run(pipeline())
+        val before = runBlocking { index.signals(File(root, "DCIM/Camera/a.png").path) }
+
+        runBlocking { index.deleteEmbeddings() }
+
+        // The candidates stay until a scan replaces them.
+        assertEquals(before, runBlocking { index.signals(File(root, "DCIM/Camera/a.png").path) })
+
+        val stats = run(pipeline())
+
+        assertEquals(3 + 3, stats.detectorRuns) // embeddings, then the detector
+        assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
+        assertEquals(before, runBlocking { index.signals(File(root, "DCIM/Camera/a.png").path) })
+    }
+
+    @Test
+    fun `only the document and forwarded detectors read embeddings`() {
+        assertEquals(listOf("document", "forwarded"), DETECTORS.filter { it.usesEmbeddings }.map { it.id })
     }
 }

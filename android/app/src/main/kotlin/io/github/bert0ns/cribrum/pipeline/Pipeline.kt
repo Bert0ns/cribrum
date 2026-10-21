@@ -187,6 +187,8 @@ class Pipeline(
             }
             if (pixels.isNotEmpty()) {
                 val vectors = withContext(Dispatchers.Default) { embedder.embedPixels(pixels.map { it.second }) }
+                // A detector's result belongs to the embedding it read: a new one means analyzing again.
+                index.forgetAnalyses(pixels.map { it.first.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
                 index.setEmbeddings(embedder.id, embedder.version, pixels.map { it.first.path }.zip(vectors).toMap())
                 stats.detectorRuns += pixels.size
             }

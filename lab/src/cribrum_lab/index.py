@@ -246,6 +246,19 @@ class ImageIndex:
                     (str(path), model, model_version, vector.astype("<f4").tobytes()),
                 )
 
+    def delete_embeddings(self) -> None:
+        """Deletes every stored embedding and nothing else: the next run computes them again."""
+        with self._db:
+            self._db.execute("DELETE FROM embeddings")
+
+    def forget_analyses(self, paths: Iterable[Path], detector_ids: Iterable[str]) -> None:
+        """Drops what these detectors stored for these images, signals included."""
+        with self._db:
+            self._db.executemany(
+                "DELETE FROM analyses WHERE path = ? AND detector_id = ?",
+                [(str(p), d) for p in paths for d in detector_ids],
+            )
+
     def embeddings(self, model: str, model_version: int) -> dict[Path, np.ndarray]:
         """Every stored embedding of this model version, loaded at once for group detectors."""
         rows = self._db.execute(

@@ -82,6 +82,9 @@ class ReviewViewModel @JvmOverloads constructor(
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
 
+    /** Only the embeddings go: the next scan computes them again. */
+    fun deleteEmbeddings() = load { state -> state.also { app.index.deleteEmbeddings() } }
+
     fun openSettings() = load { it.copy(screen = Screen.Settings, excludedFolders = app.index.excludedFolders()) }
 
     /** Hides the image's folder, subfolders included, and shows the page again without it. */

@@ -55,6 +55,10 @@ class Detector(Protocol):
     category: Category | None
     """The category its signals are about, so the app can tell which categories it looks for."""
 
+    uses_embeddings: bool
+    """Optional, false when absent: true when `analyze` reads the embedding, so a new one
+    makes the stored result stale."""
+
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]: ...
 
 

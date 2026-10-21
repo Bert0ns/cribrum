@@ -89,6 +89,38 @@ def test_embeddings_are_stored_per_model_version(index):
     assert index.embeddings("clip", 1) == {}
 
 
+def test_deleting_the_embeddings_leaves_the_rest_of_the_index_as_it_was(index):
+    other = ImageRef(Path("/photos/b.jpg"), 5, 5)
+    index.record(PHOTO)
+    index.record(other)
+    index.set_embeddings(
+        "clip", 1, {PHOTO.path: np.ones(2, np.float32), other.path: np.ones(2, np.float32)}
+    )
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+    index.set_review_state(PHOTO.path, ReviewState.KEPT)
+    index.exclude_folder(Path("/photos/memes"))
+
+    index.delete_embeddings()
+
+    assert index.embeddings("clip", 1) == {}
+    assert index.images() == [PHOTO, other]
+    assert index.signals(PHOTO.path) == [BLUR]
+    assert index.is_analyzed(PHOTO.path, "blur", 1)
+    assert index.review_state(PHOTO.path) == ReviewState.KEPT
+    assert index.excluded_folders() == [Path("/photos/memes")]
+
+
+def test_forgetting_analyses_drops_the_signals_of_the_chosen_detectors_only(index):
+    index.record(PHOTO)
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+    index.set_signals(PHOTO.path, "document", 1, [Signal("document", 1, Category.DOCUMENT, 0.9)])
+
+    index.forget_analyses([PHOTO.path], ["document"])
+
+    assert not index.is_analyzed(PHOTO.path, "document", 1)
+    assert index.signals(PHOTO.path) == [BLUR]
+
+
 def test_signals_are_stored_per_detector_version(index):
     index.record(PHOTO)
     screenshot = Signal("screenshot", 3, Category.SCREENSHOT, 0.9)

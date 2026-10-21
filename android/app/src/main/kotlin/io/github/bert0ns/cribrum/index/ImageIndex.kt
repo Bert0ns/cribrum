@@ -102,6 +102,14 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         return dao.perceptualHash(path)?.toULong(16)
     }
 
+    /** Deletes every stored embedding and nothing else: the next pipeline run computes them again. */
+    suspend fun deleteEmbeddings() = dao.deleteAllEmbeddings()
+
+    /** Drops what these detectors stored for these images, signals included, so a run analyzes them again. */
+    suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = db.withTransaction {
+        paths.chunked(SQL_VARIABLES).forEach { dao.forgetAnalyses(it, detectorIds.toList()) }
+    }
+
     suspend fun setEmbeddings(model: String, modelVersion: Int, vectors: Map<String, FloatArray>) = db.withTransaction {
         for ((path, vector) in vectors) {
             requireRecorded(path)

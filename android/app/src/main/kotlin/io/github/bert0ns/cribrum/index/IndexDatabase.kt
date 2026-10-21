@@ -199,6 +199,12 @@ interface IndexDao {
     @Query("DELETE FROM embeddings WHERE path = :path")
     suspend fun deleteEmbeddings(path: String)
 
+    @Query("DELETE FROM embeddings")
+    suspend fun deleteAllEmbeddings()
+
+    @Query("DELETE FROM analyses WHERE path IN (:paths) AND detector_id IN (:detectorIds)")
+    suspend fun forgetAnalyses(paths: List<String>, detectorIds: List<String>)
+
     @Query("SELECT * FROM embeddings WHERE model = :model AND model_version = :modelVersion")
     suspend fun embeddings(model: String, modelVersion: Int): List<EmbeddingRow>
 
