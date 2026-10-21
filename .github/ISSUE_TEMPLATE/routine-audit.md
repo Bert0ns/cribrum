@@ -31,7 +31,7 @@ If the area line above is empty, list the closed audits with `gh issue list --la
 
 Read `.agents/skills/code-review/SKILL.md` and apply its two axes to the area, with the issues that introduced it as the spec. Beyond that, look for
 
-- data loss, in particular a path that can delete a file outside the trash, or purge before 30 days;
+- data loss, in particular a path that can delete a file outside the trash, or purge an item before the retention the user chose;
 - a candidate dropped because of a protection signal, or photo age used as a signal;
 - error paths, cancellation, and a stopped scan that does not resume;
 - code and tests that disagree, and behavior no test covers;
