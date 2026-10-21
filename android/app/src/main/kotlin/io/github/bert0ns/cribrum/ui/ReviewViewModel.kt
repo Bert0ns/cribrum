@@ -103,14 +103,17 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(embeddingCount = app.index.embeddingCount(), storage = measureStorage(app, review))
     }
 
-    /** Measures the sizes each time it opens: the trash and the index change on other screens and in scans. */
-    fun openSettings() = load {
-        it.copy(
-            screen = Screen.Settings,
-            excludedFolders = app.index.excludedFolders(),
-            embeddingCount = app.index.embeddingCount(),
-            storage = measureStorage(app, review),
-        )
+    /** Measures the sizes each time it opens, after the screen is up: the trash and the index change elsewhere and in scans. */
+    fun openSettings() {
+        load {
+            it.copy(
+                screen = Screen.Settings,
+                excludedFolders = app.index.excludedFolders(),
+                embeddingCount = app.index.embeddingCount(),
+                storage = if (it.screen == Screen.Settings) it.storage else null, // a scan re-opens it: keep the old sizes meanwhile
+            )
+        }
+        load { it.copy(storage = measureStorage(app, review)) }
     }
 
     /** Hides the image's folder, subfolders included, and shows the page again without it. */
