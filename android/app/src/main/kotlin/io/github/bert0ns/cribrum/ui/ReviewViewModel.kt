@@ -130,9 +130,9 @@ class ReviewViewModel @JvmOverloads constructor(
 
     fun confirmRetention() = load { state -> state.pendingRetention?.let { state.withRetention(it.days) } ?: state }
 
-    fun setHaptics(enabled: Boolean) = load {
+    fun setHaptics(enabled: Boolean) {
         app.haptics.enabled = enabled
-        it.copy(hapticsEnabled = enabled)
+        mutableState.update { it.copy(hapticsEnabled = enabled) }
     }
 
     fun cancelRetention() = mutableState.update { it.copy(pendingRetention = null) }
