@@ -14,11 +14,9 @@ data class MapRect(
     val bottom: Double get() = top + height
     val area: Double get() = width * height
 
-    fun encloses(other: MapRect): Boolean =
-        other.left >= left && other.right <= right && other.top >= top && other.bottom <= bottom
+    fun encloses(other: MapRect): Boolean = other.left >= left && other.right <= right && other.top >= top && other.bottom <= bottom
 
-    fun contains(x: Double, y: Double): Boolean =
-        x in left..right && y in top..bottom
+    fun contains(x: Double, y: Double): Boolean = x in left..right && y in top..bottom
 }
 
 data class Folder(
@@ -205,8 +203,7 @@ data class TreemapBlock(
 )
 
 /** True when both blocks show the same folder (or its direct files), wherever they sit on screen. */
-fun TreemapBlock.isSameBlockAs(other: TreemapBlock?): Boolean =
-    other != null && folder.path == other.folder.path && isDirectFiles == other.isDirectFiles
+fun TreemapBlock.isSameBlockAs(other: TreemapBlock?): Boolean = other != null && folder.path == other.folder.path && isDirectFiles == other.isDirectFiles
 
 /** Hue in degrees of the map root. */
 const val ROOT_HUE = 210f
@@ -221,12 +218,11 @@ private const val GOLDEN_ANGLE = 137.5f
 fun childHue(parentHue: Float, rank: Int): Float = ((parentHue + rank * GOLDEN_ANGLE) % 360f + 360f) % 360f
 
 /** Hue of the last folder of a zoom [trail] that starts at the map root. */
-fun trailHue(trail: List<Folder>): Float =
-    trail.zipWithNext().fold(ROOT_HUE) { hue, (parent, child) ->
-        val rank = parent.children.indexOfFirst { it.path == child.path }
-        require(rank >= 0) { "${child.path} is not a child of ${parent.path}" }
-        childHue(hue, rank)
-    }
+fun trailHue(trail: List<Folder>): Float = trail.zipWithNext().fold(ROOT_HUE) { hue, (parent, child) ->
+    val rank = parent.children.indexOfFirst { it.path == child.path }
+    require(rank >= 0) { "${child.path} is not a child of ${parent.path}" }
+    childHue(hue, rank)
+}
 
 /** One rectangle to place: a subfolder, or the images that sit directly in [folder]. */
 private class Slot(val folder: Folder, val size: Long, val isDirectFiles: Boolean)
@@ -275,5 +271,4 @@ fun layoutTreemap(
 }
 
 /** The top-level block under a tap, so tapping anywhere inside a folder selects that folder. */
-fun topLevelBlockAt(blocks: List<TreemapBlock>, x: Double, y: Double): TreemapBlock? =
-    blocks.firstOrNull { it.depth == 0 && it.rect.contains(x, y) }
+fun topLevelBlockAt(blocks: List<TreemapBlock>, x: Double, y: Double): TreemapBlock? = blocks.firstOrNull { it.depth == 0 && it.rect.contains(x, y) }

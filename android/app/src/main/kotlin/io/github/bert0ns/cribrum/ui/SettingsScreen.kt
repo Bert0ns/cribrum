@@ -26,6 +26,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
+
     @Suppress("DEPRECATION")
     val version = remember(context) {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName

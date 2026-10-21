@@ -38,6 +38,7 @@ fun preprocess(file: File): Tensor {
     val planes = listOf(16, 8, 0).map { transpose(channel(decoded, it), orientation) }
     val (width, height) = planes[0].width to planes[0].height
     val scale = INPUT_SIDE.toDouble() / max(width, height)
+
     // Math.rint rounds halves to even, as Python's round does.
     fun side(pixels: Int) = max(32, Math.rint(pixels * scale / 32).toInt() * 32)
     val (outW, outH) = side(width) to side(height)

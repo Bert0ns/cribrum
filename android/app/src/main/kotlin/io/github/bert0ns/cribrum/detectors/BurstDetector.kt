@@ -16,6 +16,7 @@ import java.util.Locale
 
 /** EXIF capture times have 1 s resolution; manual bursts are often 1-2 s apart. */
 val MAX_GAP: Duration = Duration.ofSeconds(3)
+
 /** Consecutive shots below this similarity are different subjects, whatever the time. */
 const val BURST_MIN_COSINE = 0.80f
 
@@ -89,13 +90,11 @@ class BurstDetector : GroupDetector {
         return dot(va, vb) >= BURST_MIN_COSINE
     }
 
-    private fun sharpness(image: ImageRef): Double {
-        return try {
-            val gray = loadGrayscale(File(image.path), BlurDetector.MAX_SIDE)
-            BlurDetector.measure(gray)?.second ?: 0.0
-        } catch (_: Exception) { // undecodable pixels: never the best shot
-            0.0
-        }
+    private fun sharpness(image: ImageRef): Double = try {
+        val gray = loadGrayscale(File(image.path), BlurDetector.MAX_SIDE)
+        BlurDetector.measure(gray)?.second ?: 0.0
+    } catch (_: Exception) { // undecodable pixels: never the best shot
+        0.0
     }
 
     private fun signals(burst: List<ImageRef>): Map<ImageRef, List<Signal>> {

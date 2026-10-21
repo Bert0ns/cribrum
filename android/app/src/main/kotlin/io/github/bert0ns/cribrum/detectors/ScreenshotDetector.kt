@@ -52,7 +52,6 @@ class ScreenshotDetector : Detector {
         /** File name and its two nearest folders: higher folders say nothing about the image. */
         private const val PATH_PARTS = 3
 
-        private fun pathParts(path: String): List<String> =
-            generateSequence(File(path)) { it.parentFile }.map { it.name }.take(PATH_PARTS).toList().reversed()
+        private fun pathParts(path: String): List<String> = generateSequence(File(path)) { it.parentFile }.map { it.name }.take(PATH_PARTS).toList().reversed()
     }
 }

@@ -18,6 +18,7 @@ import java.util.Locale
  */
 class ForwardedDetector : Detector {
     override val id = "forwarded"
+
     /** Bump with [VERSION]. */
     override val version = 2
     override val category = Category.FORWARDED

@@ -48,7 +48,10 @@ data class AnalysisRow(
     tableName = "signals",
     foreignKeys = [
         ForeignKey(
-            AnalysisRow::class, ["path", "detector_id"], ["path", "detector_id"], onDelete = ForeignKey.CASCADE,
+            AnalysisRow::class,
+            ["path", "detector_id"],
+            ["path", "detector_id"],
+            onDelete = ForeignKey.CASCADE,
         ),
     ],
     indices = [Index("path", "detector_id", name = "signals_by_analysis")],
@@ -154,7 +157,12 @@ interface IndexDao {
            camera_model = :cameraModel, captured_at = :capturedAt WHERE path = :path""",
     )
     suspend fun setMetadata(
-        path: String, width: Int, height: Int, mime: String?, cameraMake: String?, cameraModel: String?,
+        path: String,
+        width: Int,
+        height: Int,
+        mime: String?,
+        cameraMake: String?,
+        cameraModel: String?,
         capturedAt: String?,
     ): Int
 
@@ -239,8 +247,10 @@ interface IndexDao {
  * The lab's schema version is separate: it refuses older files instead of migrating them.
  */
 @Database(
-    entities = [ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, EmbeddingRow::class,
-        GroupRunRow::class],
+    entities = [
+        ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, EmbeddingRow::class,
+        GroupRunRow::class,
+    ],
     version = 1,
 )
 abstract class IndexDatabase : RoomDatabase() {

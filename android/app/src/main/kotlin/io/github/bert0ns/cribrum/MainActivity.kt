@@ -40,8 +40,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.pipeline.Indexing
+import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
@@ -103,8 +103,11 @@ fun App(model: ReviewViewModel = viewModel()) {
     val decision = state.lastDecision
     val trashedMessage = decision?.let {
         val trashed = pluralStringResource(R.plurals.trashed_snackbar, it.trashed.size, it.trashed.size)
-        if (it.failed.isEmpty()) trashed
-        else "$trashed. " + pluralStringResource(R.plurals.not_moved_snackbar, it.failed.size, it.failed.size)
+        if (it.failed.isEmpty()) {
+            trashed
+        } else {
+            "$trashed. " + pluralStringResource(R.plurals.not_moved_snackbar, it.failed.size, it.failed.size)
+        }
     }
     val undo = stringResource(R.string.undo)
     LaunchedEffect(decision) {
@@ -151,11 +154,22 @@ fun App(model: ReviewViewModel = viewModel()) {
                     CategoryList(state.categories, model::open, model::openTrash)
                 }
                 is Screen.Category -> CategoryScreen(
-                    state.page, state.remaining, state.marked, screen.category in GROUP_CATEGORIES, model::toggle, model::applyPage, model::skip,
+                    state.page,
+                    state.remaining,
+                    state.marked,
+                    screen.category in GROUP_CATEGORIES,
+                    model::toggle,
+                    model::applyPage,
+                    model::skip,
                     snackbar = snackbar,
                 )
                 Screen.Trash -> TrashScreen(
-                    state.trashed, state.selected, model::select, model::selectAll, model::restoreSelected, model::emptyTrash,
+                    state.trashed,
+                    state.selected,
+                    model::select,
+                    model::selectAll,
+                    model::restoreSelected,
+                    model::emptyTrash,
                 )
                 Screen.Settings -> SettingsScreen(onOpenStorageMap = model::openStorageMap)
                 Screen.StorageMap -> StorageMapScreen(

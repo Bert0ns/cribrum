@@ -19,6 +19,7 @@ import kotlin.math.min
  */
 class DocumentDetector(private val coverage: (File) -> Float = ::textCoverage) : Detector {
     override val id = "document"
+
     /** Bump with [VERSION]. */
     override val version = 3
     override val category = Category.DOCUMENT

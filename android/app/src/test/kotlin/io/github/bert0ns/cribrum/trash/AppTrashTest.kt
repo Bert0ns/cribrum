@@ -136,8 +136,10 @@ class AppTrashTest {
 
         assertEquals(listOf(old), purgeExpired())
         assertEquals(listOf(recent), trashed().map { it.original })
-        assertEquals(listOf(".nomedia", trashed().single().file.parentFile!!.name).sorted(),
-            volume.resolve(TRASH_FOLDER).list()!!.sorted())
+        assertEquals(
+            listOf(".nomedia", trashed().single().file.parentFile!!.name).sorted(),
+            volume.resolve(TRASH_FOLDER).list()!!.sorted(),
+        )
     }
 
     @Test

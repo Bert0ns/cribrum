@@ -2,14 +2,14 @@
 // lab/src/cribrum_lab/detectors/base.py and docs/design.md §7.
 package io.github.bert0ns.cribrum.detectors
 
-import io.github.bert0ns.cribrum.hashing.contentHash as hashFile
-import io.github.bert0ns.cribrum.hashing.perceptualHash as hashPerceptual
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Signal
 import java.io.File
+import io.github.bert0ns.cribrum.hashing.contentHash as hashFile
+import io.github.bert0ns.cribrum.hashing.perceptualHash as hashPerceptual
 
 /**
  * Shared, read-only information available to detectors.

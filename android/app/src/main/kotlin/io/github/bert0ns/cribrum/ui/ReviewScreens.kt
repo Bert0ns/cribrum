@@ -200,7 +200,12 @@ fun CategoryScreen(
             onDismissRequest = { showSummary = false },
             title = { Text(pluralStringResource(R.plurals.summary_title, toTrash.size, toTrash.size)) },
             text = { Text(stringResource(R.string.summary_body, size)) },
-            confirmButton = { TextButton({ showSummary = false; onApply() }) { Text(stringResource(R.string.summary_confirm)) } },
+            confirmButton = {
+                TextButton({
+                    showSummary = false
+                    onApply()
+                }) { Text(stringResource(R.string.summary_confirm)) }
+            },
             dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
@@ -234,8 +239,12 @@ private fun FullSize(image: ImageRef, onClose: () -> Unit) {
                     translationY = offset.y
                 },
             )
-            Text(image.path, color = Color.White, style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+            Text(
+                image.path,
+                color = Color.White,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp),
+            )
         }
     }
 }

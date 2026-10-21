@@ -126,7 +126,10 @@ class RankerTest {
     @Test
     fun `new detector version or score is not a new signal`() {
         val kept = image(
-            "kept", blur(0.95f, version = 2), state = ReviewState.KEPT, seenWhenKept = setOf(blur(0.2f).identity),
+            "kept",
+            blur(0.95f, version = 2),
+            state = ReviewState.KEPT,
+            seenWhenKept = setOf(blur(0.2f).identity),
         )
 
         assertEquals(emptyList<Candidate>(), rank(kept))

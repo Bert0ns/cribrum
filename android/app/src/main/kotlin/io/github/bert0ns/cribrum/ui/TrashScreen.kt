@@ -87,7 +87,12 @@ fun TrashScreen(
             onDismissRequest = { confirmEmpty = false },
             title = { Text(pluralStringResource(R.plurals.empty_trash_title, trashed.size, trashed.size)) },
             text = { Text(stringResource(R.string.empty_trash_body)) },
-            confirmButton = { TextButton({ confirmEmpty = false; onEmpty() }) { Text(stringResource(R.string.delete)) } },
+            confirmButton = {
+                TextButton({
+                    confirmEmpty = false
+                    onEmpty()
+                }) { Text(stringResource(R.string.delete)) }
+            },
             dismissButton = { TextButton({ confirmEmpty = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }

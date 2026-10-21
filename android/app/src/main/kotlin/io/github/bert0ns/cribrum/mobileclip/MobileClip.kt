@@ -60,8 +60,10 @@ fun preprocess(file: File): FloatArray {
         val resized = resample(plane, width, height, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
         val left = (width - INPUT_SIDE) / 2
         val top = (height - INPUT_SIDE) / 2
-        for (y in 0 until INPUT_SIDE) for (x in 0 until INPUT_SIDE) {
-            out[(c * INPUT_SIDE + y) * INPUT_SIDE + x] = resized[left + x, top + y] / 255f
+        for (y in 0 until INPUT_SIDE) {
+            for (x in 0 until INPUT_SIDE) {
+                out[(c * INPUT_SIDE + y) * INPUT_SIDE + x] = resized[left + x, top + y] / 255f
+            }
         }
     }
     return out

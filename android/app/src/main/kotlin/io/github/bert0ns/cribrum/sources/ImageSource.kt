@@ -110,12 +110,14 @@ internal fun isImage(file: File): Boolean {
         while (read < HEAD_SIZE) read += input.read(buffer, read, HEAD_SIZE - read).takeIf { it > 0 } ?: break
         buffer.copyOf(read)
     }
-    fun at(offset: Int, vararg bytes: Int) =
-        head.size >= offset + bytes.size && bytes.indices.all { head[offset + it] == bytes[it].toByte() }
+    fun at(offset: Int, vararg bytes: Int) = head.size >= offset + bytes.size && bytes.indices.all { head[offset + it] == bytes[it].toByte() }
     fun text(offset: Int, value: String) = at(offset, *value.map { it.code }.toIntArray())
-    return at(0, 0xff, 0xd8, 0xff) || // JPEG
-        at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) || // PNG
-        text(0, "GIF87a") || text(0, "GIF89a") ||
+    return at(0, 0xff, 0xd8, 0xff) ||
+        // JPEG
+        at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a) ||
+        // PNG
+        text(0, "GIF87a") ||
+        text(0, "GIF89a") ||
         (text(0, "RIFF") && text(8, "WEBP")) ||
         (text(4, "ftyp") && ftypBrands(head).any { it in HEIF_BRANDS })
 }

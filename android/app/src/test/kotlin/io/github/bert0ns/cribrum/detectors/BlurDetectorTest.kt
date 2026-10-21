@@ -66,9 +66,12 @@ class BlurDetectorTest {
     @Test
     fun `tiny and thin images do not crash`() {
         for ((width, height) in listOf(1 to 1, 2 to 2, 4 to 4, 10000 to 20)) {
-            val signals = analyze(TestImage.texture(maxOf(width, 8), maxOf(height, 8)).let {
-                TestImage(width, height, IntArray(width * height) { i -> it[i % width % it.width, i / width % it.height] })
-            }, "${width}x$height.png")
+            val signals = analyze(
+                TestImage.texture(maxOf(width, 8), maxOf(height, 8)).let {
+                    TestImage(width, height, IntArray(width * height) { i -> it[i % width % it.width, i / width % it.height] })
+                },
+                "${width}x$height.png",
+            )
 
             assertTrue(signals.all { it.score in 0f..1f })
         }
