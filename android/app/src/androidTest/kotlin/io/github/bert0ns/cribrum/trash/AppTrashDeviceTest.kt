@@ -59,7 +59,7 @@ class AppTrashDeviceTest {
     fun purgeAfterRetention() = runBlocking {
         val image = photo("b.jpg")
         trash.moveToTrash(listOf(image))
-        val later = Clock.fixed(Instant.now() + RETENTION, ZoneOffset.UTC)
+        val later = Clock.fixed(Instant.now() + TrashRetention.DEFAULT, ZoneOffset.UTC)
 
         assertEquals(listOf(image), AppTrash.forDevice(context, later).purgeExpired().filter { it == image })
         assertTrue(trash.trashed().none { it.original == image })

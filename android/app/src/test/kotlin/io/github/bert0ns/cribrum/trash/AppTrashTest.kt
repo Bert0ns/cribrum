@@ -28,7 +28,8 @@ class AppTrashTest {
     private val volume by lazy { folder.newFolder("storage") }
     private val clock = MovableClock(Instant.parse("2026-10-19T12:00:00Z"))
     private val changed = mutableListOf<String>()
-    private val trash by lazy { AppTrash({ listOf(volume) }, clock) { changed += it } }
+    private var retention = Duration.ofDays(30)
+    private val trash by lazy { AppTrash({ listOf(volume) }, clock, { retention }) { changed += it } }
 
     private fun photo(path: String, bytes: String = "jpeg bytes"): ImageRef {
         val file = File(volume, path)
@@ -140,6 +141,33 @@ class AppTrashTest {
             listOf(".nomedia", trashed().single().file.parentFile!!.name).sorted(),
             volume.resolve(TRASH_FOLDER).list()!!.sorted(),
         )
+    }
+
+    @Test
+    fun `a new retention applies to images already in the trash`() = test {
+        val image = photo("DCIM/l.jpg")
+        moveToTrash(listOf(image))
+        clock.now += Duration.ofDays(10)
+
+        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(Instant.parse("2026-11-18T12:00:00Z"), trashed().single().purgeAt)
+
+        retention = Duration.ofDays(7)
+
+        assertEquals(Instant.parse("2026-10-26T12:00:00Z"), trashed().single().purgeAt)
+        assertEquals(listOf(image), purgeExpired())
+        assertTrue(trashed().isEmpty())
+    }
+
+    @Test
+    fun `a longer retention keeps what the old one would have purged`() = test {
+        val image = photo("DCIM/m.jpg")
+        moveToTrash(listOf(image))
+        clock.now += Duration.ofDays(40)
+        retention = Duration.ofDays(60)
+
+        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(listOf(image), trashed().map { it.original })
     }
 
     @Test

@@ -11,7 +11,9 @@ import io.github.bert0ns.cribrum.review.Decision
 import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
+import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +21,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.time.Duration
 
 sealed interface Screen {
     data object Home : Screen
@@ -27,6 +31,9 @@ sealed interface Screen {
     data object Settings : Screen
     data object StorageMap : Screen
 }
+
+/** A lower retention that would purge [expiring] trashed images at the next scan, waiting for the user's confirmation. */
+data class RetentionChange(val days: Int, val expiring: Int)
 
 data class ReviewState(
     val screen: Screen = Screen.Home,
@@ -45,14 +52,23 @@ data class ReviewState(
     val skipped: Set<String> = emptySet(),
     val loading: Boolean = false,
     val storageMap: List<Folder> = emptyList(),
+    val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
+    val pendingRetention: RetentionChange? = null,
 )
 
-class ReviewViewModel(application: Application) : AndroidViewModel(application) {
+class ReviewViewModel @JvmOverloads constructor(
+    application: Application,
+    private val review: Review = (application as CribrumApp).let { Review(it.index, it.trash) },
+) : AndroidViewModel(application) {
     private val app = application as CribrumApp
-    private val review = Review(app.index, app.trash)
     private val mutableState = MutableStateFlow(ReviewState())
     private val changes = Mutex()
     val state: StateFlow<ReviewState> = mutableState.asStateFlow()
+
+    init {
+        // The first read of the preferences can block, so it stays off the main thread.
+        load { it.copy(retentionDays = withContext(Dispatchers.IO) { app.trashRetention.days }) }
+    }
 
     fun refresh() = load { it.copy(categories = review.categories()) }
 
@@ -63,6 +79,21 @@ class ReviewViewModel(application: Application) : AndroidViewModel(application) 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
 
     fun openSettings() = load { it.copy(screen = Screen.Settings) }
+
+    /** Asks first when the new retention would purge trashed images at the next scan: that cannot be undone. */
+    fun chooseRetention(days: Int) = load { state ->
+        val expiring = if (days < state.retentionDays) review.expiring(Duration.ofDays(days.toLong())) else 0
+        if (expiring > 0) state.copy(pendingRetention = RetentionChange(days, expiring)) else state.withRetention(days)
+    }
+
+    fun confirmRetention() = load { state -> state.pendingRetention?.let { state.withRetention(it.days) } ?: state }
+
+    fun cancelRetention() = mutableState.update { it.copy(pendingRetention = null) }
+
+    private fun ReviewState.withRetention(days: Int): ReviewState {
+        app.trashRetention.days = days
+        return copy(retentionDays = days, pendingRetention = null)
+    }
 
     fun openStorageMap() = load { state ->
         val root = buildFolderTree(review.notTrashed())

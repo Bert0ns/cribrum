@@ -171,7 +171,14 @@ fun App(model: ReviewViewModel = viewModel()) {
                     model::restoreSelected,
                     model::emptyTrash,
                 )
-                Screen.Settings -> SettingsScreen(onOpenStorageMap = model::openStorageMap)
+                Screen.Settings -> SettingsScreen(
+                    onOpenStorageMap = model::openStorageMap,
+                    retentionDays = state.retentionDays,
+                    onRetentionChange = model::chooseRetention,
+                    pendingRetention = state.pendingRetention,
+                    onConfirmRetention = model::confirmRetention,
+                    onCancelRetention = model::cancelRetention,
+                )
                 Screen.StorageMap -> StorageMapScreen(
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
                     baseHue = trailHue(state.storageMap),

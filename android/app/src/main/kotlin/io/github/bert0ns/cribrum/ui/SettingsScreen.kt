@@ -1,15 +1,23 @@
 package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -17,12 +25,17 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
-import io.github.bert0ns.cribrum.trash.RETENTION
+import io.github.bert0ns.cribrum.trash.TrashRetention
 
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onOpenStorageMap: () -> Unit = {},
+    retentionDays: Int = TrashRetention.DEFAULT_DAYS,
+    onRetentionChange: (Int) -> Unit = {},
+    pendingRetention: RetentionChange? = null,
+    onConfirmRetention: () -> Unit = {},
+    onCancelRetention: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -33,7 +46,26 @@ fun SettingsScreen(
     }
     val websiteUrl = stringResource(R.string.settings_website_url)
     val sourceUrl = stringResource(R.string.settings_source_url)
-    val retentionDays = RETENTION.toDays().toInt()
+    var choosingRetention by remember { mutableStateOf(false) }
+
+    if (pendingRetention != null) {
+        AlertDialog(
+            onDismissRequest = onCancelRetention,
+            title = { Text(pluralStringResource(R.plurals.empty_trash_title, pendingRetention.expiring, pendingRetention.expiring)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.settings_trash_retention_confirm,
+                        pendingRetention.expiring,
+                        pendingRetention.expiring,
+                        pendingRetention.days,
+                    ),
+                )
+            },
+            confirmButton = { TextButton(onConfirmRetention) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { TextButton(onCancelRetention) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     LazyColumn(modifier.fillMaxSize()) {
         item {
@@ -76,12 +108,30 @@ fun SettingsScreen(
         }
         item {
             ListItem(
-                headlineContent = {
-                    Text(pluralStringResource(R.plurals.settings_trash_retention, retentionDays, retentionDays))
-                },
+                headlineContent = { Text(stringResource(R.string.settings_trash_retention)) },
                 supportingContent = {
-                    Text(stringResource(R.string.settings_uninstall_warning))
+                    Column {
+                        Text(pluralStringResource(R.plurals.settings_trash_days, retentionDays, retentionDays))
+                        Text(stringResource(R.string.settings_trash_retention_applies))
+                    }
+                    DropdownMenu(choosingRetention, { choosingRetention = false }) {
+                        for (days in TrashRetention.CHOICES) {
+                            DropdownMenuItem(
+                                text = { Text(pluralStringResource(R.plurals.settings_trash_days, days, days)) },
+                                onClick = {
+                                    choosingRetention = false
+                                    onRetentionChange(days)
+                                },
+                            )
+                        }
+                    }
                 },
+                modifier = Modifier.clickable { choosingRetention = true },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_uninstall_warning)) },
             )
         }
         item {

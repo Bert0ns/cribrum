@@ -113,6 +113,7 @@ class StorageMapScreenTest {
             SettingsScreen(onOpenStorageMap = { opened = true })
         }
 
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
         compose.onNodeWithText("Storage map").assertIsDisplayed().performClick()
         assertEquals(true, opened)
     }
