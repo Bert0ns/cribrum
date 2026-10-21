@@ -10,17 +10,17 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 
 /**
- * Score a signal needs to make an image a candidate. Starting points: the lab's evaluation
- * report picks them from a labeled sample, for recall. Keep them equal to the lab's.
+ * Score a signal needs to make an image a candidate. Picked by the maintainer from the lab
+ * evaluation report's sweep, for recall. Keep them equal to the lab's.
  */
 val THRESHOLDS: Map<Category, Float> = mapOf(
     Category.EXACT_DUPLICATE to 0.5f,
     Category.NEAR_DUPLICATE to 0.5f,
     Category.BURST to 0.5f,
     Category.BLURRY to 0.4f,
-    Category.BAD_EXPOSURE to 0.5f,
+    Category.BAD_EXPOSURE to 0.4f,
     Category.SCREENSHOT to 0.5f,
-    Category.DOCUMENT to 0.5f,
+    Category.DOCUMENT to 0.2f,
     Category.FORWARDED to 0.5f,
     Category.STICKER to 0.5f,
 )
