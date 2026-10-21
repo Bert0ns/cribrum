@@ -11,14 +11,14 @@ THRESHOLDS = {
     Category.NEAR_DUPLICATE: 0.5,
     Category.BURST: 0.5,
     Category.BLURRY: 0.4,
-    Category.BAD_EXPOSURE: 0.5,
+    Category.BAD_EXPOSURE: 0.4,
     Category.SCREENSHOT: 0.5,
-    Category.DOCUMENT: 0.5,
+    Category.DOCUMENT: 0.2,
     Category.FORWARDED: 0.5,
     Category.STICKER: 0.5,
 }
-"""Score a signal needs to make an image a candidate. Starting points: the evaluation
-report picks them from the labeled sample, for recall."""
+"""Score a signal needs to make an image a candidate. Picked by the maintainer from the
+evaluation report's sweep, for recall (docs/design.md, 10). Keep them equal to the app's."""
 
 PROTECTION_WEIGHTS = {Protection.FACES: 0.5, Protection.FAVORITE: 0.8, Protection.ALBUM: 0.6}
 """How much a protection signal at score 1 lowers an image's likelihood."""

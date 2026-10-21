@@ -1,7 +1,7 @@
 # Cribrum — Design Document
 
 - **Status:** Draft
-- **Last updated:** 2026-10-18
+- **Last updated:** 2026-10-21
 
 ## 1. Problem
 
@@ -93,7 +93,7 @@ On the dev machine (Ryzen 5 3600XT, CPU only), decoding and preprocessing take a
 
 ### 6.1 Candidate selection
 
-An image becomes a candidate if **any** signal exceeds its category threshold (D4). Thresholds are tuned in the lab for recall (§10).
+An image becomes a candidate if **any** signal exceeds its category threshold (D4). Thresholds are tuned in the lab for recall (§10), and the values are in `ranker.py` and `Ranker.kt`.
 
 ### 6.2 Protection signals
 
@@ -218,7 +218,36 @@ Goal: prove that the detectors work on real data before writing the app.
 1. **Collect:** copy the device's images to a local folder (`adb pull`, or a USB file transfer), messaging-app folders included. Image data is never committed.
 2. **Detect:** implement the detectors behind the same interfaces as §7.
 3. **Label:** a keyboard-driven labeling tool (`k` = keep, `d` = delete). A label carries no category: the labeler can tell what to keep, but not which detector should catch it, and asking for one turned out slow and error-prone. MobileCLIP clusters similar images so a whole cluster can be labeled at once. Target: 500–1,000 labeled images.
-4. **Measure:** **recall** first, then the number of candidates it costs. The per-category thresholds are chosen together, for the recall of all categories at once. Target: about 80% recall on deletable images. It was 95%, but on the first real labels (912 images from one phone) 80% already made 69% of the images candidates, and anything above 80% made 96% of them candidates, since only flagging nearly every WhatsApp image catches the rest. A filter that flags everything does not help the review. Images that are not candidates still come after the candidates in the review order, so a miss is shown later, not hidden.
+4. **Measure:** **recall** first, then the number of candidates it costs. The target is 95% recall on deletable images, measured for the whole library, not for the labeled sample. The sample is stratified: half of it is candidates, spread over the categories, and half is images no detector flagged, while 88% of the library were candidates when the first labels were drawn. It over-represents the images that are hardest to catch, so its recall reads lower than the library's. The evaluate report prints both. For the library, it weights each label by the size of its stratum in the index divided by the number of labels in that stratum. Each label records its stratum from now on (`candidate` or `unflagged`, `labels.sqlite` gets the column when it is opened). The 1,200 labels made before that have none, so the report places them by whether the thresholds in use when they were sampled made their image a candidate (`SAMPLING_THRESHOLDS`, the values before this change). That is an approximation, and the report says how many labels it applies to.
+
+    | Thresholds | Sample recall (716 deletes) | Library recall | Kept images flagged (of 484) | Candidates (of 10,220) |
+    |---|---|---|---|---|
+    | Before | 79% (567) | 94% | 210 | 9,010 |
+    | Now | 86% (615) | 96% | 219 | 9,171 |
+    | Cheapest found for 95% on the sample | 96% (689) | 97% | 342 | 9,751 |
+
+    On the sample, the 90% to 95% steps catch the last images only through `FORWARDED` at 0.45, which flags every messaging-app image and makes 95% of the library candidates. Measured on the library, the target is met with the thresholds in `ranker.py` and `Ranker.kt`. Stickers (6,306 images, 62% of the library) are always candidates, so they are more than two thirds of the candidates at any recall.
+
+    **How the thresholds were picked.** The evaluate report prints, for each category and threshold, the labeled deletes and keeps the category flags and the ones it adds to the candidates the other categories already make. A threshold is lowered only when the images it adds to the whole candidate set are clearly more often deletes than keeps. Steps that add a handful of images are noise. The values are the maintainer's choice, read from that table:
+
+    | Step | Deletes added | Keeps added | Candidates added |
+    |---|---|---|---|
+    | `DOCUMENT` 0.5 to 0.2 (applied) | 48 | 9 | 158 |
+    | `DOCUMENT` 0.2 to 0.1 | 17 | 11 | 111 |
+    | `BLURRY` 0.4 to 0.2 | 6 | 7 | 34 |
+    | `NEAR_DUPLICATE` 0.5 to 0.3 | 3 | 6 | 33 |
+    | `BAD_EXPOSURE` 0.5 to 0.4 (applied) | 0 | 0 | 0 |
+    | `BAD_EXPOSURE` 0.5 to 0.1 | 1 | 0 | 5 |
+
+    Only `DOCUMENT` clears the rule. `BAD_EXPOSURE` at 0.4 changes nothing on these labels. Every other category stays at 0.5 (`BLURRY` at 0.4). `BURST` has a small list (63 images, 10 deletes and 28 keeps), but recall comes before precision and it costs few reviews. `FORWARDED` at 0.4 would flag every messaging-app image, for 301 more deletes and 224 more keeps over 2,198 more images outside sticker folders, about the sample's base rate, so the extra images tell nothing.
+
+    Lower thresholds also move images up the review order: the chance that a labeled delete comes before a labeled keep goes from 0.768 to 0.785.
+
+    **Same labels.** The thresholds were picked on the same labels they are measured on. A bootstrap over the labels gives 83% to 88% for the sample recall and 95.2% to 96.6% for the library recall (95% intervals). A review of the first set of thresholds tried, which moved more thresholds and reached 90% on the sample, held out half of the labels in 20 random splits: 89.5% recall on average and 83% at worst. New labels, drawn with the recorded strata, are the check.
+
+    The 101 deletes in the sample that no detector flags are 95 in messaging-app folders and 6 in camera folders. For all 95 of the messaging ones the closest category is `FORWARDED`. They are photos in a messaging folder that the zero-shot prompts do not read as memes or greetings, so nothing in the signals tells them from the 108 kept messaging images that are flagged. What to chase next is a signal for received photos nobody kept, not a different threshold.
+
+    Recall of the categories on the 716 deletes, with the deletes no other category flags in brackets: `FORWARDED` 45% (32), `DOCUMENT` 43% (81), `STICKER` 33% (30), `SCREENSHOT` 15% (29), `NEAR_DUPLICATE` 16% (14), `BLURRY` 14% (6), `BAD_EXPOSURE` 12% (1), `BURST` 1% (4), `EXACT_DUPLICATE` 0.3% (0). Most deletable images are flagged by several categories, so a category's recall alone is not what it adds. The report prints both columns, so a re-run refreshes them.
 5. **Freeze:** export golden fixtures (sample images with expected signals) for the Kotlin implementation's tests. The fixture images are synthetic, generated from fixed seeds (`fixtures/`), never personal photos.
 
 ## 11. Future work and open questions

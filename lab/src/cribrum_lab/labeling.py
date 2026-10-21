@@ -17,7 +17,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from cribrum_lab import hashing
-from cribrum_lab.labels import Decision, Label, LabelStore
+from cribrum_lab.labels import Decision, Label, LabelStore, Stratum
 from cribrum_lab.model import Category, ImageRef
 from cribrum_lab.ranker import Candidate
 
@@ -63,6 +63,13 @@ def sample(
     picked += leftover[: size - len(picked)]  # too few unflagged images: more candidates
     rng.shuffle(picked)
     return picked
+
+
+def strata(ranked: Sequence[Candidate]) -> dict[Path, Stratum]:
+    """The stratum each image is in when `sample` draws from `ranked`: what its label records."""
+    return {
+        c.image.ref.path: Stratum.CANDIDATE if c.is_candidate else Stratum.UNFLAGGED for c in ranked
+    }
 
 
 def clusters(
@@ -114,7 +121,11 @@ class LabelingServer(ThreadingHTTPServer):
     as a grid labeled with one key."""
 
     def __init__(
-        self, groups: Sequence[Sequence[ImageRef]], store: LabelStore, port: int = 0
+        self,
+        groups: Sequence[Sequence[ImageRef]],
+        store: LabelStore,
+        port: int = 0,
+        strata: Mapping[Path, Stratum] | None = None,
     ) -> None:
         super().__init__(("127.0.0.1", port), _Handler)
         self.queue = [image for group in groups for image in group]
@@ -123,6 +134,7 @@ class LabelingServer(ThreadingHTTPServer):
             starts.append(starts[-1] + len(group))
         self.groups = [list(range(a, b)) for a, b in pairwise(starts)]
         self.store = store
+        self.strata = strata or {}
         self.lock = threading.Lock()
         self.hashes: dict[int, str] = {}
 
@@ -132,7 +144,7 @@ class LabelingServer(ThreadingHTTPServer):
                 image = self.queue[item]
                 digest = self.hashes.get(item) or hashing.content_hash(image)
                 self.hashes[item] = digest
-                self.store.set(Label(digest, image.path, decision))
+                self.store.set(Label(digest, image.path, decision, self.strata.get(image.path)))
 
     def unlabel(self, items: Sequence[int]) -> None:
         with self.lock:

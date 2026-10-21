@@ -9,7 +9,7 @@ from pathlib import Path
 from cribrum_lab import pipeline
 from cribrum_lab.evaluation import evaluate, format_report
 from cribrum_lab.index import ImageIndex
-from cribrum_lab.labeling import LabelingServer, clusters, sample
+from cribrum_lab.labeling import LabelingServer, clusters, sample, strata
 from cribrum_lab.labels import LabelStore
 from cribrum_lab.mobileclip import MobileClip
 from cribrum_lab.ranker import Ranker
@@ -40,7 +40,9 @@ def main(argv: list[str] | None = None) -> None:
     label.add_argument(
         "--clusters", action="store_true", help="show similar images as grids labeled at once"
     )
-    evaluate = commands.add_parser("evaluate", help="recall on the labels and suggested thresholds")
+    evaluate = commands.add_parser(
+        "evaluate", help="recall on the labels, the sweep and the recall curve"
+    )
     evaluate.add_argument("--labels", type=Path, default=DEFAULT_LABELS, help="SQLite labels file")
     evaluate.add_argument(
         "--out", type=Path, help="also write the report here (keep it under lab/data/)"
@@ -98,13 +100,14 @@ def _label(index: ImageIndex, labels: Path, size: int, seed: int, port: int, gro
     with LabelStore(labels) as store:
         done = {label.path for label in store.all()}
         exclude = done | set(index.unreadable())
-        queue = sample(Ranker().rank(index.indexed_images()), size, exclude, seed)
+        ranked = Ranker().rank(index.indexed_images())
+        queue = sample(ranked, size, exclude, seed)
         groups = []
         if grouped:
             groups = clusters(queue, index.embeddings(MobileClip.id, MobileClip.version))
         in_groups = {image for group in groups for image in group}
         groups += [[image] for image in queue if image not in in_groups]
-        server = LabelingServer(groups, store, port)
+        server = LabelingServer(groups, store, port, strata(ranked))
         print(f"{len(queue)} images to label at http://127.0.0.1:{server.server_port}/")
         print(f"{len(done)} labeled so far, stored in {labels}. Ctrl-C to stop.")
         try:

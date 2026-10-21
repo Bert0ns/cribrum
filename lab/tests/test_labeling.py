@@ -10,8 +10,8 @@ import pytest
 from PIL import Image
 
 from cribrum_lab.hashing import content_hash
-from cribrum_lab.labeling import LabelingServer, clusters, sample
-from cribrum_lab.labels import Decision, LabelStore
+from cribrum_lab.labeling import LabelingServer, clusters, sample, strata
+from cribrum_lab.labels import Decision, LabelStore, Stratum
 from cribrum_lab.model import Category, ImageRef, IndexedImage, Signal
 from cribrum_lab.ranker import Candidate
 
@@ -57,6 +57,12 @@ def test_sample_fills_up_with_candidates_when_few_images_are_unflagged():
     assert len(sample(ranked, 8, set())) == 8
 
 
+def test_strata_tell_candidates_from_unflagged_images():
+    ranked = [candidate("s0", Category.SCREENSHOT), candidate("u0")]
+
+    assert strata(ranked) == {Path("s0"): Stratum.CANDIDATE, Path("u0"): Stratum.UNFLAGGED}
+
+
 @pytest.fixture
 def server(tmp_path):
     paths = []
@@ -68,7 +74,11 @@ def server(tmp_path):
     paths.append(tmp_path / "broken.jpg")
     store = LabelStore(":memory:")
     refs = [ImageRef(p, p.stat().st_size, 0) for p in paths]
-    server = LabelingServer([[refs[0], refs[1]], [refs[2]]], store)
+    server = LabelingServer(
+        [[refs[0], refs[1]], [refs[2]]],
+        store,
+        strata={paths[0]: Stratum.CANDIDATE, paths[1]: Stratum.UNFLAGGED},
+    )
     threading.Thread(target=server.serve_forever, args=(0.05,), daemon=True).start()
     yield server
     server.shutdown()
@@ -192,3 +202,12 @@ def test_large_clusters_are_split_to_fit_a_screen():
     groups = clusters(refs, {ref.path: vector(1) for ref in refs})
 
     assert [len(g) for g in groups] == [48, 48, 4]
+
+
+def test_a_label_records_the_stratum_its_image_was_sampled_from(server):
+    post(server, "/api/label", {"items": [0, 1], "decision": "delete"})
+
+    assert [label.stratum for label in server.store.all()] == [
+        Stratum.CANDIDATE,
+        Stratum.UNFLAGGED,
+    ]
