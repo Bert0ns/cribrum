@@ -40,7 +40,7 @@ Every commit subject and every PR title uses `type(scope): subject`. The `commit
 - Scopes: `android`, `lab`, `site`, `skills`. Leave the scope out when a change spans the repo.
 - Subject: imperative, lowercase after the colon, no trailing period, at most 72 characters for the whole line. Example: `feat(android): add the DOCUMENT detector`.
 - The body follows `unslop` (plain words, no em dashes) and explains why. `unslop` asks for sentence case in headings, but the lowercase subject wins for commit subjects and PR titles.
-- GitHub's `Merge pull request #N from ...` and `Merge branch ...` commits are exempt.
+- The check skips `Merge pull request #N from ...`, `Merge branch ...` and `Merge remote-tracking branch ...` commits, and the `Revert "..."` commits and PR titles that GitHub's Revert button writes.
 
 The person merging picks the merge method by size:
 
