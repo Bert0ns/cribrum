@@ -323,6 +323,86 @@ class PipelineTest {
         assertEquals(listOf("document", "forwarded"), DETECTORS.filter { it.usesEmbeddings }.map { it.id })
     }
 
+    @Test
+    fun `the detectors that read no embedding store their signals before the first embedding is computed`() {
+        photos()
+        val screenshot = "Pictures/Screenshots/Screenshot_1.png"
+        var before = emptySet<Kind>()
+        val embedder = object : Embedder {
+            private val inner = MeanColorEmbedder()
+            override val id = inner.id
+            override val version = inner.version
+
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+                if (before.isEmpty()) before = kinds(screenshot)
+                return inner.embedPixels(pixels)
+            }
+        }
+
+        run(Pipeline(index, embedder = embedder))
+
+        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), before)
+    }
+
+    @Test
+    fun `the steps run in order, the detectors that read embeddings last`() {
+        photos()
+        val steps = mutableListOf<String>()
+
+        runBlocking { Pipeline(index, embedder = MeanColorEmbedder()).run(source) { step, _, _ -> if (steps.lastOrNull() != step) steps += step } }
+
+        assertEquals(listOf("metadata", "detectors", "embeddings", "embedded_detectors", "exact_duplicate", "near_duplicate", "burst"), steps)
+    }
+
+    private val stickerFolder = "WhatsApp/Media/WhatsApp Stickers"
+
+    @Test
+    fun `a sticker is not embedded and the detectors reading embeddings leave it alone, but it stays a candidate`() {
+        photos()
+        save("$stickerFolder/s.png", seed = 3)
+
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(0, stats.skipped)
+        assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
+        val signals = runBlocking { index.signals(File(root, "$stickerFolder/s.png").path) }
+        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), signals.map { it.kind }.toSet())
+        assertEquals(1f, signals.single { it.kind == Category.STICKER }.score, 0f)
+    }
+
+    @Test
+    fun `a sticker with no embedding is still in a near duplicate group, through its perceptual hash`() {
+        save("$stickerFolder/s.png", seed = 3)
+        File(root, "$stickerFolder/s.png").copyTo(File(root, "$stickerFolder/s-copy.png"))
+
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        assertTrue(Category.NEAR_DUPLICATE in kinds("$stickerFolder/s-copy.png"))
+    }
+
+    @Test
+    fun `an embedding a sticker got from an earlier scan is not used`() {
+        save("$stickerFolder/s.png", seed = 3)
+        val path = File(root, "$stickerFolder/s.png").path
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList()))
+        runBlocking { index.setEmbeddings("mean_color", 1, mapOf(path to FloatArray(512) { 1f })) }
+        var seen = true
+        val probe = object : GroupDetector {
+            override val id = "probe"
+            override val version = 1
+
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
+                seen = runCatching { context.embedding(images.single()) }.isSuccess
+                return emptyMap()
+            }
+        }
+
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(probe), embedder = MeanColorEmbedder()))
+
+        assertFalse(seen)
+    }
+
     /** Runs out of memory whenever the image at [poison] is in the batch, as a very large decode would. */
     private inner class OutOfMemoryEmbedder(poison: String) : Embedder {
         private val inner = MeanColorEmbedder()

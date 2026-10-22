@@ -1,4 +1,5 @@
-"""Analysis pipeline: scan → metadata → embeddings → per-image detectors → group detectors.
+"""Analysis pipeline: scan → metadata → detectors that read no embedding → embeddings →
+detectors that read one → group detectors.
 
 Every step stores its results as it goes and skips what the index already holds for the
 same detector version, so an interrupted run resumes where it stopped and a second run on
@@ -27,6 +28,7 @@ from cribrum_lab.detectors.forwarded import ForwardedDetector
 from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
 from cribrum_lab.detectors.screenshot import ScreenshotDetector
 from cribrum_lab.detectors.sticker import StickerDetector
+from cribrum_lab.folders import is_sticker_folder
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.metadata import ImageMetadata, UnreadableImage, read_metadata
 from cribrum_lab.model import ImageRef, Signal
@@ -124,33 +126,24 @@ def run(
 
     images = [i for i in index.images() if i.path in found]
     readable = [i for i in images if i.path not in unreadable]
+    # The home screen lists candidates as soon as these are stored; the embeddings come after.
+    fast = [d for d in detectors if not getattr(d, "uses_embeddings", False)]
+    _analyze_each(readable, fast, {}, "detectors", True, index, jobs, stats, progress)
+    # A sticker is listed under STICKER only (docs/design.md, 8), so no model runs on it.
+    embeddable = [i for i in readable if not is_sticker_folder(i.path)]
     embeddings = {}
     if embedder is not None:
-        _embed(embedder, index, detectors, readable, jobs, stats, progress)
-        embeddings = index.embeddings(embedder.id, embedder.version)
-
-    tasks = []
-    for image in readable:  # group detectors still see the unreadable files
-        todo = [d for d in detectors if not index.is_analyzed(image.path, d.id, d.version)]
-        needs_phash = index.perceptual_hash(image.path) is None
-        if todo or needs_phash:
-            meta = index.metadata(image.path)
-            tasks.append((image, meta, embeddings.get(image.path), todo, needs_phash))
-    for done, (image, results, phash) in enumerate(_map(_analyze, tasks, jobs), 1):
-        for detector_id, version, outcome in results:
-            if outcome is None:
-                stats.skipped += 1
-            elif isinstance(outcome, str):
-                stats.failures.append(f"{image.path}: {detector_id}: {outcome}")
-            else:
-                index.set_signals(image.path, detector_id, version, outcome)
-                stats.detector_runs += 1
-        if isinstance(phash, str):
-            stats.failures.append(f"{image.path}: perceptual hash: {phash}")
-        elif phash is not None:
-            index.set_perceptual_hash(image.path, phash)
-            stats.detector_runs += 1
-        progress("detectors", done, len(tasks))
+        _embed(embedder, index, detectors, embeddable, jobs, stats, progress)
+        kept = {i.path for i in embeddable}
+        embeddings = {
+            path: vector
+            for path, vector in index.embeddings(embedder.id, embedder.version).items()
+            if path in kept
+        }
+    reading = [d for d in detectors if d not in fast]
+    _analyze_each(
+        embeddable, reading, embeddings, "embedded_detectors", False, index, jobs, stats, progress
+    )
 
     context = AnalysisContext(
         content_hash=_cached_content_hash(index),
@@ -173,6 +166,43 @@ def run(
         stats.detector_runs += 1
         progress(detector.id, 1, 1)
     return stats
+
+
+def _analyze_each(
+    images: list[ImageRef],
+    detectors: Sequence[Detector],
+    embeddings: dict[Path, np.ndarray],
+    step: str,
+    with_phash: bool,
+    index: ImageIndex,
+    jobs: int,
+    stats: Stats,
+    progress: Progress,
+) -> None:
+    """Runs `detectors`, and the perceptual hash if `with_phash`, on the images that lack them."""
+    tasks = []
+    for image in images:
+        todo = [d for d in detectors if not index.is_analyzed(image.path, d.id, d.version)]
+        needs_phash = with_phash and index.perceptual_hash(image.path) is None
+        if todo or needs_phash:
+            tasks.append(
+                (image, index.metadata(image.path), embeddings.get(image.path), todo, needs_phash)
+            )
+    for done, (image, results, phash) in enumerate(_map(_analyze, tasks, jobs), 1):
+        for detector_id, version, outcome in results:
+            if outcome is None:
+                stats.skipped += 1
+            elif isinstance(outcome, str):
+                stats.failures.append(f"{image.path}: {detector_id}: {outcome}")
+            else:
+                index.set_signals(image.path, detector_id, version, outcome)
+                stats.detector_runs += 1
+        if isinstance(phash, str):
+            stats.failures.append(f"{image.path}: perceptual hash: {phash}")
+        elif phash is not None:
+            index.set_perceptual_hash(image.path, phash)
+            stats.detector_runs += 1
+        progress(step, done, len(tasks))
 
 
 def _analyze(

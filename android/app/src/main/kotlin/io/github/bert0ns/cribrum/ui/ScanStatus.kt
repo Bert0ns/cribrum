@@ -13,6 +13,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.pipeline.ScanProgress
 
 /** The running scan with a progress bar, or a button that starts one. */
@@ -29,7 +30,7 @@ fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier =
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             else -> {
-                Text(stringResource(R.string.scan_step, progress.step, progress.done, progress.total))
+                Text(stringResource(R.string.scan_step, stringResource(Indexing.phaseTitle(progress.step)), progress.done, progress.total))
                 LinearProgressIndicator({ progress.done.toFloat() / progress.total }, Modifier.fillMaxWidth())
             }
         }
