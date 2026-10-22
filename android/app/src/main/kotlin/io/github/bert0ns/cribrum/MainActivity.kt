@@ -192,7 +192,7 @@ private fun AppContent(model: ReviewViewModel) {
             when (screen) {
                 Screen.Home -> {
                     ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty)
-                    CategoryList(state.categories, model::open, model::openTrash, freeableBytes = state.freeableBytes)
+                    CategoryList(state.categories, state.freeableBytes, model::open, model::openTrash)
                 }
                 is Screen.Category -> CategoryScreen(
                     state.page,

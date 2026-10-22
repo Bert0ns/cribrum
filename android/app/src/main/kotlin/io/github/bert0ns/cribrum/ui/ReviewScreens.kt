@@ -32,8 +32,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -100,7 +100,7 @@ fun categoryName(category: Category): String = stringResource(
 )
 
 @Composable
-fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier, freeableBytes: Long = 0) {
+fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize()) {
         if (freeableBytes > 0) {
             item {
@@ -142,9 +142,9 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
 
 /** The control of the category screen's top bar: one menu with the date grouping or the size sort to choose. */
 @Composable
-fun DateGroupingMenu(selected: DateGrouping, options: List<DateGrouping> = DateGrouping.entries, onSelect: (DateGrouping) -> Unit) {
+fun DateGroupingMenu(selected: DateGrouping, options: List<DateGrouping>, onSelect: (DateGrouping) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    IconButton({ open = true }) { Icon(Icons.Default.DateRange, stringResource(R.string.date_grouping)) }
+    IconButton({ open = true }) { Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.date_grouping)) }
     DropdownMenu(open, { open = false }) {
         for (grouping in options) {
             DropdownMenuItem(
