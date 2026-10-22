@@ -12,6 +12,9 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import io.github.bert0ns.cribrum.model.Category
+import io.github.bert0ns.cribrum.pipeline.Coverage
+import io.github.bert0ns.cribrum.pipeline.FailedFile
+import io.github.bert0ns.cribrum.pipeline.ScanReport
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
 import org.junit.Assert.assertEquals
@@ -52,6 +55,19 @@ class LanguageTest {
 
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Sfocate: 0,70"))
         compose.onNodeWithText("Sfocate: 0,70").assertExists()
+    }
+
+    @Test
+    @Config(qualifiers = "it")
+    fun `the scan status rows read naturally in Italian, with the category names`() {
+        val coverage = listOf(Coverage("embedding", 1, analysed = 90, needed = 100), Coverage("blur", 1, analysed = 1, needed = 1), Coverage("faces", 2, analysed = 0, needed = 0))
+        val report = ScanReport(1_700_000_000_000, unreadable = 1, failures = mapOf("embedding" to 2), files = listOf(FailedFile("embedding", "a.jpg")))
+        compose.setContent { SettingsScreen(coverage = coverage, lastScan = report) }
+
+        for (text in listOf("Stato della scansione", "1 file illeggibile", "2 errori nell'ultima scansione", "Embedding", "90 di 100 immagini analizzate • versione 1", "Sfocate", "1 di 1 immagine analizzata • versione 1", "Volti", "2 con errore nell'ultima scansione")) {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
+            compose.onNodeWithText(text).assertExists()
+        }
     }
 
     @Test
