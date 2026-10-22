@@ -64,6 +64,17 @@ def test_detects_images_by_content_not_extension(tmp_path):
     assert scanned_paths(tmp_path) == {Path("no_extension"), Path("photo.jpg")}
 
 
+def test_skips_samsung_gallery_recycle_bin_at_the_root(tmp_path):
+    write(tmp_path / "Android/.Trash/com.sec.android.gallery3d/a.jpg", JPEG)
+    write(tmp_path / "Android/media/com.whatsapp/b.jpg", JPEG)
+    write(tmp_path / "DCIM/Android/.Trash/c.jpg", JPEG)
+
+    assert scanned_paths(tmp_path) == {
+        Path("Android/media/com.whatsapp/b.jpg"),
+        Path("DCIM/Android/.Trash/c.jpg"),
+    }
+
+
 def test_image_ref_identifies_the_file(tmp_path):
     path = write(tmp_path / "a.jpg", JPEG)
 

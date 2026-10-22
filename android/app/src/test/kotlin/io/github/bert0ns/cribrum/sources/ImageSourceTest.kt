@@ -132,6 +132,14 @@ class ImageSourceTest {
     }
 
     @Test
+    fun `skips the Samsung Gallery recycle bin at the root only`() {
+        write("Android/.Trash/com.sec.android.gallery3d/a.jpg", JPEG)
+        write("DCIM/Android/.Trash/b.jpg", JPEG)
+
+        assertEquals(listOf("DCIM/Android/.Trash/b.jpg"), scanned())
+    }
+
+    @Test
     fun `merged sources yield each path once, in source order`() {
         fun source(vararg paths: String) = object : ImageSource {
             override fun scan(): Flow<ImageRef> = flowOf(*paths.map { ImageRef(it, 1, 1) }.toTypedArray())

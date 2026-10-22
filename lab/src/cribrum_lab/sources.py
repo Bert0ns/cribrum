@@ -28,17 +28,20 @@ class FilesystemImageSource:
     content, not their extension. Symlinks are skipped so no file is yielded twice, and
     so are FIFOs and other special files, which would block or fail on read. Left out on
     purpose: files in the system trash or still being written (`.trashed-*`,
-    `.pending-*`).
+    `.pending-*`), and `Android/.Trash` at the root, which is Samsung Gallery's recycle bin.
     """
 
     SKIPPED_PREFIXES = (".trashed-", ".pending-")
+    SKIPPED_FOLDERS = (Path("Android/.Trash"),)
 
     def __init__(self, root: Path) -> None:
         self.root = root
 
     def scan(self) -> Iterator[ImageRef]:
         for folder, dirs, files in self.root.walk():
-            dirs.sort()
+            dirs[:] = sorted(
+                d for d in dirs if (folder / d).relative_to(self.root) not in self.SKIPPED_FOLDERS
+            )
             for name in sorted(files):
                 if name.startswith(self.SKIPPED_PREFIXES):
                     continue
