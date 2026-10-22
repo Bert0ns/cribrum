@@ -156,6 +156,34 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `the date order holds after skipping, applying and undoing`() {
+        listOf("old" to (0.9f to 2020), "mid" to (0.7f to 2024), "new" to (0.5f to 2026)).forEach { (name, found) ->
+            val (score, year) = found
+            blurry("/sdcard/$name.jpg", score)
+            runBlocking { app.index.setMetadata("/sdcard/$name.jpg", ImageMetadata(10, 10, "image/jpeg", capturedAt = LocalDateTime.of(year, 1, 1, 12, 0))) }
+        }
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 3 }
+        model.setDateGrouping(DateGrouping.MONTH)
+        settle(model) { it.state.value.dateGrouping == DateGrouping.MONTH }
+        assertEquals(listOf("/sdcard/new.jpg", "/sdcard/mid.jpg", "/sdcard/old.jpg"), paths(model))
+
+        model.skip(setOf("/sdcard/mid.jpg"))
+        settle(model) { paths(it).size == 2 }
+        assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
+
+        // The files are not on disk, so nothing moves, but the page is rebuilt and the decision can be undone.
+        model.applyPage()
+        settle(model) { it.state.value.lastDecision != null }
+        assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
+
+        model.undo()
+        settle(model) { it.state.value.lastDecision == null }
+        assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
+    }
+
+    @Test
     fun `a category without the control ignores a date grouping`() {
         val model = ReviewViewModel(app)
         model.open(Category.STICKER)
