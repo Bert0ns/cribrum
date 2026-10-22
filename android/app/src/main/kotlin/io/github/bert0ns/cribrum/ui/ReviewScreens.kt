@@ -71,6 +71,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -168,34 +173,61 @@ private val DateGrouping.title
         DateGrouping.SIZE -> R.string.date_grouping_size
     }
 
-/** A thumbnail that is marked for the trash or kept. Tap toggles, a long press shows it full size. */
+/**
+ * A thumbnail that is marked for the trash or kept. Tap toggles, a long press shows it full size.
+ * A screen reader hears why the image is here and how it is marked, and gets both as actions too.
+ */
 @Composable
-private fun Tile(image: ImageRef, marked: Boolean, label: String?, onTap: () -> Unit, onHold: () -> Unit) {
-    val description = stringResource(if (marked) R.string.selected_for_trash else R.string.kept)
+private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: () -> Unit) {
+    val state = stringResource(
+        when {
+            marked -> R.string.selected_for_trash
+            item.isBest -> R.string.kept_best_copy
+            else -> R.string.kept
+        },
+    )
+    val why = item.reasons.firstNotNullOfOrNull(::reasonOf)?.text() ?: File(item.image.path).name
+    val description = stringResource(R.string.tile_description, why, state)
+    val toggle = stringResource(if (marked) R.string.action_keep else R.string.action_trash)
+    val open = stringResource(R.string.action_open_full_size)
     Box(
         Modifier.aspectRatio(1f).padding(2.dp)
             .border(if (marked) 3.dp else 0.dp, if (marked) MaterialTheme.colorScheme.error else Color.Transparent)
-            .combinedClickable(onClick = onTap, onLongClick = onHold, onClickLabel = description),
+            .combinedClickable(onClick = onTap, onClickLabel = toggle, onLongClick = onHold, onLongClickLabel = open)
+            .semantics {
+                contentDescription = description
+                customActions = listOf(
+                    CustomAccessibilityAction(toggle) {
+                        onTap()
+                        true
+                    },
+                    CustomAccessibilityAction(open) {
+                        onHold()
+                        true
+                    },
+                )
+            },
     ) {
         AsyncImage(
-            model = File(image.path),
-            contentDescription = File(image.path).name,
+            model = File(item.image.path),
+            contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().alpha(if (marked) 0.6f else 1f),
         )
         Icon(
             if (marked) Icons.Default.Delete else Icons.Default.Check,
-            contentDescription = description,
+            contentDescription = null,
             tint = Color.White,
             modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
                 .background(if (marked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
         )
-        if (label != null) {
+        if (item.isBest) {
             Text(
-                label,
+                stringResource(R.string.best_copy),
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp),
+                // The description already says it is the best copy.
+                modifier = Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp).clearAndSetSemantics {},
             )
         }
     }
@@ -260,9 +292,8 @@ fun CategoryScreen(
                 }
                 items(group.images, key = { it.image.path }) { item ->
                     Tile(
-                        item.image,
+                        item,
                         item.image.path in marked,
-                        if (item.isBest) stringResource(R.string.best_copy) else null,
                         onTap = {
                             haptics.performHapticFeedback(Haptic.TICK.type)
                             onToggle(item.image)
