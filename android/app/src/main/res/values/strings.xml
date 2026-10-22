@@ -179,7 +179,7 @@
     <string name="settings_scan_status">Scan status</string>
     <string name="settings_scan_status_hint">Images analysed out of the images each step needs. Images in the trash are not counted, and neither are stickers for the embedding, document and forwarded steps, which skip them by design.</string>
     <string name="settings_scan_status_last">Last finished scan</string>
-    <string name="settings_scan_status_none">No scan has finished yet.</string>
+    <string name="settings_scan_status_none">No scan has finished since this version.</string>
     <plurals name="settings_scan_status_unreadable">
         <item quantity="one">%1$d unreadable file</item>
         <item quantity="other">%1$d unreadable files</item>
@@ -189,7 +189,12 @@
         <item quantity="one">%1$d failure in the last scan</item>
         <item quantity="other">%1$d failures in the last scan</item>
     </plurals>
-    <string name="settings_scan_status_failures_hint">The next scan tries those images again. Tap to show their file names.</string>
+    <string name="settings_scan_status_failures_hint">The next scan tries those images again. Tap to show or hide their file names.</string>
+    <string name="settings_scan_status_toggle_files">Show or hide the file names</string>
+    <string name="settings_scan_status_files_shown">File names shown</string>
+    <string name="settings_scan_status_files_hidden">File names hidden</string>
+    <string name="settings_scan_status_embedding">Embeddings</string>
+    <string name="settings_scan_status_faces">Faces</string>
     <string name="settings_scan_status_file">%1$s: %2$s</string>
     <plurals name="settings_scan_status_more">
         <item quantity="one">and %1$d more</item>

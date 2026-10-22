@@ -10,13 +10,20 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.pipeline.Coverage
+import io.github.bert0ns.cribrum.pipeline.DETECTORS
+import io.github.bert0ns.cribrum.pipeline.EMBEDDING_STEP
+import io.github.bert0ns.cribrum.pipeline.GROUP_DETECTORS
 import io.github.bert0ns.cribrum.pipeline.ScanReport
 
 /**
@@ -59,7 +66,14 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
                     Text(if (failed == 0) stringResource(R.string.settings_scan_status_no_failures) else pluralStringResource(R.plurals.settings_scan_status_failures, failed, failed))
                 },
                 supportingContent = if (failed == 0) null else ({ Text(stringResource(R.string.settings_scan_status_failures_hint)) }),
-                modifier = if (failed == 0) Modifier else Modifier.clickable(onClick = onToggleFiles),
+                modifier = if (failed == 0) {
+                    Modifier
+                } else {
+                    val state = stringResource(if (showingFiles) R.string.settings_scan_status_files_shown else R.string.settings_scan_status_files_hidden)
+                    Modifier
+                        .clickable(role = Role.Button, onClickLabel = stringResource(R.string.settings_scan_status_toggle_files), onClick = onToggleFiles)
+                        .semantics { stateDescription = state }
+                },
             )
         }
     }
@@ -72,7 +86,7 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
     items(coverage, key = { it.id }) { row ->
         val rowFailed = lastScan?.failures?.get(row.id) ?: 0
         ListItem(
-            headlineContent = { Text(row.id) },
+            headlineContent = { Text(stepName(row.id)) },
             supportingContent = {
                 Column {
                     Text(pluralStringResource(R.plurals.settings_scan_status_row, row.needed, row.analysed, row.needed, row.version))
@@ -80,5 +94,17 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
                 }
             },
         )
+    }
+}
+
+/** A detector with a category goes by the category's name; a new one without a name yet shows its id. */
+@Composable
+private fun stepName(id: String): String {
+    val category = (DETECTORS.map { it.id to it.category } + GROUP_DETECTORS.map { it.id to it.category }).firstOrNull { it.first == id }?.second
+    return when {
+        category != null -> categoryName(category)
+        id == EMBEDDING_STEP -> stringResource(R.string.settings_scan_status_embedding)
+        id == "faces" -> stringResource(R.string.settings_scan_status_faces)
+        else -> id
     }
 }

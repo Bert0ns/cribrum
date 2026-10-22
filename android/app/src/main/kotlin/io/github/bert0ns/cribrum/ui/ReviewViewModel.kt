@@ -149,7 +149,14 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     /** Counts outside the lock of [load] too, and under the same rule as [refreshStorage]. */
-    private fun refreshScanStatus() = viewModelScope.launch {
+    private fun refreshScanStatus() {
+        scanStatusJob?.cancel() // a slower, older read must not overwrite a newer one
+        scanStatusJob = viewModelScope.launch { readScanStatus() }
+    }
+
+    private var scanStatusJob: Job? = null
+
+    private suspend fun readScanStatus() {
         val coverage = withContext(Dispatchers.Default) { app.index.coverage() }
         val lastScan = withContext(Dispatchers.IO) { app.lastScan.report }
         load { if (it.screen == Screen.Settings) it.copy(coverage = coverage, lastScan = lastScan) else it }

@@ -173,8 +173,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         val purged = app.trash.purgeExpired()
         app.index.forget(purged.map { it.path })
         val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
-        val stats = Pipeline(app.index, embedder = embedder).run(Indexing.deviceSource(applicationContext), ::report)
-        app.lastScan.record(stats, System.currentTimeMillis())
+        app.lastScan.run { Pipeline(app.index, embedder = embedder).run(Indexing.deviceSource(applicationContext), ::report) }
         return Result.success()
     }
 

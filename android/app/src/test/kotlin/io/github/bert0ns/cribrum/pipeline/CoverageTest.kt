@@ -97,4 +97,33 @@ class CoverageTest {
 
         assertEquals(2, coverage().getValue("blur").analysed)
     }
+
+    @Test
+    fun `after a full run every row has analysed every image it needs, and the counts follow the pipeline's rules`() {
+        save("DCIM/Camera/a.png", 0)
+        save("WhatsApp/Media/WhatsApp Stickers/s.png", 1)
+        save("Download/trashed.png", 2)
+        save("WhatsApp/Media/WhatsApp Stickers/trashed-sticker.png", 3)
+        File(root, "Download/broken.jpg").apply {
+            parentFile!!.mkdirs()
+            writeBytes(byteArrayOf(-1, -40, -1, -32) + ByteArray(16))
+        }
+        scan()
+        for (name in listOf("Download/trashed.png", "WhatsApp/Media/WhatsApp Stickers/trashed-sticker.png")) {
+            val file = File(root, name)
+            runBlocking { index.setReviewState(file.path, ReviewState.TRASHED) }
+            file.delete()
+        }
+        scan()
+
+        val rows = coverage()
+
+        val needed = mapOf(
+            "embedding" to 1, "document" to 1, "forwarded" to 1, // the camera image only: not the sticker, the broken file or the trashed ones
+            "blur" to 2, "exposure" to 2, "screenshot" to 2, "faces" to 2, "sticker" to 2, // readable images: the camera image and the sticker
+            "exact_duplicate" to 3, "near_duplicate" to 3, "burst" to 3, // every image found, the broken file included
+        )
+        assertEquals(needed, rows.mapValues { it.value.needed })
+        assertEquals(rows.mapValues { it.value.needed }, rows.mapValues { it.value.analysed })
+    }
 }
