@@ -44,13 +44,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
-import io.github.bert0ns.cribrum.review.DateGrouping
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
-import io.github.bert0ns.cribrum.ui.DateGroupingMenu
 import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.Haptic
+import io.github.bert0ns.cribrum.ui.ReviewOrderMenu
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.ScanStatus
 import io.github.bert0ns.cribrum.ui.Screen
@@ -181,7 +181,7 @@ private fun AppContent(model: ReviewViewModel) {
                         }
                     }
                     if (screen is Screen.Category) {
-                        DateGroupingMenu(state.dateGrouping, DateGrouping.optionsFor(screen.category), model::setDateGrouping)
+                        ReviewOrderMenu(state.reviewOrder, ReviewOrder.optionsFor(screen.category), model::setReviewOrder)
                     }
                 },
             )
@@ -204,7 +204,7 @@ private fun AppContent(model: ReviewViewModel) {
                     model::skip,
                     snackbar = snackbar,
                     onExcludeFolder = model::excludeFolder,
-                    dateGrouping = state.dateGrouping,
+                    reviewOrder = state.reviewOrder,
                     retentionDays = state.retentionDays,
                 )
                 Screen.Trash -> TrashScreen(

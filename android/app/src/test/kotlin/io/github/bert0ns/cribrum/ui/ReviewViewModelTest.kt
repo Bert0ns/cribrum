@@ -13,9 +13,9 @@ import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.pipeline.Coverage
 import io.github.bert0ns.cribrum.pipeline.Stats
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
-import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.PAGE_SIZE
 import io.github.bert0ns.cribrum.review.Review
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
@@ -138,23 +138,23 @@ class ReviewViewModelTest {
         val model = ReviewViewModel(app)
         model.open(Category.BLURRY)
         settle(model) { paths(it).size == 2 }
-        assertEquals(DateGrouping.OFF, model.state.value.dateGrouping)
+        assertEquals(ReviewOrder.OFF, model.state.value.reviewOrder)
         assertEquals(listOf("/sdcard/old.jpg", "/sdcard/new.jpg"), paths(model))
         model.toggle(model.state.value.page.first().images.single().image) // keep old.jpg
 
-        model.setDateGrouping(DateGrouping.MONTH)
-        settle(model) { it.state.value.dateGrouping == DateGrouping.MONTH }
+        model.setReviewOrder(ReviewOrder.MONTH)
+        settle(model) { it.state.value.reviewOrder == ReviewOrder.MONTH }
 
         assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
         assertEquals(setOf("/sdcard/new.jpg"), model.state.value.marked)
         val next = ReviewViewModel(app)
         next.open(Category.BLURRY)
         settle(next) { paths(it).size == 2 }
-        assertEquals(DateGrouping.MONTH, next.state.value.dateGrouping)
+        assertEquals(ReviewOrder.MONTH, next.state.value.reviewOrder)
         assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(next))
         next.open(Category.SCREENSHOT)
         settle(next) { it.state.value.screen == Screen.Category(Category.SCREENSHOT) }
-        assertEquals(DateGrouping.OFF, next.state.value.dateGrouping)
+        assertEquals(ReviewOrder.OFF, next.state.value.reviewOrder)
     }
 
     @Test
@@ -167,8 +167,8 @@ class ReviewViewModelTest {
         val model = ReviewViewModel(app)
         model.open(Category.BLURRY)
         settle(model) { paths(it).size == 3 }
-        model.setDateGrouping(DateGrouping.MONTH)
-        settle(model) { it.state.value.dateGrouping == DateGrouping.MONTH }
+        model.setReviewOrder(ReviewOrder.MONTH)
+        settle(model) { it.state.value.reviewOrder == ReviewOrder.MONTH }
         assertEquals(listOf("/sdcard/new.jpg", "/sdcard/mid.jpg", "/sdcard/old.jpg"), paths(model))
 
         model.skip(setOf("/sdcard/mid.jpg"))
@@ -186,15 +186,15 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `a category without the control ignores a date grouping`() {
+    fun `a category without the control ignores a date order`() {
         val model = ReviewViewModel(app)
         model.open(Category.STICKER)
         settle(model) { it.state.value.screen == Screen.Category(Category.STICKER) }
 
-        model.setDateGrouping(DateGrouping.DAY)
+        model.setReviewOrder(ReviewOrder.DAY)
         settle(model) { true }
 
-        assertEquals(DateGrouping.OFF, model.state.value.dateGrouping)
+        assertEquals(ReviewOrder.OFF, model.state.value.reviewOrder)
     }
 
     @Test
@@ -212,18 +212,18 @@ class ReviewViewModelTest {
 
         model.open(Category.BLURRY)
         settle(model) { paths(it).size == 2 }
-        model.setDateGrouping(DateGrouping.SIZE)
-        settle(model) { it.state.value.dateGrouping == DateGrouping.SIZE }
+        model.setReviewOrder(ReviewOrder.SIZE)
+        settle(model) { it.state.value.reviewOrder == ReviewOrder.SIZE }
 
         assertEquals(listOf("/sdcard/large.jpg", "/sdcard/small.jpg"), paths(model))
         model.open(Category.STICKER)
         settle(model) { it.state.value.screen == Screen.Category(Category.STICKER) }
-        model.setDateGrouping(DateGrouping.SIZE)
-        settle(model) { it.state.value.dateGrouping == DateGrouping.SIZE }
+        model.setReviewOrder(ReviewOrder.SIZE)
+        settle(model) { it.state.value.reviewOrder == ReviewOrder.SIZE }
         val next = ReviewViewModel(app)
         next.open(Category.STICKER)
         settle(next) { it.state.value.screen == Screen.Category(Category.STICKER) }
-        assertEquals(DateGrouping.SIZE, next.state.value.dateGrouping)
+        assertEquals(ReviewOrder.SIZE, next.state.value.reviewOrder)
     }
 
     /** A file in a trash of its own, trashed [daysAgo] days ago (the trash reads its time from origin.properties). */

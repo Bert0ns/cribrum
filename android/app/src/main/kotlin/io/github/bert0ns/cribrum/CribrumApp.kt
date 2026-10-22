@@ -3,7 +3,7 @@ package io.github.bert0ns.cribrum
 import android.app.Application
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.pipeline.LastScan
-import io.github.bert0ns.cribrum.review.DateGroupingSetting
+import io.github.bert0ns.cribrum.review.ReviewOrderSetting
 import io.github.bert0ns.cribrum.review.Thresholds
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.TrashRetention
@@ -15,7 +15,7 @@ class CribrumApp : Application() {
     val trashRetention: TrashRetention by lazy { TrashRetention(getSharedPreferences("settings", MODE_PRIVATE)) }
     val thresholds: Thresholds by lazy { Thresholds(getSharedPreferences("settings", MODE_PRIVATE)) }
     val haptics: HapticsSetting by lazy { HapticsSetting(getSharedPreferences("settings", MODE_PRIVATE)) }
-    val dateGrouping: DateGroupingSetting by lazy { DateGroupingSetting(getSharedPreferences("settings", MODE_PRIVATE)) }
+    val reviewOrder: ReviewOrderSetting by lazy { ReviewOrderSetting(getSharedPreferences("settings", MODE_PRIVATE)) }
     val lastScan: LastScan by lazy { LastScan(getSharedPreferences("settings", MODE_PRIVATE)) }
     val trash: AppTrash by lazy { AppTrash.forDevice(this, retention = { trashRetention.duration }) }
 }

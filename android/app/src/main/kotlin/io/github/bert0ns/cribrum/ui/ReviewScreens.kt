@@ -84,9 +84,9 @@ import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
-import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import java.io.File
 
@@ -146,11 +146,11 @@ fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen:
     }
 }
 
-/** The control of the category screen's top bar: one menu with the date grouping or the size sort to choose. */
+/** The control of the category screen's top bar: one menu with the review order to choose to choose. */
 @Composable
-fun DateGroupingMenu(selected: DateGrouping, options: List<DateGrouping>, onSelect: (DateGrouping) -> Unit) {
+fun ReviewOrderMenu(selected: ReviewOrder, options: List<ReviewOrder>, onSelect: (ReviewOrder) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    IconButton({ open = true }) { Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.date_grouping)) }
+    IconButton({ open = true }) { Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.review_order)) }
     DropdownMenu(open, { open = false }) {
         for (grouping in options) {
             DropdownMenuItem(
@@ -165,13 +165,13 @@ fun DateGroupingMenu(selected: DateGrouping, options: List<DateGrouping>, onSele
     }
 }
 
-private val DateGrouping.title
+private val ReviewOrder.title
     get() = when (this) {
-        DateGrouping.OFF -> R.string.date_grouping_off
-        DateGrouping.DAY -> R.string.date_grouping_day
-        DateGrouping.WEEK -> R.string.date_grouping_week
-        DateGrouping.MONTH -> R.string.date_grouping_month
-        DateGrouping.SIZE -> R.string.date_grouping_size
+        ReviewOrder.OFF -> R.string.review_order_off
+        ReviewOrder.DAY -> R.string.review_order_day
+        ReviewOrder.WEEK -> R.string.review_order_week
+        ReviewOrder.MONTH -> R.string.review_order_month
+        ReviewOrder.SIZE -> R.string.review_order_size
     }
 
 /**
@@ -248,7 +248,7 @@ fun CategoryScreen(
     /** Shown right above the button, which a snackbar at the bottom of the screen would cover. */
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onExcludeFolder: (ImageRef) -> Unit = {},
-    dateGrouping: DateGrouping = DateGrouping.OFF,
+    reviewOrder: ReviewOrder = ReviewOrder.OFF,
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
 ) {
     val locale = LocalConfiguration.current.locales[0]
@@ -269,13 +269,13 @@ fun CategoryScreen(
         }
         // A new grouping reorders the page: start at its top instead of in the middle of it.
         val grid = rememberLazyGridState()
-        LaunchedEffect(dateGrouping) { grid.scrollToItem(0) }
+        LaunchedEffect(reviewOrder) { grid.scrollToItem(0) }
         LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f), grid) {
             for ((position, group) in page.withIndex()) {
                 if (group.date != null && group.date != page.getOrNull(position - 1)?.date) {
                     item(span = { GridItemSpan(maxLineSpan) }, key = "date-${group.id}") {
                         Text(
-                            dateGrouping.label(group.date, locale),
+                            reviewOrder.label(group.date, locale),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),

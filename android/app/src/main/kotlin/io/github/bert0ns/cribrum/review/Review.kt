@@ -107,14 +107,14 @@ class Review(
      * The first page of a category: groups in the ranker's order, never split across pages. Groups
      * whose id is in [skipped] are left out, and they are not counted in the remaining candidates.
      * With a date [grouping], the newest date comes first and the ranker's order holds inside each date.
-     * With [DateGrouping.SIZE], the group with the most bytes to trash comes first and the ranker's order breaks a tie.
+     * With [ReviewOrder.SIZE], the group with the most bytes to trash comes first and the ranker's order breaks a tie.
      */
-    suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: DateGrouping = DateGrouping.OFF): Page {
+    suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page {
         val excluded = index.excludedFolders()
         val images = index.indexedImages()
         val candidates = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))[category].orEmpty()
         val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates, grouping))
-            .let { all -> if (grouping == DateGrouping.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
+            .let { all -> if (grouping == ReviewOrder.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
             .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()
         var size = 0
@@ -179,7 +179,7 @@ class Review(
         return index.notTrashed().filterNot { isExcluded(it.path, excluded) }
     }
 
-    private suspend fun singles(category: Category, candidates: List<Candidate>, grouping: DateGrouping): List<ReviewGroup> {
+    private suspend fun singles(category: Category, candidates: List<Candidate>, grouping: ReviewOrder): List<ReviewGroup> {
         val groups = candidates.map {
             ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category), reasons = it.reasons)))
         }

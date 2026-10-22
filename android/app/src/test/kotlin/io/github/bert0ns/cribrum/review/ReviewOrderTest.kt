@@ -21,7 +21,7 @@ import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
-class DateGroupingTest {
+class ReviewOrderTest {
     @get:Rule
     val folder = TemporaryFolder()
 
@@ -44,7 +44,7 @@ class DateGroupingTest {
         name
     }
 
-    private fun order(grouping: DateGrouping, skipped: Set<String> = emptySet()) = runBlocking {
+    private fun order(grouping: ReviewOrder, skipped: Set<String> = emptySet()) = runBlocking {
         review.page(Category.BLURRY, skipped, grouping).groups
     }
 
@@ -54,7 +54,7 @@ class DateGroupingTest {
         image("new.jpg", 0.6f, LocalDateTime.of(2026, 3, 2, 12, 0))
         image("mid.jpg", 0.8f, LocalDateTime.of(2024, 5, 5, 12, 0))
 
-        val groups = order(DateGrouping.OFF)
+        val groups = order(ReviewOrder.OFF)
 
         assertEquals(listOf("old.jpg", "mid.jpg", "new.jpg"), groups.map { it.id })
         assertEquals(listOf(null, null, null), groups.map { it.date })
@@ -66,7 +66,7 @@ class DateGroupingTest {
         image("b.jpg", 0.9f, LocalDateTime.of(2026, 3, 2, 18, 0))
         image("c.jpg", 0.99f, LocalDateTime.of(2026, 2, 28, 9, 0))
 
-        val groups = order(DateGrouping.DAY)
+        val groups = order(ReviewOrder.DAY)
 
         assertEquals(listOf("b.jpg", "a.jpg", "c.jpg"), groups.map { it.id })
         assertEquals(listOf(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 2), LocalDate.of(2026, 2, 28)), groups.map { it.date })
@@ -78,7 +78,7 @@ class DateGroupingTest {
         image("exif.jpg", 0.95f, LocalDateTime.of(2026, 3, 2, 12, 0))
         image("mtime.jpg", 0.9f, mtime = LocalDateTime.of(2026, 3, 3, 5, 0))
 
-        val groups = order(DateGrouping.DAY)
+        val groups = order(ReviewOrder.DAY)
 
         assertEquals(listOf("mtime.jpg", "exif.jpg"), groups.map { it.id })
         assertEquals(LocalDate.of(2026, 3, 3), groups.first().date)
@@ -90,11 +90,11 @@ class DateGroupingTest {
         image("mon.jpg", 0.8f, LocalDateTime.of(2026, 3, 2, 12, 0))
 
         firstDay = DayOfWeek.MONDAY
-        assertEquals(listOf(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 2, 23)), order(DateGrouping.WEEK).map { it.date })
+        assertEquals(listOf(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 2, 23)), order(ReviewOrder.WEEK).map { it.date })
 
         firstDay = DayOfWeek.SUNDAY
-        assertEquals(listOf(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 1)), order(DateGrouping.WEEK).map { it.date })
-        assertEquals(listOf("sun.jpg", "mon.jpg"), order(DateGrouping.WEEK).map { it.id })
+        assertEquals(listOf(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 1)), order(ReviewOrder.WEEK).map { it.date })
+        assertEquals(listOf("sun.jpg", "mon.jpg"), order(ReviewOrder.WEEK).map { it.id })
     }
 
     @Test
@@ -103,7 +103,7 @@ class DateGroupingTest {
         image("apr.jpg", 0.4f, LocalDateTime.of(2026, 4, 1, 12, 0))
         image("apr2.jpg", 0.6f, LocalDateTime.of(2026, 4, 30, 12, 0))
 
-        val groups = order(DateGrouping.MONTH)
+        val groups = order(ReviewOrder.MONTH)
 
         assertEquals(listOf("apr2.jpg", "apr.jpg", "mar.jpg"), groups.map { it.id })
         assertEquals(listOf(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 1), LocalDate.of(2026, 3, 1)), groups.map { it.date })
@@ -114,13 +114,13 @@ class DateGroupingTest {
         repeat(PAGE_SIZE) { image("new$it.jpg", 0.5f, LocalDateTime.of(2026, 3, 2, 12, 0)) }
         repeat(3) { image("old$it.jpg", 0.99f, LocalDateTime.of(2026, 1, 2, 12, 0)) }
 
-        val page = review.page(Category.BLURRY, emptySet(), DateGrouping.MONTH)
+        val page = review.page(Category.BLURRY, emptySet(), ReviewOrder.MONTH)
 
         assertEquals(PAGE_SIZE, page.groups.size)
         assertEquals(setOf(LocalDate.of(2026, 3, 1)), page.groups.map { it.date }.toSet())
         assertEquals(PAGE_SIZE + 3, page.remaining)
 
-        val next = review.page(Category.BLURRY, page.groups.map { it.id }.toSet(), DateGrouping.MONTH)
+        val next = review.page(Category.BLURRY, page.groups.map { it.id }.toSet(), ReviewOrder.MONTH)
         assertEquals(3, next.groups.size)
         assertEquals(3, next.remaining)
         assertEquals(setOf(LocalDate.of(2026, 1, 1)), next.groups.map { it.date }.toSet())
@@ -132,7 +132,7 @@ class DateGroupingTest {
         image("sun.jpg", 0.6f, LocalDateTime.of(2027, 1, 3, 12, 0))
         image("next.jpg", 0.7f, LocalDateTime.of(2027, 1, 4, 12, 0))
 
-        val groups = order(DateGrouping.WEEK)
+        val groups = order(ReviewOrder.WEEK)
 
         assertEquals(listOf("next.jpg", "sun.jpg", "mon.jpg"), groups.map { it.id })
         assertEquals(listOf(LocalDate.of(2027, 1, 4), LocalDate.of(2026, 12, 28), LocalDate.of(2026, 12, 28)), groups.map { it.date })
@@ -145,7 +145,7 @@ class DateGroupingTest {
         image("late.jpg", 0.5f, mtime = LocalDateTime.of(2026, 11, 1, 23, 30))
         image("early.jpg", 0.6f, mtime = LocalDateTime.of(2026, 11, 1, 0, 30))
 
-        assertEquals(listOf(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1)), order(DateGrouping.DAY).map { it.date })
+        assertEquals(listOf(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1)), order(ReviewOrder.DAY).map { it.date })
     }
 
     @Test
@@ -154,7 +154,7 @@ class DateGroupingTest {
         image("good.jpg", 0.5f, LocalDateTime.of(2026, 4, 5, 12, 0))
         index.database.openHelper.writableDatabase.execSQL("UPDATE images SET captured_at = 'not a date' WHERE path = 'bad.jpg'")
 
-        val groups = order(DateGrouping.DAY)
+        val groups = order(ReviewOrder.DAY)
 
         assertEquals(listOf("good.jpg", "bad.jpg"), groups.map { it.id })
         assertEquals(LocalDate.of(2026, 3, 5), groups.last().date)

@@ -183,7 +183,7 @@ class ReviewTest {
         val tieHigh = image("bb.jpg", blurry(0.8f)) // 6
         val tieLow = image("cc.jpg", blurry(0.6f)) // 6
 
-        val page = page(Category.BLURRY, grouping = DateGrouping.SIZE)
+        val page = page(Category.BLURRY, grouping = ReviewOrder.SIZE)
 
         assertEquals(listOf(large, tieHigh, tieLow, small), shown(page))
         assertEquals(4, page.remaining)
@@ -191,11 +191,11 @@ class ReviewTest {
     }
 
     @Test
-    fun `sorting by size also orders a category without date grouping`() = test {
+    fun `sorting by size also orders a category without date order`() = test {
         val small = image("a.jpg", Signal("sticker", 1, Category.STICKER, 1f))
         val large = image("long/c.jpg", Signal("sticker", 1, Category.STICKER, 1f))
 
-        assertEquals(listOf(large, small), shown(page(Category.STICKER, grouping = DateGrouping.SIZE)))
+        assertEquals(listOf(large, small), shown(page(Category.STICKER, grouping = ReviewOrder.SIZE)))
     }
 
     @Test
@@ -206,7 +206,7 @@ class ReviewTest {
         val large1 = image("DCIM/large-one.jpg", duplicate("large", Role.INFERIOR))
         val large2 = image("DCIM/large-two.jpg", duplicate("large", Role.INFERIOR))
 
-        val page = page(Category.EXACT_DUPLICATE, grouping = DateGrouping.SIZE)
+        val page = page(Category.EXACT_DUPLICATE, grouping = ReviewOrder.SIZE)
 
         assertEquals(listOf("large", "small"), page.groups.map { it.id })
         assertEquals(listOf(large1, large2), page.groups.first().images.filter { it.suggestTrash }.map { it.image })
@@ -221,7 +221,7 @@ class ReviewTest {
         image("DCIM/b.jpg", duplicate("smallBest", Role.BEST))
         image("Download/a-much-longer-name-for-the-copy-to-trash.jpg", duplicate("smallBest", Role.INFERIOR))
 
-        assertEquals(listOf("smallBest", "bigBest"), page(Category.EXACT_DUPLICATE, grouping = DateGrouping.SIZE).groups.map { it.id })
+        assertEquals(listOf("smallBest", "bigBest"), page(Category.EXACT_DUPLICATE, grouping = ReviewOrder.SIZE).groups.map { it.id })
     }
 
     @Test
@@ -236,7 +236,7 @@ class ReviewTest {
             val seen = mutableListOf<ReviewGroup>()
             val skipped = mutableSetOf<String>()
             while (true) {
-                val page = page(category, skipped, DateGrouping.SIZE)
+                val page = page(category, skipped, ReviewOrder.SIZE)
                 if (page.groups.isEmpty()) break
                 assertEquals(total - seen.sumOf { group -> group.images.count { it.suggestTrash } }, page.remaining)
                 assertTrue(page.groups.sumOf { it.images.size } <= PAGE_SIZE)

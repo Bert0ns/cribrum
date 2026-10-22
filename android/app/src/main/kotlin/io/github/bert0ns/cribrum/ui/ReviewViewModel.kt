@@ -11,12 +11,12 @@ import io.github.bert0ns.cribrum.pipeline.ScanReport
 import io.github.bert0ns.cribrum.pipeline.coverage
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
-import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.Decision
 import io.github.bert0ns.cribrum.review.Overview
 import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +69,7 @@ data class ReviewState(
     val pendingRetention: RetentionChange? = null,
     val hapticsEnabled: Boolean = true,
     /** How the open category is grouped by date or sorted by size. Off until the user picks one. */
-    val dateGrouping: DateGrouping = DateGrouping.OFF,
+    val reviewOrder: ReviewOrder = ReviewOrder.OFF,
     /** Folders the user asked never to be suggested again, shown in settings. */
     val excludedFolders: List<String> = emptyList(),
     /** Embeddings stored in the index, shown in settings. */
@@ -114,17 +114,17 @@ class ReviewViewModel @JvmOverloads constructor(
     fun refresh() = load { it.copy(indexEmpty = app.index.imageCount() == 0).withOverview(review.overview()) }
 
     fun open(category: Category) = load {
-        val grouping = app.dateGrouping[category]
-        it.copy(screen = Screen.Category(category), lastDecision = null, lastExclusion = null, skipped = emptySet(), dateGrouping = grouping)
+        val grouping = app.reviewOrder[category]
+        it.copy(screen = Screen.Category(category), lastDecision = null, lastExclusion = null, skipped = emptySet(), reviewOrder = grouping)
             .showing(pageFor(category, it, skipped = emptySet(), grouping = grouping))
     }
 
     /** Remembered for the category, and applied to the page at once. The user's marks on images that stay on the page stay. */
-    fun setDateGrouping(grouping: DateGrouping) = load { state ->
+    fun setReviewOrder(grouping: ReviewOrder) = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
-        if (grouping !in DateGrouping.optionsFor(category)) return@load state
-        app.dateGrouping[category] = grouping
-        state.copy(dateGrouping = grouping).showing(pageFor(category, state, grouping = grouping), keepMarksOf = state)
+        if (grouping !in ReviewOrder.optionsFor(category)) return@load state
+        app.reviewOrder[category] = grouping
+        state.copy(reviewOrder = grouping).showing(pageFor(category, state, grouping = grouping), keepMarksOf = state)
     }
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
@@ -319,8 +319,8 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(trashed = review.trashed(), selected = emptySet())
     }
 
-    /** The one way to read a page, so none forgets the skipped groups or the date grouping of the open category. */
-    private suspend fun pageFor(category: Category, state: ReviewState, skipped: Set<String> = state.skipped, grouping: DateGrouping = state.dateGrouping) = review.page(category, skipped, grouping)
+    /** The one way to read a page, so none forgets the skipped groups or the review order of the open category. */
+    private suspend fun pageFor(category: Category, state: ReviewState, skipped: Set<String> = state.skipped, grouping: ReviewOrder = state.reviewOrder) = review.page(category, skipped, grouping)
 
     /** Candidates start marked. With [keepMarksOf], images that were already on its page keep the user's marks. */
     private fun ReviewState.showing(page: Page, keepMarksOf: ReviewState? = null): ReviewState {

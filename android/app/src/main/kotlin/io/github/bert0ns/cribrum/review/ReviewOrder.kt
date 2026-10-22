@@ -17,7 +17,7 @@ import java.time.format.FormatStyle
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 
-enum class DateGrouping {
+enum class ReviewOrder {
     OFF,
     DAY,
     WEEK,
@@ -60,13 +60,14 @@ enum class DateGrouping {
 fun imageDate(image: ImageRef, capturedAt: LocalDateTime?, zone: ZoneId): LocalDate = capturedAt?.toLocalDate() ?: Instant.ofEpochSecond(0, image.mtimeNs).atZone(zone).toLocalDate()
 
 /** The choice per category, stored with the other settings. Off until the user picks one. */
-class DateGroupingSetting(private val preferences: SharedPreferences) {
-    operator fun get(category: Category): DateGrouping = DateGrouping.entries.firstOrNull { it.name == preferences.getString(key(category), null) } ?: DateGrouping.OFF
+class ReviewOrderSetting(private val preferences: SharedPreferences) {
+    operator fun get(category: Category): ReviewOrder = ReviewOrder.entries.firstOrNull { it.name == preferences.getString(key(category), null) } ?: ReviewOrder.OFF
 
-    operator fun set(category: Category, value: DateGrouping) {
-        require(value in DateGrouping.optionsFor(category)) { "$category has no $value grouping" }
+    operator fun set(category: Category, value: ReviewOrder) {
+        require(value in ReviewOrder.optionsFor(category)) { "$category has no $value grouping" }
         preferences.edit { putString(key(category), value.name) }
     }
 
+    // The key and the enum names keep the old "date grouping" name, so a choice saved before the rename still loads.
     private fun key(category: Category) = "date_grouping_${category.name}"
 }
