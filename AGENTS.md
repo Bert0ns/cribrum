@@ -4,7 +4,7 @@ Most of the code in this repository is written by AI coding agents. Read this fi
 
 ## Ground rules
 
-- Everything in English: code, identifiers, comments, docs, commit messages. The one exception is `android/app/src/main/res/values-it/strings.xml`, which is Italian.
+- Everything in English: code, identifiers, comments, docs, commit messages. The exceptions are `android/app/src/main/res/values-it/strings.xml`, which is Italian, and the Italian literals that tests hold as assertion data.
 - Read [`docs/design.md`](docs/design.md) before starting. If a change contradicts a decision there, update the design doc in the same change and explain why.
 - Never commit image data or anything derived from personal images (embeddings, thumbnails, label files). Keep it under `lab/data/`, which is ignored by git.
 - Never write code that deletes files without going through the trash abstraction.
