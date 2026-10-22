@@ -112,8 +112,9 @@ private fun AppContent(model: ReviewViewModel) {
             notifications.launch(Manifest.permission.POST_NOTIFICATIONS) // the scan's progress notification
         }
     }
-    // New candidates show up as the scan stores them.
-    LaunchedEffect(progress == null) {
+    // The list reloads when a scan starts or ends and at each phase, so the candidates of the early
+    // detectors show up while the embeddings are still computed.
+    LaunchedEffect(progress == null, progress?.step) {
         if (state.screen == Screen.Home) model.refresh()
         if (state.screen == Screen.Settings) model.openSettings() // the scan changed the embedding count
     }
