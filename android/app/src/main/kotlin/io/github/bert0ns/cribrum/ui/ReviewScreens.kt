@@ -32,12 +32,16 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -59,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -72,6 +77,7 @@ import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
+import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
 import java.io.File
@@ -123,6 +129,33 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
     }
 }
 
+/** The control of the category screen's top bar: one menu with the grouping to choose. */
+@Composable
+fun DateGroupingMenu(selected: DateGrouping, onSelect: (DateGrouping) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    IconButton({ open = true }) { Icon(Icons.Default.DateRange, stringResource(R.string.date_grouping)) }
+    DropdownMenu(open, { open = false }) {
+        for (grouping in DateGrouping.entries) {
+            DropdownMenuItem(
+                text = { Text(stringResource(grouping.title)) },
+                leadingIcon = { if (grouping == selected) Icon(Icons.Default.Check, null) },
+                onClick = {
+                    open = false
+                    onSelect(grouping)
+                },
+            )
+        }
+    }
+}
+
+private val DateGrouping.title
+    get() = when (this) {
+        DateGrouping.OFF -> R.string.date_grouping_off
+        DateGrouping.DAY -> R.string.date_grouping_day
+        DateGrouping.WEEK -> R.string.date_grouping_week
+        DateGrouping.MONTH -> R.string.date_grouping_month
+    }
+
 /** A thumbnail that is marked for the trash or kept. Tap toggles, a long press shows it full size. */
 @Composable
 private fun Tile(image: ImageRef, marked: Boolean, label: String?, onTap: () -> Unit, onHold: () -> Unit) {
@@ -170,7 +203,9 @@ fun CategoryScreen(
     /** Shown right above the button, which a snackbar at the bottom of the screen would cover. */
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onExcludeFolder: (ImageRef) -> Unit = {},
+    dateGrouping: DateGrouping = DateGrouping.OFF,
 ) {
+    val locale = LocalConfiguration.current.locales[0]
     val haptics = LocalHapticFeedback.current
     var showSummary by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<ImageRef?>(null) }
@@ -187,7 +222,17 @@ fun CategoryScreen(
             Text(stringResource(if (images.isEmpty()) R.string.review_done else R.string.review_hint), style = MaterialTheme.typography.bodySmall)
         }
         LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f)) {
-            for (group in page) {
+            for ((position, group) in page.withIndex()) {
+                if (group.date != null && group.date != page.getOrNull(position - 1)?.date) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "date-${group.id}") {
+                        Text(
+                            dateGrouping.label(group.date, locale),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                        )
+                    }
+                }
                 if (grouped) {
                     item(span = { GridItemSpan(maxLineSpan) }, key = "header-${group.id}") {
                         Column {

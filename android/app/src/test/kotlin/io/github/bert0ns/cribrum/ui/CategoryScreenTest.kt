@@ -9,12 +9,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -25,6 +28,7 @@ import androidx.compose.ui.test.swipeRight
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
+import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
 import kotlinx.coroutines.launch
@@ -36,6 +40,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.time.DayOfWeek
+import java.time.LocalDate
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36]) // Compose tests reach InputManager.getInstance, which SDK 37 removed
@@ -157,6 +163,38 @@ class CategoryScreenTest {
 
         assertEquals(images[1], excluded)
         compose.onNodeWithText("Never suggest this folder or its subfolders").assertDoesNotExist()
+    }
+
+    private fun dated(grouping: DateGrouping, vararg days: LocalDate) = images.zip(days.toList()).map { (image, day) ->
+        ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true)), date = if (grouping == DateGrouping.OFF) null else grouping.start(day, DayOfWeek.MONDAY))
+    }
+
+    @Test
+    fun `a header marks where each date starts and nothing is shown when the grouping is off`() {
+        val days = arrayOf(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 2), LocalDate.of(2026, 2, 28))
+        var grouping by mutableStateOf(DateGrouping.DAY)
+        compose.setContent { CategoryScreen(dated(grouping, *days), 3, emptySet(), false, {}, {}, {}, dateGrouping = grouping) }
+
+        compose.onNodeWithText("Mar 2, 2026").assertExists()
+        compose.onNodeWithText("Feb 28, 2026").assertExists()
+        compose.onAllNodesWithText("Mar 2, 2026").assertCountEquals(1)
+
+        grouping = DateGrouping.OFF
+        compose.onNodeWithText("Mar 2, 2026").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the date control offers off, day, week and month and reports the choice`() {
+        var chosen: DateGrouping? = null
+        compose.setContent { DateGroupingMenu(DateGrouping.DAY) { chosen = it } }
+
+        compose.onNodeWithText("Week").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Group by date").performClick()
+        listOf("Off", "Day", "Week", "Month").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onNodeWithText("Week").performClick()
+
+        assertEquals(DateGrouping.WEEK, chosen)
+        compose.onNodeWithText("Week").assertDoesNotExist()
     }
 
     private fun openFullSize(name: String) = compose.onAllNodesWithContentDescription(name)[0].performTouchInput { longClick() }

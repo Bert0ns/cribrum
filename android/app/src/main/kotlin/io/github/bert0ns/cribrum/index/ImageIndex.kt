@@ -214,6 +214,9 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     /** Every indexed image not in the trash, with its path, size, and mtime. */
     suspend fun notTrashed(): List<ImageRef> = dao.notTrashed().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
+    /** The EXIF capture time of each image that has one, to order the review by date. The ranker never sees it. */
+    suspend fun capturedAt(): Map<String, LocalDateTime> = dao.capturedAt().associate { it.path to LocalDateTime.parse(it.capturedAt) }
+
     /** Every image with its review state and signals, as the ranker takes them. */
     suspend fun indexedImages(): List<IndexedImage> = db.withTransaction {
         val signals = dao.allSignals().groupBy({ it.path }, ::signal)

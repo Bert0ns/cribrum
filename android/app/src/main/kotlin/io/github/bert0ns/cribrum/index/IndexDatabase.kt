@@ -118,6 +118,8 @@ data class StoredMetadata(
     @ColumnInfo(name = "captured_at") val capturedAt: String?,
 )
 
+data class StoredCapture(val path: String, @ColumnInfo(name = "captured_at") val capturedAt: String)
+
 data class StoredState(
     val path: String,
     val size: Long,
@@ -255,6 +257,9 @@ interface IndexDao {
 
     @Query("SELECT * FROM kept_signals")
     suspend fun allKeptSignals(): List<KeptSignalRow>
+
+    @Query("SELECT path, captured_at FROM images WHERE captured_at IS NOT NULL")
+    suspend fun capturedAt(): List<StoredCapture>
 
     @Query("SELECT path, size, mtime_ns, review_state FROM images ORDER BY path")
     suspend fun states(): List<StoredState>
