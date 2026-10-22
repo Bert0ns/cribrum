@@ -44,6 +44,18 @@ class ThresholdsTest {
         assertEquals(THRESHOLDS, Thresholds(preferences).values)
     }
 
+    @Test
+    fun `a stored sticker override is ignored, since stickers have no slider`() {
+        preferences.edit().putFloat("threshold_STICKER", 1f).commit()
+
+        assertEquals(THRESHOLDS, Thresholds(preferences).values)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `a sticker threshold cannot be set`() {
+        Thresholds(preferences)[Category.STICKER] = 0.8f
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `a threshold above 1 is refused`() {
         Thresholds(preferences)[Category.BLURRY] = 1.5f

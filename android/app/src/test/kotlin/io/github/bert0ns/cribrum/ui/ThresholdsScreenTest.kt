@@ -3,6 +3,7 @@ package io.github.bert0ns.cribrum.ui
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
@@ -61,6 +62,15 @@ class ThresholdsScreenTest {
         compose.onNodeWithContentDescription("Blurry").performSemanticsAction(SemanticsActions.SetProgress) { it(0.75f) }
 
         assertEquals(listOf(Category.BLURRY to 0.75f), changes)
+    }
+
+    @Test
+    fun `stickers get no slider, since their detector scores only 0 or 1`() {
+        compose.setContent { ThresholdsScreen(THRESHOLDS, emptyMap(), emptyMap(), { _, _ -> }, {}) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Reset to defaults"))
+        compose.onAllNodes(hasText("WhatsApp stickers", substring = true)).assertCountEquals(0)
+        compose.onAllNodes(hasContentDescription("WhatsApp stickers")).assertCountEquals(0)
     }
 
     @Test

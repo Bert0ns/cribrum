@@ -53,7 +53,7 @@ fun ThresholdsScreen(
                 )
             }
         }
-        items(Category.entries.filter { it in DETECTOR_CATEGORIES }, key = { it }) { category ->
+        items(Category.entries.filter { it in DETECTOR_CATEGORIES && it !in Thresholds.FIXED }, key = { it }) { category ->
             val value = thresholds[category] ?: THRESHOLDS.getValue(category)
             val count = counts[category] ?: 0
             val change = count - (defaultCounts[category] ?: count)
