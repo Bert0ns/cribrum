@@ -32,9 +32,13 @@ import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object Indexing {
@@ -47,7 +51,19 @@ object Indexing {
     const val STEP = "step"
     const val DONE = "done"
     const val TOTAL = "total"
+
+    /** Only on the nightly request: its worker skips the scan outside the night. */
+    const val NIGHTLY_TAG = "index-nightly-scan"
+
+    /** The time the nightly scan is aimed at. */
     private val NIGHT_START = LocalTime.of(2, 0)
+
+    /**
+     * The nightly worker scans only before this. WorkManager runs a periodic request when charging
+     * starts, which can be 14:00 at a desk after a night without charging. A scan then is not a night
+     * scan, so the worker skips it and waits for the next night.
+     */
+    private val NIGHT_END = LocalTime.of(6, 0)
 
     /** Starts a scan now, unless one is running. */
     fun scanNow(context: Context) {
@@ -58,6 +74,8 @@ object Indexing {
      * Later passes only process new or changed files, so a daily one while charging is cheap.
      * KEEP, so the delay to the night is computed once: UPDATE would measure a new delay from the
      * original enqueue time. The first request had no delay and a name of its own, which is cancelled.
+     * The same holds for later changes to [dailyRequest] (constraints, time): they reach the installs
+     * that already have the request only under a new unique name, as this one replaced the first.
      */
     fun schedulePeriodic(context: Context, now: ZonedDateTime = ZonedDateTime.now()) {
         val manager = WorkManager.getInstance(context)
@@ -66,19 +84,32 @@ object Indexing {
     }
 
     /**
-     * WorkManager has no time of day, so the first run waits for [NIGHT_START] and the daily period keeps
-     * later runs about a day apart. Charging and a battery that is not low decide when it actually starts.
-     * shortcut: a run held back by the constraints shifts later runs, when it matters add a flex window.
+     * WorkManager has no time of day, so the first run waits for [NIGHT_START]. WorkManager measures each
+     * later run from the end of the previous one, so the worker pins the next run to the following
+     * [NIGHT_START] when it ends ([pinNextNight]). Charging and a battery that is not low decide when a run starts.
      */
-    fun dailyRequest(now: ZonedDateTime = ZonedDateTime.now()): PeriodicWorkRequest {
+    fun dailyRequest(now: ZonedDateTime = ZonedDateTime.now()): PeriodicWorkRequest = nightlyBuilder().setInitialDelay(Duration.between(now, nextNight(now))).build()
+
+    private fun nightlyBuilder(): PeriodicWorkRequest.Builder {
         val constraints = Constraints.Builder().setRequiresCharging(true).setRequiresBatteryNotLow(true).build()
-        var next = now.toLocalDate().atTime(NIGHT_START).atZone(now.zone)
-        if (!next.isAfter(now)) next = now.toLocalDate().plusDays(1).atTime(NIGHT_START).atZone(now.zone)
-        return PeriodicWorkRequestBuilder<IndexWorker>(1, TimeUnit.DAYS)
-            .setConstraints(constraints)
-            .setInitialDelay(Duration.between(now, next))
-            .addTag(TAG)
-            .build()
+        return PeriodicWorkRequestBuilder<IndexWorker>(1, TimeUnit.DAYS).setConstraints(constraints).addTag(TAG).addTag(NIGHTLY_TAG)
+    }
+
+    /** The next [NIGHT_START] after [now]. */
+    private fun nextNight(now: ZonedDateTime): ZonedDateTime {
+        val tonight = now.toLocalDate().atTime(NIGHT_START).atZone(now.zone)
+        return if (tonight.isAfter(now)) tonight else now.toLocalDate().plusDays(1).atTime(NIGHT_START).atZone(now.zone)
+    }
+
+    /** WorkManager's clock, so a test can move it. */
+    internal fun now(context: Context): ZonedDateTime = Instant.ofEpochMilli(WorkManager.getInstance(context).configuration.clock.currentTimeMillis()).atZone(ZoneId.systemDefault())
+
+    internal fun isNight(now: ZonedDateTime) = now.toLocalTime().isBefore(NIGHT_END)
+
+    /** Called by the nightly worker as it ends: the next run is the following [NIGHT_START], whatever time this one ran. */
+    internal fun pinNextNight(context: Context, id: UUID, now: ZonedDateTime = now(context)) {
+        val next = nextNight(now).toInstant().toEpochMilli()
+        WorkManager.getInstance(context).updateWork(nightlyBuilder().setId(id).setNextScheduleTimeOverride(next).build())
     }
 
     /** The running scan's progress, from "Scan now" or the nightly request, or null when none runs. */
@@ -103,8 +134,25 @@ data class ScanProgress(val step: String, val done: Int, val total: Int)
  * minutes Android gives background work. The index keeps what each run did, so a stopped run
  * resumes where it was.
  */
-class IndexWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+open class IndexWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
+        val nightly = Indexing.NIGHTLY_TAG in tags
+        val result = when {
+            nightly && !Indexing.isNight(Indexing.now(applicationContext)) -> Result.success()
+            // A scan from "Scan now" is already running: two would share the index and the model.
+            !running.tryLock() -> Result.success()
+            else -> try {
+                scan()
+            } finally {
+                running.unlock()
+            }
+        }
+        if (nightly) Indexing.pinNextNight(applicationContext, id)
+        return result
+    }
+
+    /** The scan itself, open so a test can tell when one starts. */
+    protected open suspend fun scan(): Result {
         if (!Environment.isExternalStorageManager()) return Result.failure()
         val app = applicationContext as CribrumApp
         setForeground(foregroundInfo(applicationContext.getString(R.string.scan_starting)))
@@ -139,6 +187,8 @@ class IndexWorker(context: Context, parameters: WorkerParameters) : CoroutineWor
     }
 
     private companion object {
+        /** One scan at a time in the process, whichever request started it. */
+        val running = Mutex()
         const val CHANNEL = "scan"
         const val NOTIFICATION_ID = 1
         const val PROGRESS_INTERVAL_MS = 1000L

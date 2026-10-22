@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Clock
 import androidx.work.Configuration
-import androidx.work.CoroutineWorker
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -13,14 +13,14 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.workDataOf
-import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,12 +28,16 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.TimeZone
+import java.util.concurrent.atomic.AtomicInteger
 
-/** Stands in for [IndexWorker]: reports progress and never finishes, so the work stays RUNNING. */
-class RunningScan(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
-    override suspend fun doWork(): Result {
+/** Stands in for the scan itself: counts the scans that start, reports progress and waits for [gate]. */
+class FakeScan(context: Context, parameters: WorkerParameters, private val scans: AtomicInteger, private val gate: CompletableDeferred<Unit>) : IndexWorker(context, parameters) {
+    override suspend fun scan(): Result {
+        scans.incrementAndGet()
         setProgress(workDataOf(Indexing.STEP to "detectors", Indexing.DONE to 1, Indexing.TOTAL to 2))
-        awaitCancellation()
+        gate.await()
+        return Result.success()
     }
 }
 
@@ -42,24 +46,50 @@ class RunningScan(context: Context, parameters: WorkerParameters) : CoroutineWor
 class IndexingWorkTest {
     private val app = ApplicationProvider.getApplicationContext<Context>()
     private val zone = ZoneId.of("Europe/Rome")
+    private val defaultZone = TimeZone.getDefault()
     private var now = at(21, 12)
     private val clock = Clock { now.toInstant().toEpochMilli() }
+    private val scans = AtomicInteger()
+    private val gate = CompletableDeferred<Unit>()
 
-    private fun at(day: Int, hour: Int) = ZonedDateTime.of(2026, 10, day, hour, 0, 0, 0, zone)
+    private fun at(day: Int, hour: Int, minute: Int = 0) = ZonedDateTime.of(2026, 10, day, hour, minute, 0, 0, zone)
 
     @Before
     fun setUp() {
+        TimeZone.setDefault(TimeZone.getTimeZone(zone))
         val configuration = Configuration.Builder()
             .setClock(clock)
             .setExecutor(SynchronousExecutor())
             .setWorkerFactory(object : WorkerFactory() {
-                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = RunningScan(appContext, workerParameters)
+                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = FakeScan(appContext, workerParameters, scans, gate)
             })
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(app, configuration)
     }
 
+    /** A scan left waiting would keep the process-wide lock for the next test. */
+    @After
+    fun tearDown() {
+        gate.complete(Unit)
+        runBlocking { withTimeout(10_000) { while (scheduled().any { it.state == WorkInfo.State.RUNNING }) kotlinx.coroutines.yield() } }
+        TimeZone.setDefault(defaultZone)
+    }
+
     private fun scheduled() = WorkManager.getInstance(app).getWorkInfosByTag(Indexing.TAG).get()
+
+    private fun nightly() = scheduled().single { it.tags.contains(Indexing.NIGHTLY_TAG) }
+
+    private fun millis(time: ZonedDateTime) = time.toInstant().toEpochMilli()
+
+    /** Lets the nightly request start at [time], as if charging and the delay were met then. */
+    private fun startNightlyAt(time: ZonedDateTime) {
+        now = time
+        val id = nightly().id
+        WorkManagerTestInitHelper.getTestDriver(app)!!.apply {
+            setAllConstraintsMet(id)
+            setInitialDelayMet(id)
+        }
+    }
 
     @Test
     fun `opening the app again keeps the first night, however late it is`() {
@@ -67,13 +97,13 @@ class IndexingWorkTest {
         now = at(21, 20)
         Indexing.schedulePeriodic(app, now)
 
-        assertEquals(at(22, 2).toInstant().toEpochMilli(), scheduled().single().nextScheduleTimeMillis)
+        assertEquals(millis(at(22, 2)), nightly().nextScheduleTimeMillis)
     }
 
     @Test
     fun `the old daily request is cancelled`() {
         val manager = WorkManager.getInstance(app)
-        manager.enqueueUniquePeriodicWork("index-daily", androidx.work.ExistingPeriodicWorkPolicy.KEEP, Indexing.dailyRequest(now))
+        manager.enqueueUniquePeriodicWork("index-daily", ExistingPeriodicWorkPolicy.KEEP, Indexing.dailyRequest(now))
 
         Indexing.schedulePeriodic(app, now)
 
@@ -91,11 +121,7 @@ class IndexingWorkTest {
     @Test
     fun `the progress of the nightly scan shows`() {
         Indexing.schedulePeriodic(app, now)
-        val id = scheduled().single().id
-        WorkManagerTestInitHelper.getTestDriver(app)!!.apply {
-            setAllConstraintsMet(id)
-            setInitialDelayMet(id)
-        }
+        startNightlyAt(at(22, 2, 30))
 
         val progress = runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
 
@@ -108,6 +134,39 @@ class IndexingWorkTest {
 
         val progress = runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
 
-        assertTrue(progress.total == 2)
+        assertEquals(ScanProgress("detectors", 1, 2), progress)
+    }
+
+    @Test
+    fun `a run in the night scans and pins the next one to the following night`() {
+        Indexing.schedulePeriodic(app, now)
+        gate.complete(Unit)
+
+        startNightlyAt(at(22, 2, 30))
+
+        assertEquals(1, scans.get())
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+    }
+
+    @Test
+    fun `a run in the daytime skips the scan and pins the next one to the coming night`() {
+        Indexing.schedulePeriodic(app, now)
+        gate.complete(Unit)
+
+        startNightlyAt(at(22, 14))
+
+        assertEquals(0, scans.get())
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+    }
+
+    @Test
+    fun `the nightly run does not start a second scan on top of one started with Scan now`() {
+        Indexing.scanNow(app)
+        Indexing.schedulePeriodic(app, now)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        startNightlyAt(at(22, 2, 30))
+
+        assertEquals(1, scans.get())
     }
 }
