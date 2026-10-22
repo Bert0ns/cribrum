@@ -68,6 +68,8 @@ class SettingsScreenTest {
         compose.onNodeWithText("Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.").assertIsDisplayed()
 
         compose.onNodeWithContentDescription("Back").performClick()
+        // Back waits for the storage measure that opening settings started.
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Cribrum").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Cribrum").assertIsDisplayed()
         compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
     }
