@@ -147,4 +147,16 @@ class DateGroupingTest {
 
         assertEquals(listOf(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 1)), order(DateGrouping.DAY).map { it.date })
     }
+
+    @Test
+    fun `a row with a capture time that does not parse falls back to the mtime`() {
+        image("bad.jpg", 0.9f, mtime = LocalDateTime.of(2026, 3, 5, 12, 0))
+        image("good.jpg", 0.5f, LocalDateTime.of(2026, 4, 5, 12, 0))
+        index.database.openHelper.writableDatabase.execSQL("UPDATE images SET captured_at = 'not a date' WHERE path = 'bad.jpg'")
+
+        val groups = order(DateGrouping.DAY)
+
+        assertEquals(listOf("good.jpg", "bad.jpg"), groups.map { it.id })
+        assertEquals(LocalDate.of(2026, 3, 5), groups.last().date)
+    }
 }
