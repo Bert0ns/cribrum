@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -43,7 +46,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -241,6 +243,7 @@ fun CategoryScreen(
     }
     fullSize?.let { start ->
         FullSize(images, start, marked, onExcludeFolder = {
+            fullSize = null
             haptics.performHapticFeedback(Haptic.KEEP.type)
             onExcludeFolder(it)
         }) { fullSize = null }
@@ -254,19 +257,12 @@ fun CategoryScreen(
  */
 @Composable
 private fun FullSize(items: List<ReviewItem>, start: ImageRef, marked: Set<String>, onExcludeFolder: (ImageRef) -> Unit, onClose: () -> Unit) {
-    // The page reloads when a folder is excluded, but not at once: hide the folder here so the view moves on now.
-    var hidden by remember { mutableStateOf(emptyList<String>()) }
-    val shown = items.filter { item -> hidden.none { item.image.path.startsWith("$it/") } }
-    if (shown.isEmpty()) {
-        LaunchedEffect(Unit) { onClose() }
-        return
-    }
-    val pager = rememberPagerState(items.indexOfFirst { it.image == start }.coerceAtLeast(0)) { shown.size }
-    val current = shown[pager.currentPage.coerceAtMost(shown.lastIndex)]
+    val pager = rememberPagerState(items.indexOfFirst { it.image == start }.coerceAtLeast(0)) { items.size }
+    val current = items[pager.currentPage]
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
-            HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { shown[it].image.path }) { page ->
-                ZoomableImage(shown[page].image, onClose)
+            HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { items[it].image.path }) { page ->
+                ZoomableImage(items[page].image, onClose)
             }
             val isMarked = current.image.path in marked
             Text(
@@ -281,17 +277,14 @@ private fun FullSize(items: List<ReviewItem>, start: ImageRef, marked: Set<Strin
                 ),
                 color = Color.White,
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
                     .background(if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
-            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(8.dp)) {
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)) {
                 Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
                 TextButton(
-                    onClick = {
-                        hidden = hidden + File(current.image.path).parent!!
-                        onExcludeFolder(current.image)
-                    },
+                    onClick = { onExcludeFolder(current.image) },
                     colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
                 ) { Text(stringResource(R.string.exclude_folder)) }
             }

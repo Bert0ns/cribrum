@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.test.assertIsEnabled
@@ -18,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import io.github.bert0ns.cribrum.model.Category
@@ -157,9 +159,6 @@ class CategoryScreenTest {
         compose.onNodeWithText("Never suggest this folder or its subfolders").assertDoesNotExist()
     }
 
-    private val folderImages = listOf("/sdcard/A/one.jpg", "/sdcard/B/two.jpg", "/sdcard/B/three.jpg").map { ImageRef(it, 1_000_000, 0) }
-    private val folderPage = folderImages.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
-
     private fun openFullSize(name: String) = compose.onAllNodesWithContentDescription(name)[0].performTouchInput { longClick() }
 
     @Test
@@ -195,26 +194,30 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `excluding a folder from the full size view moves to the next image that is left, then closes`() {
-        compose.setContent { CategoryScreen(folderPage, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = {}) }
+    fun `excluding a folder from the full size view excludes the image on show and closes the view`() {
+        var excluded: ImageRef? = null
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = { excluded = it }) }
         val exclude = "Never suggest this folder or its subfolders"
 
-        openFullSize("one.jpg")
+        openFullSize("img1.jpg")
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
-        compose.onNodeWithText(folderImages[1].path).assertExists()
         compose.onNodeWithText(exclude).performClick()
-        compose.onNodeWithText(folderImages[0].path).assertExists()
-        compose.onNodeWithText(exclude).performClick()
+
+        assertEquals(images[1], excluded)
         compose.onNodeWithText(exclude).assertDoesNotExist()
     }
 
     @Test
-    fun `excluding a folder shows the next image after it when there is one`() {
-        compose.setContent { CategoryScreen(folderPage, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = {}) }
+    fun `a drag on a zoomed image pans instead of changing page`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
 
-        openFullSize("one.jpg")
-        compose.onNodeWithText("Never suggest this folder or its subfolders").performClick()
-        compose.onNodeWithText(folderImages[1].path).assertExists()
+        openFullSize("img1.jpg")
+        compose.onNodeWithTag("fullSize").performTouchInput {
+            pinch(center - Offset(50f, 0f), center - Offset(150f, 0f), center + Offset(50f, 0f), center + Offset(150f, 0f))
+        }
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+
+        compose.onNodeWithText(images[0].path).assertExists()
     }
 
     @Test
