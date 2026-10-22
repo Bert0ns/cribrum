@@ -168,8 +168,8 @@ class Pipeline(
     )
 
     private class AnalysisOutcome(
-        val image: ImageRef,
-        val detectorResults: List<Triple<Detector, List<Signal>?, String?>>,
+        val task: AnalysisTask,
+        val detectorResults: List<Pair<Detector, Result<List<Signal>?>>>,
         val phash: Result<ULong>?,
     )
 
@@ -235,7 +235,11 @@ class Pipeline(
         Result.failure(error)
     }
 
-    /** Runs the per-image detectors on [parallelism] images at a time, storing results here, in order of completion. */
+    /**
+     * Runs the per-image detectors on [parallelism] images at a time, storing results here, in order
+     * of completion. What ran out of memory meanwhile may have lost to another worker, so it runs
+     * again alone once the queue is empty.
+     */
     private suspend fun analyzeEach(images: List<ImageRef>, embeddings: Map<String, FloatArray>, stats: Stats, progress: Progress) = coroutineScope {
         val tasks = images.mapNotNull { image ->
             val todo = detectors.filter { !index.isAnalyzed(image.path, it.id, it.version) }
@@ -252,15 +256,7 @@ class Pipeline(
         val results = Channel<AnalysisOutcome>(parallelism)
         val workers = List(parallelism) {
             launch(Dispatchers.Default) {
-                for (task in queue) {
-                    val context = AnalysisContext(
-                        metadata = { task.metadata },
-                        embedding = { task.embedding ?: throw MissingEmbedding(it) },
-                    )
-                    val outcomes = task.detectors.map { detector -> analyze(detector, task.image, context) }
-                    val phash = if (task.needsPhash) computePhash(task.image) else null
-                    results.send(AnalysisOutcome(task.image, outcomes, phash))
-                }
+                for (task in queue) results.send(analyze(task))
             }
         }
         launch {
@@ -268,45 +264,66 @@ class Pipeline(
             results.close()
         }
         var done = 0
+        val again = mutableListOf<AnalysisTask>()
         for (outcome in results) {
-            for ((detector, signals, failure) in outcome.detectorResults) {
-                when {
-                    signals != null -> {
-                        index.setSignals(outcome.image.path, detector.id, detector.version, signals)
-                        stats.detectorRuns++
-                    }
-                    failure != null -> stats.failures += "${outcome.image.path}: ${detector.id}: $failure"
-                    else -> stats.skipped++
+            store(outcome, stats, final = false)?.let(again::add)
+            progress("detectors", ++done, tasks.size)
+        }
+        for (task in again) store(withContext(Dispatchers.Default) { analyze(task) }, stats, final = true)
+    }
+
+    private suspend fun analyze(task: AnalysisTask): AnalysisOutcome {
+        val context = AnalysisContext(
+            metadata = { task.metadata },
+            embedding = { task.embedding ?: throw MissingEmbedding(it) },
+        )
+        val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context) }
+        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image) else null)
+    }
+
+    /** Stores what [outcome] has. Unless [final], what ran out of memory is not stored but returned as a task to run again. */
+    private suspend fun store(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? {
+        val path = outcome.task.image.path
+        fun again(result: Result<*>) = !final && result.exceptionOrNull() is OutOfMemoryError
+        for ((detector, result) in outcome.detectorResults) {
+            val error = result.exceptionOrNull()
+            val signals = result.getOrNull()
+            when {
+                again(result) -> Unit
+                error != null -> stats.failures += "$path: ${detector.id}: ${error::class.simpleName}: ${error.message}"
+                signals == null -> stats.skipped++ // the embedding it needs is missing
+                else -> {
+                    index.setSignals(path, detector.id, detector.version, signals)
+                    stats.detectorRuns++
                 }
             }
-            if (outcome.phash != null) {
-                outcome.phash.fold(
-                    onSuccess = {
-                        index.setPerceptualHash(outcome.image.path, it)
-                        stats.detectorRuns++
-                    },
-                    onFailure = {
-                        stats.failures += "${outcome.image.path}: perceptual hash: ${it.javaClass.simpleName}: ${it.message}"
-                    },
-                )
-            }
-            progress("detectors", ++done, tasks.size)
+        }
+        val phash = outcome.phash
+        if (phash != null && !again(phash)) {
+            phash.fold(
+                onSuccess = {
+                    index.setPerceptualHash(path, it)
+                    stats.detectorRuns++
+                },
+                onFailure = { stats.failures += "$path: perceptual hash: ${it.javaClass.simpleName}: ${it.message}" },
+            )
+        }
+        val detectorsAgain = outcome.detectorResults.filter { again(it.second) }.map { it.first }
+        val phashAgain = phash != null && again(phash)
+        return if (detectorsAgain.isEmpty() && !phashAgain) {
+            null
+        } else {
+            AnalysisTask(outcome.task.image, outcome.task.metadata, outcome.task.embedding, detectorsAgain, phashAgain)
         }
     }
 
     /**
-     * One broken file must not stop a run over thousands: errors come back as text. A detector
-     * that needs the missing embedding comes back with neither signals nor an error.
+     * One broken file must not stop a run over thousands: errors come back as values. A detector
+     * that needs the missing embedding comes back with null signals and no error.
      */
-    private suspend fun analyze(detector: Detector, image: ImageRef, context: AnalysisContext) = try {
-        Triple(detector, detector.analyze(image, context), null)
-    } catch (_: MissingEmbedding) {
-        Triple(detector, null, null)
-    } catch (error: Exception) {
-        if (error is CancellationException) throw error
-        Triple(detector, null, "${error::class.simpleName}: ${error.message}")
-    } catch (error: OutOfMemoryError) {
-        Triple(detector, null, "${error::class.simpleName}: ${error.message}")
+    private suspend fun analyze(detector: Detector, image: ImageRef, context: AnalysisContext): Result<List<Signal>?> {
+        val result = attempt<List<Signal>?> { detector.analyze(image, context) }
+        return if (result.exceptionOrNull() is MissingEmbedding) Result.success(null) else result
     }
 
     private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHash(image) }
