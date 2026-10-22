@@ -15,6 +15,7 @@ import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -98,9 +99,12 @@ class ReviewViewModel @JvmOverloads constructor(
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
 
     /** Only the embeddings go: the next scan computes them again. */
-    fun deleteEmbeddings() = load { state ->
-        app.index.deleteEmbeddings()
-        state.copy(embeddingCount = app.index.embeddingCount(), storage = measureStorage(app, review))
+    fun deleteEmbeddings() {
+        val deleted = load { state ->
+            app.index.deleteEmbeddings()
+            state.copy(embeddingCount = app.index.embeddingCount())
+        }
+        refreshStorage(after = deleted)
     }
 
     /** Measures the sizes each time it opens, after the screen is up: the trash and the index change elsewhere and in scans. */
@@ -113,7 +117,17 @@ class ReviewViewModel @JvmOverloads constructor(
                 storage = if (it.screen == Screen.Settings) it.storage else null, // a scan re-opens it: keep the old sizes meanwhile
             )
         }
-        load { it.copy(storage = measureStorage(app, review)) }
+        refreshStorage()
+    }
+
+    /**
+     * Measures outside the lock of [load]: it only reads, so Back and other changes need not wait for a big trash.
+     * The sizes are kept only if settings is still open, and are written in the order of the loads before them.
+     */
+    private fun refreshStorage(after: Job? = null) = viewModelScope.launch {
+        after?.join()
+        val storage = measureStorage(app, review)
+        load { if (it.screen == Screen.Settings) it.copy(storage = storage) else it }
     }
 
     /** Hides the image's folder, subfolders included, and shows the page again without it. */
@@ -255,12 +269,10 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     /** One change at a time: the index and the trash see decisions in the order they were made. */
-    private fun load(change: suspend (ReviewState) -> ReviewState) {
-        viewModelScope.launch {
-            changes.withLock {
-                mutableState.update { it.copy(loading = true) }
-                mutableState.value = change(mutableState.value).copy(loading = false)
-            }
+    private fun load(change: suspend (ReviewState) -> ReviewState) = viewModelScope.launch {
+        changes.withLock {
+            mutableState.update { it.copy(loading = true) }
+            mutableState.value = change(mutableState.value).copy(loading = false)
         }
     }
 }

@@ -13,6 +13,9 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.PAGE_SIZE
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Trash
+import io.github.bert0ns.cribrum.trash.TrashedImage
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -351,5 +354,38 @@ class ReviewViewModelTest {
         model.deleteEmbeddings()
         settle(model) { it.state.value.storage?.embeddings == 0L }
         assertEquals(10L, model.state.value.storage?.trash)
+    }
+
+    /** A trash whose listing waits for [release], like a big one on a slow phone. */
+    private class SlowTrash(private val release: CompletableDeferred<Unit>) : Trash {
+        override suspend fun moveToTrash(images: List<ImageRef>) = images
+
+        override suspend fun restore(images: List<ImageRef>) = images
+
+        override suspend fun trashed(): List<TrashedImage> {
+            release.await()
+            return emptyList()
+        }
+
+        override suspend fun purge(images: List<ImageRef>) {}
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
+    @Test
+    fun `leaving settings does not wait for the storage measure, and its late sizes are dropped`() {
+        val release = CompletableDeferred<Unit>()
+        val model = ReviewViewModel(app, Review(app.index, SlowTrash(release)))
+
+        model.openSettings()
+        settle(model) { it.state.value.screen == Screen.Settings }
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home } // while the measure is still stuck
+        assertNull(model.state.value.storage)
+
+        release.complete(Unit)
+        Thread.sleep(300)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertNull(model.state.value.storage)
     }
 }
