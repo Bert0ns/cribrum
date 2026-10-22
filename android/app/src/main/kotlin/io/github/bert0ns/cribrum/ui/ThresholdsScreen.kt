@@ -60,7 +60,7 @@ fun ThresholdsScreen(
             var shown by remember(value) { mutableFloatStateOf(value) }
             val name = categoryName(category)
             ListItem(
-                headlineContent = { Text("$name: ${"%.2f".format(shown)}") },
+                headlineContent = { Text(stringResource(R.string.thresholds_value, name, shown)) },
                 supportingContent = {
                     Column {
                         Slider(
