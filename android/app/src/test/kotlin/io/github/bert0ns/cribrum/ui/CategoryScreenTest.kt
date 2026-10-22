@@ -60,7 +60,7 @@ class CategoryScreenTest {
         var opened: Category? = null
         val categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true, bytes = 3_000_000))
         compose.setContent {
-            CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it }, onTrash = {})
         }
 
         compose.onNodeWithText("Blurry").assertExists()
@@ -87,7 +87,7 @@ class CategoryScreenTest {
     fun `category list shows no space for a category without candidates`() {
         val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
         compose.setContent {
-            CategoryList(categories = categories, onOpen = {}, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = {}, onTrash = {})
         }
 
         compose.onNodeWithText("can free", substring = true).assertDoesNotExist()
@@ -98,7 +98,7 @@ class CategoryScreenTest {
         var opened: Category? = null
         val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
         compose.setContent {
-            CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it }, onTrash = {})
         }
 
         compose.onNodeWithText("Blurry").assertExists()
@@ -112,7 +112,7 @@ class CategoryScreenTest {
         var opened: Category? = null
         val categories = listOf(CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = false))
         compose.setContent {
-            CategoryList(categories = categories, onOpen = { opened = it }, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it }, onTrash = {})
         }
 
         compose.onNodeWithText("Similar copies").assertExists()
@@ -219,7 +219,7 @@ class CategoryScreenTest {
     @Test
     fun `the date control offers off, day, week, month and size and reports the choice`() {
         var chosen: DateGrouping? = null
-        compose.setContent { DateGroupingMenu(DateGrouping.DAY) { chosen = it } }
+        compose.setContent { DateGroupingMenu(DateGrouping.DAY, DateGrouping.entries) { chosen = it } }
 
         compose.onNodeWithText("Week").assertDoesNotExist()
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
