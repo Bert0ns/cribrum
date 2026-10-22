@@ -205,7 +205,7 @@ class ReviewTest {
 
         val group = page(Category.EXACT_DUPLICATE).groups.single()
 
-        assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
+        assertEquals(listOf(ReviewItem(best, false, isBest = true, reasons = listOf(duplicate("g", Role.BEST))), ReviewItem(copy, true, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR)))), group.images)
         assertFalse(group.hasExcludedCopy)
     }
 
@@ -216,7 +216,17 @@ class ReviewTest {
 
         val group = page(Category.NEAR_DUPLICATE).groups.single()
 
-        assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 0.8f)), group.images)
+        assertEquals(listOf(ReviewItem(best, false, isBest = true, reasons = listOf(nearDuplicate("g", Role.BEST))), ReviewItem(copy, true, score = 0.8f, reasons = listOf(nearDuplicate("g", Role.INFERIOR)))), group.images)
+    }
+
+    @Test
+    fun `an item carries every reason it is a candidate for, strongest first`() = test {
+        val dark = Signal("exposure", 1, Category.BAD_EXPOSURE, 1f, mapOf("case" to "dark"))
+        image("a.jpg", dark, blurry(0.9f))
+
+        val item = page(Category.BLURRY).groups.single().images.single()
+
+        assertEquals(listOf(dark, blurry(0.9f)), item.reasons)
     }
 
     private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
@@ -257,7 +267,7 @@ class ReviewTest {
         excludeFolderOf(excludedCopy)
 
         val group = page(Category.EXACT_DUPLICATE).groups.single()
-        assertEquals(listOf(ReviewItem(best, false, isBest = true), ReviewItem(copy, true, score = 1f)), group.images)
+        assertEquals(listOf(ReviewItem(best, false, isBest = true, reasons = listOf(duplicate("g", Role.BEST))), ReviewItem(copy, true, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR)))), group.images)
         assertTrue(group.hasExcludedCopy)
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(excludedCopy.path))
     }
@@ -270,7 +280,7 @@ class ReviewTest {
         excludeFolderOf(best)
 
         val group = page(Category.EXACT_DUPLICATE).groups.single()
-        assertEquals(listOf(ReviewItem(copy, true, score = 1f)), group.images)
+        assertEquals(listOf(ReviewItem(copy, true, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR)))), group.images)
         assertTrue(group.hasExcludedCopy)
     }
 

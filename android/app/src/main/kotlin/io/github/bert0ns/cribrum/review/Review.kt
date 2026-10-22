@@ -11,6 +11,7 @@ import io.github.bert0ns.cribrum.model.IndexedImage
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Role
+import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.pipeline.DETECTOR_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Candidate
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
@@ -51,6 +52,8 @@ data class ReviewItem(
     val isBest: Boolean = false,
     /** The candidate's score in this category, 0 for a best copy. */
     val score: Float = 0f,
+    /** The signals that make it a candidate, strongest first. A best copy has its own in the category, which is no reason to trash it. */
+    val reasons: List<Signal> = emptyList(),
 )
 
 data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true, val bytes: Long = 0)
@@ -163,7 +166,7 @@ class Review(
 
     private suspend fun singles(category: Category, candidates: List<Candidate>, grouping: DateGrouping): List<ReviewGroup> {
         val groups = candidates.map {
-            ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category))))
+            ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category), reasons = it.reasons)))
         }
         if (grouping == DateGrouping.OFF) return groups
         val capturedAt = index.capturedAt()
@@ -194,11 +197,13 @@ class Review(
         }
         val order = LinkedHashSet<String>()
         val candidateScores = mutableMapOf<String, Float>()
+        val candidateReasons = mutableMapOf<String, List<Signal>>()
         for (candidate in candidates) {
             for (signal in candidate.reasons.filter { it.kind == category }) {
                 signal.evidence[GROUP_KEY]?.let(order::add)
             }
             candidateScores[candidate.image.ref.path] = score(candidate, category)
+            candidateReasons[candidate.image.ref.path] = candidate.reasons
         }
         return order.map { group ->
             val items = members[group].orEmpty().map { (image, role) ->
@@ -208,6 +213,7 @@ class Review(
                     suggestTrash = !best && image.ref.path in candidateScores,
                     isBest = best,
                     score = candidateScores[image.ref.path] ?: 0f,
+                    reasons = candidateReasons[image.ref.path] ?: image.signals.filter { it.kind == category },
                 )
             }
             ReviewGroup(group, items.sortedByDescending { it.isBest }, group in withExcludedCopy)
