@@ -1,6 +1,8 @@
 // Tests for Text translated from lab/tests/test_text.py.
 package io.github.bert0ns.cribrum.text
 
+import android.graphics.Bitmap
+import androidx.exifinterface.media.ExifInterface
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
@@ -36,6 +38,14 @@ class TextTest {
 
         assertArrayEquals(longArrayOf(1, 3, 224, INPUT_SIDE.toLong()), pixels.shape)
         assertEquals((1f - 0.485f) / 0.229f, pixels.values[0], 1e-4f)
+    }
+
+    @Test
+    fun `an orientation outside 1 to 8 leaves the image as it is`() {
+        val file = TestImage.filled(800, 200, 255).save(folder.newFile("a.jpg"), Bitmap.CompressFormat.JPEG)
+        ExifInterface(file).apply { setAttribute(ExifInterface.TAG_ORIENTATION, "9") }.saveAttributes()
+
+        assertArrayEquals(longArrayOf(1, 3, 160, INPUT_SIDE.toLong()), preprocess(file).shape)
     }
 
     @Test

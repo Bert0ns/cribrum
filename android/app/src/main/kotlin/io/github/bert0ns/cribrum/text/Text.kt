@@ -34,7 +34,7 @@ const val DETECTOR_RESOURCE = "/ppocr/ch_PP-OCRv4_det_infer.onnx"
 fun preprocess(file: File): Tensor {
     val decoded = decode(file, INPUT_SIDE)
     val orientation = orientation(file)
-    val (width, height) = if (orientation >= 5) decoded.height to decoded.width else decoded.width to decoded.height
+    val (width, height) = if (orientation in 5..8) decoded.height to decoded.width else decoded.width to decoded.height
     val scale = INPUT_SIDE.toDouble() / max(width, height)
 
     // Math.rint rounds halves to even, as Python's round does.
