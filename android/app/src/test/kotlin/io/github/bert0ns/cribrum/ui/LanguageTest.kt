@@ -43,8 +43,8 @@ class LanguageTest {
         }
 
         compose.onNodeWithText("Sfocate").assertExists()
-        compose.onNodeWithText("1 immagine da controllare · libera 1,0 MB").assertExists()
-        compose.onNodeWithText("3 immagini da controllare · libera 3,0 MB").assertExists()
+        compose.onNodeWithText("1 immagine da controllare · si possono liberare 1,0 MB").assertExists()
+        compose.onNodeWithText("3 immagini da controllare · si possono liberare 3,0 MB").assertExists()
         compose.onAllNodesWithText("Blurry").assertCountEquals(0)
     }
 
@@ -64,7 +64,7 @@ class LanguageTest {
         val report = ScanReport(1_700_000_000_000, unreadable = 1, failures = mapOf("embedding" to 2), files = listOf(FailedFile("embedding", "a.jpg")))
         compose.setContent { SettingsScreen(coverage = coverage, lastScan = report) }
 
-        for (text in listOf("Stato della scansione", "1 file illeggibile", "2 errori nell'ultima scansione", "Embedding", "90 di 100 immagini analizzate • versione 1", "Sfocate", "1 di 1 immagine analizzata • versione 1", "Volti", "2 con errore nell'ultima scansione")) {
+        for (text in listOf("Stato della scansione", "1 file illeggibile", "2 errori nell'ultima scansione", "Embedding", "90 di 100 immagini analizzate • versione 1", "Sfocate", "1 di 1 immagine analizzata • versione 1", "Volti", "2 non analizzate nell'ultima scansione")) {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
             compose.onNodeWithText(text).assertExists()
         }

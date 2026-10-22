@@ -64,7 +64,7 @@
         <item quantity="many">%d di immagini da controllare</item>
     </plurals>
     <string name="freeable_total">Si possono liberare fino a %1$s</string>
-    <string name="category_line_with_space">%1$s · libera %2$s</string>
+    <string name="category_line_with_space">%1$s · si possono liberare %2$s</string>
     <plurals name="page_more">
         <item quantity="one">%1$d di %2$d immagine da controllare. Conferma queste per vedere le successive.</item>
         <item quantity="other">%1$d di %2$d immagini da controllare. Conferma queste per vedere le successive.</item>
@@ -87,7 +87,7 @@
     <string name="date_grouping_day">Giorno</string>
     <string name="date_grouping_week">Settimana</string>
     <string name="date_grouping_month">Mese</string>
-    <string name="date_grouping_size">Più grandi prima</string>
+    <string name="date_grouping_size">Prima le più grandi</string>
     <plurals name="summary_title">
         <item quantity="one">Spostare %d immagine nel cestino?</item>
         <item quantity="other">Spostare %d immagini nel cestino?</item>
@@ -109,7 +109,7 @@
     <string name="undo">Annulla</string>
     <string name="trash_empty">Il cestino è vuoto.</string>
     <string name="trash_hint">Tocca le immagini per selezionarle. Vengono eliminate definitivamente 30 giorni dopo essere finite nel cestino.</string>
-    <string name="days_left">%1$dg rimasti</string>
+    <string name="days_left">%1$d gg</string>
     <string name="restore">Ripristina %1$d</string>
     <string name="empty_trash">Svuota il cestino</string>
     <string name="select_all">Seleziona tutto</string>
@@ -140,7 +140,7 @@
     <string name="reason_exact_duplicate">Identica alla copia migliore</string>
     <string name="reason_exact_duplicate_best">Copia migliore: le altre sono identiche</string>
     <string name="reason_near_duplicate">Sembra una copia di quella migliore</string>
-    <string name="reason_near_duplicate_best">Copia migliore: le altre le somigliano</string>
+    <string name="reason_near_duplicate_best">Copia migliore: le altre le assomigliano</string>
     <plurals name="reason_burst">
         <item quantity="one">Parte di una raffica di %1$d scatti, si tiene il più nitido</item>
         <item quantity="other">Parte di una raffica di %1$d scatti, si tiene il più nitido</item>
@@ -158,15 +158,15 @@
     <string name="reason_bright">Troppo chiara</string>
     <string name="reason_flat">Piatta, quasi senza contrasto</string>
     <string name="reason_exposure">L\'esposizione sembra sbagliata</string>
-    <string name="reason_document_text">Testo sul %1$d%% dell\'immagine</string>
-    <string name="reason_document_little_text">Testo su meno dell\'%1$d%% dell\'immagine</string>
+    <string name="reason_document_text">Testo: %1$d%% dell\'immagine</string>
+    <string name="reason_document_little_text">Testo: meno di %1$d%% dell\'immagine</string>
     <string name="reason_document">Sembra un documento, una slide o un appunto</string>
     <string name="reason_screenshot_name">Il nome o la cartella indicano uno screenshot (%1$s)</string>
     <string name="reason_screenshot_size">Ha le dimensioni di uno schermo (%1$s)</string>
     <string name="reason_screenshot_size_plain">Ha le dimensioni di uno schermo</string>
     <string name="reason_screenshot_exif">Nessun dato della fotocamera, come uno screenshot</string>
     <string name="reason_screenshot">Sembra uno screenshot</string>
-    <string name="reason_forwarded_look">Sembra un meme o un\'immagine di auguri</string>
+    <string name="reason_forwarded_look">Sembra un meme o un\'immagine di saluti</string>
     <string name="reason_forwarded_folder">In una cartella di un\'app di messaggistica</string>
     <string name="reason_forwarded_exif">Nessun dato della fotocamera, come un\'immagine inoltrata</string>
     <string name="reason_forwarded">Sembra inoltrata da un\'app di messaggistica</string>
@@ -183,9 +183,9 @@
         <item quantity="many">%d di giorni</item>
     </plurals>
     <plurals name="settings_trash_retention_confirm">
-        <item quantity="one">La prossima scansione elimina %1$d immagine del cestino più vecchia di %2$d giorni. Non si può annullare.</item>
-        <item quantity="other">La prossima scansione elimina %1$d immagini del cestino più vecchie di %2$d giorni. Non si può annullare.</item>
-        <item quantity="many">La prossima scansione elimina %1$d di immagini del cestino più vecchie di %2$d di giorni. Non si può annullare.</item>
+        <item quantity="one">La prossima scansione elimina %1$d immagine nel cestino da più di %2$d giorni. Non si può annullare.</item>
+        <item quantity="other">La prossima scansione elimina %1$d immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
+        <item quantity="many">La prossima scansione elimina %1$d di immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
     </plurals>
     <string name="settings_trash_retention_applies">Vale anche per le immagini già nel cestino.</string>
     <string name="settings_uninstall_warning">Se disinstalli l\'app, la cartella del cestino resta sul telefono. Svuota il cestino prima di disinstallare, così le immagini cestinate non continuano a occupare spazio senza che tu lo veda.</string>
@@ -194,7 +194,7 @@
     <string name="settings_language">Lingua</string>
     <string name="settings_thresholds">Soglie di rilevamento</string>
     <string name="thresholds_intro">Una categoria elenca un\'immagine quando uno dei suoi punteggi raggiunge la soglia. Le modifiche si applicano subito e non richiedono una nuova scansione. Le immagini che hai tenuto o cestinato restano come sono.</string>
-    <string name="thresholds_raising">Alzare una soglia toglie immagini dagli elenchi, quindi potresti perderne alcune che avresti eliminato.</string>
+    <string name="thresholds_raising">Alzare una soglia toglie immagini dagli elenchi, quindi potresti non vedere alcune immagini che avresti eliminato.</string>
     <plurals name="thresholds_more">
         <item quantity="one">%d immagine in più rispetto al valore predefinito</item>
         <item quantity="other">%d immagini in più rispetto al valore predefinito</item>
@@ -225,13 +225,13 @@
     <string name="settings_no_embeddings">Nessun embedding salvato.</string>
     <string name="settings_delete_embeddings_scanning">Aspetta la fine della scansione.</string>
     <string name="settings_delete_embeddings_title">Eliminare gli embedding?</string>
-    <string name="settings_delete_embeddings_confirm">L\'app salva un embedding per ogni immagine per trovare duplicati, documenti e immagini inoltrate. Vengono ricalcolati alla prossima scansione, che avvii con Scansiona ora o che parte da sola di notte mentre il telefono è in carica. Una scansione completa richiede un po\' di tempo: circa 15–20 minuti per 10.000 immagini. Fino ad allora la schermata di controllo mostra quello che mostra adesso. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
+    <string name="settings_delete_embeddings_confirm">L\'app salva un embedding per ogni immagine, per trovare duplicati, documenti e immagini inoltrate. Vengono ricalcolati alla prossima scansione, che avvii con Scansiona ora o che parte da sola di notte mentre il telefono è in carica. Una scansione completa richiede un po\' di tempo: circa 15–20 minuti per 10.000 immagini. Nel frattempo la schermata di controllo continua a mostrare ciò che mostra ora. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
     <string name="exclude_folder">Non suggerire mai questa cartella né le sue sottocartelle</string>
     <!-- Stato della scansione nelle impostazioni -->
     <string name="settings_scan_status">Stato della scansione</string>
-    <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i passaggi embedding, documenti e inoltrate, che li saltano per scelta.</string>
+    <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i passaggi embedding, documenti e inoltrate, che li saltano di proposito.</string>
     <string name="settings_scan_status_last">Ultima scansione completata</string>
-    <string name="settings_scan_status_none">Nessuna scansione completata da questa versione.</string>
+    <string name="settings_scan_status_none">Nessuna scansione completata con questa versione.</string>
     <plurals name="settings_scan_status_unreadable">
         <item quantity="one">%1$d file illeggibile</item>
         <item quantity="other">%1$d file illeggibili</item>
@@ -260,9 +260,9 @@
         <item quantity="many">%1$d di %2$d di immagini analizzate \u2022 versione %3$d</item>
     </plurals>
     <plurals name="settings_scan_status_row_failed">
-        <item quantity="one">%1$d con errore nell\'ultima scansione</item>
-        <item quantity="other">%1$d con errore nell\'ultima scansione</item>
-        <item quantity="many">%1$d con errore nell\'ultima scansione</item>
+        <item quantity="one">%1$d non analizzata nell\'ultima scansione</item>
+        <item quantity="other">%1$d non analizzate nell\'ultima scansione</item>
+        <item quantity="many">%1$d non analizzate nell\'ultima scansione</item>
     </plurals>
     <string name="excluded_folder_snackbar">Cartella %1$s esclusa, con le sue sottocartelle</string>
     <string name="excluded_copy">Un\'altra copia è in una cartella esclusa</string>
