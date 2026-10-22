@@ -19,12 +19,22 @@ import org.robolectric.annotation.Config
 class ReasonTest {
     private fun line(category: Category, vararg evidence: Pair<String, String>): String? {
         val signal = Signal("d", 1, category, 0.9f, mapOf(*evidence))
-        return reasonOf(signal)?.let { ApplicationProvider.getApplicationContext<Context>().getString(it.id, *it.args) }
+        return reasonOf(signal)?.text(ApplicationProvider.getApplicationContext<Context>().resources)
     }
 
     @Test
     fun `document with text says how much of the image it covers`() {
         assertEquals("Text on 23% of the image", line(Category.DOCUMENT, "probability" to "0.100", "text_coverage" to "0.2300"))
+    }
+
+    @Test
+    fun `document credits the look when it did more of the work than the text`() {
+        assertEquals("Looks like a document, a slide or a note", line(Category.DOCUMENT, "probability" to "0.900", "text_coverage" to "0.0120"))
+    }
+
+    @Test
+    fun `document with a trace of text does not round it to nothing`() {
+        assertEquals("Text on less than 1% of the image", line(Category.DOCUMENT, "probability" to "0.020", "text_coverage" to "0.0040"))
     }
 
     @Test
@@ -52,11 +62,11 @@ class ReasonTest {
     @Test
     fun `screenshot gives the strongest rule that matched`() {
         assertEquals(
-            "Named like a screenshot (Screenshot_2024)",
-            line(Category.SCREENSHOT, "path_match" to "Screenshot_2024", "screen_size" to "yes", "camera_exif" to "no", "size" to "1080x2400"),
+            "Its name or folder says screenshot (Screenshot)",
+            line(Category.SCREENSHOT, "path_match" to "Screenshot", "screen_size" to "yes", "camera_exif" to "no", "size" to "1080x2400"),
         )
         assertEquals(
-            "The size of a phone screen (1080×2400)",
+            "The size of a screen (1080×2400)",
             line(Category.SCREENSHOT, "path_match" to "", "screen_size" to "yes", "camera_exif" to "no", "size" to "1080x2400"),
         )
         assertEquals(
@@ -66,25 +76,60 @@ class ReasonTest {
     }
 
     @Test
-    fun `forwarded gives the strongest rule that matched`() {
+    fun `screenshot without a rule the evidence backs gets the plain line`() {
+        assertEquals("Looks like a screenshot", line(Category.SCREENSHOT, "path_match" to "", "screen_size" to "no", "camera_exif" to "yes"))
+        assertEquals("Looks like a screenshot", line(Category.SCREENSHOT))
+    }
+
+    @Test
+    fun `screenshot size without the size leaves out the brackets`() {
+        assertEquals("The size of a screen", line(Category.SCREENSHOT, "screen_size" to "yes"))
+    }
+
+    @Test
+    fun `forwarded gives the rule that added the most`() {
         assertEquals(
             "Looks like a meme or a greeting image",
             line(Category.FORWARDED, "probability" to "0.800", "messaging_folder" to "yes", "camera_exif" to "no"),
         )
         assertEquals(
             "In a messaging app folder",
-            line(Category.FORWARDED, "probability" to "0.100", "messaging_folder" to "yes", "camera_exif" to "no"),
+            line(Category.FORWARDED, "probability" to "0.300", "messaging_folder" to "yes", "camera_exif" to "no"),
         )
         assertEquals(
             "No camera data, like a forwarded image",
-            line(Category.FORWARDED, "probability" to "0.100", "messaging_folder" to "no", "camera_exif" to "no"),
+            line(Category.FORWARDED, "probability" to "0.050", "messaging_folder" to "no", "camera_exif" to "no"),
+        )
+    }
+
+    @Test
+    fun `forwarded never credits a rule the evidence contradicts or lacks`() {
+        assertEquals(
+            "Looks forwarded from a messaging app",
+            line(Category.FORWARDED, "probability" to "0.000", "messaging_folder" to "no", "camera_exif" to "yes"),
+        )
+        assertEquals("Looks forwarded from a messaging app", line(Category.FORWARDED))
+    }
+
+    @Test
+    fun `forwarded with a low look and camera data credits the look, not the missing exif`() {
+        assertEquals(
+            "Looks like a meme or a greeting image",
+            line(Category.FORWARDED, "probability" to "0.400", "messaging_folder" to "no", "camera_exif" to "yes"),
         )
     }
 
     @Test
     fun `burst tells the best shot from the others`() {
         assertEquals("Best of a burst of 4: the sharpest", line(Category.BURST, ROLE_KEY to "best", "shots" to "4"))
-        assertEquals("One of a burst of 4, not the sharpest", line(Category.BURST, ROLE_KEY to "inferior", "shots" to "4"))
+        assertEquals("One of a burst of 4, the sharpest is kept", line(Category.BURST, ROLE_KEY to "inferior", "shots" to "4"))
+    }
+
+    @Test
+    fun `burst without a shot count gets the plain line`() {
+        assertEquals("One of a burst, the sharpest is kept", line(Category.BURST, ROLE_KEY to "inferior"))
+        assertEquals("One of a burst, the sharpest is kept", line(Category.BURST, ROLE_KEY to "inferior", "shots" to "many"))
+        assertEquals("Best of a burst: the sharpest", line(Category.BURST, ROLE_KEY to "best"))
     }
 
     @Test
