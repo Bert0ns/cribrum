@@ -215,6 +215,57 @@ class ReviewTest {
     }
 
     @Test
+    fun `a group is sorted by the bytes of its copies to trash, not by its best copy`() = test {
+        image("DCIM/a-very-long-name-for-a-large-best-copy.jpg", duplicate("bigBest", Role.BEST))
+        image("Download/a.jpg", duplicate("bigBest", Role.INFERIOR))
+        image("DCIM/b.jpg", duplicate("smallBest", Role.BEST))
+        image("Download/a-much-longer-name-for-the-copy-to-trash.jpg", duplicate("smallBest", Role.INFERIOR))
+
+        assertEquals(listOf("smallBest", "bigBest"), page(Category.EXACT_DUPLICATE, grouping = DateGrouping.SIZE).groups.map { it.id })
+    }
+
+    @Test
+    fun `sorting by size pages through every candidate once, never splits a group and never goes up in size`() = test {
+        repeat(40) { group ->
+            image("DCIM/g$group-best.jpg", duplicate("g$group", Role.BEST))
+            repeat(group % 3 + 1) { copy -> image("Download/g$group-c$copy-${"x".repeat(group % 7)}.jpg", duplicate("g$group", Role.INFERIOR)) }
+        }
+        repeat(2 * PAGE_SIZE + 7) { image("single-$it-${"y".repeat(it % 11)}.jpg", blurry(0.5f + it / 1000f)) }
+
+        for ((category, total) in listOf(Category.EXACT_DUPLICATE to 79, Category.BLURRY to 2 * PAGE_SIZE + 7)) {
+            val seen = mutableListOf<ReviewGroup>()
+            val skipped = mutableSetOf<String>()
+            while (true) {
+                val page = page(category, skipped, DateGrouping.SIZE)
+                if (page.groups.isEmpty()) break
+                assertEquals(total - seen.sumOf { group -> group.images.count { it.suggestTrash } }, page.remaining)
+                assertTrue(page.groups.sumOf { it.images.size } <= PAGE_SIZE)
+                seen += page.groups
+                skipped += page.groups.map { it.id }
+            }
+            val toTrash = seen.flatMap { group -> group.images.filter { it.suggestTrash }.map { it.image.path } }
+            assertEquals(total, toTrash.size)
+            assertEquals(total, toTrash.toSet().size)
+            val bytes = seen.map { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } }
+            assertEquals(bytes.sortedDescending(), bytes)
+        }
+    }
+
+    @Test
+    fun `the freeable total drops a trashed and a kept image and gets them back on undo`() = test {
+        val a = image("a.jpg", blurry(0.9f)) // 5 bytes
+        val b = image("bb.jpg", blurry(0.9f)) // 6
+        image("ccc.jpg", blurry(0.9f)) // 7
+        assertEquals(18L, overview().freeableBytes)
+
+        val decision = apply(listOf(a), listOf(b))
+
+        assertEquals(7L, overview().freeableBytes)
+        undo(decision)
+        assertEquals(18L, overview().freeableBytes)
+    }
+
+    @Test
     fun `the freeable total counts an image once however many categories list it, and not a best copy`() = test {
         image("a.jpg", blurry(0.9f), Signal("shot", 1, Category.SCREENSHOT, 0.9f)) // 5 bytes, two categories
         image("bb.jpg", blurry(0.9f)) // 6
