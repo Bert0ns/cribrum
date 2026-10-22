@@ -30,6 +30,7 @@
         <item quantity="one">%d image to review</item>
         <item quantity="other">%d images to review</item>
     </plurals>
+    <string name="freeable_total">Up to %1$s can be freed</string>
     <string name="category_line_with_space">%1$s · can free %2$s</string>
     <plurals name="page_more">
         <item quantity="one">%1$d of %2$d image to review. Confirm these to see the next ones.</item>
@@ -46,11 +47,12 @@
     <string name="best_copy">Best</string>
     <string name="apply">Trash %1$d, keep %2$d</string>
     <string name="skip">Skip</string>
-    <string name="date_grouping">Group by date</string>
+    <string name="date_grouping">Group by date or sort by size</string>
     <string name="date_grouping_off">Off</string>
     <string name="date_grouping_day">Day</string>
     <string name="date_grouping_week">Week</string>
     <string name="date_grouping_month">Month</string>
+    <string name="date_grouping_size">Largest first</string>
     <plurals name="summary_title">
         <item quantity="one">Move %d image to the trash?</item>
         <item quantity="other">Move %d images to the trash?</item>

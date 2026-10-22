@@ -100,8 +100,17 @@ fun categoryName(category: Category): String = stringResource(
 )
 
 @Composable
-fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier) {
+fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier, freeableBytes: Long = 0) {
     LazyColumn(modifier.fillMaxSize()) {
+        if (freeableBytes > 0) {
+            item {
+                Text(
+                    stringResource(R.string.freeable_total, Formatter.formatShortFileSize(LocalContext.current, freeableBytes)),
+                    Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+        }
         items(categories, key = { it.category }) { summary ->
             val canOpen = summary.hasDetector && summary.count > 0
             ListItem(
@@ -131,13 +140,13 @@ fun CategoryList(categories: List<CategorySummary>, onOpen: (Category) -> Unit, 
     }
 }
 
-/** The control of the category screen's top bar: one menu with the grouping to choose. */
+/** The control of the category screen's top bar: one menu with the date grouping or the size sort to choose. */
 @Composable
-fun DateGroupingMenu(selected: DateGrouping, onSelect: (DateGrouping) -> Unit) {
+fun DateGroupingMenu(selected: DateGrouping, options: List<DateGrouping> = DateGrouping.entries, onSelect: (DateGrouping) -> Unit) {
     var open by remember { mutableStateOf(false) }
     IconButton({ open = true }) { Icon(Icons.Default.DateRange, stringResource(R.string.date_grouping)) }
     DropdownMenu(open, { open = false }) {
-        for (grouping in DateGrouping.entries) {
+        for (grouping in options) {
             DropdownMenuItem(
                 text = { Text(stringResource(grouping.title)) },
                 leadingIcon = { if (grouping == selected) Icon(Icons.Default.Check, null) },
@@ -156,6 +165,7 @@ private val DateGrouping.title
         DateGrouping.DAY -> R.string.date_grouping_day
         DateGrouping.WEEK -> R.string.date_grouping_week
         DateGrouping.MONTH -> R.string.date_grouping_month
+        DateGrouping.SIZE -> R.string.date_grouping_size
     }
 
 /** A thumbnail that is marked for the trash or kept. Tap toggles, a long press shows it full size. */

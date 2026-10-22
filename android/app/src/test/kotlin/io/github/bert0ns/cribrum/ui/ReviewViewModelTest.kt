@@ -195,6 +195,35 @@ class ReviewViewModelTest {
         assertEquals(DateGrouping.OFF, model.state.value.dateGrouping)
     }
 
+    @Test
+    fun `sorting a category by size is remembered, and the home total counts each image once`() {
+        blurry("/sdcard/small.jpg", 0.9f) // the index says 1,000 bytes
+        runBlocking { app.index.record(ImageRef("/sdcard/large.jpg", 5_000, 1L)) }
+        runBlocking {
+            app.index.setSignals("/sdcard/large.jpg", "blur", 1, listOf(Signal("blur", 1, Category.BLURRY, 0.5f)))
+            app.index.setSignals("/sdcard/large.jpg", "shot", 1, listOf(Signal("shot", 1, Category.SCREENSHOT, 0.9f)))
+        }
+        val model = ReviewViewModel(app)
+        model.refresh()
+        settle(model) { it.state.value.categories.isNotEmpty() }
+        assertEquals(6_000L, model.state.value.freeableBytes)
+
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 2 }
+        model.setDateGrouping(DateGrouping.SIZE)
+        settle(model) { it.state.value.dateGrouping == DateGrouping.SIZE }
+
+        assertEquals(listOf("/sdcard/large.jpg", "/sdcard/small.jpg"), paths(model))
+        model.open(Category.STICKER)
+        settle(model) { it.state.value.screen == Screen.Category(Category.STICKER) }
+        model.setDateGrouping(DateGrouping.SIZE)
+        settle(model) { it.state.value.dateGrouping == DateGrouping.SIZE }
+        val next = ReviewViewModel(app)
+        next.open(Category.STICKER)
+        settle(next) { it.state.value.screen == Screen.Category(Category.STICKER) }
+        assertEquals(DateGrouping.SIZE, next.state.value.dateGrouping)
+    }
+
     /** A file in a trash of its own, trashed [daysAgo] days ago (the trash reads its time from origin.properties). */
     private fun trashed(trash: AppTrash, volume: File, name: String, daysAgo: Long) = runBlocking {
         val image = File(volume, name).apply { writeText(name) }.toImageRef()

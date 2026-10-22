@@ -70,6 +70,20 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `category list says what the candidates can free in all, and nothing when there are none`() {
+        var freeable by mutableStateOf(2_000_000L)
+        compose.setContent {
+            CategoryList(categories = listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000)), freeableBytes = freeable, onOpen = {}, onTrash = {})
+        }
+
+        compose.onNodeWithText("Up to 2.0 MB can be freed").assertExists()
+
+        freeable = 0
+        compose.onNodeWithText("Up to 2.0 MB can be freed").assertDoesNotExist()
+        compose.onAllNodesWithText("Up to", substring = true).assertCountEquals(0)
+    }
+
+    @Test
     fun `category list shows no space for a category without candidates`() {
         val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
         compose.setContent {
@@ -203,17 +217,27 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `the date control offers off, day, week and month and reports the choice`() {
+    fun `the date control offers off, day, week, month and size and reports the choice`() {
         var chosen: DateGrouping? = null
         compose.setContent { DateGroupingMenu(DateGrouping.DAY) { chosen = it } }
 
         compose.onNodeWithText("Week").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Group by date").performClick()
-        listOf("Off", "Day", "Week", "Month").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
+        listOf("Off", "Day", "Week", "Month", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
         compose.onNodeWithText("Week").performClick()
 
         assertEquals(DateGrouping.WEEK, chosen)
         compose.onNodeWithText("Week").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the control of a category without dates offers off and size only`() {
+        compose.setContent { DateGroupingMenu(DateGrouping.OFF, DateGrouping.optionsFor(Category.STICKER)) {} }
+
+        compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
+
+        listOf("Off", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
+        listOf("Day", "Week", "Month").forEach { compose.onNodeWithText(it).assertDoesNotExist() }
     }
 
     private fun openFullSize(name: String) = compose.onAllNodesWithContentDescription(name)[0].performTouchInput { longClick() }

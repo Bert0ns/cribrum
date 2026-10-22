@@ -69,6 +69,8 @@ class ReviewTest {
 
     private fun test(block: suspend Review.() -> Unit) = runBlocking { review.block() }
 
+    private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
+
     @Test
     fun `every category is listed in fixed order with its count and detector flag`() = test {
         image("a.jpg", blurry(0.9f))
@@ -89,7 +91,7 @@ class ReviewTest {
                 CategorySummary(Category.FORWARDED, 0, hasDetector = true),
                 CategorySummary(Category.STICKER, 0, hasDetector = true),
             ),
-            categories(),
+            overview().categories,
         )
     }
 
@@ -101,7 +103,7 @@ class ReviewTest {
         image("DCIM/d.jpg", duplicate("g", Role.BEST))
         image("Download/d.jpg", duplicate("g", Role.INFERIOR)) // 14
 
-        val bytes = categories().associate { it.category to it.bytes }
+        val bytes = overview().categories.associate { it.category to it.bytes }
 
         assertEquals(11L, bytes[Category.BLURRY])
         assertEquals(14L, bytes[Category.EXACT_DUPLICATE])
@@ -113,7 +115,7 @@ class ReviewTest {
         image("a.jpg", blurry(0.9f))
         image("b.jpg", blurry(0.6f))
         image("c.jpg", blurry(0.45f))
-        suspend fun blurryCount() = categories().single { it.category == Category.BLURRY }.count
+        suspend fun blurryCount() = overview().categories.single { it.category == Category.BLURRY }.count
 
         assertEquals(3, blurryCount())
 
@@ -132,7 +134,7 @@ class ReviewTest {
 
         thresholds = THRESHOLDS + (Category.BLURRY to 0.2f)
 
-        assertEquals(0, categories().single { it.category == Category.BLURRY }.count)
+        assertEquals(0, overview().categories.single { it.category == Category.BLURRY }.count)
         assertEquals(ReviewState.KEPT, index.reviewState(kept.path))
     }
 
@@ -145,7 +147,7 @@ class ReviewTest {
 
         val group = page(Category.EXACT_DUPLICATE).groups.single()
         assertEquals(listOf(false, true), group.images.map { it.suggestTrash })
-        assertEquals(1, categories().single { it.category == Category.EXACT_DUPLICATE }.count)
+        assertEquals(1, overview().categories.single { it.category == Category.EXACT_DUPLICATE }.count)
     }
 
     @Test
@@ -159,7 +161,7 @@ class ReviewTest {
         assertEquals(1, counts[Category.BLURRY])
         assertEquals(1, counts[Category.DOCUMENT])
         assertEquals(0, counts[Category.SCREENSHOT])
-        assertEquals(2, categories().single { it.category == Category.BLURRY }.count)
+        assertEquals(2, overview().categories.single { it.category == Category.BLURRY }.count)
     }
 
     @Test
@@ -172,6 +174,67 @@ class ReviewTest {
         assertEquals(PAGE_SIZE, page.size)
         assertTrue(page.all { group -> group.images.single().suggestTrash })
         assertEquals(page.map { it.images.single().score }.sortedDescending(), page.map { it.images.single().score })
+    }
+
+    @Test
+    fun `sorting by size lists the largest first, drops nothing, and breaks a tie by confidence`() = test {
+        val small = image("a.jpg", blurry(0.9f)) // 5 bytes
+        val large = image("long/path/c.jpg", blurry(0.5f)) // 15
+        val tieHigh = image("bb.jpg", blurry(0.8f)) // 6
+        val tieLow = image("cc.jpg", blurry(0.6f)) // 6
+
+        val page = page(Category.BLURRY, grouping = DateGrouping.SIZE)
+
+        assertEquals(listOf(large, tieHigh, tieLow, small), shown(page))
+        assertEquals(4, page.remaining)
+        assertTrue(page.groups.all { it.date == null && it.images.single().suggestTrash })
+    }
+
+    @Test
+    fun `sorting by size also orders a category without date grouping`() = test {
+        val small = image("a.jpg", Signal("sticker", 1, Category.STICKER, 1f))
+        val large = image("long/c.jpg", Signal("sticker", 1, Category.STICKER, 1f))
+
+        assertEquals(listOf(large, small), shown(page(Category.STICKER, grouping = DateGrouping.SIZE)))
+    }
+
+    @Test
+    fun `sorting a group category by size puts the group with the most bytes to trash first`() = test {
+        image("DCIM/best1.jpg", duplicate("small", Role.BEST))
+        val small = image("DCIM/small.jpg", duplicate("small", Role.INFERIOR))
+        image("DCIM/best2.jpg", duplicate("large", Role.BEST))
+        val large1 = image("DCIM/large-one.jpg", duplicate("large", Role.INFERIOR))
+        val large2 = image("DCIM/large-two.jpg", duplicate("large", Role.INFERIOR))
+
+        val page = page(Category.EXACT_DUPLICATE, grouping = DateGrouping.SIZE)
+
+        assertEquals(listOf("large", "small"), page.groups.map { it.id })
+        assertEquals(listOf(large1, large2), page.groups.first().images.filter { it.suggestTrash }.map { it.image })
+        assertEquals(listOf(small), page.groups.last().images.filter { it.suggestTrash }.map { it.image })
+        assertEquals(3, page.remaining)
+    }
+
+    @Test
+    fun `the freeable total counts an image once however many categories list it, and not a best copy`() = test {
+        image("a.jpg", blurry(0.9f), Signal("shot", 1, Category.SCREENSHOT, 0.9f)) // 5 bytes, two categories
+        image("bb.jpg", blurry(0.9f)) // 6
+        image("c.jpg", blurry(0.1f)) // below the threshold
+        image("DCIM/best.jpg", duplicate("g", Role.BEST))
+        image("Download/d.jpg", duplicate("g", Role.INFERIOR)) // 14
+
+        val overview = overview()
+
+        assertEquals(25L, overview.freeableBytes)
+        assertEquals(30L, overview.categories.sumOf { it.bytes }) // the per-category figures still overlap
+    }
+
+    @Test
+    fun `the freeable total leaves out excluded and trashed images`() = test {
+        val kept = image("Family/a.jpg", blurry(0.9f))
+        image("Other/bb.jpg", blurry(0.9f)) // 12 bytes
+        excludeFolderOf(kept)
+
+        assertEquals(12L, overview().freeableBytes)
     }
 
     @Test
@@ -244,8 +307,6 @@ class ReviewTest {
         assertEquals(listOf(best, copy, weak).toSet(), group.images.map { it.image }.toSet())
     }
 
-    private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
-
     @Test
     fun `excluding the folder of an image hides its images from every category and the counts`() = test {
         val kept = image("Pictures/Family/a.jpg", blurry(0.9f), Signal("shot", 1, Category.SCREENSHOT, 0.9f))
@@ -256,8 +317,8 @@ class ReviewTest {
 
         assertEquals(listOf(other), shown(page(Category.BLURRY)))
         assertEquals(1, page(Category.BLURRY).remaining)
-        assertEquals(0, categories().first { it.category == Category.SCREENSHOT }.count)
-        assertEquals(1, categories().first { it.category == Category.BLURRY }.count)
+        assertEquals(0, overview().categories.first { it.category == Category.SCREENSHOT }.count)
+        assertEquals(1, overview().categories.first { it.category == Category.BLURRY }.count)
         assertEquals(listOf(File(kept.path).parent), index.excludedFolders())
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(sub.path))
     }

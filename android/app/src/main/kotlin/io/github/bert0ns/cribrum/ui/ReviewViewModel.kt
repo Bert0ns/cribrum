@@ -10,6 +10,7 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.Decision
+import io.github.bert0ns.cribrum.review.Overview
 import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
@@ -43,6 +44,8 @@ data class RetentionChange(val days: Int, val expiring: Int)
 data class ReviewState(
     val screen: Screen = Screen.Home,
     val categories: List<CategorySummary> = emptyList(),
+    /** What all the candidates can free, each image counted once. */
+    val freeableBytes: Long = 0,
     /** Nothing is indexed yet, so the home screen points to "Scan now". */
     val indexEmpty: Boolean = false,
     val page: List<ReviewGroup> = emptyList(),
@@ -62,7 +65,7 @@ data class ReviewState(
     val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     val pendingRetention: RetentionChange? = null,
     val hapticsEnabled: Boolean = true,
-    /** How the open category is grouped by date. Off outside the categories that offer it. */
+    /** How the open category is grouped by date or sorted by size. Off until the user picks one. */
     val dateGrouping: DateGrouping = DateGrouping.OFF,
     /** Folders the user asked never to be suggested again, shown in settings. */
     val excludedFolders: List<String> = emptyList(),
@@ -102,7 +105,7 @@ class ReviewViewModel @JvmOverloads constructor(
         }
     }
 
-    fun refresh() = load { it.copy(categories = review.categories(), indexEmpty = app.index.imageCount() == 0) }
+    fun refresh() = load { it.copy(indexEmpty = app.index.imageCount() == 0).withOverview(review.overview()) }
 
     fun open(category: Category) = load {
         val grouping = app.dateGrouping[category]
@@ -112,7 +115,8 @@ class ReviewViewModel @JvmOverloads constructor(
 
     /** Remembered for the category, and applied to the page at once. The user's marks on images that stay on the page stay. */
     fun setDateGrouping(grouping: DateGrouping) = load { state ->
-        val category = (state.screen as? Screen.Category)?.category?.takeIf { it in DateGrouping.CATEGORIES } ?: return@load state
+        val category = (state.screen as? Screen.Category)?.category ?: return@load state
+        if (grouping !in DateGrouping.optionsFor(category)) return@load state
         app.dateGrouping[category] = grouping
         state.copy(dateGrouping = grouping).showing(pageFor(category, state, grouping = grouping), keepMarksOf = state)
     }
@@ -219,6 +223,8 @@ class ReviewViewModel @JvmOverloads constructor(
         it.withThresholds(app.thresholds.values)
     }
 
+    private fun ReviewState.withOverview(overview: Overview) = copy(categories = overview.categories, freeableBytes = overview.freeableBytes)
+
     private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds))
 
     fun openStorageMap() = load { state ->
@@ -240,7 +246,7 @@ class ReviewViewModel @JvmOverloads constructor(
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
             else ->
-                state.copy(screen = Screen.Home, categories = review.categories(), page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet())
+                state.copy(screen = Screen.Home, page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet()).withOverview(review.overview())
         }
     }
 
