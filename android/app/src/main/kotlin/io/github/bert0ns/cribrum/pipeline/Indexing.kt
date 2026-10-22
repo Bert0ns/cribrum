@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Environment
 import android.os.storage.StorageManager
+import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -114,6 +115,15 @@ object Indexing {
         WorkManager.getInstance(context).updateWork(nightlyBuilder().setId(id).setNextScheduleTimeOverride(next).build())
     }
 
+    /** The notification title for a [Pipeline] step. Every step after the embeddings, the detectors included, is analysis. */
+    @StringRes
+    internal fun phaseTitle(step: String) = when (step) {
+        "scan" -> R.string.scan_phase_scan
+        "metadata" -> R.string.scan_phase_metadata
+        "embeddings" -> R.string.scan_phase_embeddings
+        else -> R.string.scan_phase_analysis
+    }
+
     /** The running scan's progress, from "Scan now" or the nightly request, or null when none runs. */
     fun progress(context: Context): Flow<ScanProgress?> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
         infos.firstOrNull { it.state == WorkInfo.State.RUNNING }?.progress?.let {
@@ -157,27 +167,36 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     protected open suspend fun scan(): Result {
         if (!Environment.isExternalStorageManager()) return Result.failure()
         val app = applicationContext as CribrumApp
-        setForeground(foregroundInfo(applicationContext.getString(R.string.scan_starting)))
+        setForeground(foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting)))
         val purged = app.trash.purgeExpired()
         app.index.forget(purged.map { it.path })
-        var reported = 0L
         val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
-        Pipeline(app.index, embedder = embedder).run(Indexing.deviceSource(applicationContext)) { step, done, total ->
-            val now = System.currentTimeMillis()
-            if (now - reported < PROGRESS_INTERVAL_MS && done != total) return@run
-            reported = now
-            setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total))
-            setForeground(foregroundInfo(applicationContext.getString(R.string.scan_progress, done, total)))
-        }
+        Pipeline(app.index, embedder = embedder).run(Indexing.deviceSource(applicationContext), ::report)
         return Result.success()
     }
 
-    override suspend fun getForegroundInfo() = foregroundInfo(applicationContext.getString(R.string.scan_starting))
+    private var title = 0
+    private var reported = 0L
 
-    private fun foregroundInfo(text: String): ForegroundInfo {
+    /** Sends the progress out, at most once a second, but at once when the phase and so the title change. */
+    protected suspend fun report(step: String, done: Int, total: Int) {
+        val now = System.currentTimeMillis()
+        val phaseTitle = Indexing.phaseTitle(step)
+        if (now - reported < PROGRESS_INTERVAL_MS && done != total && phaseTitle == title) return
+        reported = now
+        title = phaseTitle
+        setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total))
+        // The service is in the foreground since scan() began, so the notification is updated in place.
+        val info = foregroundInfo(phaseTitle, applicationContext.getString(R.string.scan_progress, done, total))
+        applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
+    }
+
+    override suspend fun getForegroundInfo() = foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting))
+
+    private fun foregroundInfo(@StringRes titleRes: Int, text: String): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
-        val title = applicationContext.getString(R.string.scan_channel)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, title, NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, applicationContext.getString(R.string.scan_channel), NotificationManager.IMPORTANCE_LOW))
+        val title = applicationContext.getString(titleRes)
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
