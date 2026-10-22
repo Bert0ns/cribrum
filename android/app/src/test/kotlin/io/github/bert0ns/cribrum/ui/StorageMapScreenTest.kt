@@ -174,6 +174,7 @@ class StorageMapScreenTest {
 
     private fun openStorageMapFromSettings() {
         compose.onNodeWithContentDescription("Settings").performClick()
+        awaitText("About") // the screen changes on the view model scope: scrolling before it would scroll the home list
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
         compose.onNodeWithText("Storage map").assertIsDisplayed().performClick()
         awaitText("DCIM")
