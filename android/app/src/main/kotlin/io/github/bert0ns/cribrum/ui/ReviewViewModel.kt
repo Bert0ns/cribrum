@@ -26,6 +26,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.Duration
+import java.time.temporal.WeekFields
 
 sealed interface Screen {
     data object Home : Screen
@@ -79,7 +80,15 @@ data class ReviewState(
 
 class ReviewViewModel @JvmOverloads constructor(
     application: Application,
-    private val review: Review = (application as CribrumApp).let { Review(it.index, it.trash, thresholds = { it.thresholds.values }) },
+    private val review: Review = (application as CribrumApp).let {
+        Review(
+            it.index,
+            it.trash,
+            thresholds = { it.thresholds.values },
+            // The locale the screen formats its date labels with (LocalConfiguration), so a week and its label agree.
+            firstDayOfWeek = { WeekFields.of(it.resources.configuration.locales[0]).firstDayOfWeek },
+        )
+    },
 ) : AndroidViewModel(application) {
     private val app = application as CribrumApp
     private val mutableState = MutableStateFlow(ReviewState())
