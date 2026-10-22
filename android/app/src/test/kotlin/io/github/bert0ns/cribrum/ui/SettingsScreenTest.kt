@@ -103,7 +103,7 @@ class SettingsScreenTest {
         }
 
         compose.onNodeWithText("Delete 3 images for good?").assertIsDisplayed()
-        compose.onNodeWithText("The next scan deletes the 3 trashed images older than 7 days. This cannot be undone.").assertIsDisplayed()
+        compose.onNodeWithText("The next scan deletes the 3 images that have been in the trash for more than 7 days. This cannot be undone.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(listOf(0, 1), listOf(confirmed, cancelled))
 
