@@ -175,6 +175,34 @@
     <string name="settings_delete_embeddings_title">Delete the embeddings?</string>
     <string name="settings_delete_embeddings_confirm">The app stores one embedding per image to find duplicates, documents and forwarded images. They are computed again at the next scan, which you start with Scan now or which runs by itself at night while the phone charges. A full one takes a while: about 15 to 20 minutes for 10,000 images. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.</string>
     <string name="exclude_folder">Never suggest this folder or its subfolders</string>
+    <!-- Scan status in settings -->
+    <string name="settings_scan_status">Scan status</string>
+    <string name="settings_scan_status_hint">Images analysed out of the images each step needs. Images in the trash are not counted, and neither are stickers for the embedding, document and forwarded steps, which skip them by design.</string>
+    <string name="settings_scan_status_last">Last finished scan</string>
+    <string name="settings_scan_status_none">No scan has finished yet.</string>
+    <plurals name="settings_scan_status_unreadable">
+        <item quantity="one">%1$d unreadable file</item>
+        <item quantity="other">%1$d unreadable files</item>
+    </plurals>
+    <string name="settings_scan_status_no_failures">No failures in the last scan</string>
+    <plurals name="settings_scan_status_failures">
+        <item quantity="one">%1$d failure in the last scan</item>
+        <item quantity="other">%1$d failures in the last scan</item>
+    </plurals>
+    <string name="settings_scan_status_failures_hint">The next scan tries those images again. Tap to show their file names.</string>
+    <string name="settings_scan_status_file">%1$s: %2$s</string>
+    <plurals name="settings_scan_status_more">
+        <item quantity="one">and %1$d more</item>
+        <item quantity="other">and %1$d more</item>
+    </plurals>
+    <plurals name="settings_scan_status_row">
+        <item quantity="one">%1$d of %2$d image analysed \u2022 version %3$d</item>
+        <item quantity="other">%1$d of %2$d images analysed \u2022 version %3$d</item>
+    </plurals>
+    <plurals name="settings_scan_status_row_failed">
+        <item quantity="one">%1$d failed in the last scan</item>
+        <item quantity="other">%1$d failed in the last scan</item>
+    </plurals>
     <string name="excluded_folder_snackbar">Excluded %1$s and its subfolders</string>
     <string name="excluded_copy">Another copy is in an excluded folder</string>
     <string name="remove">Remove</string>

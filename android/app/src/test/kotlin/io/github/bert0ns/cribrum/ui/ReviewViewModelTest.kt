@@ -10,6 +10,8 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.pipeline.Coverage
+import io.github.bert0ns.cribrum.pipeline.Stats
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.PAGE_SIZE
@@ -458,6 +460,19 @@ class ReviewViewModelTest {
         blurry("/sdcard/a.jpg", 0.9f)
         model.refresh()
         settle(model) { !it.state.value.indexEmpty }
+    }
+
+    @Test
+    fun `settings shows what each detector analysed and the last finished scan`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        app.lastScan.record(Stats(unreadable = 3), finishedAt = 5)
+        val model = ReviewViewModel(app)
+
+        model.openSettings()
+        settle(model) { it.state.value.coverage != null }
+
+        assertEquals(Coverage("blur", 1, analysed = 1, needed = 1), model.state.value.coverage!!.single { it.id == "blur" })
+        assertEquals(3, model.state.value.lastScan!!.unreadable)
     }
 
     @Test

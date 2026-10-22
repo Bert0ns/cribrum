@@ -67,6 +67,11 @@ interface Embedder {
 /** Called with a step name, the items done and the items in total (0 while unknown). */
 typealias Progress = suspend (step: String, done: Int, total: Int) -> Unit
 
+/** An image that failed at [step]: "embedding", "perceptual hash" or a detector id. */
+data class Failure(val path: String, val step: String, val error: String) {
+    override fun toString() = "$path: $step: $error"
+}
+
 data class Stats(
     var images: Int = 0,
     var newOrChanged: Int = 0,
@@ -77,7 +82,7 @@ data class Stats(
     /** Per-image analyses left for a run with embeddings. */
     var skipped: Int = 0,
     /** Analyses that threw. They are not stored, so the next run retries them. */
-    val failures: MutableList<String> = mutableListOf(),
+    val failures: MutableList<Failure> = mutableListOf(),
 )
 
 /**
@@ -189,7 +194,7 @@ class Pipeline(
         val todo = images.filter { it.path !in stored }
         var done = 0
         fun fail(image: ImageRef, error: Throwable) {
-            stats.failures += "${image.path}: embedding: ${error.javaClass.simpleName}: ${error.message}"
+            stats.failures += Failure(image.path, EMBEDDING_STEP, "${error.javaClass.simpleName}: ${error.message}")
         }
         for (batch in todo.chunked(EMBEDDING_BATCH)) {
             val decoded = coroutineScope {
@@ -309,7 +314,7 @@ class Pipeline(
             val signals = result.getOrNull()
             when {
                 again(result) -> Unit
-                error != null -> stats.failures += "$path: ${detector.id}: ${error::class.simpleName}: ${error.message}"
+                error != null -> stats.failures += Failure(path, detector.id, "${error::class.simpleName}: ${error.message}")
                 signals == null -> stats.skipped++ // the embedding it needs is missing
                 else -> {
                     index.setSignals(path, detector.id, detector.version, signals)
@@ -324,7 +329,7 @@ class Pipeline(
                     index.setPerceptualHash(path, it)
                     stats.detectorRuns++
                 },
-                onFailure = { stats.failures += "$path: perceptual hash: ${it.javaClass.simpleName}: ${it.message}" },
+                onFailure = { stats.failures += Failure(path, "perceptual hash", "${it.javaClass.simpleName}: ${it.message}") },
             )
         }
         val detectorsAgain = outcome.detectorResults.filter { again(it.second) }.map { it.first }
