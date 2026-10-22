@@ -101,7 +101,7 @@
     <string name="settings_haptics_hint">A short vibration when you select, skip, keep or trash images. It also follows the phone\'s touch feedback setting.</string>
     <string name="settings_thresholds">Detection thresholds</string>
     <string name="thresholds_intro">A category lists an image when one of its scores reaches the threshold. Changes apply at once and need no new scan. Images you kept or trashed stay as they are.</string>
-    <string name="thresholds_raising">Raising a threshold takes images out of the lists, so you may miss some you would have deleted. A sticker is listed under stickers only, so lowering that threshold moves images out of the other lists.</string>
+    <string name="thresholds_raising">Raising a threshold takes images out of the lists, so you may miss some you would have deleted.</string>
     <plurals name="thresholds_more">
         <item quantity="one">%d image more than at the default</item>
         <item quantity="other">%d images more than at the default</item>
