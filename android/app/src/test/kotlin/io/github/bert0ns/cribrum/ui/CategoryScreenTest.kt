@@ -35,9 +35,9 @@ import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.review.CategorySummary
-import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -186,21 +186,21 @@ class CategoryScreenTest {
         compose.onNodeWithText("Never suggest this folder or its subfolders").assertDoesNotExist()
     }
 
-    private fun dated(grouping: DateGrouping, vararg days: LocalDate) = images.zip(days.toList()).map { (image, day) ->
-        ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true)), date = if (grouping == DateGrouping.OFF) null else grouping.start(day, DayOfWeek.MONDAY))
+    private fun dated(grouping: ReviewOrder, vararg days: LocalDate) = images.zip(days.toList()).map { (image, day) ->
+        ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true)), date = if (grouping == ReviewOrder.OFF) null else grouping.start(day, DayOfWeek.MONDAY))
     }
 
     @Test
     fun `a header marks where each date starts and nothing is shown when the grouping is off`() {
         val days = arrayOf(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 2), LocalDate.of(2026, 2, 28))
-        var grouping by mutableStateOf(DateGrouping.DAY)
-        compose.setContent { CategoryScreen(dated(grouping, *days), 3, emptySet(), false, {}, {}, {}, dateGrouping = grouping) }
+        var grouping by mutableStateOf(ReviewOrder.DAY)
+        compose.setContent { CategoryScreen(dated(grouping, *days), 3, emptySet(), false, {}, {}, {}, reviewOrder = grouping) }
 
         compose.onNodeWithText("Mar 2, 2026").assertExists()
         compose.onNodeWithText("Feb 28, 2026").assertExists()
         compose.onAllNodesWithText("Mar 2, 2026").assertCountEquals(1)
 
-        grouping = DateGrouping.OFF
+        grouping = ReviewOrder.OFF
         compose.onNodeWithText("Mar 2, 2026").assertDoesNotExist()
     }
 
@@ -208,13 +208,13 @@ class CategoryScreenTest {
     fun `changing the grouping scrolls the grid back to its top`() {
         val many = (1..80).map { ImageRef("/sdcard/DCIM/many$it.jpg", 1_000, 0) }
         val long = many.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
-        var grouping by mutableStateOf(DateGrouping.OFF)
-        compose.setContent { CategoryScreen(long, 80, emptySet(), false, {}, {}, {}, dateGrouping = grouping) }
+        var grouping by mutableStateOf(ReviewOrder.OFF)
+        compose.setContent { CategoryScreen(long, 80, emptySet(), false, {}, {}, {}, reviewOrder = grouping) }
 
         compose.onNode(hasScrollAction()).performScrollToIndex(60)
         compose.onAllNodesWithContentDescription("many1.jpg", substring = true).assertCountEquals(0)
 
-        grouping = DateGrouping.DAY
+        grouping = ReviewOrder.DAY
         compose.waitForIdle()
 
         compose.onAllNodesWithContentDescription("many1.jpg", substring = true).assertCountEquals(1)
@@ -222,21 +222,21 @@ class CategoryScreenTest {
 
     @Test
     fun `the date control offers off, day, week, month and size and reports the choice`() {
-        var chosen: DateGrouping? = null
-        compose.setContent { DateGroupingMenu(DateGrouping.DAY, DateGrouping.entries) { chosen = it } }
+        var chosen: ReviewOrder? = null
+        compose.setContent { ReviewOrderMenu(ReviewOrder.DAY, ReviewOrder.entries) { chosen = it } }
 
         compose.onNodeWithText("Week").assertDoesNotExist()
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
         listOf("Off", "Day", "Week", "Month", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
         compose.onNodeWithText("Week").performClick()
 
-        assertEquals(DateGrouping.WEEK, chosen)
+        assertEquals(ReviewOrder.WEEK, chosen)
         compose.onNodeWithText("Week").assertDoesNotExist()
     }
 
     @Test
     fun `the control of a category without dates offers off and size only`() {
-        compose.setContent { DateGroupingMenu(DateGrouping.OFF, DateGrouping.optionsFor(Category.STICKER)) {} }
+        compose.setContent { ReviewOrderMenu(ReviewOrder.OFF, ReviewOrder.optionsFor(Category.STICKER)) {} }
 
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
 

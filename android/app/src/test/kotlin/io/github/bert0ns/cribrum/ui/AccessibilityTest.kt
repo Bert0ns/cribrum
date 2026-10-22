@@ -22,9 +22,9 @@ import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
-import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -88,7 +88,7 @@ class AccessibilityTest {
 
     @Test
     fun `the date menu has a target of 48 dp`() {
-        compose.setContent { Box(Modifier.padding(16.dp)) { DateGroupingMenu(DateGrouping.OFF, DateGrouping.entries) {} } }
+        compose.setContent { Box(Modifier.padding(16.dp)) { ReviewOrderMenu(ReviewOrder.OFF, ReviewOrder.entries) {} } }
 
         assertTouchTargets("date menu")
     }
