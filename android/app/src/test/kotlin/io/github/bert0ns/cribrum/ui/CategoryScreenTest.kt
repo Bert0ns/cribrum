@@ -13,6 +13,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -21,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeLeft
@@ -181,6 +183,22 @@ class CategoryScreenTest {
 
         grouping = DateGrouping.OFF
         compose.onNodeWithText("Mar 2, 2026").assertDoesNotExist()
+    }
+
+    @Test
+    fun `changing the grouping scrolls the grid back to its top`() {
+        val many = (1..80).map { ImageRef("/sdcard/DCIM/many$it.jpg", 1_000, 0) }
+        val long = many.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
+        var grouping by mutableStateOf(DateGrouping.OFF)
+        compose.setContent { CategoryScreen(long, 80, emptySet(), false, {}, {}, {}, dateGrouping = grouping) }
+
+        compose.onNode(hasScrollAction()).performScrollToIndex(60)
+        compose.onAllNodesWithContentDescription("many1.jpg").assertCountEquals(0)
+
+        grouping = DateGrouping.DAY
+        compose.waitForIdle()
+
+        compose.onAllNodesWithContentDescription("many1.jpg").assertCountEquals(1)
     }
 
     @Test
