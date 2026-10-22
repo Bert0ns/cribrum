@@ -54,6 +54,11 @@ android {
         compose = true
     }
 
+    // Android 13 and later lists English and Italian under Apps, Cribrum, Language.
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     testOptions {
         unitTests.isIncludeAndroidResources = true // Robolectric
         unitTests.all {
@@ -69,6 +74,10 @@ android {
         disable += setOf("AndroidGradlePluginVersion", "GradleDependency", "NewerVersionAvailable")
         // Cribrum is for phones, so the APK leaves out ChromeOS's x86_64 (abiFilters above).
         disable += "ChromeOsAbiSupport"
+        // A string without its Italian version fails the build (AGENTS.md).
+        error += "MissingTranslation"
+        // Accessibility checks, a few of which are off by default.
+        enable += setOf("ContentDescription", "LabelFor", "ClickableViewAccessibility", "KeyboardInaccessibleWidget", "SpUsage")
     }
 }
 

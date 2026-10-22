@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Cribrum</string>
+    <string name="app_name" translatable="false">Cribrum</string>
     <string name="access_title">Cribrum needs All files access</string>
     <string name="access_body">Many images live in folders the gallery never shows, such as the photos you sent on WhatsApp. To find them, Cribrum reads every folder on this phone. Nothing leaves the phone, and nothing is deleted without your confirmation.</string>
     <string name="access_grant">Allow access</string>
@@ -93,6 +93,10 @@
     <string name="selected_for_trash">Marked for the trash</string>
     <string name="kept">Kept</string>
     <string name="kept_best_copy">Best copy, kept</string>
+    <string name="tile_description" translatable="false">%1$s. %2$s</string>
+    <string name="action_keep">Keep</string>
+    <string name="action_trash">Mark for the trash</string>
+    <string name="action_open_full_size">Open full size</string>
     <string name="reason_exact_duplicate">Identical to the best copy</string>
     <string name="reason_exact_duplicate_best">Best copy: the others are identical to it</string>
     <string name="reason_near_duplicate">Looks like a copy of the best one</string>
@@ -129,9 +133,9 @@
     <string name="settings_about">About</string>
     <string name="settings_version">Version %1$s</string>
     <string name="settings_website">Website</string>
-    <string name="settings_website_url">https://cribrum.bertons.me</string>
+    <string name="settings_website_url" translatable="false">https://cribrum.bertons.me</string>
     <string name="settings_source">Source code</string>
-    <string name="settings_source_url">https://github.com/Bert0ns/cribrum</string>
+    <string name="settings_source_url" translatable="false">https://github.com/Bert0ns/cribrum</string>
     <string name="settings_trash_retention">Keep trashed images for</string>
     <plurals name="settings_trash_days">
         <item quantity="one">%d day</item>
@@ -145,6 +149,7 @@
     <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_hint">A short vibration when you select, skip, keep or trash images. It also follows the phone\'s touch feedback setting.</string>
+    <string name="settings_language">Language</string>
     <string name="settings_thresholds">Detection thresholds</string>
     <string name="thresholds_intro">A category lists an image when one of its scores reaches the threshold. Changes apply at once and need no new scan. Images you kept or trashed stay as they are.</string>
     <string name="thresholds_raising">Raising a threshold takes images out of the lists, so you may miss some you would have deleted.</string>
@@ -156,6 +161,7 @@
         <item quantity="one">%d image fewer than at the default</item>
         <item quantity="other">%d images fewer than at the default</item>
     </plurals>
+    <string name="thresholds_value" translatable="false">%1$s: %2$.2f</string>
     <string name="thresholds_reset">Reset to defaults</string>
     <string name="settings_excluded_folders">Excluded folders</string>
     <string name="settings_no_excluded_folders">No folders are excluded. Exclude one from the storage map, or from an image at full size.</string>

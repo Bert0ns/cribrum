@@ -1,5 +1,9 @@
 package io.github.bert0ns.cribrum.ui
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.text.format.Formatter
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -187,6 +191,17 @@ fun SettingsScreen(
                 trailingContent = { Switch(hapticsEnabled, null) },
                 modifier = Modifier.toggleable(hapticsEnabled, role = Role.Switch, onValueChange = onHapticsChange),
             )
+        }
+        // The app's language page exists from Android 13, where the system picks the language per app.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            item {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_language)) },
+                    modifier = Modifier.clickable {
+                        context.startActivity(Intent(Settings.ACTION_APP_LOCALE_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+                    },
+                )
+            }
         }
         item {
             ListItem(
