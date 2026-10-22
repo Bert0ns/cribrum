@@ -7,7 +7,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +25,14 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -37,6 +43,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,12 +52,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -62,6 +71,7 @@ import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.ReviewGroup
+import io.github.bert0ns.cribrum.review.ReviewItem
 import java.io.File
 
 @Composable
@@ -229,49 +239,96 @@ fun CategoryScreen(
             dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
-    fullSize?.let { image ->
-        FullSize(image, onExcludeFolder = {
-            fullSize = null
+    fullSize?.let { start ->
+        FullSize(images, start, marked, onExcludeFolder = {
             haptics.performHapticFeedback(Haptic.KEEP.type)
-            onExcludeFolder(image)
+            onExcludeFolder(it)
         }) { fullSize = null }
     }
 }
 
 /**
- * The image at full size, to tell real blur from a small thumbnail. Pinch to zoom, tap to close.
- * It also offers to never suggest the image's folder again.
+ * The images of the list at full size, to tell real blur from a small thumbnail. Swipe to page,
+ * pinch to zoom, and drag to pan once zoomed. Tap to close. A chip says how the grid marks the
+ * image, and the view offers to never suggest the image's folder again.
  */
 @Composable
-private fun FullSize(image: ImageRef, onExcludeFolder: () -> Unit, onClose: () -> Unit) {
+private fun FullSize(items: List<ReviewItem>, start: ImageRef, marked: Set<String>, onExcludeFolder: (ImageRef) -> Unit, onClose: () -> Unit) {
+    // The page reloads when a folder is excluded, but not at once: hide the folder here so the view moves on now.
+    var hidden by remember { mutableStateOf(emptyList<String>()) }
+    val shown = items.filter { item -> hidden.none { item.image.path.startsWith("$it/") } }
+    if (shown.isEmpty()) {
+        LaunchedEffect(Unit) { onClose() }
+        return
+    }
+    val pager = rememberPagerState(items.indexOfFirst { it.image == start }.coerceAtLeast(0)) { shown.size }
+    val current = shown[pager.currentPage.coerceAtMost(shown.lastIndex)]
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
-        var scale by remember { mutableFloatStateOf(1f) }
-        var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-        Box(
-            Modifier.fillMaxSize().background(Color.Black)
-                .pointerInput(Unit) {
-                    detectTransformGestures { _, pan, zoom, _ ->
-                        scale = (scale * zoom).coerceIn(1f, 8f)
-                        offset += pan
-                    }
-                }
-                .clickable(onClick = onClose),
-        ) {
-            AsyncImage(
-                model = File(image.path),
-                contentDescription = File(image.path).name,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = offset.x
-                    translationY = offset.y
-                },
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { shown[it].image.path }) { page ->
+                ZoomableImage(shown[page].image, onClose)
+            }
+            val isMarked = current.image.path in marked
+            Text(
+                stringResource(
+                    if (isMarked) {
+                        R.string.selected_for_trash
+                    } else if (current.isBest) {
+                        R.string.kept_best_copy
+                    } else {
+                        R.string.kept
+                    },
+                ),
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+                    .background(if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             )
-            Column(Modifier.align(Alignment.BottomStart).padding(8.dp)) {
-                Text(image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
-                TextButton(onExcludeFolder) { Text(stringResource(R.string.exclude_folder)) }
+            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).padding(8.dp)) {
+                Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
+                TextButton(
+                    onClick = {
+                        hidden = hidden + File(current.image.path).parent!!
+                        onExcludeFolder(current.image)
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                ) { Text(stringResource(R.string.exclude_folder)) }
             }
         }
     }
+}
+
+/** Pinch zooms. A drag pans only while zoomed, so at scale 1 it is left to the pager to change page. */
+@Composable
+private fun ZoomableImage(image: ImageRef, onClose: () -> Unit) {
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    AsyncImage(
+        model = File(image.path),
+        contentDescription = File(image.path).name,
+        contentScale = ContentScale.Fit,
+        modifier = Modifier.fillMaxSize()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    do {
+                        val event = awaitPointerEvent()
+                        val zoom = event.calculateZoom()
+                        if (zoom != 1f || scale > 1f) {
+                            scale = (scale * zoom).coerceIn(1f, 8f)
+                            offset = if (scale == 1f) Offset.Zero else offset + event.calculatePan()
+                            event.changes.forEach { it.consume() }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
+            .clickable(onClick = onClose)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationX = offset.x
+                translationY = offset.y
+            },
+    )
 }
