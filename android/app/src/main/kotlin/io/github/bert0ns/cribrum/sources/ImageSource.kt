@@ -26,8 +26,9 @@ interface ImageSource {
  * keep media the gallery never shows. Files are recognized by their content, not their
  * extension. Symlinks are skipped so no file is yielded twice, and so are FIFOs and other special
  * files, which would block or fail on read. Left out on purpose: the app trash, files in the
- * system trash or still being written (`.trashed-*`, `.pending-*`), and `Android/data` and
- * `Android/obb`, which Android 11 and newer keep from every app.
+ * system trash or still being written (`.trashed-*`, `.pending-*`), `Android/.Trash`, which is
+ * Samsung Gallery's recycle bin, and `Android/data` and `Android/obb`, which Android 11 and newer
+ * keep from every app.
  */
 class FilesystemImageSource(private val root: File) : ImageSource {
     override fun scan(): Flow<ImageRef> = flow {
@@ -53,7 +54,7 @@ class FilesystemImageSource(private val root: File) : ImageSource {
 
     private companion object {
         val SKIPPED_PREFIXES = listOf(".trashed-", ".pending-")
-        val SKIPPED_FOLDERS = setOf("Android/data", "Android/obb")
+        val SKIPPED_FOLDERS = setOf("Android/data", "Android/obb", "Android/.Trash")
     }
 }
 
