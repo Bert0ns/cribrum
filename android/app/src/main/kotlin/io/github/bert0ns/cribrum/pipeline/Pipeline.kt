@@ -1,5 +1,5 @@
-// Analysis pipeline: scan → metadata → embeddings → per-image detectors → group detectors. Mirrors
-// lab/src/cribrum_lab/pipeline.py.
+// Analysis pipeline: scan → metadata → detectors that read no embedding → embeddings → detectors that
+// read one → group detectors. Mirrors lab/src/cribrum_lab/pipeline.py.
 package io.github.bert0ns.cribrum.pipeline
 
 import com.appmattus.crypto.Algorithm
@@ -17,6 +17,7 @@ import io.github.bert0ns.cribrum.detectors.MissingEmbedding
 import io.github.bert0ns.cribrum.detectors.NearDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
 import io.github.bert0ns.cribrum.detectors.StickerDetector
+import io.github.bert0ns.cribrum.folders.isStickerFolder
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.index.ImageIndex
@@ -130,13 +131,18 @@ class Pipeline(
 
         val images = index.images().filter { it.path in found }
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
+        // The home screen lists candidates as soon as these are stored; the embeddings come after.
+        analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", withPhash = true, stats, progress)
+        // A sticker is listed under STICKER only (docs/design.md §8), so no model runs on it.
+        val embeddable = readable.filter { !isStickerFolder(it.path) }
         val embeddings = if (embedder == null) {
             emptyMap()
         } else {
-            embed(embedder, readable, stats, progress)
-            index.embeddings(embedder.id, embedder.version)
+            embed(embedder, embeddable, stats, progress)
+            val kept = embeddable.mapTo(HashSet()) { it.path }
+            index.embeddings(embedder.id, embedder.version).filterKeys { it in kept }
         }
-        analyzeEach(readable, embeddings, stats, progress)
+        analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", withPhash = false, stats, progress)
 
         val context = AnalysisContext(
             contentHash = ::cachedContentHash,
@@ -236,14 +242,22 @@ class Pipeline(
     }
 
     /**
-     * Runs the per-image detectors on [parallelism] images at a time, storing results here, in order
-     * of completion. What ran out of memory meanwhile may have lost to another worker, so it runs
+     * Runs the [selected] per-image detectors, and the perceptual hash if [withPhash], on [parallelism]
+     * images at a time, storing results here, in order of completion. What ran out of memory meanwhile may have lost to another worker, so it runs
      * again alone once the queue is empty.
      */
-    private suspend fun analyzeEach(images: List<ImageRef>, embeddings: Map<String, FloatArray>, stats: Stats, progress: Progress) = coroutineScope {
+    private suspend fun analyzeEach(
+        images: List<ImageRef>,
+        selected: List<Detector>,
+        embeddings: Map<String, FloatArray>,
+        step: String,
+        withPhash: Boolean,
+        stats: Stats,
+        progress: Progress,
+    ) = coroutineScope {
         val tasks = images.mapNotNull { image ->
-            val todo = detectors.filter { !index.isAnalyzed(image.path, it.id, it.version) }
-            val needsPhash = index.perceptualHash(image.path) == null
+            val todo = selected.filter { !index.isAnalyzed(image.path, it.id, it.version) }
+            val needsPhash = withPhash && index.perceptualHash(image.path) == null
             if (todo.isEmpty() && !needsPhash) {
                 null
             } else {
@@ -267,7 +281,7 @@ class Pipeline(
         val again = mutableListOf<AnalysisTask>()
         for (outcome in results) {
             store(outcome, stats, final = false)?.let(again::add)
-            progress("detectors", ++done, tasks.size)
+            progress(step, ++done, tasks.size)
         }
         for (task in again) store(withContext(Dispatchers.Default) { analyze(task) }, stats, final = true)
     }

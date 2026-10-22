@@ -40,7 +40,7 @@ class ScanStatusTest {
     fun `a running scan shows its progress and not the empty message`() {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, indexEmpty = true) }
 
-        compose.onNodeWithText("detectors: 12 of 100").assertExists()
+        compose.onNodeWithText("Analyzing the images: 12 of 100").assertExists()
         compose.onNodeWithText(empty).assertDoesNotExist()
     }
 }

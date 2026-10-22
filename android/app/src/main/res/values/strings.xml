@@ -8,6 +8,7 @@
     <string name="scan_phase_metadata">Reading the images</string>
     <string name="scan_phase_embeddings">Computing the embeddings</string>
     <string name="scan_phase_analysis">Analyzing the images</string>
+    <string name="scan_phase_classification">Classifying the images</string>
     <string name="scan_starting">Starting…</string>
     <string name="scan_progress">%1$d of %2$d</string>
     <string name="scan_now">Scan now</string>

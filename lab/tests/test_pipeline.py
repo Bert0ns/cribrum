@@ -187,6 +187,7 @@ def test_without_an_embedder_the_lookup_raises(photos, index):
 class EmbeddingDetector:
     id = "embedding_user"
     version = 1
+    uses_embeddings = True
 
     def analyze(self, image, context):
         return [
@@ -285,6 +286,109 @@ def test_a_detectors_signal_follows_the_embedding_it_read(photos, index):
     [after] = index.signals(path)
     assert after.score == pytest.approx(index.embeddings("mean_color", 2)[path][0])
     assert after.score != pytest.approx(before.score)
+
+
+def test_the_detectors_that_read_no_embedding_store_their_signals_before_the_first_embedding(
+    photos, index
+):
+    screenshot = photos.resolve() / "Pictures/Screenshots/Screenshot_1.png"
+    before = []
+
+    class Recording(MeanColorEmbedder):
+        def embed_pixels(self, pixels):
+            before.append(categories(index, screenshot))
+            return super().embed_pixels(pixels)
+
+    pipeline.run(photos, index, embedder=Recording())
+
+    assert before[0] == {
+        Category.BLURRY,
+        Category.BAD_EXPOSURE,
+        Category.SCREENSHOT,
+        Category.STICKER,
+        Protection.FACES,
+    }
+
+
+def test_the_steps_run_in_order_the_detectors_that_read_embeddings_last(photos, index):
+    steps = []
+
+    def progress(step, done, total):
+        if not steps or steps[-1] != step:
+            steps.append(step)
+
+    pipeline.run(photos, index, embedder=MeanColorEmbedder(), progress=progress)
+
+    assert steps == [
+        "scan",
+        "metadata",
+        "detectors",
+        "embeddings",
+        "embedded_detectors",
+        "exact_duplicate",
+        "near_duplicate",
+        "burst",
+    ]
+
+
+STICKERS = "WhatsApp/Media/WhatsApp Stickers"
+
+
+def test_a_sticker_is_not_embedded_and_the_detectors_reading_embeddings_leave_it_alone(
+    photos, index
+):
+    sticker = save(photos / STICKERS / "s.png", seed=3)
+
+    stats = pipeline.run(photos, index, embedder=MeanColorEmbedder())
+
+    assert stats.failures == []
+    assert stats.skipped == 0
+    assert len(index.embeddings("mean_color", 1)) == 3
+    signals = index.signals(sticker.resolve())
+    assert {s.category for s in signals} == {
+        Category.BLURRY,
+        Category.BAD_EXPOSURE,
+        Category.SCREENSHOT,
+        Category.STICKER,
+        Protection.FACES,
+    }
+    assert next(s for s in signals if s.category == Category.STICKER).score == 1.0
+
+
+def test_a_sticker_with_no_embedding_is_still_in_a_near_duplicate_group_through_its_hash(
+    tmp_path, index
+):
+    root = tmp_path / "device"
+    save(root / STICKERS / "s.png", seed=3)
+    save(root / STICKERS / "s-copy.png", seed=3)
+
+    pipeline.run(root, index, embedder=MeanColorEmbedder())
+
+    assert Category.NEAR_DUPLICATE in categories(index, root.resolve() / STICKERS / "s-copy.png")
+
+
+def test_an_embedding_a_sticker_got_from_an_earlier_scan_is_not_used(tmp_path, index):
+    root = tmp_path / "device"
+    sticker = save(root / STICKERS / "s.png", seed=3)
+    pipeline.run(root, index, detectors=[], group_detectors=[])
+    index.set_embeddings("mean_color", 1, {sticker.resolve(): np.ones(512)})
+    seen = []
+
+    class Probe:
+        id = "probe"
+        version = 1
+
+        def analyze(self, images, context):
+            try:
+                context.embedding(images[0])
+                seen.append(True)
+            except LookupError:
+                seen.append(False)
+            return {}
+
+    pipeline.run(root, index, detectors=[], group_detectors=[Probe()], embedder=MeanColorEmbedder())
+
+    assert seen == [False]
 
 
 def test_only_the_document_and_forwarded_detectors_read_embeddings():

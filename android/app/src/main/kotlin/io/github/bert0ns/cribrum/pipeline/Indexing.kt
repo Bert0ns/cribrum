@@ -115,12 +115,13 @@ object Indexing {
         WorkManager.getInstance(context).updateWork(nightlyBuilder().setId(id).setNextScheduleTimeOverride(next).build())
     }
 
-    /** The notification title for a [Pipeline] step. Every step after the embeddings, the detectors included, is analysis. */
+    /** The notification title for a [Pipeline] step. The detectors before the embeddings and the group detectors are analysis. */
     @StringRes
     internal fun phaseTitle(step: String) = when (step) {
         "scan" -> R.string.scan_phase_scan
         "metadata" -> R.string.scan_phase_metadata
         "embeddings" -> R.string.scan_phase_embeddings
+        "embedded_detectors" -> R.string.scan_phase_classification
         else -> R.string.scan_phase_analysis
     }
 

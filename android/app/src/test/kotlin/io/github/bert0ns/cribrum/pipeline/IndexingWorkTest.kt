@@ -183,6 +183,7 @@ class IndexingWorkTest {
         assertEquals(R.string.scan_phase_metadata, Indexing.phaseTitle("metadata"))
         assertEquals(R.string.scan_phase_embeddings, Indexing.phaseTitle("embeddings"))
         assertEquals(R.string.scan_phase_analysis, Indexing.phaseTitle("detectors"))
+        assertEquals(R.string.scan_phase_classification, Indexing.phaseTitle("embedded_detectors"))
         assertEquals(R.string.scan_phase_analysis, Indexing.phaseTitle("near_duplicate"))
     }
 
