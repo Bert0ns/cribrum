@@ -194,6 +194,43 @@
     <string name="settings_delete_embeddings_title">Eliminare gli embedding?</string>
     <string name="settings_delete_embeddings_confirm">L\'app salva un embedding per ogni immagine per trovare duplicati, documenti e immagini inoltrate. Vengono ricalcolati alla prossima scansione, che avvii con Scansiona ora o che parte da sola di notte mentre il telefono è in carica. Una scansione completa richiede un po\' di tempo: circa 15–20 minuti per 10.000 immagini. Fino ad allora la schermata di controllo mostra quello che mostra adesso. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
     <string name="exclude_folder">Non suggerire mai questa cartella né le sue sottocartelle</string>
+    <!-- Stato della scansione nelle impostazioni -->
+    <string name="settings_scan_status">Stato della scansione</string>
+    <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i passaggi embedding, documenti e inoltrate, che li saltano per scelta.</string>
+    <string name="settings_scan_status_last">Ultima scansione completata</string>
+    <string name="settings_scan_status_none">Nessuna scansione completata da questa versione.</string>
+    <plurals name="settings_scan_status_unreadable">
+        <item quantity="one">%1$d file illeggibile</item>
+        <item quantity="other">%1$d file illeggibili</item>
+        <item quantity="many">%1$d di file illeggibili</item>
+    </plurals>
+    <string name="settings_scan_status_no_failures">Nessun errore nell\'ultima scansione</string>
+    <plurals name="settings_scan_status_failures">
+        <item quantity="one">%1$d errore nell\'ultima scansione</item>
+        <item quantity="other">%1$d errori nell\'ultima scansione</item>
+        <item quantity="many">%1$d di errori nell\'ultima scansione</item>
+    </plurals>
+    <string name="settings_scan_status_failures_hint">La prossima scansione riprova con queste immagini. Tocca per mostrare o nascondere i nomi dei file.</string>
+    <string name="settings_scan_status_toggle_files">Mostra o nascondi i nomi dei file</string>
+    <string name="settings_scan_status_files_shown">Nomi dei file mostrati</string>
+    <string name="settings_scan_status_files_hidden">Nomi dei file nascosti</string>
+    <string name="settings_scan_status_embedding">Embedding</string>
+    <string name="settings_scan_status_faces">Volti</string>
+    <plurals name="settings_scan_status_more">
+        <item quantity="one">e %1$d altro</item>
+        <item quantity="other">e altri %1$d</item>
+        <item quantity="many">e altri %1$d</item>
+    </plurals>
+    <plurals name="settings_scan_status_row">
+        <item quantity="one">%1$d di %2$d immagine analizzata \u2022 versione %3$d</item>
+        <item quantity="other">%1$d di %2$d immagini analizzate \u2022 versione %3$d</item>
+        <item quantity="many">%1$d di %2$d di immagini analizzate \u2022 versione %3$d</item>
+    </plurals>
+    <plurals name="settings_scan_status_row_failed">
+        <item quantity="one">%1$d con errore nell\'ultima scansione</item>
+        <item quantity="other">%1$d con errore nell\'ultima scansione</item>
+        <item quantity="many">%1$d con errore nell\'ultima scansione</item>
+    </plurals>
     <string name="excluded_folder_snackbar">Cartella %1$s esclusa, con le sue sottocartelle</string>
     <string name="excluded_copy">Un\'altra copia è in una cartella esclusa</string>
     <string name="remove">Rimuovi</string>
