@@ -3,7 +3,6 @@ package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +16,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
@@ -101,10 +102,11 @@ fun TrashScreen(
 private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<String>, onSelect: (TrashedImage) -> Unit) {
     items(trashed, key = { it.file.path }) { item ->
         val daysLeft = Duration.between(Instant.now(), item.purgeAt).toDays().coerceAtLeast(0)
+        val isSelected = item.original.path in selected
         Box(
             Modifier.aspectRatio(1f).padding(2.dp)
-                .border(if (item.original.path in selected) 3.dp else 0.dp, if (item.original.path in selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                .clickable { onSelect(item) },
+                .border(if (isSelected) 3.dp else 0.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                .selectable(isSelected, role = Role.Checkbox) { onSelect(item) },
         ) {
             AsyncImage(File(item.file.path), File(item.original.path).name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Text(
