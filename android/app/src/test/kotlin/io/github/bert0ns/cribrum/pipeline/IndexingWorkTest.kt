@@ -1,5 +1,6 @@
 package io.github.bert0ns.cribrum.pipeline
 
+import android.app.NotificationManager
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Clock
@@ -13,6 +14,7 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.workDataOf
+import io.github.bert0ns.cribrum.R
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -25,6 +27,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -32,9 +35,10 @@ import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Stands in for the scan itself: counts the scans that start, reports progress and waits for [gate]. */
-class FakeScan(context: Context, parameters: WorkerParameters, private val scans: AtomicInteger, private val gate: CompletableDeferred<Unit>) : IndexWorker(context, parameters) {
+class FakeScan(context: Context, parameters: WorkerParameters, private val scans: AtomicInteger, private val gate: CompletableDeferred<Unit>, private val steps: List<Triple<String, Int, Int>> = emptyList()) : IndexWorker(context, parameters) {
     override suspend fun scan(): Result {
         scans.incrementAndGet()
+        steps.forEach { (step, done, total) -> report(step, done, total) }
         setProgress(workDataOf(Indexing.STEP to "detectors", Indexing.DONE to 1, Indexing.TOTAL to 2))
         gate.await()
         return Result.success()
@@ -51,6 +55,7 @@ class IndexingWorkTest {
     private val clock = Clock { now.toInstant().toEpochMilli() }
     private val scans = AtomicInteger()
     private val gate = CompletableDeferred<Unit>()
+    private val steps = mutableListOf<Triple<String, Int, Int>>()
 
     private fun at(day: Int, hour: Int, minute: Int = 0) = ZonedDateTime.of(2026, 10, day, hour, minute, 0, 0, zone)
 
@@ -61,7 +66,7 @@ class IndexingWorkTest {
             .setClock(clock)
             .setExecutor(SynchronousExecutor())
             .setWorkerFactory(object : WorkerFactory() {
-                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = FakeScan(appContext, workerParameters, scans, gate)
+                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = FakeScan(appContext, workerParameters, scans, gate, steps)
             })
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(app, configuration)
@@ -168,5 +173,26 @@ class IndexingWorkTest {
         startNightlyAt(at(22, 2, 30))
 
         assertEquals(1, scans.get())
+    }
+
+    private fun notificationTitle() = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.last().extras.getString("android.title")
+
+    @Test
+    fun `each phase of the pipeline has a title of its own`() {
+        assertEquals(R.string.scan_phase_scan, Indexing.phaseTitle("scan"))
+        assertEquals(R.string.scan_phase_metadata, Indexing.phaseTitle("metadata"))
+        assertEquals(R.string.scan_phase_embeddings, Indexing.phaseTitle("embeddings"))
+        assertEquals(R.string.scan_phase_analysis, Indexing.phaseTitle("detectors"))
+        assertEquals(R.string.scan_phase_analysis, Indexing.phaseTitle("near_duplicate"))
+    }
+
+    @Test
+    fun `the notification title follows the phase, even right after the last update`() {
+        steps += Triple("scan", 100, 0)
+        steps += Triple("embeddings", 1, 10)
+        Indexing.scanNow(app)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        assertEquals(app.getString(R.string.scan_phase_embeddings), notificationTitle())
     }
 }
