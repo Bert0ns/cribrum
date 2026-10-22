@@ -229,6 +229,21 @@ class ReviewTest {
         assertEquals(listOf(dark, blurry(0.9f)), item.reasons)
     }
 
+    @Test
+    fun `a group member that is not a candidate shows the line of its own group signal`() = test {
+        val best = image("DCIM/Camera/a.jpg", nearDuplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", nearDuplicate("g", Role.INFERIOR))
+        val weak = image("Download/a.jpg", nearDuplicate("g", Role.INFERIOR, score = 0.3f))
+
+        val group = page(Category.NEAR_DUPLICATE).groups.single()
+
+        assertEquals(
+            ReviewItem(weak, false, score = 0f, reasons = listOf(nearDuplicate("g", Role.INFERIOR, score = 0.3f))),
+            group.images.single { it.image == weak },
+        )
+        assertEquals(listOf(best, copy, weak).toSet(), group.images.map { it.image }.toSet())
+    }
+
     private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
 
     @Test
