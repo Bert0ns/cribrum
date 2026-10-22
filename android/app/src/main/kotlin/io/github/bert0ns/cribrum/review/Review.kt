@@ -52,7 +52,11 @@ data class ReviewItem(
     val isBest: Boolean = false,
     /** The candidate's score in this category, 0 for a best copy. */
     val score: Float = 0f,
-    /** The signals that make it a candidate, strongest first. A best copy has its own in the category, which is no reason to trash it. */
+    /**
+     * The signals that make it a candidate, strongest first. A group member that is not a candidate,
+     * like the best copy or a kept one, has its own signal in the category instead: it says why the
+     * member is in the group, and is no reason to trash it.
+     */
     val reasons: List<Signal> = emptyList(),
 )
 
