@@ -1,5 +1,9 @@
 package io.github.bert0ns.cribrum.ui
 
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
@@ -35,7 +39,8 @@ class ScanStatusSectionTest {
     fun `each step shows the images analysed out of the images that need it, and its version`() {
         show(coverage, null)
 
-        scrollTo("embedding")
+        scrollTo("Embeddings")
+        scrollTo("Blurry")
         scrollTo("90 of 100 images analysed • version 1")
         scrollTo("120 of 120 images analysed • version 1")
     }
@@ -44,7 +49,7 @@ class ScanStatusSectionTest {
     fun `before a scan finishes it says so`() {
         show(coverage, null)
 
-        scrollTo("No scan has finished yet.")
+        scrollTo("No scan has finished since this version.")
     }
 
     @Test
@@ -54,7 +59,11 @@ class ScanStatusSectionTest {
 
         scrollTo("3 unreadable files")
         scrollTo("2 failed in the last scan")
+        compose.onNodeWithText("2 failures in the last scan").assertHasClickAction()
+        compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).assertExists()
+        compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names hidden")).assertExists()
         compose.onNodeWithText("2 failures in the last scan").performClick()
+        compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names shown")).assertExists()
         scrollTo("embedding: a.jpg")
         scrollTo("embedding: b.jpg")
     }

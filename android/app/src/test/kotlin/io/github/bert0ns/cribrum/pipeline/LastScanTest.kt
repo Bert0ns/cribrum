@@ -2,9 +2,12 @@ package io.github.bert0ns.cribrum.pipeline
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -55,5 +58,18 @@ class LastScanTest {
         scan.record(Stats(), finishedAt = 2)
 
         assertEquals(ScanReport(finishedAt = 2, unreadable = 0, failures = emptyMap(), files = emptyList()), scan.report)
+    }
+
+    @Test
+    fun `a scan that finishes is recorded, one that throws or is cancelled leaves the previous report`() {
+        val scan = LastScan(preferences)
+        runBlocking { scan.run(now = { 1 }) { Stats(unreadable = 1) } }
+
+        assertThrows(IllegalStateException::class.java) { runBlocking { scan.run(now = { 2 }) { error("disk gone") } } }
+        assertThrows(CancellationException::class.java) { runBlocking { scan.run(now = { 3 }) { throw CancellationException("stopped") } } }
+
+        assertEquals(ScanReport(finishedAt = 1, unreadable = 1, failures = emptyMap(), files = emptyList()), scan.report)
+        runBlocking { scan.run(now = { 4 }) { Stats() } }
+        assertEquals(4, scan.report!!.finishedAt)
     }
 }

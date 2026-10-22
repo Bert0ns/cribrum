@@ -17,6 +17,9 @@ class LastScan(private val preferences: SharedPreferences) {
     val report: ScanReport?
         get() = preferences.getString(KEY, null)?.let { runCatching { parse(JSONObject(it)) }.getOrNull() }
 
+    /** Runs [scan] and keeps its report. A scan that throws or is cancelled leaves the previous one. */
+    suspend fun run(now: () -> Long = System::currentTimeMillis, scan: suspend () -> Stats): Stats = scan().also { record(it, now()) }
+
     fun record(stats: Stats, finishedAt: Long) {
         val json = JSONObject()
             .put("finished_at", finishedAt)
