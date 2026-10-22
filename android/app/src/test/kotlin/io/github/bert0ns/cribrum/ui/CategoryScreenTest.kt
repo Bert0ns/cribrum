@@ -9,6 +9,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -29,6 +31,8 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.ROLE_KEY
+import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.DateGrouping
@@ -133,7 +137,7 @@ class CategoryScreenTest {
 
         compose.onNodeWithText("3 of 100 images to review. Confirm these to see the next ones.").assertExists()
         compose.onNodeWithText("Trash 3, keep 0").assertExists()
-        compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
+        tile("img1.jpg").performClick()
         compose.onNodeWithText("Trash 2, keep 1").performClick()
 
         compose.onNodeWithText("Move 2 images to the trash?").assertExists()
@@ -175,7 +179,7 @@ class CategoryScreenTest {
             CategoryScreen(page, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = { excluded = it })
         }
 
-        compose.onAllNodesWithContentDescription("img2.jpg")[0].performTouchInput { longClick() }
+        tile("img2.jpg").performTouchInput { longClick() }
         compose.onNodeWithText("Never suggest this folder or its subfolders").performClick()
 
         assertEquals(images[1], excluded)
@@ -208,12 +212,12 @@ class CategoryScreenTest {
         compose.setContent { CategoryScreen(long, 80, emptySet(), false, {}, {}, {}, dateGrouping = grouping) }
 
         compose.onNode(hasScrollAction()).performScrollToIndex(60)
-        compose.onAllNodesWithContentDescription("many1.jpg").assertCountEquals(0)
+        compose.onAllNodesWithContentDescription("many1.jpg", substring = true).assertCountEquals(0)
 
         grouping = DateGrouping.DAY
         compose.waitForIdle()
 
-        compose.onAllNodesWithContentDescription("many1.jpg").assertCountEquals(1)
+        compose.onAllNodesWithContentDescription("many1.jpg", substring = true).assertCountEquals(1)
     }
 
     @Test
@@ -240,7 +244,7 @@ class CategoryScreenTest {
         listOf("Day", "Week", "Month").forEach { compose.onNodeWithText(it).assertDoesNotExist() }
     }
 
-    private fun openFullSize(name: String) = compose.onAllNodesWithContentDescription(name)[0].performTouchInput { longClick() }
+    private fun openFullSize(name: String) = tile(name).performTouchInput { longClick() }
 
     @Test
     fun `swiping the full size view pages through the images of the list`() {
@@ -269,7 +273,7 @@ class CategoryScreenTest {
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
         compose.onNodeWithText("Marked for the trash").assertExists()
         compose.onNodeWithTag("fullSize").performTouchInput { click() }
-        compose.onAllNodesWithContentDescription("img2.jpg")[0].performClick()
+        tile("img2.jpg").performClick()
         openFullSize("img2.jpg")
         compose.onNodeWithText("Kept").assertExists()
     }
@@ -281,7 +285,7 @@ class CategoryScreenTest {
         val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = true, reasons = listOf(dark, blurry)), ReviewItem(images[1], suggestTrash = true)))
         compose.setContent { CategoryScreen(listOf(group), 2, emptySet(), false, {}, {}, {}) }
 
-        openFullSize("img1.jpg")
+        openFullSize("Too dark")
         compose.onNodeWithText("Too dark").assertExists()
         compose.onNodeWithText("Blurry, the subject is out of focus").assertExists()
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
@@ -366,8 +370,8 @@ class CategoryScreenTest {
     @Test
     fun `selecting and unselecting an image gives a tick, and nothing else`() {
         val given = haptics(page, emptySet()) {
-            compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
-            compose.onAllNodesWithContentDescription("img1.jpg")[0].performClick()
+            tile("img1.jpg").performClick()
+            tile("img1.jpg").performClick()
         }
 
         assertEquals(listOf(Haptic.TICK.type, Haptic.TICK.type), given)
@@ -401,12 +405,80 @@ class CategoryScreenTest {
     @Test
     fun `excluding a folder is a lighter confirm`() {
         val given = haptics(page, emptySet()) {
-            compose.onAllNodesWithContentDescription("img2.jpg")[0].performTouchInput { longClick() }
+            tile("img2.jpg").performTouchInput { longClick() }
             compose.onNodeWithText("Never suggest this folder or its subfolders").performClick()
         }
 
         // The long press that opens the image is the platform's own.
         assertEquals(listOf(HapticFeedbackType.LongPress, Haptic.KEEP.type), given)
+    }
+
+    /** A tile is found by what a screen reader says of it, which starts with the file name when nothing tells why it is here. */
+    private fun tile(name: String) = compose.onAllNodesWithContentDescription(name, substring = true)[0]
+
+    private fun customActions(tile: SemanticsNodeInteraction) = tile.fetchSemanticsNode().config[SemanticsActions.CustomActions]
+
+    private fun perform(tile: SemanticsNodeInteraction, label: String) {
+        val action = customActions(tile).first { it.label == label }
+        compose.runOnUiThread { action.action() }
+        compose.waitForIdle()
+    }
+
+    private fun togglingScreen(page: List<ReviewGroup>, marked: Set<String>) = compose.setContent {
+        var now by remember { mutableStateOf(marked) }
+        CategoryScreen(page, 3, now, false, { image -> now = if (image.path in now) now - image.path else now + image.path }, {}, {})
+    }
+
+    @Test
+    fun `a tile says the strongest reason and how the image is marked`() {
+        val dark = Signal("exposure", 1, Category.BAD_EXPOSURE, 1f, mapOf("case" to "dark"))
+        val blurry = Signal("blur", 1, Category.BLURRY, 0.9f)
+        val reasoned = ReviewItem(images[0], suggestTrash = true, reasons = listOf(dark, blurry))
+        val best = ReviewItem(images[1], suggestTrash = false, isBest = true, reasons = listOf(Signal("exact", 1, Category.EXACT_DUPLICATE, 1f, mapOf(ROLE_KEY to Role.BEST.value))))
+        val group = ReviewGroup("g", listOf(reasoned, best, ReviewItem(images[2], suggestTrash = true)))
+        compose.setContent { CategoryScreen(listOf(group), 3, setOf(images[0].path), true, {}, {}, {}) }
+
+        compose.onNodeWithContentDescription("Too dark. Marked for the trash").assertExists()
+        compose.onNodeWithContentDescription("Best copy: the others are identical to it. Best copy, kept").assertExists()
+        compose.onNodeWithContentDescription("img3.jpg. Kept").assertExists()
+    }
+
+    @Test
+    fun `a marked tile offers keep and open full size, a kept one offers mark for the trash`() {
+        togglingScreen(page, setOf(images[0].path))
+
+        assertEquals(listOf("Keep", "Open full size"), customActions(tile("img1.jpg")).map { it.label })
+        assertEquals(listOf("Mark for the trash", "Open full size"), customActions(tile("img2.jpg")).map { it.label })
+        // The tap and the long press say what they do, not the state.
+        assertEquals("Keep", tile("img1.jpg").fetchSemanticsNode().config[SemanticsActions.OnClick].label)
+        assertEquals("Open full size", tile("img1.jpg").fetchSemanticsNode().config[SemanticsActions.OnLongClick].label)
+    }
+
+    @Test
+    fun `the keep and mark actions change the mark as a tap does`() {
+        togglingScreen(page, setOf(images[0].path))
+
+        perform(tile("img1.jpg"), "Keep")
+        compose.onNodeWithContentDescription("img1.jpg. Kept").assertExists()
+        perform(tile("img1.jpg"), "Mark for the trash")
+        compose.onNodeWithContentDescription("img1.jpg. Marked for the trash").assertExists()
+        compose.onNodeWithText("Trash 1, keep 2").assertExists()
+    }
+
+    @Test
+    fun `the open full size action opens the image`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
+
+        perform(tile("img2.jpg"), "Open full size")
+
+        compose.onNodeWithText(images[1].path).assertExists()
+    }
+
+    @Test
+    fun `the keep action gives the tick of a tap`() {
+        val given = haptics(page, images.map { it.path }.toSet()) { perform(tile("img1.jpg"), "Keep") }
+
+        assertEquals(listOf(Haptic.TICK.type), given)
     }
 
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main)
