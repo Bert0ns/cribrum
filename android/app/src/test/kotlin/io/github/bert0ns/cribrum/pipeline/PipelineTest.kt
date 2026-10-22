@@ -7,6 +7,7 @@ import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.index.memoryIndex
+import io.github.bert0ns.cribrum.mobileclip.preprocess
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Kind
@@ -320,5 +321,82 @@ class PipelineTest {
     @Test
     fun `only the document and forwarded detectors read embeddings`() {
         assertEquals(listOf("document", "forwarded"), DETECTORS.filter { it.usesEmbeddings }.map { it.id })
+    }
+
+    /** Runs out of memory whenever the image at [poison] is in the batch, as a very large decode would. */
+    private inner class OutOfMemoryEmbedder(poison: String) : Embedder {
+        private val inner = MeanColorEmbedder()
+        private val poisoned = preprocess(File(root, poison))
+        var batches = 0
+
+        override val id = inner.id
+        override val version = inner.version
+
+        override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+            batches++
+            if (pixels.any { it.contentEquals(poisoned) }) throw OutOfMemoryError("Failed to allocate")
+            return inner.embedPixels(pixels)
+        }
+    }
+
+    private val poison = "Pictures/Screenshots/Screenshot_1.png"
+
+    @Test
+    fun `an image that runs out of memory does not take its batch or the scan with it`() {
+        photos()
+
+        val stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = OutOfMemoryEmbedder(poison)))
+
+        assertEquals(1, stats.failures.size)
+        assertTrue(stats.failures[0], stats.failures[0].startsWith(File(root, poison).path) && "OutOfMemoryError" in stats.failures[0])
+        assertEquals(setOf("a.png", "a-copy.png"), runBlocking { index.embeddings("mean_color", 1) }.keys.map { File(it).name }.toSet())
+        assertEquals(setOf("embedding_user"), runBlocking { index.signals(File(root, "DCIM/Camera/a.png").path) }.map { it.detectorId }.toSet())
+        assertEquals(1, stats.skipped) // the unembedded image waits for a run that embeds it
+    }
+
+    @Test
+    fun `after deleting the embeddings an image that runs out of memory leaves the others their detectors`() {
+        photos()
+        val detectors = listOf(EmbeddingDetector())
+        run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = MeanColorEmbedder()))
+        runBlocking { index.deleteEmbeddings() }
+
+        val stats = run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = OutOfMemoryEmbedder(poison)))
+
+        assertEquals(1, stats.failures.size)
+        assertEquals(2 + 2, stats.detectorRuns) // two embeddings, then the detector on those two
+        for (name in listOf("DCIM/Camera/a.png", "WhatsApp/Media/a-copy.png")) {
+            assertTrue(name, runBlocking { index.isAnalyzed(File(root, name).path, "embedding_user", 1) })
+        }
+    }
+
+    @Test
+    fun `an image that runs out of memory while decoding gets one more try alone, after its batch`() {
+        photos()
+        val attempts = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val decoder = { file: File ->
+            attempts += file.name
+            if (file.name == "Screenshot_1.png" && attempts.count { it == file.name } == 1) throw OutOfMemoryError("Failed to allocate")
+            preprocess(file)
+        }
+
+        val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), preprocessing = decoder))
+
+        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(2, attempts.count { it == "Screenshot_1.png" })
+        assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
+    }
+
+    @Test
+    fun `an image that always runs out of memory while decoding fails alone`() {
+        photos()
+        val decoder = { file: File -> if (file.name == "Screenshot_1.png") throw OutOfMemoryError("Failed to allocate") else preprocess(file) }
+
+        val stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), preprocessing = decoder))
+
+        assertEquals(1, stats.failures.size)
+        assertTrue(stats.failures[0], "Screenshot_1.png: embedding: OutOfMemoryError" in stats.failures[0])
+        assertEquals(2, runBlocking { index.embeddings("mean_color", 1) }.size)
+        assertEquals(2, runBlocking { index.images() }.count { runBlocking { index.isAnalyzed(it.path, "embedding_user", 1) } })
     }
 }
