@@ -6,16 +6,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
@@ -151,6 +157,67 @@ class CategoryScreenTest {
 
         assertEquals(images[1], excluded)
         compose.onNodeWithText("Never suggest this folder or its subfolders").assertDoesNotExist()
+    }
+
+    private fun openFullSize(name: String) = compose.onAllNodesWithContentDescription(name)[0].performTouchInput { longClick() }
+
+    @Test
+    fun `swiping the full size view pages through the images of the list`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithText(images[0].path).assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+        compose.onNodeWithText(images[1].path).assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeRight() }
+        compose.onNodeWithText(images[0].path).assertExists()
+    }
+
+    @Test
+    fun `the full size chip follows the mark, including the user's taps`() {
+        val best = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = false, isBest = true), ReviewItem(images[1], suggestTrash = true)))
+        compose.setContent {
+            var marked by remember { mutableStateOf(setOf(images[1].path)) }
+            CategoryScreen(listOf(best), 1, marked, true, { image ->
+                marked = if (image.path in marked) marked - image.path else marked + image.path
+            }, {}, {})
+        }
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithText("Best copy, kept").assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+        compose.onNodeWithText("Marked for the trash").assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { click() }
+        compose.onAllNodesWithContentDescription("img2.jpg")[0].performClick()
+        openFullSize("img2.jpg")
+        compose.onNodeWithText("Kept").assertExists()
+    }
+
+    @Test
+    fun `excluding a folder from the full size view excludes the image on show and closes the view`() {
+        var excluded: ImageRef? = null
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = { excluded = it }) }
+        val exclude = "Never suggest this folder or its subfolders"
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+        compose.onNodeWithText(exclude).performClick()
+
+        assertEquals(images[1], excluded)
+        compose.onNodeWithText(exclude).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a drag on a zoomed image pans instead of changing page`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithTag("fullSize").performTouchInput {
+            pinch(center - Offset(50f, 0f), center - Offset(150f, 0f), center + Offset(50f, 0f), center + Offset(150f, 0f))
+        }
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+
+        compose.onNodeWithText(images[0].path).assertExists()
     }
 
     @Test
