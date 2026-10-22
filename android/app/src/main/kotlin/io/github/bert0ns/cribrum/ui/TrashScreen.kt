@@ -35,6 +35,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
@@ -105,17 +108,21 @@ private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<
     items(trashed, key = { it.file.path }) { item ->
         val daysLeft = Duration.between(Instant.now(), item.purgeAt).toDays().coerceAtLeast(0)
         val isSelected = item.original.path in selected
+        val daysText = stringResource(R.string.days_left, daysLeft)
+        val spokenDays = pluralStringResource(R.plurals.trash_tile_days_left, daysLeft.toInt(), daysLeft)
+        val description = stringResource(R.string.tile_description, File(item.original.path).name, spokenDays)
         Box(
             Modifier.aspectRatio(1f).padding(2.dp)
                 .border(if (isSelected) 3.dp else 0.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                .selectable(isSelected, role = Role.Checkbox) { onSelect(item) },
+                .selectable(isSelected, role = Role.Checkbox) { onSelect(item) }
+                .semantics { contentDescription = description },
         ) {
-            AsyncImage(File(item.file.path), File(item.original.path).name, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            AsyncImage(File(item.file.path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Text(
-                stringResource(R.string.days_left, daysLeft),
+                daysText,
                 color = Color.White,
                 style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp),
+                modifier = Modifier.align(Alignment.BottomStart).clearAndSetSemantics {}.background(Color.Black.copy(alpha = 0.6f)).padding(4.dp),
             )
         }
     }
