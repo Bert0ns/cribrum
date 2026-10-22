@@ -24,6 +24,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
@@ -149,6 +150,8 @@ private fun AppContent(model: ReviewViewModel) {
     BackHandler(state.screen != Screen.Home) { model.back() }
     val screen = state.screen
     Scaffold(
+        // The category screen has its own host, above the trash button.
+        snackbarHost = { if (screen !is Screen.Category) SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = {
@@ -232,6 +235,8 @@ private fun AppContent(model: ReviewViewModel) {
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
                     baseHue = trailHue(state.storageMap),
                     onZoomIn = model::zoomStorageMap,
+                    onExclude = { model.excludeFolder(it.path) },
+                    atRoot = state.storageMap.size <= 1,
                 )
             }
         }

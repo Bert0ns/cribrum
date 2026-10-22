@@ -220,6 +220,12 @@ fun SettingsScreen(
             )
         }
         item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_add_excluded_folder)) },
+                modifier = Modifier.clickable { onOpenStorageMap() },
+            )
+        }
+        item {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
         }
         if (storage != null) {

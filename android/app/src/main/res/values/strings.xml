@@ -117,7 +117,8 @@
     </plurals>
     <string name="thresholds_reset">Reset to defaults</string>
     <string name="settings_excluded_folders">Excluded folders</string>
-    <string name="settings_no_excluded_folders">No folders are excluded.</string>
+    <string name="settings_no_excluded_folders">No folders are excluded. Exclude one from the storage map, or from an image at full size.</string>
+    <string name="settings_add_excluded_folder">Add folder</string>
     <string name="settings_storage">Storage</string>
     <string name="settings_storage_app">App</string>
     <string name="settings_storage_index">Index database</string>
@@ -142,6 +143,7 @@
     <string name="storage_map_card_details">%1$s \u2022 image sizes</string>
     <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s \u2022 image sizes</string>
     <string name="storage_map_root">All explored folders</string>
+    <string name="storage_map_exclude">Exclude this folder</string>
     <string name="storage_map_empty">No images indexed</string>
     <string name="storage_map_no_subfolders">No subfolders</string>
     <plurals name="storage_map_summary">

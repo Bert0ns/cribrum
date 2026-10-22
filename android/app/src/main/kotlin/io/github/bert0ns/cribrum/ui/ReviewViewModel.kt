@@ -137,11 +137,22 @@ class ReviewViewModel @JvmOverloads constructor(
         state.showing(review.page(category, state.skipped), keepMarksOf = state).copy(lastExclusion = folder)
     }
 
+    /** Hides the folder from the storage map and from the review, subfolders included. The map starts again from its root. */
+    fun excludeFolder(folder: String) = load { state ->
+        review.excludeFolder(folder)
+        state.copy(storageMap = storageMapRoot(), lastExclusion = folder)
+    }
+
     fun undoExclusion() = load { state ->
         val folder = state.lastExclusion ?: return@load state
         review.removeExcludedFolder(folder)
-        val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastExclusion = null)
-        state.showing(review.page(category, state.skipped), keepMarksOf = state).copy(lastExclusion = null)
+        val undone = state.copy(lastExclusion = null)
+        when (val screen = state.screen) {
+            is Screen.Category -> undone.showing(review.page(screen.category, state.skipped), keepMarksOf = state)
+            Screen.StorageMap -> undone.copy(storageMap = storageMapRoot())
+            Screen.Settings -> undone.copy(excludedFolders = app.index.excludedFolders())
+            else -> undone
+        }
     }
 
     fun dismissExclusion() = mutableState.update { it.copy(lastExclusion = null) }
@@ -190,9 +201,10 @@ class ReviewViewModel @JvmOverloads constructor(
     private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds))
 
     fun openStorageMap() = load { state ->
-        val root = buildFolderTree(review.notTrashed())
-        state.copy(screen = Screen.StorageMap, storageMap = listOf(root))
+        state.copy(screen = Screen.StorageMap, storageMap = storageMapRoot())
     }
+
+    private suspend fun storageMapRoot() = listOf(buildFolderTree(review.notTrashed()))
 
     fun zoomStorageMap(folder: Folder) = load { state ->
         state.copy(storageMap = state.storageMap + folder)
@@ -203,7 +215,7 @@ class ReviewViewModel @JvmOverloads constructor(
             state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
                 state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.StorageMap ->
-                state.copy(screen = Screen.Settings, storageMap = emptyList())
+                state.copy(screen = Screen.Settings, storageMap = emptyList(), excludedFolders = app.index.excludedFolders())
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
             else ->
