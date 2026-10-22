@@ -4,7 +4,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -46,6 +52,20 @@ class TrashScreenTest {
         compose.onNodeWithText("Restore 1").performClick()
 
         assertEquals(setOf("/sdcard/DCIM/a.jpg"), restored)
+    }
+
+    @Test
+    fun `a screen reader hears which images are selected`() {
+        compose.setContent {
+            var selected by remember { mutableStateOf(emptySet<String>()) }
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = {}, onEmpty = {})
+        }
+
+        compose.onNodeWithContentDescription("a.jpg").assertIsNotSelected()
+        compose.onNodeWithContentDescription("a.jpg").performClick()
+        compose.onNodeWithContentDescription("a.jpg").assertIsSelected()
+        compose.onNodeWithContentDescription("b.jpg").assertIsNotSelected()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox) and hasContentDescription("a.jpg")).assertExists()
     }
 
     @Test
