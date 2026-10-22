@@ -35,6 +35,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.pipeline.Coverage
+import io.github.bert0ns.cribrum.pipeline.ScanReport
 import io.github.bert0ns.cribrum.trash.TrashRetention
 
 @Composable
@@ -56,6 +58,8 @@ fun SettingsScreen(
     onDeleteEmbeddings: () -> Unit = {},
     hapticsEnabled: Boolean = true,
     onHapticsChange: (Boolean) -> Unit = {},
+    coverage: List<Coverage>? = null,
+    lastScan: ScanReport? = null,
 ) {
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -69,6 +73,7 @@ fun SettingsScreen(
     val sourceUrl = stringResource(R.string.settings_source_url)
     var choosingRetention by remember { mutableStateOf(false) }
     var confirmingEmbeddings by remember { mutableStateOf(false) }
+    var showingFailedFiles by remember { mutableStateOf(false) }
 
     if (confirmingEmbeddings) {
         AlertDialog(
@@ -262,6 +267,7 @@ fun SettingsScreen(
                 modifier = Modifier.clickable(enabled = !scanning && embeddingCount > 0) { confirmingEmbeddings = true },
             )
         }
+        if (coverage != null) scanStatusSection(coverage, lastScan, showingFailedFiles) { showingFailedFiles = !showingFailedFiles }
     }
 }
 

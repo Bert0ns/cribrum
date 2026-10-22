@@ -230,6 +230,8 @@ private fun AppContent(model: ReviewViewModel) {
                     onDeleteEmbeddings = model::deleteEmbeddings,
                     hapticsEnabled = state.hapticsEnabled,
                     onHapticsChange = model::setHaptics,
+                    coverage = state.coverage,
+                    lastScan = state.lastScan,
                 )
                 Screen.Thresholds -> ThresholdsScreen(
                     state.thresholds,

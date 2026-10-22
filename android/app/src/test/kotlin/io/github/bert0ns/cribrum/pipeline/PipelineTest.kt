@@ -64,7 +64,7 @@ class PipelineTest {
         val stats = run()
 
         assertEquals(3, stats.images)
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
         val screenshot = File(root, "Pictures/Screenshots/Screenshot_1.png").path
         assertEquals(64, runBlocking { index.metadata(screenshot) }!!.width)
         assertNotNull(runBlocking { index.perceptualHash(screenshot) })
@@ -134,7 +134,7 @@ class PipelineTest {
         val stats = run()
 
         assertEquals(1, stats.unreadable)
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
         assertEquals(emptyList<Signal>(), runBlocking { index.signals(broken.path) })
     }
 
@@ -155,11 +155,11 @@ class PipelineTest {
         var stats = run(Pipeline(index, listOf(Failing(fixed = false)), emptyList()))
 
         assertEquals(3, stats.failures.size)
-        assertTrue(stats.failures[0], "IOException: truncated" in stats.failures[0])
+        assertTrue(stats.failures[0].toString(), "IOException: truncated" in stats.failures[0].toString())
 
         stats = run(Pipeline(index, listOf(Failing(fixed = true)), emptyList()))
 
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
         assertEquals(3, stats.detectorRuns)
     }
 
@@ -249,7 +249,7 @@ class PipelineTest {
         var stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList()))
 
         assertEquals(3, stats.skipped)
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
 
         stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = MeanColorEmbedder()))
 
@@ -361,7 +361,7 @@ class PipelineTest {
 
         assertEquals(0, first.skipped)
         assertEquals(3, first.failures.size)
-        assertTrue(first.failures.all { "without usesEmbeddings" in it })
+        assertTrue(first.failures.all { "without usesEmbeddings" in it.error })
         assertEquals(3, second.failures.size)
     }
 
@@ -402,7 +402,7 @@ class PipelineTest {
 
         val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
 
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
         assertEquals(0, stats.skipped)
         assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
         val signals = runBlocking { index.signals(File(root, "$stickerFolder/s.png").path) }
@@ -467,7 +467,7 @@ class PipelineTest {
         val stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = OutOfMemoryEmbedder(poison)))
 
         assertEquals(1, stats.failures.size)
-        assertTrue(stats.failures[0], stats.failures[0].startsWith(File(root, poison).path) && "OutOfMemoryError" in stats.failures[0])
+        assertTrue(stats.failures[0].toString(), stats.failures[0].path == File(root, poison).path && "OutOfMemoryError" in stats.failures[0].error)
         assertEquals(setOf("a.png", "a-copy.png"), runBlocking { index.embeddings("mean_color", 1) }.keys.map { File(it).name }.toSet())
         assertEquals(setOf("embedding_user"), runBlocking { index.signals(File(root, "DCIM/Camera/a.png").path) }.map { it.detectorId }.toSet())
         assertEquals(1, stats.skipped) // the unembedded image waits for a run that embeds it
@@ -501,7 +501,7 @@ class PipelineTest {
 
         val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), preprocessing = decoder))
 
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
         assertEquals(2, attempts.count { it == "Screenshot_1.png" })
         assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
     }
@@ -514,7 +514,7 @@ class PipelineTest {
         val stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), preprocessing = decoder))
 
         assertEquals(1, stats.failures.size)
-        assertTrue(stats.failures[0], "Screenshot_1.png: embedding: OutOfMemoryError" in stats.failures[0])
+        assertTrue(stats.failures[0].toString(), "Screenshot_1.png: embedding: OutOfMemoryError" in stats.failures[0].toString())
         assertEquals(2, runBlocking { index.embeddings("mean_color", 1) }.size)
         assertEquals(2, runBlocking { index.images() }.count { runBlocking { index.isAnalyzed(it.path, "embedding_user", 1) } })
     }
@@ -548,7 +548,7 @@ class PipelineTest {
 
         val stats = run(Pipeline(index, detectors = listOf(detector), groupDetectors = emptyList()))
 
-        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(emptyList<Failure>(), stats.failures)
         assertEquals(setOf("a.png", "Screenshot_1.png"), detector.alone.toSet())
         for (name in listOf("DCIM/Camera/a.png", "WhatsApp/Media/a-copy.png", "Pictures/Screenshots/Screenshot_1.png")) {
             assertTrue(name, runBlocking { index.isAnalyzed(File(root, name).path, "oom_detector", 1) })
@@ -563,7 +563,7 @@ class PipelineTest {
         val stats = run(Pipeline(index, detectors = listOf(detector), groupDetectors = emptyList()))
 
         assertEquals(1, stats.failures.size)
-        assertTrue(stats.failures[0], "Screenshot_1.png: oom_detector: OutOfMemoryError" in stats.failures[0])
+        assertTrue(stats.failures[0].toString(), "Screenshot_1.png: oom_detector: OutOfMemoryError" in stats.failures[0].toString())
         assertEquals(2, runBlocking { index.images() }.count { runBlocking { index.isAnalyzed(it.path, "oom_detector", 1) } })
     }
 }

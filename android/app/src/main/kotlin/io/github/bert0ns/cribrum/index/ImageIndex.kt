@@ -153,6 +153,13 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         row.path to FloatArray(floats.remaining()).also { floats.get(it) }
     }
 
+    suspend fun analyzedPaths(detectorId: String, detectorVersion: Int): Set<String> = dao.analyzedPaths(detectorId, detectorVersion).toSet()
+
+    suspend fun embeddedPaths(model: String, modelVersion: Int): Set<String> = dao.embeddedPaths(model, modelVersion).toSet()
+
+    /** The images a per-image detector must read: not unreadable, and not in the trash, where the scan no longer looks. */
+    suspend fun readableNotTrashed(): List<String> = dao.readableNotTrashed()
+
     /** Replaces whatever this detector stored for the image, from any version. */
     suspend fun setSignals(path: String, detectorId: String, detectorVersion: Int, signals: List<Signal>) = setSignalsOfMany(detectorId, detectorVersion, mapOf(path to signals))
 

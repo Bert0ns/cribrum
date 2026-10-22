@@ -216,6 +216,15 @@ interface IndexDao {
     @Query("SELECT * FROM embeddings WHERE model = :model AND model_version = :modelVersion")
     suspend fun embeddings(model: String, modelVersion: Int): List<EmbeddingRow>
 
+    @Query("SELECT path FROM embeddings WHERE model = :model AND model_version = :modelVersion")
+    suspend fun embeddedPaths(model: String, modelVersion: Int): List<String>
+
+    @Query("SELECT path FROM analyses WHERE detector_id = :detectorId AND detector_version = :version")
+    suspend fun analyzedPaths(detectorId: String, version: Int): List<String>
+
+    @Query("SELECT path FROM images WHERE NOT unreadable AND review_state != 'trashed'")
+    suspend fun readableNotTrashed(): List<String>
+
     @Query("DELETE FROM analyses WHERE path = :path")
     suspend fun deleteAnalyses(path: String)
 

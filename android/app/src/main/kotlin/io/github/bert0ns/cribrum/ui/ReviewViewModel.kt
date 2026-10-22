@@ -6,6 +6,9 @@ import androidx.lifecycle.viewModelScope
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.pipeline.Coverage
+import io.github.bert0ns.cribrum.pipeline.ScanReport
+import io.github.bert0ns.cribrum.pipeline.coverage
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.DateGrouping
@@ -73,6 +76,9 @@ data class ReviewState(
     val embeddingCount: Int = 0,
     /** What Cribrum takes on the phone, shown in settings. */
     val storage: StorageUse? = null,
+    /** What each detector analysed out of the images that need it, and the last finished scan, shown in settings. */
+    val coverage: List<Coverage>? = null,
+    val lastScan: ScanReport? = null,
     /** The thresholds in use, and how many candidates each category lists at them and at the defaults. */
     val thresholds: Map<Category, Float> = THRESHOLDS,
     val thresholdCounts: Map<Category, Int> = emptyMap(),
@@ -143,6 +149,14 @@ class ReviewViewModel @JvmOverloads constructor(
             )
         }
         refreshStorage()
+        refreshScanStatus()
+    }
+
+    /** Counts outside the lock of [load] too, and under the same rule as [refreshStorage]. */
+    private fun refreshScanStatus() = viewModelScope.launch {
+        val coverage = withContext(Dispatchers.Default) { app.index.coverage() }
+        val lastScan = withContext(Dispatchers.IO) { app.lastScan.report }
+        load { if (it.screen == Screen.Settings) it.copy(coverage = coverage, lastScan = lastScan) else it }
     }
 
     /**

@@ -18,6 +18,7 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 const val MODEL_ID = "mobileclip2_s0"
+const val MODEL_VERSION = 1
 const val DIMENSIONS = 512
 const val INPUT_SIDE = 256
 
@@ -75,7 +76,7 @@ private fun cropChannel(decoded: Argb, shift: Int, orientation: Int, out: FloatA
 /** Embeddings are L2-normalized, so a dot product is the cosine similarity. */
 class MobileClip(loadVision: () -> ModelRuntime) : Embedder {
     override val id = MODEL_ID
-    override val version = 1
+    override val version = MODEL_VERSION
 
     private val vision by lazy(loadVision)
 
