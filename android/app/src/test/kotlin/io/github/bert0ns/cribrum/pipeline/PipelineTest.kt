@@ -399,4 +399,52 @@ class PipelineTest {
         assertEquals(2, runBlocking { index.embeddings("mean_color", 1) }.size)
         assertEquals(2, runBlocking { index.images() }.count { runBlocking { index.isAnalyzed(it.path, "embedding_user", 1) } })
     }
+
+    /** Runs out of memory on [victims]' first attempt, as a healthy image does when another worker took the memory. */
+    private class OutOfMemoryDetector(private val victims: Set<String>, private val always: Set<String> = emptySet()) : Detector {
+        override val id = "oom_detector"
+        override val version = 1
+        private val inFlight = java.util.concurrent.atomic.AtomicInteger()
+        private val attempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val alone = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
+            val name = File(image.path).name
+            val concurrent = inFlight.incrementAndGet()
+            try {
+                val attempt = attempts.merge(name, 1, Int::plus)!!
+                if (attempt > 1 && concurrent == 1) alone += name
+                if (name in always || (name in victims && attempt == 1)) throw OutOfMemoryError("Failed to allocate")
+                return listOf(Signal(id, version, Category.BLURRY, 0.5f))
+            } finally {
+                inFlight.decrementAndGet()
+            }
+        }
+    }
+
+    @Test
+    fun `an image that ran out of memory in a detector is not failed, it runs again alone after the others`() {
+        photos()
+        val detector = OutOfMemoryDetector(victims = setOf("a.png", "Screenshot_1.png"))
+
+        val stats = run(Pipeline(index, detectors = listOf(detector), groupDetectors = emptyList()))
+
+        assertEquals(emptyList<String>(), stats.failures)
+        assertEquals(setOf("a.png", "Screenshot_1.png"), detector.alone.toSet())
+        for (name in listOf("DCIM/Camera/a.png", "WhatsApp/Media/a-copy.png", "Pictures/Screenshots/Screenshot_1.png")) {
+            assertTrue(name, runBlocking { index.isAnalyzed(File(root, name).path, "oom_detector", 1) })
+        }
+    }
+
+    @Test
+    fun `an image that always runs out of memory in a detector fails alone`() {
+        photos()
+        val detector = OutOfMemoryDetector(victims = setOf("a.png"), always = setOf("Screenshot_1.png"))
+
+        val stats = run(Pipeline(index, detectors = listOf(detector), groupDetectors = emptyList()))
+
+        assertEquals(1, stats.failures.size)
+        assertTrue(stats.failures[0], "Screenshot_1.png: oom_detector: OutOfMemoryError" in stats.failures[0])
+        assertEquals(2, runBlocking { index.images() }.count { runBlocking { index.isAnalyzed(it.path, "oom_detector", 1) } })
+    }
 }
