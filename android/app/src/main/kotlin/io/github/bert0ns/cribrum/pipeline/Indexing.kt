@@ -74,8 +74,10 @@ object Indexing {
      * Later passes only process new or changed files, so a daily one while charging is cheap.
      * KEEP, so the delay to the night is computed once: UPDATE would measure a new delay from the
      * original enqueue time. The first request had no delay and a name of its own, which is cancelled.
-     * The same holds for later changes to [dailyRequest] (constraints, time): they reach the installs
-     * that already have the request only under a new unique name, as this one replaced the first.
+     * KEEP leaves the request as it is, but [pinNextNight] rewrites its constraints, interval and tags from
+     * the current code when each nightly run ends, so a change to those reaches installs after their next
+     * nightly run. Only the initial delay stays fixed. Changing it needs a new unique name, as this one
+     * replaced the first, and drops the pinned night of the installs that have the old name.
      */
     fun schedulePeriodic(context: Context, now: ZonedDateTime = ZonedDateTime.now()) {
         val manager = WorkManager.getInstance(context)
