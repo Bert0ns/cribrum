@@ -1,4 +1,37 @@
 <resources>
+    <!--
+        Glossary: use these Italian terms for new strings, so the app keeps one word for each thing.
+
+        trash (noun)                      cestino
+        to trash, move to the trash       cestinare (button: "Cestina"), "sposta nel cestino"
+        marked for the trash              segnata per il cestino
+        keep, kept                        tieni, tenuta
+        image                             immagine
+        to review (a candidate)           da controllare
+        scan                              scansione ("Scansiona ora")
+        embedding                         embedding (English, invariable)
+        duplicate, copy                   copia identica, copia simile
+        best copy                         copia migliore ("Migliore" on the tile)
+        burst                             raffica (of scatti)
+        blurry                            sfocata
+        screenshot                        screenshot (invariable)
+        forwarded                         inoltrata
+        sticker                           sticker
+        threshold                         soglia
+        folder, excluded                  cartella, esclusa
+        storage                           archiviazione
+        skip                              salta
+        undo, cancel                      annulla (both, as Android does)
+        delete, remove, restore           elimina, rimuovi, ripristina
+        settings, language                impostazioni, lingua
+        haptic feedback                   feedback tattile
+        scan status                       stato della scansione
+        failure, unreadable file          errore, file illeggibile
+        faces                             volti
+
+        Every plural also needs the "many" form, which lint asks of Italian: the number of millions,
+        as in "1.000.000 di immagini".
+    -->
     <string name="access_title">Cribrum ha bisogno dell\'accesso a tutti i file</string>
     <string name="access_body">Molte immagini si trovano in cartelle che la galleria non mostra, come le foto ricevute su WhatsApp. Per trovarle, Cribrum legge ogni cartella del telefono. Niente esce dal telefono e niente viene eliminato senza la tua conferma.</string>
     <string name="access_grant">Consenti l\'accesso</string>
