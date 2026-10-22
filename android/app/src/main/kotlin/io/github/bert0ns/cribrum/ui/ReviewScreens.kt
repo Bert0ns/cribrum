@@ -146,7 +146,7 @@ fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen:
     }
 }
 
-/** The control of the category screen's top bar: one menu with the review order to choose to choose. */
+/** The control of the category screen's top bar: one menu with the review order to choose. */
 @Composable
 fun ReviewOrderMenu(selected: ReviewOrder, options: List<ReviewOrder>, onSelect: (ReviewOrder) -> Unit) {
     var open by remember { mutableStateOf(false) }
