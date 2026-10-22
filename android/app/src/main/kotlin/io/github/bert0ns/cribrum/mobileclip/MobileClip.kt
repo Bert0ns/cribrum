@@ -2,6 +2,7 @@
 // without the text encoder: the app ships the prompts' embeddings instead.
 package io.github.bert0ns.cribrum.mobileclip
 
+import io.github.bert0ns.cribrum.imaging.Argb
 import io.github.bert0ns.cribrum.imaging.BILINEAR
 import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
@@ -50,22 +51,25 @@ fun preprocess(file: File): FloatArray {
     val decoded = decode(file, INPUT_SIDE)
     val orientation = orientation(file)
     val out = FloatArray(PIXELS)
-    for ((c, shift) in listOf(16, 8, 0).withIndex()) {
-        val plane = channel(decoded, shift, orientation)
-        val scale = INPUT_SIDE.toDouble() / min(plane.width, plane.height)
-        // Math.rint rounds halves to even, as Python's round does.
-        val width = max(INPUT_SIDE, Math.rint(plane.width * scale).toInt())
-        val height = max(INPUT_SIDE, Math.rint(plane.height * scale).toInt())
-        val resized = resample(plane, width, height, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
-        val left = (width - INPUT_SIDE) / 2
-        val top = (height - INPUT_SIDE) / 2
-        for (y in 0 until INPUT_SIDE) {
-            for (x in 0 until INPUT_SIDE) {
-                out[(c * INPUT_SIDE + y) * INPUT_SIDE + x] = resized[left + x, top + y] / 255f
-            }
+    for ((c, shift) in listOf(16, 8, 0).withIndex()) cropChannel(decoded, shift, orientation, out, c * INPUT_SIDE * INPUT_SIDE)
+    return out
+}
+
+/** Writes one channel's center crop into [out]. Its own function so the full-size plane is out of scope before the next channel's. */
+private fun cropChannel(decoded: Argb, shift: Int, orientation: Int, out: FloatArray, offset: Int) {
+    val plane = channel(decoded, shift, orientation)
+    val scale = INPUT_SIDE.toDouble() / min(plane.width, plane.height)
+    // Math.rint rounds halves to even, as Python's round does.
+    val width = max(INPUT_SIDE, Math.rint(plane.width * scale).toInt())
+    val height = max(INPUT_SIDE, Math.rint(plane.height * scale).toInt())
+    val resized = resample(plane, width, height, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
+    val left = (width - INPUT_SIDE) / 2
+    val top = (height - INPUT_SIDE) / 2
+    for (y in 0 until INPUT_SIDE) {
+        for (x in 0 until INPUT_SIDE) {
+            out[offset + y * INPUT_SIDE + x] = resized[left + x, top + y] / 255f
         }
     }
-    return out
 }
 
 /** Embeddings are L2-normalized, so a dot product is the cosine similarity. */
