@@ -6,6 +6,7 @@
 // follows OpenCV's FaceDetectorYN and gives the same boxes.
 package io.github.bert0ns.cribrum.detectors
 
+import io.github.bert0ns.cribrum.imaging.Argb
 import io.github.bert0ns.cribrum.imaging.BILINEAR
 import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
@@ -72,17 +73,20 @@ internal object YuNet {
         val orientation = orientation(file)
         val canvas = FloatArray(3 * INPUT_SIDE * INPUT_SIDE)
         var size = 0 to 0
-        for ((c, shift) in listOf(0, 8, 16).withIndex()) { // blue, green, red
-            val plane = channel(decoded, shift, orientation)
-            val scale = INPUT_SIDE.toDouble() / max(plane.width, plane.height)
-            // Math.rint rounds halves to even, as Python's round does.
-            val width = max(1, Math.rint(plane.width * scale).toInt())
-            val height = max(1, Math.rint(plane.height * scale).toInt())
-            val resized = resample(plane, width, height, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
-            for (y in 0 until height) for (x in 0 until width) canvas[(c * INPUT_SIDE + y) * INPUT_SIDE + x] = resized[x, y]
-            size = width to height
-        }
+        for ((c, shift) in listOf(0, 8, 16).withIndex()) size = letterboxChannel(decoded, shift, orientation, canvas, c) // blue, green, red
         return Letterbox(canvas, size.first, size.second)
+    }
+
+    /** Writes one channel scaled into [canvas] and returns its size. Its own function so the full-size plane is out of scope before the next channel's. */
+    private fun letterboxChannel(decoded: Argb, shift: Int, orientation: Int, canvas: FloatArray, c: Int): Pair<Int, Int> {
+        val plane = channel(decoded, shift, orientation)
+        val scale = INPUT_SIDE.toDouble() / max(plane.width, plane.height)
+        // Math.rint rounds halves to even, as Python's round does.
+        val width = max(1, Math.rint(plane.width * scale).toInt())
+        val height = max(1, Math.rint(plane.height * scale).toInt())
+        val resized = resample(plane, width, height, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
+        for (y in 0 until height) for (x in 0 until width) canvas[(c * INPUT_SIDE + y) * INPUT_SIDE + x] = resized[x, y]
+        return width to height
     }
 
     /** A face in input pixels. */

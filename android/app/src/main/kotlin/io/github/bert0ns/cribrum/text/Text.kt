@@ -6,7 +6,9 @@
 // recognition: whether there is a lot of text matters, not what it says.
 package io.github.bert0ns.cribrum.text
 
+import io.github.bert0ns.cribrum.imaging.Argb
 import io.github.bert0ns.cribrum.imaging.BILINEAR
+import io.github.bert0ns.cribrum.imaging.Gray
 import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
 import io.github.bert0ns.cribrum.imaging.orientation
@@ -42,10 +44,16 @@ fun preprocess(file: File): Tensor {
     val (outW, outH) = side(width) to side(height)
     val out = FloatArray(3 * outW * outH)
     for ((c, shift) in listOf(16, 8, 0).withIndex()) {
-        val resized = resample(channel(decoded, shift, orientation), outW, outH, 0.0, 0.0, width.toDouble(), height.toDouble(), BILINEAR)
+        val resized = resizedChannel(decoded, shift, orientation, outW, outH)
         for (i in 0 until outW * outH) out[c * outW * outH + i] = (resized.pixels[i] / 255f - MEAN[c]) / STD[c]
     }
     return Tensor(longArrayOf(1, 3, outH.toLong(), outW.toLong()), out)
+}
+
+/** The channel turned and resized. Its own function so the full-size plane is out of scope before the next channel's. */
+private fun resizedChannel(decoded: Argb, shift: Int, orientation: Int, outW: Int, outH: Int): Gray {
+    val plane = channel(decoded, shift, orientation)
+    return resample(plane, outW, outH, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
 }
 
 fun textCoverage(file: File, runtime: ModelRuntime = defaultRuntime): Float {
