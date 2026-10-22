@@ -19,8 +19,13 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import java.io.File
+import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.temporal.WeekFields
+import java.util.Locale
 
 /** Images shown at once: a few screens of thumbnails, reviewed and applied together. */
 const val PAGE_SIZE = 48
@@ -35,6 +40,8 @@ data class ReviewGroup(
     val images: List<ReviewItem>,
     /** A copy sits in an excluded folder. It is not listed, so the screen says it exists. */
     val hasExcludedCopy: Boolean = false,
+    /** The day, week or month the group is shown under when the review is grouped by date. */
+    val date: LocalDate? = null,
 )
 
 data class ReviewItem(
@@ -60,6 +67,8 @@ class Review(
     /** Read on every call, so a threshold the user changes applies to the next list without a scan. */
     private val thresholds: () -> Map<Category, Float> = { THRESHOLDS },
     private val detectorCategories: Set<Category> = DETECTOR_CATEGORIES,
+    private val zone: () -> ZoneId = ZoneId::systemDefault,
+    private val firstDayOfWeek: () -> DayOfWeek = { WeekFields.of(Locale.getDefault()).firstDayOfWeek },
 ) {
     /** Every category in fixed order, with its candidate count and size, and whether it has a detector. */
     suspend fun categories(): List<CategorySummary> {
@@ -81,12 +90,13 @@ class Review(
     /**
      * The first page of a category: groups in the ranker's order, never split across pages. Groups
      * whose id is in [skipped] are left out, and they are not counted in the remaining candidates.
+     * With a [grouping] other than off, the newest date comes first and the ranker's order holds inside each date.
      */
-    suspend fun page(category: Category, skipped: Set<String> = emptySet()): Page {
+    suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: DateGrouping = DateGrouping.OFF): Page {
         val excluded = index.excludedFolders()
         val images = index.indexedImages()
         val candidates = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))[category].orEmpty()
-        val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates))
+        val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates, grouping))
             .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()
         var size = 0
@@ -151,8 +161,17 @@ class Review(
         return index.notTrashed().filterNot { isExcluded(it.path, excluded) }
     }
 
-    private fun singles(category: Category, candidates: List<Candidate>) = candidates.map {
-        ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category))))
+    private suspend fun singles(category: Category, candidates: List<Candidate>, grouping: DateGrouping): List<ReviewGroup> {
+        val groups = candidates.map {
+            ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category))))
+        }
+        if (grouping == DateGrouping.OFF) return groups
+        val capturedAt = index.capturedAt()
+        val zone = zone()
+        val firstDay = firstDayOfWeek()
+        return groups
+            .map { it.copy(date = grouping.start(imageDate(it.images.single().image, capturedAt[it.id], zone), firstDay)) }
+            .sortedByDescending { it.date } // stable: the ranker's order holds inside a date
     }
 
     /** Members in an [excluded] folder are left out: the review never lists, trashes or keeps them. */

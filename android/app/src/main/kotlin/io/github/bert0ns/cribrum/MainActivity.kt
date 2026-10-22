@@ -44,9 +44,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
+import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
+import io.github.bert0ns.cribrum.ui.DateGroupingMenu
 import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.Haptic
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
@@ -177,6 +179,9 @@ private fun AppContent(model: ReviewViewModel) {
                             Icon(Icons.Filled.Settings, stringResource(R.string.settings))
                         }
                     }
+                    if (screen is Screen.Category && screen.category in DateGrouping.CATEGORIES) {
+                        DateGroupingMenu(state.dateGrouping, model::setDateGrouping)
+                    }
                 },
             )
         },
@@ -198,6 +203,7 @@ private fun AppContent(model: ReviewViewModel) {
                     model::skip,
                     snackbar = snackbar,
                     onExcludeFolder = model::excludeFolder,
+                    dateGrouping = state.dateGrouping,
                 )
                 Screen.Trash -> TrashScreen(
                     state.trashed,

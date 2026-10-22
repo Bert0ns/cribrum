@@ -8,6 +8,7 @@ import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
+import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.Decision
 import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
@@ -60,6 +61,8 @@ data class ReviewState(
     val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     val pendingRetention: RetentionChange? = null,
     val hapticsEnabled: Boolean = true,
+    /** How the open category is grouped by date. Off outside the categories that offer it. */
+    val dateGrouping: DateGrouping = DateGrouping.OFF,
     /** Folders the user asked never to be suggested again, shown in settings. */
     val excludedFolders: List<String> = emptyList(),
     /** Embeddings stored in the index, shown in settings. */
@@ -93,7 +96,16 @@ class ReviewViewModel @JvmOverloads constructor(
     fun refresh() = load { it.copy(categories = review.categories(), indexEmpty = app.index.imageCount() == 0) }
 
     fun open(category: Category) = load {
-        it.copy(screen = Screen.Category(category), lastDecision = null, lastExclusion = null, skipped = emptySet()).showing(review.page(category))
+        val grouping = app.dateGrouping[category]
+        it.copy(screen = Screen.Category(category), lastDecision = null, lastExclusion = null, skipped = emptySet(), dateGrouping = grouping)
+            .showing(review.page(category, grouping = grouping))
+    }
+
+    /** Remembered for the category, and applied to the page at once. The user's marks on images that stay on the page stay. */
+    fun setDateGrouping(grouping: DateGrouping) = load { state ->
+        val category = (state.screen as? Screen.Category)?.category?.takeIf { it in DateGrouping.CATEGORIES } ?: return@load state
+        app.dateGrouping[category] = grouping
+        state.copy(dateGrouping = grouping).showing(review.page(category, state.skipped, grouping), keepMarksOf = state)
     }
 
     fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
@@ -134,7 +146,7 @@ class ReviewViewModel @JvmOverloads constructor(
     fun excludeFolder(image: ImageRef) = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val folder = review.excludeFolderOf(image)
-        state.showing(review.page(category, state.skipped), keepMarksOf = state).copy(lastExclusion = folder)
+        state.showing(review.page(category, state.skipped, state.dateGrouping), keepMarksOf = state).copy(lastExclusion = folder)
     }
 
     /** Hides the folder from the storage map and from the review, subfolders included. The map starts again from its root. */
@@ -148,7 +160,7 @@ class ReviewViewModel @JvmOverloads constructor(
         review.removeExcludedFolder(folder)
         val undone = state.copy(lastExclusion = null)
         when (val screen = state.screen) {
-            is Screen.Category -> undone.showing(review.page(screen.category, state.skipped), keepMarksOf = state)
+            is Screen.Category -> undone.showing(review.page(screen.category, state.skipped, state.dateGrouping), keepMarksOf = state)
             Screen.StorageMap -> undone.copy(storageMap = storageMapRoot())
             Screen.Settings -> undone.copy(excludedFolders = app.index.excludedFolders())
             else -> undone
@@ -232,21 +244,21 @@ class ReviewViewModel @JvmOverloads constructor(
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val images = state.page.flatMap { group -> group.images.map { it.image } }
         val decision = review.apply(images.filter { it.path in state.marked }, images.filter { it.path !in state.marked })
-        state.showing(review.page(category, state.skipped)).copy(lastDecision = decision)
+        state.showing(review.page(category, state.skipped, state.dateGrouping)).copy(lastDecision = decision)
     }
 
     /** Leaves the groups [ids] for later without deciding anything: their images stay unreviewed. */
     fun skip(ids: Set<String>) = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val skipped = state.skipped + ids
-        state.showing(review.page(category, skipped)).copy(lastDecision = null, skipped = skipped)
+        state.showing(review.page(category, skipped, state.dateGrouping)).copy(lastDecision = null, skipped = skipped)
     }
 
     fun undo() = load { state ->
         val decision = state.lastDecision ?: return@load state
         review.undo(decision)
         val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null)
-        state.showing(review.page(category, state.skipped)).copy(lastDecision = null)
+        state.showing(review.page(category, state.skipped, state.dateGrouping)).copy(lastDecision = null)
     }
 
     fun dismissUndo() = mutableState.update { it.copy(lastDecision = null) }

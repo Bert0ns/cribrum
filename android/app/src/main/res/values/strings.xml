@@ -44,6 +44,11 @@
     <string name="best_copy">Best</string>
     <string name="apply">Trash %1$d, keep %2$d</string>
     <string name="skip">Skip</string>
+    <string name="date_grouping">Group by date</string>
+    <string name="date_grouping_off">Off</string>
+    <string name="date_grouping_day">Day</string>
+    <string name="date_grouping_week">Week</string>
+    <string name="date_grouping_month">Month</string>
     <plurals name="summary_title">
         <item quantity="one">Move %d image to the trash?</item>
         <item quantity="other">Move %d images to the trash?</item>

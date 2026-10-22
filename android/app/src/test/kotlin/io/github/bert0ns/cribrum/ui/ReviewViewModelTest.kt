@@ -4,12 +4,14 @@ import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
 import io.github.bert0ns.cribrum.CribrumApp
+import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
+import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.PAGE_SIZE
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.trash.AppTrash
@@ -31,6 +33,7 @@ import org.robolectric.annotation.Config
 import java.io.File
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -120,6 +123,48 @@ class ReviewViewModelTest {
         model.undo()
         settle(model) { it.state.value.lastDecision == null }
         assertEquals(listOf("/sdcard/b.jpg"), paths(model))
+    }
+
+    @Test
+    fun `grouping a category by date reorders its page, keeps the user's marks, and is remembered for that category`() {
+        blurry("/sdcard/old.jpg", 0.9f)
+        blurry("/sdcard/new.jpg", 0.5f)
+        runBlocking {
+            app.index.setMetadata("/sdcard/old.jpg", ImageMetadata(10, 10, "image/jpeg", capturedAt = LocalDateTime.of(2020, 1, 1, 12, 0)))
+            app.index.setMetadata("/sdcard/new.jpg", ImageMetadata(10, 10, "image/jpeg", capturedAt = LocalDateTime.of(2026, 1, 1, 12, 0)))
+        }
+        val model = ReviewViewModel(app)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 2 }
+        assertEquals(DateGrouping.OFF, model.state.value.dateGrouping)
+        assertEquals(listOf("/sdcard/old.jpg", "/sdcard/new.jpg"), paths(model))
+        model.toggle(model.state.value.page.first().images.single().image) // keep old.jpg
+
+        model.setDateGrouping(DateGrouping.MONTH)
+        settle(model) { it.state.value.dateGrouping == DateGrouping.MONTH }
+
+        assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
+        assertEquals(setOf("/sdcard/new.jpg"), model.state.value.marked)
+        val next = ReviewViewModel(app)
+        next.open(Category.BLURRY)
+        settle(next) { paths(it).size == 2 }
+        assertEquals(DateGrouping.MONTH, next.state.value.dateGrouping)
+        assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(next))
+        next.open(Category.SCREENSHOT)
+        settle(next) { it.state.value.screen == Screen.Category(Category.SCREENSHOT) }
+        assertEquals(DateGrouping.OFF, next.state.value.dateGrouping)
+    }
+
+    @Test
+    fun `a category without the control ignores a date grouping`() {
+        val model = ReviewViewModel(app)
+        model.open(Category.STICKER)
+        settle(model) { it.state.value.screen == Screen.Category(Category.STICKER) }
+
+        model.setDateGrouping(DateGrouping.DAY)
+        settle(model) { true }
+
+        assertEquals(DateGrouping.OFF, model.state.value.dateGrouping)
     }
 
     /** A file in a trash of its own, trashed [daysAgo] days ago (the trash reads its time from origin.properties). */
