@@ -93,21 +93,33 @@
     <string name="reason_exact_duplicate_best">Best copy: the others are identical to it</string>
     <string name="reason_near_duplicate">Looks like a copy of the best one</string>
     <string name="reason_near_duplicate_best">Best copy: the others look like it</string>
-    <string name="reason_burst">One of a burst of %1$d, not the sharpest</string>
-    <string name="reason_burst_best">Best of a burst of %1$d: the sharpest</string>
+    <plurals name="reason_burst">
+        <item quantity="one">One of a burst of %1$d, the sharpest is kept</item>
+        <item quantity="other">One of a burst of %1$d, the sharpest is kept</item>
+    </plurals>
+    <string name="reason_burst_plain">One of a burst, the sharpest is kept</string>
+    <plurals name="reason_burst_best">
+        <item quantity="one">Best of a burst of %1$d: the sharpest</item>
+        <item quantity="other">Best of a burst of %1$d: the sharpest</item>
+    </plurals>
+    <string name="reason_burst_best_plain">Best of a burst: the sharpest</string>
     <string name="reason_blurry">Blurry, the subject is out of focus</string>
     <string name="reason_dark">Too dark</string>
     <string name="reason_bright">Too bright</string>
     <string name="reason_flat">Flat, with almost no contrast</string>
     <string name="reason_exposure">Exposure looks wrong</string>
     <string name="reason_document_text">Text on %1$d%% of the image</string>
+    <string name="reason_document_little_text">Text on less than %1$d%% of the image</string>
     <string name="reason_document">Looks like a document, a slide or a note</string>
-    <string name="reason_screenshot_name">Named like a screenshot (%1$s)</string>
-    <string name="reason_screenshot_size">The size of a phone screen (%1$s)</string>
+    <string name="reason_screenshot_name">Its name or folder says screenshot (%1$s)</string>
+    <string name="reason_screenshot_size">The size of a screen (%1$s)</string>
+    <string name="reason_screenshot_size_plain">The size of a screen</string>
     <string name="reason_screenshot_exif">No camera data, like a screenshot</string>
+    <string name="reason_screenshot">Looks like a screenshot</string>
     <string name="reason_forwarded_look">Looks like a meme or a greeting image</string>
     <string name="reason_forwarded_folder">In a messaging app folder</string>
     <string name="reason_forwarded_exif">No camera data, like a forwarded image</string>
+    <string name="reason_forwarded">Looks forwarded from a messaging app</string>
     <string name="reason_sticker">In a sticker folder</string>
     <string name="settings">Settings</string>
     <string name="settings_about">About</string>
