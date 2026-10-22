@@ -310,6 +310,56 @@ def test_the_detectors_that_read_no_embedding_store_their_signals_before_the_fir
     }
 
 
+class UnflaggedEmbeddingDetector:
+    id = "unflagged"
+    version = 1
+
+    def analyze(self, image, context):
+        return [
+            Signal(self.id, self.version, Category.DOCUMENT, float(context.embedding(image)[0]))
+        ]
+
+
+def test_a_detector_that_reads_an_embedding_without_saying_so_fails_on_every_run(photos, index):
+    def run():
+        return pipeline.run(
+            photos,
+            index,
+            detectors=[UnflaggedEmbeddingDetector()],
+            group_detectors=[],
+            embedder=MeanColorEmbedder(),
+        )
+
+    first, second = run(), run()
+
+    assert first.skipped == 0
+    assert len(first.failures) == 3
+    assert all("without uses_embeddings" in failure for failure in first.failures)
+    assert len(second.failures) == 3
+
+
+def test_a_run_stopped_after_the_fast_detectors_resumes_with_the_embeddings(photos, index):
+    class Stopped(MeanColorEmbedder):
+        def embed_pixels(self, pixels):
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        pipeline.run(photos, index, embedder=Stopped())
+    screenshot = photos.resolve() / "Pictures/Screenshots/Screenshot_1.png"
+    assert categories(index, screenshot) == {
+        Category.BLURRY,
+        Category.BAD_EXPOSURE,
+        Category.SCREENSHOT,
+        Category.STICKER,
+        Protection.FACES,
+    }
+
+    stats = pipeline.run(photos, index, embedder=MeanColorEmbedder())
+
+    readers = 2  # document and forwarded
+    assert stats.detector_runs == 3 + 3 * readers + len(pipeline.GROUP_DETECTORS)
+
+
 def test_the_steps_run_in_order_the_detectors_that_read_embeddings_last(photos, index):
     steps = []
 

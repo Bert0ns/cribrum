@@ -132,8 +132,8 @@ class Pipeline(
         val images = index.images().filter { it.path in found }
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
         // The home screen lists candidates as soon as these are stored; the embeddings come after.
-        analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", withPhash = true, stats, progress)
-        // A sticker is listed under STICKER only (docs/design.md §8), so no model runs on it.
+        analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
+        // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val embeddable = readable.filter { !isStickerFolder(it.path) }
         val embeddings = if (embedder == null) {
             emptyMap()
@@ -142,7 +142,7 @@ class Pipeline(
             val kept = embeddable.mapTo(HashSet()) { it.path }
             index.embeddings(embedder.id, embedder.version).filterKeys { it in kept }
         }
-        analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", withPhash = false, stats, progress)
+        analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
 
         val context = AnalysisContext(
             contentHash = ::cachedContentHash,
@@ -171,6 +171,7 @@ class Pipeline(
         val embedding: FloatArray?,
         val detectors: List<Detector>,
         val needsPhash: Boolean,
+        val beforeEmbeddings: Boolean,
     )
 
     private class AnalysisOutcome(
@@ -242,26 +243,27 @@ class Pipeline(
     }
 
     /**
-     * Runs the [selected] per-image detectors, and the perceptual hash if [withPhash], on [parallelism]
-     * images at a time, storing results here, in order of completion. What ran out of memory meanwhile may have lost to another worker, so it runs
-     * again alone once the queue is empty.
+     * Runs the [selected] per-image detectors on [parallelism] images at a time, storing results here,
+     * in order of completion. What ran out of memory meanwhile may have lost to another worker, so it
+     * runs again alone once the queue is empty. The pass [beforeEmbeddings] also computes the perceptual
+     * hashes, and a detector in it that asks for an embedding fails: it should have said `usesEmbeddings`.
      */
     private suspend fun analyzeEach(
         images: List<ImageRef>,
         selected: List<Detector>,
         embeddings: Map<String, FloatArray>,
         step: String,
-        withPhash: Boolean,
+        beforeEmbeddings: Boolean,
         stats: Stats,
         progress: Progress,
     ) = coroutineScope {
         val tasks = images.mapNotNull { image ->
             val todo = selected.filter { !index.isAnalyzed(image.path, it.id, it.version) }
-            val needsPhash = withPhash && index.perceptualHash(image.path) == null
+            val needsPhash = beforeEmbeddings && index.perceptualHash(image.path) == null
             if (todo.isEmpty() && !needsPhash) {
                 null
             } else {
-                AnalysisTask(image, index.metadata(image.path)!!, embeddings[image.path], todo, needsPhash)
+                AnalysisTask(image, index.metadata(image.path)!!, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
             }
         }
         val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
@@ -289,7 +291,10 @@ class Pipeline(
     private suspend fun analyze(task: AnalysisTask): AnalysisOutcome {
         val context = AnalysisContext(
             metadata = { task.metadata },
-            embedding = { task.embedding ?: throw MissingEmbedding(it) },
+            embedding = {
+                check(!task.beforeEmbeddings) { "${task.image.path}: reads an embedding without usesEmbeddings" }
+                task.embedding ?: throw MissingEmbedding(it)
+            },
         )
         val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context) }
         return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image) else null)
@@ -327,7 +332,7 @@ class Pipeline(
         return if (detectorsAgain.isEmpty() && !phashAgain) {
             null
         } else {
-            AnalysisTask(outcome.task.image, outcome.task.metadata, outcome.task.embedding, detectorsAgain, phashAgain)
+            AnalysisTask(outcome.task.image, outcome.task.metadata, outcome.task.embedding, detectorsAgain, phashAgain, outcome.task.beforeEmbeddings)
         }
     }
 

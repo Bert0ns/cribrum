@@ -128,8 +128,11 @@ def run(
     readable = [i for i in images if i.path not in unreadable]
     # The home screen lists candidates as soon as these are stored; the embeddings come after.
     fast = [d for d in detectors if not getattr(d, "uses_embeddings", False)]
-    _analyze_each(readable, fast, {}, "detectors", True, index, jobs, stats, progress)
-    # A sticker is listed under STICKER only (docs/design.md, 8), so no model runs on it.
+    _analyze_each(
+        readable, fast, {}, "detectors", index, jobs, stats, progress, before_embeddings=True
+    )
+    # A sticker is listed under STICKER only (docs/design.md, 8), so neither MobileCLIP nor
+    # text coverage runs on it.
     embeddable = [i for i in readable if not is_sticker_folder(i.path)]
     embeddings = {}
     if embedder is not None:
@@ -142,7 +145,15 @@ def run(
         }
     reading = [d for d in detectors if d not in fast]
     _analyze_each(
-        embeddable, reading, embeddings, "embedded_detectors", False, index, jobs, stats, progress
+        embeddable,
+        reading,
+        embeddings,
+        "embedded_detectors",
+        index,
+        jobs,
+        stats,
+        progress,
+        before_embeddings=False,
     )
 
     context = AnalysisContext(
@@ -173,20 +184,32 @@ def _analyze_each(
     detectors: Sequence[Detector],
     embeddings: dict[Path, np.ndarray],
     step: str,
-    with_phash: bool,
     index: ImageIndex,
     jobs: int,
     stats: Stats,
     progress: Progress,
+    *,
+    before_embeddings: bool,
 ) -> None:
-    """Runs `detectors`, and the perceptual hash if `with_phash`, on the images that lack them."""
+    """Runs `detectors` on the images that lack them.
+
+    The pass `before_embeddings` also computes the perceptual hashes, and a detector in it that
+    asks for an embedding fails: it should have set `uses_embeddings`.
+    """
     tasks = []
     for image in images:
         todo = [d for d in detectors if not index.is_analyzed(image.path, d.id, d.version)]
-        needs_phash = with_phash and index.perceptual_hash(image.path) is None
+        needs_phash = before_embeddings and index.perceptual_hash(image.path) is None
         if todo or needs_phash:
             tasks.append(
-                (image, index.metadata(image.path), embeddings.get(image.path), todo, needs_phash)
+                (
+                    image,
+                    index.metadata(image.path),
+                    embeddings.get(image.path),
+                    todo,
+                    needs_phash,
+                    before_embeddings,
+                )
             )
     for done, (image, results, phash) in enumerate(_map(_analyze, tasks, jobs), 1):
         for detector_id, version, outcome in results:
@@ -206,7 +229,7 @@ def _analyze_each(
 
 
 def _analyze(
-    task: tuple[ImageRef, ImageMetadata, np.ndarray | None, list[Detector], bool],
+    task: tuple[ImageRef, ImageMetadata, np.ndarray | None, list[Detector], bool, bool],
 ) -> tuple[ImageRef, list[tuple[str, int, list[Signal] | str | None]], int | str | None]:
     """Runs in a worker process: metadata and embedding come along, the index stays in the
     parent.
@@ -214,10 +237,12 @@ def _analyze(
     Errors come back as text, so one broken file does not stop a run over thousands. A
     detector that needs the missing embedding comes back as None.
     """
-    image, metadata, embedding, detectors, needs_phash = task
+    image, metadata, embedding, detectors, needs_phash, before_embeddings = task
     context = AnalysisContext(
         metadata=lambda _: metadata,
-        embedding=_stored_embedding({image.path: embedding} if embedding is not None else {}),
+        embedding=_no_embedding_yet
+        if before_embeddings
+        else _stored_embedding({image.path: embedding} if embedding is not None else {}),
     )
     results = []
     for detector in detectors:
@@ -235,6 +260,10 @@ def _analyze(
         except Exception as error:
             phash = _describe(error)
     return image, results, phash
+
+
+def _no_embedding_yet(image: ImageRef) -> np.ndarray:
+    raise RuntimeError(f"{image.path}: reads an embedding without uses_embeddings")
 
 
 def _embed(

@@ -344,6 +344,45 @@ class PipelineTest {
         assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), before)
     }
 
+    private class UnflaggedEmbeddingDetector : Detector {
+        override val id = "unflagged"
+        override val version = 1
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext) = listOf(Signal(id, version, Category.DOCUMENT, context.embedding(image)[0]))
+    }
+
+    @Test
+    fun `a detector that reads an embedding without saying so fails on every run`() {
+        photos()
+        val pipeline = { Pipeline(index, detectors = listOf(UnflaggedEmbeddingDetector()), groupDetectors = emptyList(), embedder = MeanColorEmbedder()) }
+
+        val first = run(pipeline())
+        val second = run(pipeline())
+
+        assertEquals(0, first.skipped)
+        assertEquals(3, first.failures.size)
+        assertTrue(first.failures.all { "without usesEmbeddings" in it })
+        assertEquals(3, second.failures.size)
+    }
+
+    @Test
+    fun `a run stopped after the fast detectors resumes with the embeddings and does not repeat them`() {
+        photos()
+        val stopped = object : Embedder {
+            override val id = "mean_color"
+            override val version = 1
+
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> = throw kotlinx.coroutines.CancellationException("stopped")
+        }
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) { run(Pipeline(index, embedder = stopped)) }
+        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), kinds("Pictures/Screenshots/Screenshot_1.png"))
+
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        val readers = DETECTORS.count { it.usesEmbeddings }
+        assertEquals(3 + 3 * readers + GROUP_DETECTORS.size, stats.detectorRuns) // embeddings, then the readers; no fast detector, no hash
+    }
+
     @Test
     fun `the steps run in order, the detectors that read embeddings last`() {
         photos()
