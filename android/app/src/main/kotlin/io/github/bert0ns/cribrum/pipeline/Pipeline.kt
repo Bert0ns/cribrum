@@ -92,6 +92,7 @@ class Pipeline(
     private val embedder: Embedder? = null,
     /** Images analyzed at once: decoding is the slow part, and it runs on every core. */
     private val parallelism: Int = Runtime.getRuntime().availableProcessors(),
+    private val preprocessing: (File) -> FloatArray = ::preprocess,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -172,35 +173,65 @@ class Pipeline(
         val phash: Result<ULong>?,
     )
 
-    /** Decodes on every core, then runs the model on a batch at a time. Images it can't decode get no embedding. */
+    /**
+     * Decodes on every core, then runs the model on a batch at a time. An image that fails is a
+     * failure of that image only: it gets no embedding and the run goes on.
+     */
     private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
         val stored = index.embeddings(embedder.id, embedder.version).keys
         val todo = images.filter { it.path !in stored }
         var done = 0
+        fun fail(image: ImageRef, error: Throwable) {
+            stats.failures += "${image.path}: embedding: ${error.javaClass.simpleName}: ${error.message}"
+        }
         for (batch in todo.chunked(EMBEDDING_BATCH)) {
             val decoded = coroutineScope {
-                batch.map { image -> async(Dispatchers.Default) { image to preprocessOrFailure(image) } }.awaitAll()
+                batch.map { image -> async(Dispatchers.Default) { image to attempt { preprocessing(File(image.path)) } } }.awaitAll()
             }
-            val pixels = decoded.mapNotNull { (image, outcome) ->
-                outcome.onFailure { stats.failures += "${image.path}: embedding: ${it.javaClass.simpleName}: ${it.message}" }
-                outcome.getOrNull()?.let { image to it }
+            val pixels = mutableListOf<Pair<ImageRef, FloatArray>>()
+            val outOfMemory = mutableListOf<ImageRef>()
+            for ((image, outcome) in decoded) {
+                val error = outcome.exceptionOrNull()
+                when {
+                    error == null -> pixels += image to outcome.getOrThrow()
+                    error is OutOfMemoryError -> outOfMemory += image
+                    else -> fail(image, error)
+                }
             }
-            if (pixels.isNotEmpty()) {
-                val vectors = withContext(Dispatchers.Default) { embedder.embedPixels(pixels.map { it.second }) }
+            // Other decodes may have taken the memory this one needed, so it gets one more go, alone.
+            for (image in outOfMemory) {
+                attempt { preprocessing(File(image.path)) }.fold({ pixels += image to it }, { fail(image, it) })
+            }
+            val vectors = withContext(Dispatchers.Default) { embedBatch(embedder, pixels, ::fail) }
+            if (vectors.isNotEmpty()) {
                 // A detector's result belongs to the embedding it read: a new one means analyzing again.
-                index.forgetAnalyses(pixels.map { it.first.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
-                index.setEmbeddings(embedder.id, embedder.version, pixels.map { it.first.path }.zip(vectors).toMap())
-                stats.detectorRuns += pixels.size
+                index.forgetAnalyses(vectors.keys.toList(), detectors.filter { it.usesEmbeddings }.map { it.id })
+                index.setEmbeddings(embedder.id, embedder.version, vectors)
+                stats.detectorRuns += vectors.size
             }
             done += batch.size
             progress("embeddings", done, todo.size)
         }
     }
 
-    private fun preprocessOrFailure(image: ImageRef): Result<FloatArray> = try {
-        Result.success(preprocess(File(image.path)))
+    /** One call for the batch. If it throws, one call per image finds which images it throws for. */
+    private fun embedBatch(embedder: Embedder, pixels: List<Pair<ImageRef, FloatArray>>, fail: (ImageRef, Throwable) -> Unit): Map<String, FloatArray> {
+        if (pixels.isEmpty()) return emptyMap()
+        attempt { embedder.embedPixels(pixels.map { it.second }) }.onSuccess { return pixels.map { it.first.path }.zip(it).toMap() }
+        return pixels.mapNotNull { (image, plane) ->
+            val vector = attempt { embedder.embedPixels(listOf(plane)).single() }
+            vector.exceptionOrNull()?.let { fail(image, it) }
+            vector.getOrNull()?.let { image.path to it }
+        }.toMap()
+    }
+
+    /** An image's failure, [OutOfMemoryError] included, comes back as a value, so it never stops the run. */
+    private inline fun <T> attempt(block: () -> T): Result<T> = try {
+        Result.success(block())
     } catch (error: Exception) {
         if (error is CancellationException) throw error
+        Result.failure(error)
+    } catch (error: OutOfMemoryError) {
         Result.failure(error)
     }
 
@@ -274,14 +305,11 @@ class Pipeline(
     } catch (error: Exception) {
         if (error is CancellationException) throw error
         Triple(detector, null, "${error::class.simpleName}: ${error.message}")
+    } catch (error: OutOfMemoryError) {
+        Triple(detector, null, "${error::class.simpleName}: ${error.message}")
     }
 
-    private fun computePhash(image: ImageRef): Result<ULong> = try {
-        Result.success(perceptualHash(image))
-    } catch (error: Exception) {
-        if (error is CancellationException) throw error
-        Result.failure(error)
-    }
+    private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHash(image) }
 
     private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHash(image).also { index.setContentHash(image.path, it) }
 
