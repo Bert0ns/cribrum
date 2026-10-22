@@ -340,6 +340,15 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `the summary promises the retention the user chose`() {
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, {}, retentionDays = 7) }
+
+        compose.onNodeWithText("Trash 3, keep 0").performClick()
+
+        compose.onNodeWithText("You can restore anything from the trash for 7 days.", substring = true).assertExists()
+    }
+
+    @Test
     fun `the undo snackbar shows above the trash button, not over it`() {
         val snackbar = SnackbarHostState()
         compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, {}, snackbar = snackbar) }

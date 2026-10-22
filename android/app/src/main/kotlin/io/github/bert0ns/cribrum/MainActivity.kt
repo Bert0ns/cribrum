@@ -205,6 +205,7 @@ private fun AppContent(model: ReviewViewModel) {
                     snackbar = snackbar,
                     onExcludeFolder = model::excludeFolder,
                     dateGrouping = state.dateGrouping,
+                    retentionDays = state.retentionDays,
                 )
                 Screen.Trash -> TrashScreen(
                     state.trashed,
@@ -213,6 +214,7 @@ private fun AppContent(model: ReviewViewModel) {
                     model::selectAll,
                     model::restoreSelected,
                     model::emptyTrash,
+                    retentionDays = state.retentionDays,
                 )
                 Screen.Settings -> SettingsScreen(
                     onOpenStorageMap = model::openStorageMap,

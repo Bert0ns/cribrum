@@ -57,7 +57,10 @@
         <item quantity="one">Move %d image to the trash?</item>
         <item quantity="other">Move %d images to the trash?</item>
     </plurals>
-    <string name="summary_body">They take %1$s. The other images on this page will be kept. You can restore anything from the trash for 30 days.</string>
+    <plurals name="summary_body">
+        <item quantity="one">They take %1$s. The other images on this page will be kept. You can restore anything from the trash for %2$d day.</item>
+        <item quantity="other">They take %1$s. The other images on this page will be kept. You can restore anything from the trash for %2$d days.</item>
+    </plurals>
     <string name="summary_confirm">Move to trash</string>
     <string name="cancel">Cancel</string>
     <plurals name="trashed_snackbar">
@@ -70,7 +73,10 @@
     </plurals>
     <string name="undo">Undo</string>
     <string name="trash_empty">The trash is empty.</string>
-    <string name="trash_hint">Tap images to select them. They are deleted for good 30 days after they were trashed.</string>
+    <plurals name="trash_hint">
+        <item quantity="one">Tap images to select them. They are deleted for good %d day after they were trashed.</item>
+        <item quantity="other">Tap images to select them. They are deleted for good %d days after they were trashed.</item>
+    </plurals>
     <string name="days_left">%1$dd left</string>
     <string name="restore">Restore %1$d</string>
     <string name="empty_trash">Empty trash</string>

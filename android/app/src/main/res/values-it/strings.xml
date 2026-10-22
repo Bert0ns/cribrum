@@ -93,7 +93,11 @@
         <item quantity="other">Spostare %d immagini nel cestino?</item>
         <item quantity="many">Spostare %d di immagini nel cestino?</item>
     </plurals>
-    <string name="summary_body">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per 30 giorni.</string>
+    <plurals name="summary_body">
+        <item quantity="one">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per %2$d giorno.</item>
+        <item quantity="other">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per %2$d giorni.</item>
+        <item quantity="many">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per %2$d di giorni.</item>
+    </plurals>
     <string name="summary_confirm">Sposta nel cestino</string>
     <string name="cancel">Annulla</string>
     <plurals name="trashed_snackbar">
@@ -108,7 +112,11 @@
     </plurals>
     <string name="undo">Annulla</string>
     <string name="trash_empty">Il cestino è vuoto.</string>
-    <string name="trash_hint">Tocca le immagini per selezionarle. Vengono eliminate definitivamente 30 giorni dopo essere finite nel cestino.</string>
+    <plurals name="trash_hint">
+        <item quantity="one">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d giorno dopo essere finite nel cestino.</item>
+        <item quantity="other">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d giorni dopo essere finite nel cestino.</item>
+        <item quantity="many">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d di giorni dopo essere finite nel cestino.</item>
+    </plurals>
     <string name="days_left">%1$d gg</string>
     <string name="restore">Ripristina %1$d</string>
     <string name="empty_trash">Svuota il cestino</string>

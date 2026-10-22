@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.folders.isStickerFolder
+import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import java.io.File
 import java.time.Duration
@@ -53,6 +54,7 @@ fun TrashScreen(
     onRestore: () -> Unit,
     onEmpty: () -> Unit,
     modifier: Modifier = Modifier,
+    retentionDays: Int = TrashRetention.DEFAULT_DAYS,
 ) {
     var confirmEmpty by remember { mutableStateOf(false) }
     Column(modifier.fillMaxSize()) {
@@ -60,7 +62,7 @@ fun TrashScreen(
             Text(stringResource(R.string.trash_empty), Modifier.padding(16.dp))
             return@Column
         }
-        Text(stringResource(R.string.trash_hint), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+        Text(pluralStringResource(R.plurals.trash_hint, retentionDays, retentionDays), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
         // Stickers apart, as in the review: thousands of them would bury the photos.
         val (stickers, others) = trashed.partition { isStickerFolder(it.original.path) }
         val sections = listOf(R.plurals.trash_section_images to others, R.plurals.trash_section_stickers to stickers)

@@ -55,6 +55,13 @@ class TrashScreenTest {
     }
 
     @Test
+    fun `the hint says how long the trash keeps images, as chosen`() {
+        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}, retentionDays = 7) }
+
+        compose.onNodeWithText("deleted for good 7 days after", substring = true).assertExists()
+    }
+
+    @Test
     fun `a screen reader hears which images are selected`() {
         compose.setContent {
             var selected by remember { mutableStateOf(emptySet<String>()) }
