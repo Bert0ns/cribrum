@@ -76,7 +76,8 @@ android {
         disable += "ChromeOsAbiSupport"
         // A string without its Italian version fails the build (AGENTS.md).
         error += "MissingTranslation"
-        // Accessibility checks, a few of which are off by default.
+        // These only read XML layouts and View code, so they catch nothing in the Compose screens (the
+        // Compose semantics tests do that). They are on in case a layout or a View ever appears.
         enable += setOf("ContentDescription", "LabelFor", "ClickableViewAccessibility", "KeyboardInaccessibleWidget", "SpUsage")
     }
 }
