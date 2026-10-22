@@ -270,8 +270,11 @@ class ReviewViewModelTest {
         val model = ReviewViewModel(app)
         model.openStorageMap()
         settle(model) { it.state.value.storageMap.size == 1 }
+        model.zoomStorageMap(model.state.value.storageMap.single().children.first())
+        settle(model) { it.state.value.storageMap.size == 2 }
         model.excludeFolder("/sdcard/Family")
         settle(model) { it.state.value.lastExclusion != null }
+        assertEquals(1, model.state.value.storageMap.size)
 
         model.undoExclusion()
         settle(model) { it.state.value.lastExclusion == null }

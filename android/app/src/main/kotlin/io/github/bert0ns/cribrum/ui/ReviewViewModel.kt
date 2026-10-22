@@ -137,10 +137,10 @@ class ReviewViewModel @JvmOverloads constructor(
         state.showing(review.page(category, state.skipped), keepMarksOf = state).copy(lastExclusion = folder)
     }
 
-    /** Hides the folder from the storage map and from the review, subfolders included. The map stays open at the same folder when it still exists. */
+    /** Hides the folder from the storage map and from the review, subfolders included. The map starts again from its root. */
     fun excludeFolder(folder: String) = load { state ->
         review.excludeFolder(folder)
-        state.copy(storageMap = reopenedStorageMap(state.storageMap), lastExclusion = folder)
+        state.copy(storageMap = storageMapRoot(), lastExclusion = folder)
     }
 
     fun undoExclusion() = load { state ->
@@ -149,7 +149,7 @@ class ReviewViewModel @JvmOverloads constructor(
         val undone = state.copy(lastExclusion = null)
         when (val screen = state.screen) {
             is Screen.Category -> undone.showing(review.page(screen.category, state.skipped), keepMarksOf = state)
-            Screen.StorageMap -> undone.copy(storageMap = reopenedStorageMap(state.storageMap))
+            Screen.StorageMap -> undone.copy(storageMap = storageMapRoot())
             Screen.Settings -> undone.copy(excludedFolders = app.index.excludedFolders())
             else -> undone
         }
@@ -201,20 +201,10 @@ class ReviewViewModel @JvmOverloads constructor(
     private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds))
 
     fun openStorageMap() = load { state ->
-        val root = buildFolderTree(review.notTrashed())
-        state.copy(screen = Screen.StorageMap, storageMap = listOf(root))
+        state.copy(screen = Screen.StorageMap, storageMap = storageMapRoot())
     }
 
-    /** The map again with the current exclusions, zoomed as deep as [trail] goes among the folders that remain. */
-    private suspend fun reopenedStorageMap(trail: List<Folder>): List<Folder> {
-        var folder = buildFolderTree(review.notTrashed())
-        val reopened = mutableListOf(folder)
-        for (old in trail.drop(1)) {
-            folder = folder.children.firstOrNull { it.path == old.path } ?: break
-            reopened += folder
-        }
-        return reopened
-    }
+    private suspend fun storageMapRoot() = listOf(buildFolderTree(review.notTrashed()))
 
     fun zoomStorageMap(folder: Folder) = load { state ->
         state.copy(storageMap = state.storageMap + folder)

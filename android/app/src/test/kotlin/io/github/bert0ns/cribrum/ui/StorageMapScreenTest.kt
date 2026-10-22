@@ -87,15 +87,52 @@ class StorageMapScreenTest {
     }
 
     @Test
-    fun `exclude button excludes the selected folder, or the open one when nothing is selected`() {
+    fun `exclude button excludes the selected folder`() {
         val excluded = mutableListOf<String>()
-        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = {}, onExclude = { excluded += it.path }) }
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = {}, onExclude = { excluded += it.path }, atRoot = true) }
 
-        compose.onNodeWithText("Exclude this folder").performClick()
         compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
         compose.onNodeWithText("Exclude this folder").performClick()
 
-        assertEquals(listOf(tree.path, "/storage/emulated/0/DCIM"), excluded)
+        assertEquals(listOf("/storage/emulated/0/DCIM"), excluded)
+    }
+
+    @Test
+    fun `exclude button excludes the open folder when zoomed in`() {
+        val excluded = mutableListOf<String>()
+        val dcim = tree.children.first()
+        compose.setContent { StorageMapScreen(currentFolder = dcim, onZoomIn = {}, onExclude = { excluded += it.path }) }
+
+        compose.onNodeWithText("Exclude this folder").performClick()
+
+        assertEquals(listOf(dcim.path), excluded)
+    }
+
+    @Test
+    fun `the map's root has no exclude button until a folder is selected`() {
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = {}, atRoot = true) }
+
+        compose.onNodeWithText("Exclude this folder").assertDoesNotExist()
+        compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
+        compose.onNodeWithText("Exclude this folder").assertIsDisplayed()
+    }
+
+    @Test
+    fun `excluding a folder on the map shows a snackbar with Undo`() = runBlocking<Unit> {
+        app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
+        app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
+        val model = ReviewViewModel(app)
+        compose.setContent { App(model) }
+        openStorageMapFromSettings()
+
+        compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
+        compose.onNodeWithText("Exclude this folder").performClick()
+        awaitText("Undo")
+
+        compose.onNodeWithText("Excluded DCIM and its subfolders").assertIsDisplayed()
+        compose.onNodeWithText("Undo").performClick()
+        awaitText("DCIM")
+        assertEquals(emptyList<String>(), app.index.excludedFolders())
     }
 
     @Test

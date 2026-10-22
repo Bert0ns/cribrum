@@ -63,6 +63,8 @@ fun StorageMapScreen(
     onZoomIn: (Folder) -> Unit,
     modifier: Modifier = Modifier,
     onExclude: (Folder) -> Unit = {},
+    /** The map is at its root: with nothing selected, excluding its folder would hide every image. */
+    atRoot: Boolean = false,
     baseHue: Float = ROOT_HUE,
 ) {
     val density = LocalDensity.current
@@ -105,7 +107,7 @@ fun StorageMapScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 // The direct files block has no folder of its own: excluding it would hide the subfolders too.
-                if (!isDirectFiles && targetFolder.path.isNotEmpty()) {
+                if (targetFolder.path.isNotEmpty() && !isDirectFiles && !(atRoot && selected == null)) {
                     TextButton({ onExclude(targetFolder) }) { Text(stringResource(R.string.storage_map_exclude)) }
                 }
             }
