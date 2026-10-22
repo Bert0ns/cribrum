@@ -232,6 +232,7 @@ private fun AppContent(model: ReviewViewModel) {
                     currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
                     baseHue = trailHue(state.storageMap),
                     onZoomIn = model::zoomStorageMap,
+                    onExclude = { model.excludeFolder(it.path) },
                 )
             }
         }

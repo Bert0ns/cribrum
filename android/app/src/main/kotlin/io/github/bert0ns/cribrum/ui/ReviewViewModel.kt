@@ -137,11 +137,22 @@ class ReviewViewModel @JvmOverloads constructor(
         state.showing(review.page(category, state.skipped), keepMarksOf = state).copy(lastExclusion = folder)
     }
 
+    /** Hides the folder from the storage map and from the review, subfolders included. The map stays open at the same folder when it still exists. */
+    fun excludeFolder(folder: String) = load { state ->
+        review.excludeFolder(folder)
+        state.copy(storageMap = reopenedStorageMap(state.storageMap), lastExclusion = folder)
+    }
+
     fun undoExclusion() = load { state ->
         val folder = state.lastExclusion ?: return@load state
         review.removeExcludedFolder(folder)
-        val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastExclusion = null)
-        state.showing(review.page(category, state.skipped), keepMarksOf = state).copy(lastExclusion = null)
+        val undone = state.copy(lastExclusion = null)
+        when (val screen = state.screen) {
+            is Screen.Category -> undone.showing(review.page(screen.category, state.skipped), keepMarksOf = state)
+            Screen.StorageMap -> undone.copy(storageMap = reopenedStorageMap(state.storageMap))
+            Screen.Settings -> undone.copy(excludedFolders = app.index.excludedFolders())
+            else -> undone
+        }
     }
 
     fun dismissExclusion() = mutableState.update { it.copy(lastExclusion = null) }
@@ -194,6 +205,17 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(screen = Screen.StorageMap, storageMap = listOf(root))
     }
 
+    /** The map again with the current exclusions, zoomed as deep as [trail] goes among the folders that remain. */
+    private suspend fun reopenedStorageMap(trail: List<Folder>): List<Folder> {
+        var folder = buildFolderTree(review.notTrashed())
+        val reopened = mutableListOf(folder)
+        for (old in trail.drop(1)) {
+            folder = folder.children.firstOrNull { it.path == old.path } ?: break
+            reopened += folder
+        }
+        return reopened
+    }
+
     fun zoomStorageMap(folder: Folder) = load { state ->
         state.copy(storageMap = state.storageMap + folder)
     }
@@ -203,7 +225,7 @@ class ReviewViewModel @JvmOverloads constructor(
             state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
                 state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.StorageMap ->
-                state.copy(screen = Screen.Settings, storageMap = emptyList())
+                state.copy(screen = Screen.Settings, storageMap = emptyList(), excludedFolders = app.index.excludedFolders())
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
             else ->

@@ -139,12 +139,17 @@ class Review(
      * Never suggests the folder of [image] again, subfolders included, and returns the folder. Its
      * images stay in the index with their signals, so removing the exclusion needs no new scan.
      */
-    suspend fun excludeFolderOf(image: ImageRef): String = File(image.path).parent!!.also { index.excludeFolder(it) }
+    suspend fun excludeFolderOf(image: ImageRef): String = File(image.path).parent!!.also { excludeFolder(it) }
+
+    suspend fun excludeFolder(folder: String) = index.excludeFolder(folder)
 
     suspend fun removeExcludedFolder(folder: String) = index.removeExcludedFolder(folder)
 
-    /** Images not in the trash, for storage space exploration. */
-    suspend fun notTrashed(): List<ImageRef> = index.notTrashed()
+    /** Images neither in the trash nor in an excluded folder, for storage space exploration. */
+    suspend fun notTrashed(): List<ImageRef> {
+        val excluded = index.excludedFolders()
+        return index.notTrashed().filterNot { isExcluded(it.path, excluded) }
+    }
 
     private fun singles(category: Category, candidates: List<Candidate>) = candidates.map {
         ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category))))

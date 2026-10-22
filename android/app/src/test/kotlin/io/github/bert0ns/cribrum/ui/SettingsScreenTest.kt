@@ -192,8 +192,20 @@ class SettingsScreenTest {
     fun `settings screen says when no folder is excluded`() {
         compose.setContent { SettingsScreen() }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("No folders are excluded."))
-        compose.onNodeWithText("No folders are excluded.").assertExists()
+        val text = "No folders are excluded. Exclude one from the storage map, or from an image at full size."
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
+        compose.onNodeWithText(text).assertExists()
+    }
+
+    @Test
+    fun `add folder opens the storage map`() {
+        var opened = false
+        compose.setContent { SettingsScreen(onOpenStorageMap = { opened = true }) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Add folder"))
+        compose.onNodeWithText("Add folder").performClick()
+
+        assertEquals(true, opened)
     }
 
     @Test

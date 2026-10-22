@@ -245,6 +245,58 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `excluding a folder from the storage map takes it off the map and out of the review`() {
+        blurry("/sdcard/Family/a.jpg", 0.9f)
+        blurry("/sdcard/Family/2020/b.jpg", 0.9f)
+        blurry("/sdcard/Other/c.jpg", 0.8f)
+        val model = ReviewViewModel(app)
+        model.openStorageMap()
+        settle(model) { it.state.value.storageMap.size == 1 }
+        assertEquals(3, model.state.value.storageMap.single().imageCount)
+
+        model.excludeFolder("/sdcard/Family")
+        settle(model) { it.state.value.lastExclusion == "/sdcard/Family" }
+
+        assertEquals(listOf("/sdcard/Other"), model.state.value.storageMap.map { it.path })
+        assertEquals(listOf("/sdcard/Family"), runBlocking { app.index.excludedFolders() })
+        model.open(Category.BLURRY)
+        settle(model) { paths(it) == listOf("/sdcard/Other/c.jpg") }
+    }
+
+    @Test
+    fun `undoing an exclusion made on the storage map puts the folder back on the map`() {
+        blurry("/sdcard/Family/a.jpg", 0.9f)
+        blurry("/sdcard/Other/c.jpg", 0.8f)
+        val model = ReviewViewModel(app)
+        model.openStorageMap()
+        settle(model) { it.state.value.storageMap.size == 1 }
+        model.excludeFolder("/sdcard/Family")
+        settle(model) { it.state.value.lastExclusion != null }
+
+        model.undoExclusion()
+        settle(model) { it.state.value.lastExclusion == null }
+
+        assertEquals(2, model.state.value.storageMap.single().imageCount)
+        assertEquals(emptyList<String>(), runBlocking { app.index.excludedFolders() })
+    }
+
+    @Test
+    fun `leaving the storage map after an exclusion shows the folder in settings`() {
+        blurry("/sdcard/Family/a.jpg", 0.9f)
+        blurry("/sdcard/Other/c.jpg", 0.8f)
+        val model = ReviewViewModel(app)
+        model.openStorageMap()
+        settle(model) { it.state.value.storageMap.size == 1 }
+        model.excludeFolder("/sdcard/Family")
+        settle(model) { it.state.value.lastExclusion != null }
+
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Settings }
+
+        assertEquals(listOf("/sdcard/Family"), model.state.value.excludedFolders)
+    }
+
+    @Test
     fun `a threshold set in settings changes the lists at once, is stored, and reset restores the defaults`() {
         blurry("/sdcard/a.jpg", 0.9f)
         blurry("/sdcard/b.jpg", 0.6f)

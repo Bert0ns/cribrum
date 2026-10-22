@@ -22,6 +22,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,6 +62,7 @@ fun StorageMapScreen(
     currentFolder: Folder,
     onZoomIn: (Folder) -> Unit,
     modifier: Modifier = Modifier,
+    onExclude: (Folder) -> Unit = {},
     baseHue: Float = ROOT_HUE,
 ) {
     val density = LocalDensity.current
@@ -102,6 +104,10 @@ fun StorageMapScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                // The direct files block has no folder of its own: excluding it would hide the subfolders too.
+                if (!isDirectFiles && targetFolder.path.isNotEmpty()) {
+                    TextButton({ onExclude(targetFolder) }) { Text(stringResource(R.string.storage_map_exclude)) }
+                }
             }
         }
 

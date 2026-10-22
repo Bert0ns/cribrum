@@ -87,6 +87,18 @@ class StorageMapScreenTest {
     }
 
     @Test
+    fun `exclude button excludes the selected folder, or the open one when nothing is selected`() {
+        val excluded = mutableListOf<String>()
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = {}, onExclude = { excluded += it.path }) }
+
+        compose.onNodeWithText("Exclude this folder").performClick()
+        compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
+        compose.onNodeWithText("Exclude this folder").performClick()
+
+        assertEquals(listOf(tree.path, "/storage/emulated/0/DCIM"), excluded)
+    }
+
+    @Test
     fun `images of size zero are not shown as an empty index`() {
         val zeros = buildFolderTree(listOf(ImageRef("/a/1.jpg", 0L, 0L), ImageRef("/a/2.jpg", 0L, 0L)))
         compose.setContent { StorageMapScreen(currentFolder = zeros, onZoomIn = {}) }
