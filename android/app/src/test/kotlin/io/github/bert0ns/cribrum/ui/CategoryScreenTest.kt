@@ -29,6 +29,7 @@ import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
@@ -247,6 +248,20 @@ class CategoryScreenTest {
         compose.onAllNodesWithContentDescription("img2.jpg")[0].performClick()
         openFullSize("img2.jpg")
         compose.onNodeWithText("Kept").assertExists()
+    }
+
+    @Test
+    fun `the full size view says why the image is a candidate, strongest reason first`() {
+        val dark = Signal("exposure", 1, Category.BAD_EXPOSURE, 1f, mapOf("case" to "dark"))
+        val blurry = Signal("blur", 1, Category.BLURRY, 0.9f)
+        val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = true, reasons = listOf(dark, blurry)), ReviewItem(images[1], suggestTrash = true)))
+        compose.setContent { CategoryScreen(listOf(group), 2, emptySet(), false, {}, {}, {}) }
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithText("Too dark").assertExists()
+        compose.onNodeWithText("Blurry, the subject is out of focus").assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+        compose.onNodeWithText("Too dark").assertDoesNotExist()
     }
 
     @Test

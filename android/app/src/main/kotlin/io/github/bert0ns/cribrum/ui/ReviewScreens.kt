@@ -332,6 +332,9 @@ private fun FullSize(items: List<ReviewItem>, start: ImageRef, marked: Set<Strin
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)) {
+                for (reason in current.reasons.mapNotNull(::reasonOf)) {
+                    Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                }
                 Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
                 TextButton(
                     onClick = { onExcludeFolder(current.image) },
