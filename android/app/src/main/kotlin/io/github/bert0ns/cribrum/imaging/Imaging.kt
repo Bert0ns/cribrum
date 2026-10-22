@@ -71,8 +71,11 @@ private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
     return Gray(width, height, pixels)
 }
 
-/** One 8-bit channel of [Argb], shifted by 16 for red, 8 for green, 0 for blue. */
-internal fun channel(image: Argb, shift: Int): Gray = Gray(image.width, image.height, FloatArray(image.pixels.size) { (image.pixels[it] shr shift and 0xff).toFloat() })
+/**
+ * One 8-bit channel of [Argb], shifted by 16 for red, 8 for green, 0 for blue, already turned
+ * as [transpose] does. It never builds the plane before the turn, which would double the memory.
+ */
+internal fun channel(image: Argb, shift: Int, orientation: Int): Gray = turn(image.width, image.height, orientation) { (image.pixels[it] shr shift and 0xff).toFloat() }
 
 internal fun orientation(file: File): Int = try {
     ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
@@ -81,9 +84,11 @@ internal fun orientation(file: File): Int = try {
 }
 
 /** Pillow's exif_transpose: turns the pixels so the image is as displayed. */
-internal fun transpose(gray: Gray, orientation: Int): Gray {
-    if (orientation !in 2..8) return gray
-    val (w, h) = gray.width to gray.height
+internal fun transpose(gray: Gray, orientation: Int): Gray = if (orientation !in 2..8) gray else turn(gray.width, gray.height, orientation) { gray.pixels[it] }
+
+/** The turned image of [w] x [h] pixels, [pixel] giving the value at an index of the original. */
+private inline fun turn(w: Int, h: Int, orientation: Int, pixel: (Int) -> Float): Gray {
+    if (orientation !in 2..8) return Gray(w, h, FloatArray(w * h) { pixel(it) })
     val swapped = orientation >= 5
     val outW = if (swapped) h else w
     val outH = if (swapped) w else h
@@ -99,7 +104,7 @@ internal fun transpose(gray: Gray, orientation: Int): Gray {
                 7 -> w - 1 - y to h - 1 - x // transversed
                 else -> w - 1 - y to x // 8: rotated 90 counterclockwise
             }
-            out[y * outW + x] = gray[sx, sy]
+            out[y * outW + x] = pixel(sy * w + sx)
         }
     }
     return Gray(outW, outH, out)
