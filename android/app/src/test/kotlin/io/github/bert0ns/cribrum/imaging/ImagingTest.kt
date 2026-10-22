@@ -59,6 +59,21 @@ class ImagingTest {
     }
 
     @Test
+    fun `a channel is read already turned, with no plane of the other orientation in between`() {
+        val argb = Argb(2, 3, IntArray(6) { (0xff shl 24) or ((10 + it) shl 16) or ((20 + it) shl 8) or (30 + it) })
+
+        for ((shift, first) in listOf(16 to 10, 8 to 20, 0 to 30)) {
+            val plane = gray(2, 3, *IntArray(6) { first + it })
+            for (orientation in 1..8) {
+                val expected = transpose(plane, orientation)
+                val got = channel(argb, shift, orientation)
+                assertEquals("shift $shift, orientation $orientation", listOf(expected.width, expected.height), listOf(got.width, got.height))
+                assertArrayEquals("shift $shift, orientation $orientation", expected.pixels, got.pixels, 0f)
+            }
+        }
+    }
+
+    @Test
     fun `resampling a flat image keeps it flat`() {
         val flat = Gray(100, 50, FloatArray(5000) { 77f })
 

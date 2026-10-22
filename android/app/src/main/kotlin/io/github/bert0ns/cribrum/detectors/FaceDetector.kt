@@ -11,7 +11,6 @@ import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
 import io.github.bert0ns.cribrum.imaging.orientation
 import io.github.bert0ns.cribrum.imaging.resample
-import io.github.bert0ns.cribrum.imaging.transpose
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Protection
@@ -74,7 +73,7 @@ internal object YuNet {
         val canvas = FloatArray(3 * INPUT_SIDE * INPUT_SIDE)
         var size = 0 to 0
         for ((c, shift) in listOf(0, 8, 16).withIndex()) { // blue, green, red
-            val plane = transpose(channel(decoded, shift), orientation)
+            val plane = channel(decoded, shift, orientation)
             val scale = INPUT_SIDE.toDouble() / max(plane.width, plane.height)
             // Math.rint rounds halves to even, as Python's round does.
             val width = max(1, Math.rint(plane.width * scale).toInt())

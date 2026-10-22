@@ -11,7 +11,6 @@ import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
 import io.github.bert0ns.cribrum.imaging.orientation
 import io.github.bert0ns.cribrum.imaging.resample
-import io.github.bert0ns.cribrum.imaging.transpose
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
@@ -35,16 +34,15 @@ const val DETECTOR_RESOURCE = "/ppocr/ch_PP-OCRv4_det_infer.onnx"
 fun preprocess(file: File): Tensor {
     val decoded = decode(file, INPUT_SIDE)
     val orientation = orientation(file)
-    val planes = listOf(16, 8, 0).map { transpose(channel(decoded, it), orientation) }
-    val (width, height) = planes[0].width to planes[0].height
+    val (width, height) = if (orientation >= 5) decoded.height to decoded.width else decoded.width to decoded.height
     val scale = INPUT_SIDE.toDouble() / max(width, height)
 
     // Math.rint rounds halves to even, as Python's round does.
     fun side(pixels: Int) = max(32, Math.rint(pixels * scale / 32).toInt() * 32)
     val (outW, outH) = side(width) to side(height)
     val out = FloatArray(3 * outW * outH)
-    for ((c, plane) in planes.withIndex()) {
-        val resized = resample(plane, outW, outH, 0.0, 0.0, width.toDouble(), height.toDouble(), BILINEAR)
+    for ((c, shift) in listOf(16, 8, 0).withIndex()) {
+        val resized = resample(channel(decoded, shift, orientation), outW, outH, 0.0, 0.0, width.toDouble(), height.toDouble(), BILINEAR)
         for (i in 0 until outW * outH) out[c * outW * outH + i] = (resized.pixels[i] / 255f - MEAN[c]) / STD[c]
     }
     return Tensor(longArrayOf(1, 3, outH.toLong(), outW.toLong()), out)

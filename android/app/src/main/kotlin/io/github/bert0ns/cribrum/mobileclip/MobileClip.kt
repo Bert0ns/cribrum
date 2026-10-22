@@ -7,7 +7,6 @@ import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
 import io.github.bert0ns.cribrum.imaging.orientation
 import io.github.bert0ns.cribrum.imaging.resample
-import io.github.bert0ns.cribrum.imaging.transpose
 import io.github.bert0ns.cribrum.pipeline.Embedder
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
@@ -52,7 +51,7 @@ fun preprocess(file: File): FloatArray {
     val orientation = orientation(file)
     val out = FloatArray(PIXELS)
     for ((c, shift) in listOf(16, 8, 0).withIndex()) {
-        val plane = transpose(channel(decoded, shift), orientation)
+        val plane = channel(decoded, shift, orientation)
         val scale = INPUT_SIDE.toDouble() / min(plane.width, plane.height)
         // Math.rint rounds halves to even, as Python's round does.
         val width = max(INPUT_SIDE, Math.rint(plane.width * scale).toInt())
