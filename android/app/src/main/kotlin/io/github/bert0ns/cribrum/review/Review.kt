@@ -62,6 +62,9 @@ data class ReviewItem(
 
 data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true, val bytes: Long = 0)
 
+/** The home screen: every category, and the size of all the candidates together, each image counted once. */
+data class Overview(val categories: List<CategorySummary>, val freeableBytes: Long)
+
 /** The groups shown now, and how many candidates the category has left in all, these included and the skipped ones not. */
 data class Page(val groups: List<ReviewGroup>, val remaining: Int)
 
@@ -77,13 +80,19 @@ class Review(
     private val zone: () -> ZoneId = ZoneId::systemDefault,
     private val firstDayOfWeek: () -> DayOfWeek = { WeekFields.of(Locale.getDefault()).firstDayOfWeek },
 ) {
-    /** Every category in fixed order, with its candidate count and size, and whether it has a detector. */
-    suspend fun categories(): List<CategorySummary> {
+    /**
+     * Every category in fixed order, with its candidate count and size, and whether it has a detector,
+     * and the union of all the candidates by path. The figures of two categories overlap, so they are
+     * not added. One ranking serves both, so the home screen reads the index once.
+     */
+    suspend fun overview(): Overview {
         val byCategory = byCategory(thresholds())
-        return Category.entries.map { category ->
+        val categories = Category.entries.map { category ->
             val candidates = byCategory[category].orEmpty()
             CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
         }
+        val union = byCategory.values.flatten().associate { it.image.ref.path to it.image.ref.size }
+        return Overview(categories, union.values.sum())
     }
 
     /** How many candidates each category would list at [thresholds], which are the ones in use by default. */
@@ -97,13 +106,15 @@ class Review(
     /**
      * The first page of a category: groups in the ranker's order, never split across pages. Groups
      * whose id is in [skipped] are left out, and they are not counted in the remaining candidates.
-     * With a [grouping] other than off, the newest date comes first and the ranker's order holds inside each date.
+     * With a date [grouping], the newest date comes first and the ranker's order holds inside each date.
+     * With [DateGrouping.SIZE], the group with the most bytes to trash comes first and the ranker's order breaks a tie.
      */
     suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: DateGrouping = DateGrouping.OFF): Page {
         val excluded = index.excludedFolders()
         val images = index.indexedImages()
         val candidates = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))[category].orEmpty()
         val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates, grouping))
+            .let { all -> if (grouping == DateGrouping.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
             .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()
         var size = 0
@@ -172,7 +183,7 @@ class Review(
         val groups = candidates.map {
             ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category), reasons = it.reasons)))
         }
-        if (grouping == DateGrouping.OFF) return groups
+        if (!grouping.byDate) return groups
         val capturedAt = index.capturedAt()
         val zone = zone()
         val firstDay = firstDayOfWeek()

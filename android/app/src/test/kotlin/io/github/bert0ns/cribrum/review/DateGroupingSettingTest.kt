@@ -39,6 +39,20 @@ class DateGroupingSettingTest {
     }
 
     @Test
+    fun `size is offered by every category and the dates only by the single-image ones`() {
+        assertEquals(listOf(DateGrouping.OFF, DateGrouping.SIZE), DateGrouping.optionsFor(Category.BURST))
+        assertEquals(listOf(DateGrouping.OFF, DateGrouping.SIZE), DateGrouping.optionsFor(Category.STICKER))
+        assertEquals(DateGrouping.entries, DateGrouping.optionsFor(Category.BLURRY))
+    }
+
+    @Test
+    fun `a group category keeps a size sort`() {
+        DateGroupingSetting(preferences)[Category.BURST] = DateGrouping.SIZE
+
+        assertEquals(DateGrouping.SIZE, DateGroupingSetting(preferences)[Category.BURST])
+    }
+
+    @Test
     fun `only the five single-image categories offer it`() {
         assertEquals(
             setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.DOCUMENT, Category.FORWARDED),

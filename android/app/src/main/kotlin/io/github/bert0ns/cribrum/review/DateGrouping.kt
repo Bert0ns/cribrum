@@ -1,5 +1,5 @@
-// Display order by date for the single-image categories (docs/design.md §8). The date only orders
-// the review: it never reaches the ranker, and photo age is never a deletion signal.
+// Display order of a category (docs/design.md §8): by date for the single-image categories, or by
+// size. Neither reaches the ranker: photo age is never a deletion signal, and size is only a sort key.
 package io.github.bert0ns.cribrum.review
 
 import android.content.SharedPreferences
@@ -22,11 +22,17 @@ enum class DateGrouping {
     DAY,
     WEEK,
     MONTH,
+
+    /** Largest first, in every category. One choice with the dates: the user picks one order at a time. */
+    SIZE,
     ;
+
+    /** Whether the groups carry a date and are labeled with it. */
+    val byDate get() = this != OFF && this != SIZE
 
     /** The first day of the day, week or month that holds [date]: the date a group is named by. */
     fun start(date: LocalDate, firstDayOfWeek: DayOfWeek): LocalDate = when (this) {
-        OFF, DAY -> date
+        OFF, DAY, SIZE -> date
         WEEK -> date.with(TemporalAdjusters.previousOrSame(firstDayOfWeek))
         MONTH -> date.withDayOfMonth(1)
     }
@@ -35,7 +41,7 @@ enum class DateGrouping {
     fun label(start: LocalDate, locale: Locale): String {
         val day = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale)
         return when (this) {
-            OFF, DAY -> day.format(start)
+            OFF, DAY, SIZE -> day.format(start)
             WEEK -> "${day.format(start)} – ${day.format(start.plusDays(6))}"
             MONTH -> DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "yMMMM"), locale).format(start)
         }
@@ -44,6 +50,9 @@ enum class DateGrouping {
     companion object {
         /** Categories of one image per group: duplicates and bursts keep their order, and a sticker has no use for it. */
         val CATEGORIES = setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Category.DOCUMENT, Category.FORWARDED)
+
+        /** What the menu of [category] offers: the dates only where they are allowed, the size everywhere. */
+        fun optionsFor(category: Category) = if (category in CATEGORIES) entries else listOf(OFF, SIZE)
     }
 }
 
@@ -55,7 +64,7 @@ class DateGroupingSetting(private val preferences: SharedPreferences) {
     operator fun get(category: Category): DateGrouping = DateGrouping.entries.firstOrNull { it.name == preferences.getString(key(category), null) } ?: DateGrouping.OFF
 
     operator fun set(category: Category, value: DateGrouping) {
-        require(category in DateGrouping.CATEGORIES) { "$category has no date grouping" }
+        require(value in DateGrouping.optionsFor(category)) { "$category has no $value grouping" }
         preferences.edit { putString(key(category), value.name) }
     }
 

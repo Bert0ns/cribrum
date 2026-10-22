@@ -180,8 +180,8 @@ private fun AppContent(model: ReviewViewModel) {
                             Icon(Icons.Filled.Settings, stringResource(R.string.settings))
                         }
                     }
-                    if (screen is Screen.Category && screen.category in DateGrouping.CATEGORIES) {
-                        DateGroupingMenu(state.dateGrouping, model::setDateGrouping)
+                    if (screen is Screen.Category) {
+                        DateGroupingMenu(state.dateGrouping, DateGrouping.optionsFor(screen.category), model::setDateGrouping)
                     }
                 },
             )
@@ -192,7 +192,7 @@ private fun AppContent(model: ReviewViewModel) {
             when (screen) {
                 Screen.Home -> {
                     ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty)
-                    CategoryList(state.categories, model::open, model::openTrash)
+                    CategoryList(state.categories, model::open, model::openTrash, freeableBytes = state.freeableBytes)
                 }
                 is Screen.Category -> CategoryScreen(
                     state.page,
