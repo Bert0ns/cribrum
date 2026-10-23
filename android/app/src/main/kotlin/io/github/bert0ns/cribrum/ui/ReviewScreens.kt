@@ -87,6 +87,7 @@ import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.DateGrouping
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
+import io.github.bert0ns.cribrum.trash.TrashRetention
 import java.io.File
 
 @Composable
@@ -248,6 +249,7 @@ fun CategoryScreen(
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onExcludeFolder: (ImageRef) -> Unit = {},
     dateGrouping: DateGrouping = DateGrouping.OFF,
+    retentionDays: Int = TrashRetention.DEFAULT_DAYS,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val haptics = LocalHapticFeedback.current
@@ -321,7 +323,7 @@ fun CategoryScreen(
         AlertDialog(
             onDismissRequest = { showSummary = false },
             title = { Text(pluralStringResource(R.plurals.summary_title, toTrash.size, toTrash.size)) },
-            text = { Text(stringResource(R.string.summary_body, size)) },
+            text = { Text(pluralStringResource(R.plurals.summary_body, retentionDays, size, retentionDays)) },
             confirmButton = {
                 TextButton({
                     showSummary = false
