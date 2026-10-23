@@ -78,6 +78,11 @@
         <item quantity="other">Tap images to select them. They are deleted for good %d days after they were trashed.</item>
     </plurals>
     <string name="days_left">%1$dd left</string>
+    <!-- Spoken form of days_left: a screen reader would spell out "26d". -->
+    <plurals name="trash_tile_days_left">
+        <item quantity="one">%d day left</item>
+        <item quantity="other">%d days left</item>
+    </plurals>
     <string name="restore">Restore %1$d</string>
     <string name="empty_trash">Empty trash</string>
     <string name="select_all">Select all</string>

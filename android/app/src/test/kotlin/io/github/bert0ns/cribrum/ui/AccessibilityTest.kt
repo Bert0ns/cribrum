@@ -140,4 +140,66 @@ class AccessibilityTest {
         compose.onNodeWithText("Move 3 images to the trash?").assertIsDisplayed()
         assertEquals(0, applied)
     }
+
+    @Test
+    fun `the home screen still works at twice the font size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        var opened: Category? = null
+        var trash = 0
+        compose.setContent {
+            CategoryList(listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000)), 3_000_000, { opened = it }, { trash++ })
+        }
+
+        compose.onNodeWithText("Blurry").assertIsDisplayed().performClick()
+        assertEquals(Category.BLURRY, opened)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Trash"))
+        compose.onNodeWithText("Trash").assertIsDisplayed().performClick()
+        assertEquals(1, trash)
+    }
+
+    @Test
+    fun `settings still works at twice the font size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        var thresholds = 0
+        compose.setContent { SettingsScreen(onOpenThresholds = { thresholds++ }, excludedFolders = listOf("/sdcard/Download"), embeddingCount = 3) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Detection thresholds"))
+        compose.onNodeWithText("Detection thresholds").assertIsDisplayed().performClick()
+        assertEquals(1, thresholds)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNodeWithText("Delete embeddings").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Delete the embeddings?").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the thresholds screen still works at twice the font size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        var reset = 0
+        compose.setContent { ThresholdsScreen(THRESHOLDS, emptyMap(), emptyMap(), { _, _ -> }, { reset++ }) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Reset to defaults"))
+        compose.onNodeWithText("Reset to defaults").assertIsDisplayed().performClick()
+        assertEquals(1, reset)
+    }
+
+    @Test
+    fun `the trash still works at twice the font size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        val at = Instant.now() - Duration.ofDays(3)
+        val trashed = listOf(TrashedImage(images[0], at, File("/sdcard/.cribrum-trash/x/img1.jpg"), at + Duration.ofDays(30)))
+        var restored = 0
+        compose.setContent { TrashScreen(trashed, trashed.map { it.original.path }.toSet(), {}, { _, _ -> }, { restored++ }, {}) }
+
+        // Both buttons stay on the screen, side by side, and nothing is hidden.
+        val screen = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val restore = compose.onNodeWithText("Restore 1").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val empty = compose.onNodeWithText("Empty trash").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue("$empty right of $restore", empty.left >= restore.right)
+        assertTrue("$empty inside the screen", empty.right <= screen.right)
+        compose.onNodeWithContentDescription("img1.jpg", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Restore 1").performClick()
+        assertEquals(1, restored)
+        compose.onNodeWithText("Empty trash").performClick()
+        compose.onNodeWithText("Delete 1 image for good?").assertIsDisplayed()
+    }
 }

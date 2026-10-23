@@ -118,6 +118,11 @@
         <item quantity="many">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d di giorni dopo essere finite nel cestino.</item>
     </plurals>
     <string name="days_left">%1$d gg</string>
+    <plurals name="trash_tile_days_left">
+        <item quantity="one">%d giorno rimasto</item>
+        <item quantity="other">%d giorni rimasti</item>
+        <item quantity="many">%d di giorni rimasti</item>
+    </plurals>
     <string name="restore">Ripristina %1$d</string>
     <string name="empty_trash">Svuota il cestino</string>
     <string name="select_all">Seleziona tutto</string>
