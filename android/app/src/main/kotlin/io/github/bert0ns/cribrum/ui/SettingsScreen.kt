@@ -6,6 +6,7 @@ import android.os.Build
 import android.provider.Settings
 import android.text.format.Formatter
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -157,19 +158,21 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_trash_retention)) },
                 supportingContent = {
-                    Column {
-                        Text(pluralStringResource(R.plurals.settings_trash_days, retentionDays, retentionDays))
-                        Text(stringResource(R.string.settings_trash_retention_applies))
-                    }
-                    DropdownMenu(choosingRetention, { choosingRetention = false }) {
-                        for (days in TrashRetention.CHOICES) {
-                            DropdownMenuItem(
-                                text = { Text(pluralStringResource(R.plurals.settings_trash_days, days, days)) },
-                                onClick = {
-                                    choosingRetention = false
-                                    onRetentionChange(days)
-                                },
-                            )
+                    Box {
+                        Column {
+                            Text(pluralStringResource(R.plurals.settings_trash_days, retentionDays, retentionDays))
+                            Text(stringResource(R.string.settings_trash_retention_applies))
+                        }
+                        DropdownMenu(choosingRetention, { choosingRetention = false }) {
+                            for (days in TrashRetention.CHOICES) {
+                                DropdownMenuItem(
+                                    text = { Text(pluralStringResource(R.plurals.settings_trash_days, days, days)) },
+                                    onClick = {
+                                        choosingRetention = false
+                                        onRetentionChange(days)
+                                    },
+                                )
+                            }
                         }
                     }
                 },
