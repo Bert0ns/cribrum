@@ -292,4 +292,6 @@
         <item quantity="other">%1$s • %2$d immagini</item>
         <item quantity="many">%1$s • %2$d di immagini</item>
     </plurals>
+    <string name="notification_hint">La notifica di avanzamento della scansione è disattivata</string>
+    <string name="notification_action_settings">Impostazioni</string>
 </resources>
