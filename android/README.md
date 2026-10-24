@@ -17,7 +17,7 @@ Unit tests run on the JVM with Robolectric, so they need no phone. CI runs the s
 
 Detector tests compare with the lab's golden fixtures (`fixtures/golden`), decoding them with Android's own decoders through Robolectric's native graphics.
 
-Instrumented tests run on a connected phone. The app trash tests move files on its real shared storage, under `Pictures/cribrum-test`, and clean up after themselves. Trash tests only touch `Pictures/cribrum-test` and never purge real device volumes:
+Instrumented tests run on a connected phone. The app trash tests move files on its real shared storage under `Pictures/cribrum-test` and place a temporary sentinel in the real device trash to verify it survives, cleaning up after themselves:
 
 ```bash
 ./gradlew connectedDebugAndroidTest

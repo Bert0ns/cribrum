@@ -23,10 +23,13 @@ import java.util.UUID
 /** Move, restore and purge on the phone's real shared storage, with All files access. */
 class AppTrashDeviceTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
-    private val folder = File(Environment.getExternalStorageDirectory(), "Pictures/cribrum-test")
+    private val storageRoot = Environment.getExternalStorageDirectory()
+    private val realTrashFolder = File(storageRoot, TRASH_FOLDER)
+    private val folder = File(storageRoot, "Pictures/cribrum-test")
     private fun testTrash(clock: Clock = Clock.systemUTC()) = AppTrash(volumes = { listOf(folder) }, clock = clock)
     private val trash = testTrash()
-    private var simulatedRealItemDir: File? = null
+    private var createdRealTrashFolder = false
+    private var sentinelDir: File? = null
 
     @Before
     fun grantAllFilesAccess() {
@@ -40,13 +43,40 @@ class AppTrashDeviceTest {
 
     @After
     fun cleanUp() {
-        simulatedRealItemDir?.deleteRecursively()
-        simulatedRealItemDir = null
-        runBlocking { trash.purge(trash.trashed().map { it.original }.filter { it.path.startsWith(folder.path) }) }
+        sentinelDir?.deleteRecursively()
+        sentinelDir = null
+        if (createdRealTrashFolder && realTrashFolder.list()?.isEmpty() == true) {
+            realTrashFolder.delete()
+        }
         folder.deleteRecursively()
     }
 
     private fun photo(name: String): ImageRef = File(folder, name).apply { writeBytes(ByteArray(1024) { it.toByte() }) }.toImageRef()
+
+    private fun plantRealTrashSentinel(): File {
+        if (!realTrashFolder.exists()) {
+            realTrashFolder.mkdirs()
+            createdRealTrashFolder = true
+        }
+        val dir = File(realTrashFolder, "cribrum-test-${UUID.randomUUID()}").apply { mkdirs() }
+        sentinelDir = dir
+        val file = File(dir, "sentinel.jpg").apply { writeBytes(ByteArray(1024) { it.toByte() }) }
+        val origin = Properties().apply {
+            setProperty("path", File(storageRoot, "Pictures/sentinel.jpg").path)
+            setProperty("size", "1024")
+            setProperty("mtime_ns", "0")
+            setProperty("trashed_at", Instant.EPOCH.toString())
+        }
+        File(dir, "origin.properties").outputStream().use {
+            origin.store(it, "Cribrum trash: test item")
+        }
+        return file
+    }
+
+    @Test
+    fun forDeviceReadsStorageVolumes() = runBlocking {
+        assertTrue(AppTrash.forDevice(context).trashed() is List<*>)
+    }
 
     @Test
     fun moveAndRestore() = runBlocking {
@@ -63,19 +93,11 @@ class AppTrashDeviceTest {
 
     @Test
     fun purgeAfterRetention() = runBlocking {
-        val realTrashRoot = File(Environment.getExternalStorageDirectory(), TRASH_FOLDER)
-        val realItemFolder = File(realTrashRoot, "cribrum-test-${UUID.randomUUID()}").also { it.mkdirs() }
-        simulatedRealItemDir = realItemFolder
-        val realFile = File(realItemFolder, "real.jpg").apply { writeBytes(ByteArray(1024) { it.toByte() }) }
-        val origin = Properties().apply {
-            setProperty("path", File(Environment.getExternalStorageDirectory(), "Pictures/real.jpg").path)
-            setProperty("size", "1024")
-            setProperty("mtime_ns", "0")
-            setProperty("trashed_at", Instant.EPOCH.toString())
-        }
-        File(realItemFolder, "origin.properties").outputStream().use {
-            origin.store(it, "Cribrum trash: test item")
-        }
+        val sentinelFile = plantRealTrashSentinel()
+        assertTrue(
+            "Sentinel must be recognized by device trash",
+            AppTrash.forDevice(context).trashed().any { it.file == sentinelFile },
+        )
 
         val image = photo("b.jpg")
         trash.moveToTrash(listOf(image))
@@ -83,6 +105,6 @@ class AppTrashDeviceTest {
 
         assertEquals(listOf(image), testTrash(later).purgeExpired())
         assertTrue(trash.trashed().none { it.original == image })
-        assertTrue("Real device trash item should not be purged", realFile.exists())
+        assertTrue("Real device trash item must not be purged", sentinelFile.exists())
     }
 }
