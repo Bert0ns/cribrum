@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -71,5 +72,39 @@ class LastScanTest {
         assertEquals(ScanReport(finishedAt = 1, unreadable = 1, failures = emptyMap(), files = emptyList()), scan.report)
         runBlocking { scan.run(now = { 4 }) { Stats() } }
         assertEquals(4, scan.report!!.finishedAt)
+    }
+
+    @Test
+    fun `failed reflects whether the last scan attempt had failures or aborted`() {
+        val scan = LastScan(preferences)
+        assertFalse(scan.failed)
+
+        scan.recordFailure()
+        assertTrue(scan.failed)
+
+        // Clean scan clears the failed flag
+        scan.record(Stats(), finishedAt = 1)
+        assertFalse(scan.failed)
+
+        // Scan with failures sets the failed flag
+        val failedStats = Stats().apply { failures += Failure("/d/a.jpg", "blur", "error") }
+        scan.record(failedStats, finishedAt = 2)
+        assertTrue(scan.failed)
+
+        // Clean run clears failed flag
+        runBlocking { scan.run(now = { 3 }) { Stats() } }
+        assertFalse(scan.failed)
+
+        // Cancellation does not mark the scan as failed
+        assertThrows(CancellationException::class.java) {
+            runBlocking { scan.run(now = { 4 }) { throw CancellationException("cancelled") } }
+        }
+        assertFalse(scan.failed)
+
+        // Scan throwing unhandled exception marks as failed
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { scan.run(now = { 5 }) { error("crash") } }
+        }
+        assertTrue(scan.failed)
     }
 }

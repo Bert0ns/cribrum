@@ -199,6 +199,7 @@
     <string name="settings_scan_status_hint">Images analysed out of the images each step needs. Images in the trash are not counted, and neither are stickers for the embedding, document and forwarded steps, which skip them by design.</string>
     <string name="settings_scan_status_last">Last finished scan</string>
     <string name="settings_scan_status_none">No scan has finished since this version.</string>
+    <string name="settings_scan_status_failed">The last scan attempt failed.</string>
     <plurals name="settings_scan_status_unreadable">
         <item quantity="one">%1$d unreadable file</item>
         <item quantity="other">%1$d unreadable files</item>

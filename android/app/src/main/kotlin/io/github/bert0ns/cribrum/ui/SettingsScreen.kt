@@ -65,6 +65,7 @@ fun SettingsScreen(
     onHapticsChange: (Boolean) -> Unit = {},
     coverage: List<Coverage>? = null,
     lastScan: ScanReport? = null,
+    lastScanFailed: Boolean = false,
 ) {
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
@@ -285,7 +286,7 @@ fun SettingsScreen(
                 modifier = Modifier.clickable(enabled = !scanning && embeddingCount > 0) { confirmingEmbeddings = true },
             )
         }
-        if (coverage != null) scanStatusSection(coverage, lastScan, showingFailedFiles) { showingFailedFiles = !showingFailedFiles }
+        if (coverage != null) scanStatusSection(coverage, lastScan, lastScanFailed, showingFailedFiles) { showingFailedFiles = !showingFailedFiles }
     }
 }
 

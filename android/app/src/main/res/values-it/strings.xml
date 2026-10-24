@@ -245,6 +245,7 @@
     <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i passaggi embedding, documenti e inoltrate, che li saltano di proposito.</string>
     <string name="settings_scan_status_last">Ultima scansione completata</string>
     <string name="settings_scan_status_none">Nessuna scansione completata con questa versione.</string>
+    <string name="settings_scan_status_failed">L\'ultimo tentativo di scansione non è riuscito.</string>
     <plurals name="settings_scan_status_unreadable">
         <item quantity="one">%1$d file illeggibile</item>
         <item quantity="other">%1$d file illeggibili</item>
@@ -281,15 +282,15 @@
     <string name="excluded_copy">Un\'altra copia è in una cartella esclusa</string>
     <string name="remove">Rimuovi</string>
     <string name="storage_map">Mappa dell\'archiviazione</string>
-    <string name="storage_map_card_details">%1$s • dimensioni delle immagini</string>
-    <string name="storage_map_card_details_direct">File in questa cartella • %1$s • dimensioni delle immagini</string>
+    <string name="storage_map_card_details">%1$s \u2022 dimensioni delle immagini</string>
+    <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>
     <string name="storage_map_root">Tutte le cartelle esplorate</string>
     <string name="storage_map_exclude">Escludi questa cartella</string>
     <string name="storage_map_empty">Nessuna immagine indicizzata</string>
     <string name="storage_map_no_subfolders">Nessuna sottocartella</string>
     <plurals name="storage_map_summary">
-        <item quantity="one">%1$s • %2$d immagine</item>
-        <item quantity="other">%1$s • %2$d immagini</item>
-        <item quantity="many">%1$s • %2$d di immagini</item>
+        <item quantity="one">%1$s \u2022 %2$d immagine</item>
+        <item quantity="other">%1$s \u2022 %2$d immagini</item>
+        <item quantity="many">%1$s \u2022 %2$d di immagini</item>
     </plurals>
 </resources>

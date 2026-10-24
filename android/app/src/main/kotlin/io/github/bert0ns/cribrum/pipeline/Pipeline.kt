@@ -161,11 +161,16 @@ class Pipeline(
         for (detector in groupDetectors) {
             if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
             progress(detector.id, 0, 1)
-            val signals = detector.analyze(images, context)
-            index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-            index.setGroupFingerprint(detector.id, detector.version, fingerprint)
-            stats.detectorRuns++
-            progress(detector.id, 1, 1)
+            try {
+                val signals = detector.analyze(images, context)
+                index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                index.setGroupFingerprint(detector.id, detector.version, fingerprint)
+                stats.detectorRuns++
+                progress(detector.id, 1, 1)
+            } catch (error: Exception) {
+                if (error is CancellationException || error is MissingEmbedding) throw error
+                stats.failures += Failure("", detector.id, "${error.javaClass.simpleName}: ${error.message}")
+            }
         }
         stats
     }

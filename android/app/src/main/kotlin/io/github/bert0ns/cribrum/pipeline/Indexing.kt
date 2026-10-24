@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.os.Environment
 import android.os.storage.StorageManager
+import android.util.Log
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
 import androidx.work.Constraints
@@ -26,11 +27,13 @@ import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.mobileclip.VISION_MODEL_ASSET
+import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -151,31 +154,61 @@ data class ScanProgress(val step: String, val done: Int, val total: Int)
 open class IndexWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
     override suspend fun doWork(): Result {
         val nightly = Indexing.NIGHTLY_TAG in tags
-        val result = when {
-            nightly && !Indexing.isNight(Indexing.now(applicationContext)) -> Result.success()
-            // A scan from "Scan now" is already running: two would share the index and the model.
-            !running.tryLock() -> Result.success()
-            else -> try {
-                scan()
-            } finally {
-                running.unlock()
+        try {
+            return when {
+                nightly && !Indexing.isNight(Indexing.now(applicationContext)) -> Result.success()
+                // A scan from "Scan now" is already running: two would share the index and the model.
+                !running.tryLock() -> Result.success()
+                else -> try {
+                    scan()
+                } finally {
+                    running.unlock()
+                }
             }
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.e(Indexing.TAG, "Scan failed", error)
+            (applicationContext as? CribrumApp)?.lastScan?.recordFailure()
+            return Result.failure()
+        } finally {
+            if (nightly) Indexing.pinNextNight(applicationContext, id)
         }
-        if (nightly) Indexing.pinNextNight(applicationContext, id)
-        return result
     }
 
     /** The scan itself, open so a test can tell when one starts. */
     protected open suspend fun scan(): Result {
-        if (!Environment.isExternalStorageManager()) return Result.failure()
+        if (!hasStorageAccess()) return Result.failure()
         val app = applicationContext as CribrumApp
-        setForeground(foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting)))
-        val purged = app.trash.purgeExpired()
-        app.index.forget(purged.map { it.path })
+        try {
+            setForegroundInfo(foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting)))
+        } catch (e: IllegalStateException) {
+            Log.w(Indexing.TAG, "Foreground service start refused, continuing in background", e)
+        }
+        val trashFailures = mutableListOf<Failure>()
+        try {
+            val purged = purgeExpired(app)
+            app.index.forget(purged.map { it.path })
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            Log.w(Indexing.TAG, "Failed to purge expired trash", error)
+            trashFailures += Failure("", "trash", "${error.javaClass.simpleName}: ${error.message}")
+        }
         val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
-        app.lastScan.run { Pipeline(app.index, embedder = embedder).run(Indexing.deviceSource(applicationContext), ::report) }
+        app.lastScan.run {
+            val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext), ::report)
+            stats.failures.addAll(trashFailures)
+            stats
+        }
         return Result.success()
     }
+
+    protected open fun hasStorageAccess(): Boolean = Environment.isExternalStorageManager()
+
+    protected open suspend fun setForegroundInfo(info: ForegroundInfo) = setForeground(info)
+
+    protected open suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = app.trash.purgeExpired()
+
+    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline = Pipeline(app.index, embedder = embedder)
 
     private var title = 0
     private var reported = 0L
