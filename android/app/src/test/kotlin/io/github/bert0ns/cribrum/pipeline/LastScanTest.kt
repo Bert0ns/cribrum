@@ -75,10 +75,11 @@ class LastScanTest {
     }
 
     @Test
-    fun `failed reflects whether the last scan attempt had failures or aborted`() {
+    fun `failed reflects whether the last scan had critical failures or aborted`() {
         val scan = LastScan(preferences)
         assertFalse(scan.failed)
 
+        // Scan abort sets the failed flag
         scan.recordFailure()
         assertTrue(scan.failed)
 
@@ -86,25 +87,23 @@ class LastScanTest {
         scan.record(Stats(), finishedAt = 1)
         assertFalse(scan.failed)
 
-        // Scan with failures sets the failed flag
-        val failedStats = Stats().apply { failures += Failure("/d/a.jpg", "blur", "error") }
-        scan.record(failedStats, finishedAt = 2)
+        // Per-image failure does not mark whole scan as failed
+        val perImageStats = Stats().apply { failures += Failure("/d/a.jpg", "blur", "error") }
+        scan.record(perImageStats, finishedAt = 2)
+        assertFalse(scan.failed)
+
+        // Group detector failure marks the scan as failed
+        val groupDetectorStats = Stats().apply { failures += Failure("", "exact_duplicate", "error") }
+        scan.record(groupDetectorStats, finishedAt = 3)
         assertTrue(scan.failed)
 
         // Clean run clears failed flag
-        runBlocking { scan.run(now = { 3 }) { Stats() } }
+        runBlocking { scan.run(now = { 4 }) { Stats() } }
         assertFalse(scan.failed)
 
-        // Cancellation does not mark the scan as failed
-        assertThrows(CancellationException::class.java) {
-            runBlocking { scan.run(now = { 4 }) { throw CancellationException("cancelled") } }
-        }
-        assertFalse(scan.failed)
-
-        // Scan throwing unhandled exception marks as failed
-        assertThrows(IllegalStateException::class.java) {
-            runBlocking { scan.run(now = { 5 }) { error("crash") } }
-        }
+        // Trash failure marks the scan as failed
+        val trashStats = Stats().apply { failures += Failure("", "trash", "error") }
+        scan.record(trashStats, finishedAt = 5)
         assertTrue(scan.failed)
     }
 }

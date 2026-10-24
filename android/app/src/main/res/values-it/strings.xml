@@ -282,15 +282,15 @@
     <string name="excluded_copy">Un\'altra copia è in una cartella esclusa</string>
     <string name="remove">Rimuovi</string>
     <string name="storage_map">Mappa dell\'archiviazione</string>
-    <string name="storage_map_card_details">%1$s \u2022 dimensioni delle immagini</string>
-    <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>
+    <string name="storage_map_card_details">%1$s • dimensioni delle immagini</string>
+    <string name="storage_map_card_details_direct">File in questa cartella • %1$s • dimensioni delle immagini</string>
     <string name="storage_map_root">Tutte le cartelle esplorate</string>
     <string name="storage_map_exclude">Escludi questa cartella</string>
     <string name="storage_map_empty">Nessuna immagine indicizzata</string>
     <string name="storage_map_no_subfolders">Nessuna sottocartella</string>
     <plurals name="storage_map_summary">
-        <item quantity="one">%1$s \u2022 %2$d immagine</item>
-        <item quantity="other">%1$s \u2022 %2$d immagini</item>
-        <item quantity="many">%1$s \u2022 %2$d di immagini</item>
+        <item quantity="one">%1$s • %2$d immagine</item>
+        <item quantity="other">%1$s • %2$d immagini</item>
+        <item quantity="many">%1$s • %2$d di immagini</item>
     </plurals>
 </resources>

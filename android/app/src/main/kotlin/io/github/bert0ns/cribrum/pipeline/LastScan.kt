@@ -2,7 +2,6 @@ package io.github.bert0ns.cribrum.pipeline
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
-import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -26,12 +25,7 @@ class LastScan(private val preferences: SharedPreferences) {
     }
 
     /** Runs [scan] and keeps its report. A scan that throws or is cancelled leaves the previous one. */
-    suspend fun run(now: () -> Long = System::currentTimeMillis, scan: suspend () -> Stats): Stats = try {
-        scan().also { record(it, now()) }
-    } catch (e: Exception) {
-        if (e !is CancellationException) recordFailure()
-        throw e
-    }
+    suspend fun run(now: () -> Long = System::currentTimeMillis, scan: suspend () -> Stats): Stats = scan().also { record(it, now()) }
 
     fun record(stats: Stats, finishedAt: Long) {
         val json = JSONObject()
@@ -39,9 +33,10 @@ class LastScan(private val preferences: SharedPreferences) {
             .put("unreadable", stats.unreadable)
             .put("failures", JSONObject(stats.failures.groupingBy { it.step }.eachCount()))
             .put("files", JSONArray(stats.failures.take(MAX_FILES).map { JSONArray(listOf(it.step, File(it.path).name)) }))
+        val hasFailed = stats.failures.any { it.path.isEmpty() || it.step == "trash" || it.step in GROUP_DETECTOR_IDS }
         preferences.edit {
             putString(KEY, json.toString())
-            putBoolean(KEY_FAILED, stats.failures.isNotEmpty())
+            putBoolean(KEY_FAILED, hasFailed)
         }
     }
 

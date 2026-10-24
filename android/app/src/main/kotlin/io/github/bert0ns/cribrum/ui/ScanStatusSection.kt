@@ -31,7 +31,7 @@ import io.github.bert0ns.cribrum.pipeline.ScanReport
  * the images that need it, the failures of the last finished scan, and the version. The failing file
  * names are one tap away; no path is shown.
  */
-fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanReport?, lastScanFailed: Boolean = false, showingFiles: Boolean, onToggleFiles: () -> Unit) {
+fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanReport?, lastScanFailed: Boolean, showingFiles: Boolean, onToggleFiles: () -> Unit) {
     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
     item {
         Text(

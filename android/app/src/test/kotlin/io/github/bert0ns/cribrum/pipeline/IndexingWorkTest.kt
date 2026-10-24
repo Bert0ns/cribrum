@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.Clock
 import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ForegroundInfo
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -41,6 +43,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** Stands in for the scan itself: counts the scans that start, reports progress and waits for [gate]. */
 class FakeScan(context: Context, parameters: WorkerParameters, private val scans: AtomicInteger, private val gate: CompletableDeferred<Unit>, private val steps: List<Triple<String, Int, Int>> = emptyList()) : IndexWorker(context, parameters) {
+    init {
+        isForeground = true
+    }
+
     override suspend fun scan(): Result {
         scans.incrementAndGet()
         steps.forEach { (step, done, total) -> report(step, done, total) }
@@ -205,6 +211,13 @@ class IndexingWorkTest {
         assertEquals(app.getString(R.string.scan_phase_embeddings), notificationTitle())
     }
 
+    private fun waitForScan(done: CompletableDeferred<Unit>, expectedNextNight: ZonedDateTime = at(23, 2)) = runBlocking {
+        withTimeout(10_000) {
+            done.await()
+            while (nightly().nextScheduleTimeMillis != millis(expectedNextNight)) yield()
+        }
+    }
+
     @Test
     fun `a crashing scan records failure and pins the next night`() {
         val appInstance = app as CribrumApp
@@ -226,14 +239,36 @@ class IndexingWorkTest {
         }
         Indexing.schedulePeriodic(app, now)
         startNightlyAt(at(22, 2, 30))
-        runBlocking {
-            withTimeout(10_000) {
-                done.await()
-                while (nightly().nextScheduleTimeMillis != millis(at(23, 2))) kotlinx.coroutines.yield()
-            }
-        }
+        waitForScan(done)
 
         assertEquals(1, scans.get())
+        assertTrue(appInstance.lastScan.failed)
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+    }
+
+    @Test
+    fun `missing storage permission fails the scan, records failure and pins the next night`() {
+        val appInstance = app as CribrumApp
+        appInstance.lastScan.record(Stats(), finishedAt = 100)
+        assertFalse(appInstance.lastScan.failed)
+        val done = CompletableDeferred<Unit>()
+
+        workerFactory = { ctx, params ->
+            object : IndexWorker(ctx, params) {
+                override fun hasStorageAccess() = false
+                override suspend fun scan(): Result {
+                    try {
+                        return super.scan()
+                    } finally {
+                        done.complete(Unit)
+                    }
+                }
+            }
+        }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+
         assertTrue(appInstance.lastScan.failed)
         assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
     }
@@ -246,7 +281,7 @@ class IndexingWorkTest {
         workerFactory = { ctx, params ->
             object : IndexWorker(ctx, params) {
                 override fun hasStorageAccess() = true
-                override suspend fun setForegroundInfo(info: androidx.work.ForegroundInfo) {
+                override suspend fun setForegroundInfo(info: ForegroundInfo) {
                     foregroundAttempted = true
                     throw IllegalStateException("ForegroundServiceStartNotAllowedException")
                 }
@@ -264,16 +299,12 @@ class IndexingWorkTest {
         }
         Indexing.schedulePeriodic(app, now)
         startNightlyAt(at(22, 2, 30))
-        runBlocking {
-            withTimeout(10_000) {
-                done.await()
-                while (nightly().nextScheduleTimeMillis != millis(at(23, 2))) kotlinx.coroutines.yield()
-            }
-        }
+        waitForScan(done)
 
         assertTrue(foregroundAttempted)
         assertTrue(completedScan)
         assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+        assertNull(shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(IndexWorker.NOTIFICATION_ID))
     }
 
     @Test
@@ -284,7 +315,7 @@ class IndexingWorkTest {
         workerFactory = { ctx, params ->
             object : IndexWorker(ctx, params) {
                 override fun hasStorageAccess() = true
-                override suspend fun setForegroundInfo(info: androidx.work.ForegroundInfo) {}
+                override suspend fun setForegroundInfo(info: ForegroundInfo) {}
                 override suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = throw IllegalStateException("disk error during purge")
                 override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
                 override suspend fun scan(): Result {
@@ -299,12 +330,7 @@ class IndexingWorkTest {
         }
         Indexing.schedulePeriodic(app, now)
         startNightlyAt(at(22, 2, 30))
-        runBlocking {
-            withTimeout(10_000) {
-                done.await()
-                while (nightly().nextScheduleTimeMillis != millis(at(23, 2))) kotlinx.coroutines.yield()
-            }
-        }
+        waitForScan(done)
 
         assertTrue(completedScan)
         assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)

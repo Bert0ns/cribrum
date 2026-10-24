@@ -175,31 +175,41 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         }
     }
 
+    protected var isForeground = false
+
     /** The scan itself, open so a test can tell when one starts. */
     protected open suspend fun scan(): Result {
-        if (!hasStorageAccess()) return Result.failure()
         val app = applicationContext as CribrumApp
+        if (!hasStorageAccess()) {
+            app.lastScan.recordFailure()
+            return Result.failure()
+        }
         try {
             setForegroundInfo(foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting)))
+            isForeground = true
         } catch (e: IllegalStateException) {
             Log.w(Indexing.TAG, "Foreground service start refused, continuing in background", e)
         }
-        val trashFailures = mutableListOf<Failure>()
         try {
-            val purged = purgeExpired(app)
-            app.index.forget(purged.map { it.path })
-        } catch (error: Exception) {
-            if (error is CancellationException) throw error
-            Log.w(Indexing.TAG, "Failed to purge expired trash", error)
-            trashFailures += Failure("", "trash", "${error.javaClass.simpleName}: ${error.message}")
+            val trashFailures = mutableListOf<Failure>()
+            try {
+                val purged = purgeExpired(app)
+                app.index.forget(purged.map { it.path })
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                Log.w(Indexing.TAG, "Failed to purge expired trash", error)
+                trashFailures += Failure("", "trash", failureMessage(error))
+            }
+            val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
+            app.lastScan.run {
+                val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext), ::report)
+                stats.failures.addAll(trashFailures)
+                stats
+            }
+            return Result.success()
+        } finally {
+            applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
-        val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
-        app.lastScan.run {
-            val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext), ::report)
-            stats.failures.addAll(trashFailures)
-            stats
-        }
-        return Result.success()
     }
 
     protected open fun hasStorageAccess(): Boolean = Environment.isExternalStorageManager()
@@ -221,9 +231,11 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         reported = now
         title = phaseTitle
         setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total))
-        // The service is in the foreground since scan() began, so the notification is updated in place.
-        val info = foregroundInfo(phaseTitle, applicationContext.getString(R.string.scan_progress, done, total))
-        applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
+        if (isForeground) {
+            // The service is in the foreground since scan() began, so the notification is updated in place.
+            val info = foregroundInfo(phaseTitle, applicationContext.getString(R.string.scan_progress, done, total))
+            applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
+        }
     }
 
     override suspend fun getForegroundInfo() = foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting))
@@ -242,7 +254,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         return ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     }
 
-    private companion object {
+    internal companion object {
         /** One scan at a time in the process, whichever request started it. */
         val running = Mutex()
         const val CHANNEL = "scan"
