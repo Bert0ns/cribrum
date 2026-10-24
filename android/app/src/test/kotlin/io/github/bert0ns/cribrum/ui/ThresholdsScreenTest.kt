@@ -74,6 +74,15 @@ class ThresholdsScreenTest {
     }
 
     @Test
+    fun `exact duplicates get no slider, since their detector scores only 0 or 1`() {
+        compose.setContent { ThresholdsScreen(THRESHOLDS, emptyMap(), emptyMap(), { _, _ -> }, {}) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Reset to defaults"))
+        compose.onAllNodes(hasText("Exact copies", substring = true)).assertCountEquals(0)
+        compose.onAllNodes(hasContentDescription("Exact copies")).assertCountEquals(0)
+    }
+
+    @Test
     fun `reset to defaults is offered`() {
         var resets = 0
         compose.setContent { ThresholdsScreen(THRESHOLDS, emptyMap(), emptyMap(), { _, _ -> }, { resets++ }) }

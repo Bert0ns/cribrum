@@ -446,6 +446,23 @@ class ReviewViewModelTest {
         settle(model) { it.state.value.screen == Screen.Settings }
     }
 
+    @Test
+    fun `thresholdCounts and defaultCounts update when index changes while on Thresholds screen`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        val model = ReviewViewModel(app)
+        model.openThresholds()
+        settle(model) { it.state.value.screen == Screen.Thresholds && it.state.value.thresholdCounts.isNotEmpty() }
+        assertEquals(1, model.state.value.thresholdCounts[Category.BLURRY])
+        assertEquals(1, model.state.value.defaultCounts[Category.BLURRY])
+
+        blurry("/sdcard/b.jpg", 0.9f)
+        model.openThresholds()
+        settle(model) { it.state.value.thresholdCounts[Category.BLURRY] == 2 }
+
+        assertEquals(2, model.state.value.thresholdCounts[Category.BLURRY])
+        assertEquals(2, model.state.value.defaultCounts[Category.BLURRY])
+    }
+
     private fun shownIds(model: ReviewViewModel) = model.state.value.page.map { it.id }.toSet()
 
     @Test

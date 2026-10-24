@@ -35,6 +35,6 @@ class Thresholds(private val preferences: SharedPreferences) {
         val RANGE = MIN..1f
 
         /** Detectors that score only 0 or 1, so every threshold up to 1 gives the same candidates. */
-        val FIXED = setOf(Category.STICKER)
+        val FIXED = setOf(Category.STICKER, Category.EXACT_DUPLICATE)
     }
 }

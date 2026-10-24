@@ -1,16 +1,23 @@
 package io.github.bert0ns.cribrum
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +35,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,11 +43,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.bert0ns.cribrum.pipeline.Indexing
@@ -64,17 +74,47 @@ import io.github.bert0ns.cribrum.ui.categoryName
 import io.github.bert0ns.cribrum.ui.trailHue
 import java.io.File
 
+/** The system screen where the user can enable app notifications. */
+fun notificationSettings(context: Context): Intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+}
+
+interface Permissions {
+    fun hasAllFilesAccess(): Boolean
+    fun hasNotificationPermission(context: Context): Boolean
+}
+
+internal object DefaultPermissions : Permissions {
+    override fun hasAllFilesAccess(): Boolean = Environment.isExternalStorageManager()
+
+    override fun hasNotificationPermission(context: Context): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
+    }
+}
+
 class MainActivity : ComponentActivity() {
+    val model: ReviewViewModel by viewModels()
+
     /** Checked again on every resume: the user grants it in the system settings, outside the app. */
     private var hasAllFilesAccess by mutableStateOf(false)
+    private var notificationsGranted by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState != null) {
+            hasAllFilesAccess = savedInstanceState.getBoolean(KEY_ALL_FILES_ACCESS, false)
+        }
         enableEdgeToEdge()
         setContent {
             MaterialTheme {
                 if (hasAllFilesAccess) {
-                    App()
+                    App(
+                        model = model,
+                        notificationsGranted = notificationsGranted,
+                        onNotificationResult = { notificationsGranted = it },
+                    )
                 } else {
                     Scaffold { padding ->
                         AllFilesAccess({ startActivity(allFilesAccessSettings(this)) }, Modifier.padding(padding))
@@ -86,30 +126,90 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        hasAllFilesAccess = Environment.isExternalStorageManager()
+        val granted = permissions.hasAllFilesAccess()
+        if (granted && !hasAllFilesAccess) {
+            model.refresh()
+        }
+        hasAllFilesAccess = granted
+        notificationsGranted = permissions.hasNotificationPermission(this)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_ALL_FILES_ACCESS, hasAllFilesAccess)
+    }
+
+    companion object {
+        private const val KEY_ALL_FILES_ACCESS = "all_files_access"
+        internal var permissions: Permissions = DefaultPermissions
+
+        internal fun resetPermissions() {
+            permissions = DefaultPermissions
+        }
     }
 }
 
 @Composable
-fun App(model: ReviewViewModel = viewModel()) {
+fun App(
+    model: ReviewViewModel = viewModel(),
+    notificationsGranted: Boolean = true,
+    onNotificationResult: (Boolean) -> Unit = {},
+) {
     val state by model.state.collectAsStateWithLifecycle()
-    WithHaptics(state.hapticsEnabled) { AppContent(model) }
+    WithHaptics(state.hapticsEnabled) {
+        AppContent(
+            model = model,
+            notificationsGranted = notificationsGranted,
+            onNotificationResult = onNotificationResult,
+        )
+    }
+}
+
+@Composable
+fun NotificationHint(onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(
+            text = stringResource(R.string.notification_hint),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f).padding(end = 8.dp),
+        )
+        TextButton(onClick = onOpenSettings) {
+            Text(stringResource(R.string.notification_action_settings))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppContent(model: ReviewViewModel) {
+private fun AppContent(
+    model: ReviewViewModel,
+    notificationsGranted: Boolean,
+    onNotificationResult: (Boolean) -> Unit,
+) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val state by model.state.collectAsStateWithLifecycle()
     val progress by remember { Indexing.progress(context) }.collectAsStateWithLifecycle(null)
     val snackbar = remember { SnackbarHostState() }
-    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        onNotificationResult(granted)
+    }
+    val app = context.applicationContext as CribrumApp
     // Opening the app starts no scan: the nightly one and "Scan now" do (design §4).
     LaunchedEffect(Unit) {
         Indexing.schedulePeriodic(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notifications.launch(Manifest.permission.POST_NOTIFICATIONS) // the scan's progress notification
+            if (!notificationsGranted && !app.notificationPreferences.permissionRequested) {
+                app.notificationPreferences.permissionRequested = true
+                notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
     // The list reloads when a scan starts or ends and at each phase, so the candidates of the early
@@ -117,6 +217,7 @@ private fun AppContent(model: ReviewViewModel) {
     LaunchedEffect(progress == null, progress?.step) {
         if (state.screen == Screen.Home) model.refresh()
         if (state.screen == Screen.Settings) model.openSettings() // the scan changed the embedding count
+        if (state.screen == Screen.Thresholds) model.openThresholds()
     }
     val decision = state.lastDecision
     val trashedMessage = decision?.let {
@@ -192,6 +293,9 @@ private fun AppContent(model: ReviewViewModel) {
             when (screen) {
                 Screen.Home -> {
                     ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty)
+                    if (!notificationsGranted) {
+                        NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
+                    }
                     CategoryList(state.categories, state.freeableBytes, model::open, model::openTrash)
                 }
                 is Screen.Category -> CategoryScreen(

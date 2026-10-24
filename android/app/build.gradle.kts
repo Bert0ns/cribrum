@@ -40,7 +40,12 @@ android {
 
     buildTypes {
         release {
+            // Minify is kept off until verified on a physical device with native ONNX Runtime models (issue #194).
             isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = signingConfigs.findByName("release")
         }
     }
