@@ -228,7 +228,7 @@ class ReviewViewModel @JvmOverloads constructor(
         return copy(retentionDays = days, pendingRetention = null)
     }
 
-    /** The defaults' counts are read once: they only change with a scan, and the screen stays open for one slider at a time. */
+    /** Reads counts for the defaults and current thresholds; reloaded when opened and when a scan progresses. */
     fun openThresholds() = load {
         it.copy(screen = Screen.Thresholds, defaultCounts = review.counts(THRESHOLDS)).withThresholds(app.thresholds.values)
     }

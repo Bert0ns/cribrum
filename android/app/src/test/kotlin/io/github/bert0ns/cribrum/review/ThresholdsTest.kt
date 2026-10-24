@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -14,6 +15,12 @@ import org.robolectric.annotation.Config
 @Config(sdk = [36])
 class ThresholdsTest {
     private val preferences = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("test", Context.MODE_PRIVATE)
+
+    @Test
+    fun `fixed categories include stickers and exact duplicates`() {
+        assertTrue(Thresholds.FIXED.contains(Category.STICKER))
+        assertTrue(Thresholds.FIXED.contains(Category.EXACT_DUPLICATE))
+    }
 
     @Test
     fun `without overrides the values are the ranker defaults`() {
@@ -51,9 +58,21 @@ class ThresholdsTest {
         assertEquals(THRESHOLDS, Thresholds(preferences).values)
     }
 
+    @Test
+    fun `a stored exact duplicate override is ignored, since exact duplicates have no slider`() {
+        preferences.edit().putFloat("threshold_EXACT_DUPLICATE", 1f).commit()
+
+        assertEquals(THRESHOLDS, Thresholds(preferences).values)
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `a sticker threshold cannot be set`() {
         Thresholds(preferences)[Category.STICKER] = 0.8f
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `an exact duplicate threshold cannot be set`() {
+        Thresholds(preferences)[Category.EXACT_DUPLICATE] = 0.8f
     }
 
     @Test(expected = IllegalArgumentException::class)
