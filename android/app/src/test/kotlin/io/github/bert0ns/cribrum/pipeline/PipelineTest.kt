@@ -566,4 +566,43 @@ class PipelineTest {
         assertTrue(stats.failures[0].toString(), "Screenshot_1.png: oom_detector: OutOfMemoryError" in stats.failures[0].toString())
         assertEquals(2, runBlocking { index.images() }.count { runBlocking { index.isAnalyzed(it.path, "oom_detector", 1) } })
     }
+
+    @Test
+    fun `a group detector that throws an exception records a failure and does not abort other group detectors`() {
+        photos()
+        val throwingDetector = object : GroupDetector {
+            override val id = "throwing_group"
+            override val version = 1
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> = throw IllegalStateException("detector exploded")
+        }
+        var nextRan = false
+        val followingDetector = object : GroupDetector {
+            override val id = "following_group"
+            override val version = 1
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
+                nextRan = true
+                return emptyMap()
+            }
+        }
+
+        val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(throwingDetector, followingDetector)))
+
+        assertTrue(nextRan)
+        assertEquals(1, stats.failures.size)
+        assertEquals(Failure("", "throwing_group", "IllegalStateException: detector exploded"), stats.failures[0])
+    }
+
+    @Test
+    fun `a group detector that throws CancellationException is not caught`() {
+        photos()
+        val cancellingDetector = object : GroupDetector {
+            override val id = "cancelling_group"
+            override val version = 1
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> = throw kotlinx.coroutines.CancellationException("job cancelled")
+        }
+
+        assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+            run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(cancellingDetector)))
+        }
+    }
 }

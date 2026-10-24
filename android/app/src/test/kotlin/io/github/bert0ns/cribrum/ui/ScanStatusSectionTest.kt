@@ -75,4 +75,11 @@ class ScanStatusSectionTest {
         scrollTo("1 unreadable file")
         scrollTo("No failures in the last scan")
     }
+
+    @Test
+    fun `when the last scan attempt failed it displays the failure message`() {
+        compose.setContent { SettingsScreen(coverage = coverage, lastScan = null, lastScanFailed = true) }
+
+        scrollTo("The last scan attempt failed.")
+    }
 }

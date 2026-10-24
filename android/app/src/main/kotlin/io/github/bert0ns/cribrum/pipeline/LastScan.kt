@@ -17,6 +17,13 @@ class LastScan(private val preferences: SharedPreferences) {
     val report: ScanReport?
         get() = preferences.getString(KEY, null)?.let { runCatching { parse(JSONObject(it)) }.getOrNull() }
 
+    val failed: Boolean
+        get() = preferences.getBoolean(KEY_FAILED, false)
+
+    fun recordFailure() {
+        preferences.edit { putBoolean(KEY_FAILED, true) }
+    }
+
     /** Runs [scan] and keeps its report. A scan that throws or is cancelled leaves the previous one. */
     suspend fun run(now: () -> Long = System::currentTimeMillis, scan: suspend () -> Stats): Stats = scan().also { record(it, now()) }
 
@@ -26,7 +33,11 @@ class LastScan(private val preferences: SharedPreferences) {
             .put("unreadable", stats.unreadable)
             .put("failures", JSONObject(stats.failures.groupingBy { it.step }.eachCount()))
             .put("files", JSONArray(stats.failures.take(MAX_FILES).map { JSONArray(listOf(it.step, File(it.path).name)) }))
-        preferences.edit { putString(KEY, json.toString()) }
+        val hasFailed = stats.failures.any { it.path.isEmpty() || it.step == "trash" || it.step in GROUP_DETECTOR_IDS }
+        preferences.edit {
+            putString(KEY, json.toString())
+            putBoolean(KEY_FAILED, hasFailed)
+        }
     }
 
     private fun parse(json: JSONObject): ScanReport {
@@ -44,5 +55,6 @@ class LastScan(private val preferences: SharedPreferences) {
         /** More names than this would not be read, and the report lives in the settings file. */
         const val MAX_FILES = 100
         private const val KEY = "last_scan"
+        private const val KEY_FAILED = "last_scan_failed"
     }
 }

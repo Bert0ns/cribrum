@@ -50,6 +50,7 @@ val DETECTORS: List<Detector> = listOf(
     StickerDetector(),
 )
 val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector(), NearDuplicateDetector(), BurstDetector())
+val GROUP_DETECTOR_IDS: Set<String> = GROUP_DETECTORS.map { it.id }.toSet()
 val DETECTOR_CATEGORIES: Set<Category> =
     (DETECTORS.mapNotNull { it.category } + GROUP_DETECTORS.mapNotNull { it.category }).toSet()
 
@@ -71,6 +72,9 @@ typealias Progress = suspend (step: String, done: Int, total: Int) -> Unit
 data class Failure(val path: String, val step: String, val error: String) {
     override fun toString() = "$path: $step: $error"
 }
+
+/** Format a Throwable as "ClassName: message" for [Failure]. */
+internal fun failureMessage(error: Throwable): String = "${error.javaClass.simpleName}: ${error.message}"
 
 data class Stats(
     var images: Int = 0,
@@ -161,11 +165,16 @@ class Pipeline(
         for (detector in groupDetectors) {
             if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
             progress(detector.id, 0, 1)
-            val signals = detector.analyze(images, context)
-            index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-            index.setGroupFingerprint(detector.id, detector.version, fingerprint)
-            stats.detectorRuns++
-            progress(detector.id, 1, 1)
+            try {
+                val signals = detector.analyze(images, context)
+                index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                index.setGroupFingerprint(detector.id, detector.version, fingerprint)
+                stats.detectorRuns++
+                progress(detector.id, 1, 1)
+            } catch (error: Exception) {
+                if (error is CancellationException || error is MissingEmbedding) throw error
+                stats.failures += Failure("", detector.id, failureMessage(error))
+            }
         }
         stats
     }
@@ -194,7 +203,7 @@ class Pipeline(
         val todo = images.filter { it.path !in stored }
         var done = 0
         fun fail(image: ImageRef, error: Throwable) {
-            stats.failures += Failure(image.path, EMBEDDING_STEP, "${error.javaClass.simpleName}: ${error.message}")
+            stats.failures += Failure(image.path, EMBEDDING_STEP, failureMessage(error))
         }
         for (batch in todo.chunked(EMBEDDING_BATCH)) {
             val decoded = coroutineScope {
@@ -314,7 +323,7 @@ class Pipeline(
             val signals = result.getOrNull()
             when {
                 again(result) -> Unit
-                error != null -> stats.failures += Failure(path, detector.id, "${error::class.simpleName}: ${error.message}")
+                error != null -> stats.failures += Failure(path, detector.id, failureMessage(error))
                 signals == null -> stats.skipped++ // the embedding it needs is missing
                 else -> {
                     index.setSignals(path, detector.id, detector.version, signals)
@@ -329,7 +338,7 @@ class Pipeline(
                     index.setPerceptualHash(path, it)
                     stats.detectorRuns++
                 },
-                onFailure = { stats.failures += Failure(path, "perceptual hash", "${it.javaClass.simpleName}: ${it.message}") },
+                onFailure = { stats.failures += Failure(path, "perceptual hash", failureMessage(it)) },
             )
         }
         val detectorsAgain = outcome.detectorResults.filter { again(it.second) }.map { it.first }

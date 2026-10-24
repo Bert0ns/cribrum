@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.Clock
 import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ForegroundInfo
 import androidx.work.ListenableWorker
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -14,15 +15,21 @@ import androidx.work.WorkerParameters
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.workDataOf
+import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.mobileclip.MobileClip
+import io.github.bert0ns.cribrum.model.ImageRef
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,6 +43,10 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** Stands in for the scan itself: counts the scans that start, reports progress and waits for [gate]. */
 class FakeScan(context: Context, parameters: WorkerParameters, private val scans: AtomicInteger, private val gate: CompletableDeferred<Unit>, private val steps: List<Triple<String, Int, Int>> = emptyList()) : IndexWorker(context, parameters) {
+    init {
+        isForeground = true
+    }
+
     override suspend fun scan(): Result {
         scans.incrementAndGet()
         steps.forEach { (step, done, total) -> report(step, done, total) }
@@ -56,6 +67,9 @@ class IndexingWorkTest {
     private val scans = AtomicInteger()
     private val gate = CompletableDeferred<Unit>()
     private val steps = mutableListOf<Triple<String, Int, Int>>()
+    private var workerFactory: (Context, WorkerParameters) -> ListenableWorker = { ctx, params ->
+        FakeScan(ctx, params, scans, gate, steps)
+    }
 
     private fun at(day: Int, hour: Int, minute: Int = 0) = ZonedDateTime.of(2026, 10, day, hour, minute, 0, 0, zone)
 
@@ -66,7 +80,7 @@ class IndexingWorkTest {
             .setClock(clock)
             .setExecutor(SynchronousExecutor())
             .setWorkerFactory(object : WorkerFactory() {
-                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = FakeScan(appContext, workerParameters, scans, gate, steps)
+                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = workerFactory(appContext, workerParameters)
             })
             .build()
         WorkManagerTestInitHelper.initializeTestWorkManager(app, configuration)
@@ -195,5 +209,132 @@ class IndexingWorkTest {
         runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
 
         assertEquals(app.getString(R.string.scan_phase_embeddings), notificationTitle())
+    }
+
+    private fun waitForScan(done: CompletableDeferred<Unit>, expectedNextNight: ZonedDateTime = at(23, 2)) = runBlocking {
+        withTimeout(10_000) {
+            done.await()
+            while (nightly().nextScheduleTimeMillis != millis(expectedNextNight)) yield()
+        }
+    }
+
+    @Test
+    fun `a crashing scan records failure and pins the next night`() {
+        val appInstance = app as CribrumApp
+        appInstance.lastScan.record(Stats(), finishedAt = 100)
+        assertFalse(appInstance.lastScan.failed)
+        val done = CompletableDeferred<Unit>()
+
+        workerFactory = { ctx, params ->
+            object : IndexWorker(ctx, params) {
+                override suspend fun scan(): Result {
+                    try {
+                        scans.incrementAndGet()
+                        throw IllegalStateException("crash in scan")
+                    } finally {
+                        done.complete(Unit)
+                    }
+                }
+            }
+        }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+
+        assertEquals(1, scans.get())
+        assertTrue(appInstance.lastScan.failed)
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+    }
+
+    @Test
+    fun `missing storage permission fails the scan, records failure and pins the next night`() {
+        val appInstance = app as CribrumApp
+        appInstance.lastScan.record(Stats(), finishedAt = 100)
+        assertFalse(appInstance.lastScan.failed)
+        val done = CompletableDeferred<Unit>()
+
+        workerFactory = { ctx, params ->
+            object : IndexWorker(ctx, params) {
+                override fun hasStorageAccess() = false
+                override suspend fun scan(): Result {
+                    try {
+                        return super.scan()
+                    } finally {
+                        done.complete(Unit)
+                    }
+                }
+            }
+        }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+
+        assertTrue(appInstance.lastScan.failed)
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+    }
+
+    @Test
+    fun `foreground service start refusal does not abort the scan and pins the next night`() {
+        var completedScan = false
+        var foregroundAttempted = false
+        val done = CompletableDeferred<Unit>()
+        workerFactory = { ctx, params ->
+            object : IndexWorker(ctx, params) {
+                override fun hasStorageAccess() = true
+                override suspend fun setForegroundInfo(info: ForegroundInfo) {
+                    foregroundAttempted = true
+                    throw IllegalStateException("ForegroundServiceStartNotAllowedException")
+                }
+                override suspend fun purgeExpired(app: CribrumApp) = emptyList<ImageRef>()
+                override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
+                override suspend fun scan(): Result {
+                    try {
+                        return super.scan()
+                    } finally {
+                        completedScan = true
+                        done.complete(Unit)
+                    }
+                }
+            }
+        }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+
+        assertTrue(foregroundAttempted)
+        assertTrue(completedScan)
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+        assertNull(shadowOf(app.getSystemService(NotificationManager::class.java)).getNotification(IndexWorker.NOTIFICATION_ID))
+    }
+
+    @Test
+    fun `purgeExpired failure is recorded in failures and scan continues to completion`() {
+        val appInstance = app as CribrumApp
+        var completedScan = false
+        val done = CompletableDeferred<Unit>()
+        workerFactory = { ctx, params ->
+            object : IndexWorker(ctx, params) {
+                override fun hasStorageAccess() = true
+                override suspend fun setForegroundInfo(info: ForegroundInfo) {}
+                override suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = throw IllegalStateException("disk error during purge")
+                override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
+                override suspend fun scan(): Result {
+                    try {
+                        return super.scan()
+                    } finally {
+                        completedScan = true
+                        done.complete(Unit)
+                    }
+                }
+            }
+        }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+
+        assertTrue(completedScan)
+        assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+        assertTrue(appInstance.lastScan.failed)
+        assertEquals(1, appInstance.lastScan.report?.failures?.get("trash"))
     }
 }

@@ -31,7 +31,7 @@ import io.github.bert0ns.cribrum.pipeline.ScanReport
  * the images that need it, the failures of the last finished scan, and the version. The failing file
  * names are one tap away; no path is shown.
  */
-fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanReport?, showingFiles: Boolean, onToggleFiles: () -> Unit) {
+fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanReport?, lastScanFailed: Boolean, showingFiles: Boolean, onToggleFiles: () -> Unit) {
     item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
     item {
         Text(
@@ -46,13 +46,16 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_scan_status_last)) },
             supportingContent = {
-                if (lastScan == null) {
-                    Text(stringResource(R.string.settings_scan_status_none))
-                } else {
-                    val context = LocalContext.current
-                    Column {
+                val context = LocalContext.current
+                Column {
+                    if (lastScan == null) {
+                        Text(stringResource(R.string.settings_scan_status_none))
+                    } else {
                         Text(DateUtils.formatDateTime(context, lastScan.finishedAt, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH))
                         Text(pluralStringResource(R.plurals.settings_scan_status_unreadable, lastScan.unreadable, lastScan.unreadable))
+                    }
+                    if (lastScanFailed) {
+                        Text(stringResource(R.string.settings_scan_status_failed))
                     }
                 }
             },

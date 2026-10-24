@@ -234,6 +234,7 @@ private fun AppContent(model: ReviewViewModel) {
                     onHapticsChange = model::setHaptics,
                     coverage = state.coverage,
                     lastScan = state.lastScan,
+                    lastScanFailed = state.lastScanFailed,
                 )
                 Screen.Thresholds -> ThresholdsScreen(
                     state.thresholds,

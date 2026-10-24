@@ -129,4 +129,13 @@ class LanguageTest {
         compose.onAllNodesWithText("Language").assertCountEquals(0)
         assertNull(nextStarted)
     }
+
+    @Test
+    @Config(qualifiers = "it")
+    fun `the scan status failure message reads in Italian`() {
+        compose.setContent { SettingsScreen(coverage = emptyList(), lastScanFailed = true) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("L'ultimo tentativo di scansione non è riuscito."))
+        compose.onNodeWithText("L'ultimo tentativo di scansione non è riuscito.").assertExists()
+    }
 }

@@ -8,6 +8,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -71,5 +72,38 @@ class LastScanTest {
         assertEquals(ScanReport(finishedAt = 1, unreadable = 1, failures = emptyMap(), files = emptyList()), scan.report)
         runBlocking { scan.run(now = { 4 }) { Stats() } }
         assertEquals(4, scan.report!!.finishedAt)
+    }
+
+    @Test
+    fun `failed reflects whether the last scan had critical failures or aborted`() {
+        val scan = LastScan(preferences)
+        assertFalse(scan.failed)
+
+        // Scan abort sets the failed flag
+        scan.recordFailure()
+        assertTrue(scan.failed)
+
+        // Clean scan clears the failed flag
+        scan.record(Stats(), finishedAt = 1)
+        assertFalse(scan.failed)
+
+        // Per-image failure does not mark whole scan as failed
+        val perImageStats = Stats().apply { failures += Failure("/d/a.jpg", "blur", "error") }
+        scan.record(perImageStats, finishedAt = 2)
+        assertFalse(scan.failed)
+
+        // Group detector failure marks the scan as failed
+        val groupDetectorStats = Stats().apply { failures += Failure("", "exact_duplicate", "error") }
+        scan.record(groupDetectorStats, finishedAt = 3)
+        assertTrue(scan.failed)
+
+        // Clean run clears failed flag
+        runBlocking { scan.run(now = { 4 }) { Stats() } }
+        assertFalse(scan.failed)
+
+        // Trash failure marks the scan as failed
+        val trashStats = Stats().apply { failures += Failure("", "trash", "error") }
+        scan.record(trashStats, finishedAt = 5)
+        assertTrue(scan.failed)
     }
 }
