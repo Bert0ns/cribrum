@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -75,7 +76,7 @@ class AppTrashDeviceTest {
 
     @Test
     fun forDeviceReadsStorageVolumes() = runBlocking {
-        assertTrue(AppTrash.forDevice(context).trashed() is List<*>)
+        assertNotNull(AppTrash.forDevice(context).trashed())
     }
 
     @Test
