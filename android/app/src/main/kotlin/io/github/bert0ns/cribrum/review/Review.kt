@@ -41,6 +41,8 @@ data class ReviewGroup(
     val images: List<ReviewItem>,
     /** A copy sits in an excluded folder. It is not listed, so the screen says it exists. */
     val hasExcludedCopy: Boolean = false,
+    /** The best copy is in the trash. Nothing is preselected to trash. */
+    val hasTrashedBestCopy: Boolean = false,
     /** The day, week or month the group is shown under when the review is grouped by date. */
     val date: LocalDate? = null,
 )
@@ -58,6 +60,12 @@ data class ReviewItem(
      * member is in the group, and is no reason to trash it.
      */
     val reasons: List<Signal> = emptyList(),
+    /**
+     * Whether keeping this image on this page records it as KEPT in the index.
+     * False for a member that is a candidate in another category or a sticker, so it can be
+     * marked in the page where it is listed.
+     */
+    val keepable: Boolean = true,
 )
 
 data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true, val bytes: Long = 0)
@@ -112,8 +120,16 @@ class Review(
     suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page {
         val excluded = index.excludedFolders()
         val images = index.indexedImages()
-        val candidates = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))[category].orEmpty()
-        val (hidden, groups) = (if (category in GROUP_CATEGORIES) groups(category, candidates, images, excluded) else singles(category, candidates, grouping))
+        val byCategory = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))
+        val candidates = byCategory[category].orEmpty()
+        val (hidden, groups) = (
+            if (category in GROUP_CATEGORIES) {
+                val otherCandidates = byCategory.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
+                groups(category, candidates, images, excluded, otherCandidates)
+            } else {
+                singles(category, candidates, grouping)
+            }
+            )
             .let { all -> if (grouping == ReviewOrder.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
             .partition { it.id in skipped }
         val page = mutableListOf<ReviewGroup>()
@@ -136,6 +152,20 @@ class Review(
         moved.forEach { index.setReviewState(it.path, ReviewState.TRASHED) }
         toKeep.forEach { index.setReviewState(it.path, ReviewState.KEPT) }
         return Decision(moved, toKeep, toTrash - moved.toSet())
+    }
+
+    /**
+     * Trashes the marked images of the page, keeps the unselected members that are not candidates
+     * elsewhere, and leaves candidates in other categories unreviewed so they can be marked on
+     * the page where they are listed.
+     */
+    suspend fun applyPage(page: Page, marked: Set<String> = emptySet()): Decision = applyPage(page.groups, marked)
+
+    suspend fun applyPage(groups: List<ReviewGroup>, marked: Set<String> = emptySet()): Decision {
+        val items = groups.flatMap { it.images }
+        val toTrash = items.filter { it.image.path in marked }.map { it.image }
+        val toKeep = items.filter { it.image.path !in marked && it.keepable }.map { it.image }
+        return apply(toTrash, toKeep)
     }
 
     /** Puts every image of a decision back as it was before: in its folder, and unreviewed. */
@@ -192,20 +222,38 @@ class Review(
             .sortedByDescending { it.date } // stable: the ranker's order holds inside a date
     }
 
-    /** Members in an [excluded] folder are left out: the review never lists, trashes or keeps them. */
-    private fun groups(category: Category, candidates: List<Candidate>, images: List<IndexedImage>, excluded: List<String>): List<ReviewGroup> {
+    /** Members in an [excluded] folder or stickers are left out: the review never lists, trashes or keeps them here. */
+    private fun groups(
+        category: Category,
+        candidates: List<Candidate>,
+        images: List<IndexedImage>,
+        excluded: List<String>,
+        otherCandidates: Set<String> = emptySet(),
+    ): List<ReviewGroup> {
         val members = mutableMapOf<String, MutableList<Pair<IndexedImage, Role>>>()
         val withExcludedCopy = mutableSetOf<String>()
+        val withTrashedBestCopy = mutableSetOf<String>()
+        val hasNonTrashedBest = mutableSetOf<String>()
         for (image in images) {
-            if (image.reviewState == ReviewState.TRASHED) continue
             val isExcluded = isExcluded(image.ref.path, excluded)
             for (signal in image.signals) {
                 if (signal.kind != category) continue
                 val group = signal.evidence[GROUP_KEY] ?: continue
                 val role = Role.entries.firstOrNull { it.value == signal.evidence[ROLE_KEY] } ?: continue
+                if (image.reviewState == ReviewState.TRASHED) {
+                    if (role == Role.BEST) withTrashedBestCopy += group
+                    continue
+                }
                 if (isExcluded) {
                     withExcludedCopy += group
+                    if (role == Role.BEST) hasNonTrashedBest += group
                     continue
+                }
+                if (image.signals.any { it.kind == Category.STICKER }) {
+                    continue
+                }
+                if (role == Role.BEST) {
+                    hasNonTrashedBest += group
                 }
                 members.getOrPut(group) { mutableListOf() } += image to role
             }
@@ -221,17 +269,24 @@ class Review(
             candidateReasons[candidate.image.ref.path] = candidate.reasons
         }
         return order.map { group ->
+            val hasBest = group in hasNonTrashedBest
             val items = members[group].orEmpty().map { (image, role) ->
                 val best = role == Role.BEST
                 ReviewItem(
-                    image.ref,
-                    suggestTrash = !best && image.ref.path in candidateScores,
+                    image = image.ref,
+                    suggestTrash = hasBest && !best && image.ref.path in candidateScores,
                     isBest = best,
                     score = candidateScores[image.ref.path] ?: 0f,
                     reasons = candidateReasons[image.ref.path] ?: image.signals.filter { it.kind == category },
+                    keepable = image.ref.path !in otherCandidates,
                 )
             }
-            ReviewGroup(group, items.sortedByDescending { it.isBest }, group in withExcludedCopy)
+            ReviewGroup(
+                id = group,
+                images = items.sortedByDescending { it.isBest },
+                hasExcludedCopy = group in withExcludedCopy,
+                hasTrashedBestCopy = !hasBest && group in withTrashedBestCopy,
+            )
         }
     }
 

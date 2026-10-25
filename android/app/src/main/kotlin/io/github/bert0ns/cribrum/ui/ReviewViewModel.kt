@@ -280,8 +280,7 @@ class ReviewViewModel @JvmOverloads constructor(
     /** Trashes the marked images of the page, keeps the others, and shows the next page. */
     fun applyPage() = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
-        val images = state.page.flatMap { group -> group.images.map { it.image } }
-        val decision = review.apply(images.filter { it.path in state.marked }, images.filter { it.path !in state.marked })
+        val decision = review.applyPage(state.page, state.marked)
         state.showing(pageFor(category, state)).copy(lastDecision = decision)
     }
 

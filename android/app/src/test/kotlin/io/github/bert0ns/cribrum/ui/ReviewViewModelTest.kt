@@ -6,8 +6,11 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
+import io.github.bert0ns.cribrum.model.GROUP_KEY
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.ReviewState
+import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.pipeline.Coverage
@@ -125,6 +128,70 @@ class ReviewViewModelTest {
         model.undo()
         settle(model) { it.state.value.lastDecision == null }
         assertEquals(listOf("/sdcard/b.jpg"), paths(model))
+    }
+
+    @Test
+    fun `applyPage on a near-duplicate group does not mark sticker or blurry candidates as kept`() {
+        val best = "/sdcard/best.jpg"
+        val blurry = "/sdcard/blurry.jpg"
+        val sticker = "/sdcard/sticker.jpg"
+        val plain = "/sdcard/plain.jpg"
+
+        runBlocking {
+            app.index.record(ImageRef(best, 1_000, 1L))
+            app.index.setSignals(
+                best,
+                "near_duplicate",
+                2,
+                listOf(Signal("near_duplicate", 2, Category.NEAR_DUPLICATE, 0f, mapOf(GROUP_KEY to "g", ROLE_KEY to Role.BEST.value))),
+            )
+
+            app.index.record(ImageRef(plain, 1_000, 1L))
+            app.index.setSignals(
+                plain,
+                "near_duplicate",
+                2,
+                listOf(Signal("near_duplicate", 2, Category.NEAR_DUPLICATE, 0.8f, mapOf(GROUP_KEY to "g", ROLE_KEY to Role.INFERIOR.value))),
+            )
+
+            app.index.record(ImageRef(blurry, 1_000, 1L))
+            app.index.setSignals(
+                blurry,
+                "near_duplicate",
+                2,
+                listOf(Signal("near_duplicate", 2, Category.NEAR_DUPLICATE, 0.8f, mapOf(GROUP_KEY to "g", ROLE_KEY to Role.INFERIOR.value))),
+            )
+            app.index.setSignals(blurry, "blur", 1, listOf(Signal("blur", 1, Category.BLURRY, 0.9f)))
+
+            app.index.record(ImageRef(sticker, 1_000, 1L))
+            app.index.setSignals(
+                sticker,
+                "near_duplicate",
+                2,
+                listOf(Signal("near_duplicate", 2, Category.NEAR_DUPLICATE, 0.8f, mapOf(GROUP_KEY to "g", ROLE_KEY to Role.INFERIOR.value))),
+            )
+            app.index.setSignals(sticker, "sticker", 1, listOf(Signal("sticker", 1, Category.STICKER, 1f)))
+        }
+
+        val model = ReviewViewModel(app)
+        model.open(Category.NEAR_DUPLICATE)
+        settle(model) { paths(it).isNotEmpty() }
+
+        assertEquals(listOf(best, plain, blurry).sorted(), paths(model).sorted())
+
+        if (plain in model.state.value.marked) model.toggle(ImageRef(plain, 1_000, 1L))
+        if (blurry in model.state.value.marked) model.toggle(ImageRef(blurry, 1_000, 1L))
+        settle(model) { model.state.value.marked.isEmpty() }
+
+        model.applyPage()
+        settle(model) { it.state.value.lastDecision != null }
+
+        runBlocking {
+            assertEquals(ReviewState.KEPT, app.index.reviewState(best))
+            assertEquals(ReviewState.KEPT, app.index.reviewState(plain))
+            assertEquals(ReviewState.UNREVIEWED, app.index.reviewState(blurry))
+            assertEquals(ReviewState.UNREVIEWED, app.index.reviewState(sticker))
+        }
     }
 
     @Test

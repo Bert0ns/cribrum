@@ -230,6 +230,7 @@
     </plurals>
     <string name="excluded_folder_snackbar">Excluded %1$s and its subfolders</string>
     <string name="excluded_copy">Another copy is in an excluded folder</string>
+    <string name="trashed_best_copy">The best copy is in the trash</string>
     <string name="remove">Remove</string>
     <string name="storage_map">Storage map</string>
     <string name="storage_map_card_details">%1$s \u2022 image sizes</string>
