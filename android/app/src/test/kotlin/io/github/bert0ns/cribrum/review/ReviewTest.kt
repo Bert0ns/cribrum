@@ -424,6 +424,40 @@ class ReviewTest {
     }
 
     @Test
+    fun `a group with a trashed best copy has no suggestTrash member`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+
+        apply(listOf(best), emptyList())
+
+        val group = page(Category.EXACT_DUPLICATE).groups.single()
+        assertTrue(group.hasTrashedBestCopy)
+        assertEquals(
+            listOf(ReviewItem(copy, suggestTrash = false, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR)))),
+            group.images,
+        )
+    }
+
+    @Test
+    fun `a near-duplicate group with a sticker member and one with a blurry candidate are not marked kept by applying the page`() = test {
+        val best = image("DCIM/Camera/best.jpg", nearDuplicate("g", Role.BEST))
+        val sticker = image("WhatsApp/sticker.jpg", nearDuplicate("g", Role.INFERIOR), Signal("sticker", 1, Category.STICKER, 1f))
+        val blurry = image("WhatsApp/blurry.jpg", nearDuplicate("g", Role.INFERIOR), blurry(0.9f))
+        val plain = image("WhatsApp/plain.jpg", nearDuplicate("g", Role.INFERIOR))
+
+        val p = page(Category.NEAR_DUPLICATE)
+        val group = p.groups.single()
+        assertEquals(listOf(best, blurry, plain), group.images.map { it.image })
+
+        applyPage(p)
+
+        assertEquals(ReviewState.KEPT, index.reviewState(best.path))
+        assertEquals(ReviewState.KEPT, index.reviewState(plain.path))
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(blurry.path))
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(sticker.path))
+    }
+
+    @Test
     fun `applying trashes and keeps, and the page moves on`() = test {
         val bad = image("bad.jpg", blurry(0.9f))
         val good = image("good.jpg", blurry(0.8f))

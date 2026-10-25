@@ -289,6 +289,9 @@ fun CategoryScreen(
                             if (group.hasExcludedCopy) {
                                 Text(stringResource(R.string.excluded_copy), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
                             }
+                            if (group.hasTrashedBestCopy) {
+                                Text(stringResource(R.string.trashed_best_copy), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 4.dp))
+                            }
                         }
                     }
                 }

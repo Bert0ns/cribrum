@@ -328,6 +328,14 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `a group with its best copy in the trash says so`() {
+        val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = false)), hasTrashedBestCopy = true)
+        compose.setContent { CategoryScreen(listOf(group), 1, emptySet(), grouped = true, {}, {}, {}) }
+
+        compose.onNodeWithText("The best copy is in the trash").assertExists()
+    }
+
+    @Test
     fun `cancelling the summary trashes nothing`() {
         var applied = 0
         compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, {}) }
