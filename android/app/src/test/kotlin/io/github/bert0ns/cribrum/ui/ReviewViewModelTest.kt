@@ -231,9 +231,14 @@ class ReviewViewModelTest {
         val image = File(volume, name).apply { writeText(name) }.toImageRef()
         trash.moveToTrash(listOf(image))
         val origin = trash.trashed().single { it.original == image }.file.parentFile!!.resolve("origin.properties")
+        val trashedAt = Instant.now() - Duration.ofDays(daysAgo)
         origin.writeText(
             origin.readLines().joinToString("\n") { line ->
-                if (line.startsWith("trashed_at=")) "trashed_at=${Instant.now() - Duration.ofDays(daysAgo)}" else line
+                when {
+                    line.startsWith("trashed_at=") -> "trashed_at=$trashedAt"
+                    line.startsWith("seen_at=") -> "seen_at=$trashedAt"
+                    else -> line
+                }
             },
         )
     }

@@ -24,6 +24,7 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.time.Duration
 import java.time.Instant
+import java.util.Properties
 
 @RunWith(RobolectricTestRunner::class)
 class ReviewTest {
@@ -486,6 +487,29 @@ class ReviewTest {
         assertEquals(2, expiring(Duration.ofDays(7), inTenDays))
         assertEquals(0, expiring(Duration.ofDays(14), inTenDays))
         assertEquals(0, expiring(Duration.ofDays(7)))
+    }
+
+    @Test
+    fun `expiring only counts images whose trashed_at and seen_at both passed retention`() = test {
+        val now = Instant.now()
+        val trashRoot = File(volume, ".cribrum-trash").apply { mkdirs() }
+        val folder = File(trashRoot, "custom-item").apply { mkdirs() }
+        val imgFile = File(folder, "custom.jpg").apply { writeText("data") }
+        val props = Properties().apply {
+            setProperty("path", "${volume.path}/DCIM/custom.jpg")
+            setProperty("size", imgFile.length().toString())
+            setProperty("mtime_ns", "1700000000000000000")
+            // trashed 30 days ago, but only seen 5 days ago
+            setProperty("trashed_at", (now - Duration.ofDays(30)).toString())
+            setProperty("seen_at", (now - Duration.ofDays(5)).toString())
+        }
+        File(folder, "origin.properties").outputStream().use { props.store(it, null) }
+
+        // Retention 14 days: trashed_at + 14d is in the past, but seen_at + 14d is in the future
+        assertEquals(0, expiring(Duration.ofDays(14), now))
+
+        // Retention 4 days: both trashed_at + 4d and seen_at + 4d are in the past
+        assertEquals(1, expiring(Duration.ofDays(4), now))
     }
 
     @Test

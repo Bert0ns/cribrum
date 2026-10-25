@@ -47,6 +47,9 @@ import io.github.bert0ns.cribrum.trash.TrashedImage
 import java.io.File
 import java.time.Duration
 import java.time.Instant
+import kotlin.math.ceil
+
+private const val MILLIS_PER_DAY = 86_400_000.0
 
 @Composable
 fun TrashScreen(
@@ -106,7 +109,7 @@ fun TrashScreen(
 
 private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<String>, onSelect: (TrashedImage) -> Unit) {
     items(trashed, key = { it.file.path }) { item ->
-        val daysLeft = Duration.between(Instant.now(), item.purgeAt).toDays().coerceAtLeast(0)
+        val daysLeft = ceil(Duration.between(Instant.now(), item.purgeAt).toMillis() / MILLIS_PER_DAY).toLong().coerceAtLeast(0)
         val isSelected = item.original.path in selected
         val daysText = stringResource(R.string.days_left, daysLeft)
         val spokenDays = pluralStringResource(R.plurals.trash_tile_days_left, daysLeft.toInt(), daysLeft)
