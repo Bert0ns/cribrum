@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -27,6 +28,7 @@ data class TrashedImage(
     val file: File,
     /** When the trash purges it, under the retention the user has chosen now. */
     val purgeAt: Instant,
+    val seenAt: Instant = trashedAt,
 )
 
 interface Trash {
@@ -60,6 +62,9 @@ class AppTrash(
     /** Told about every path that appeared or disappeared, so MediaStore can catch up. */
     private val changed: (List<String>) -> Unit = {},
 ) : Trash {
+
+    internal var recordWriter: (File, ImageRef, Instant, Instant) -> Unit = ::writeOrigin
+
     override suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef> = io {
         val moved = images.filter(::move)
         changed(moved.map { it.path })
@@ -71,9 +76,13 @@ class AppTrash(
         val restored = images.filter { image ->
             val item = byOriginal[image] ?: return@filter false
             val target = File(image.path)
-            if (target.exists()) return@filter false
             target.parentFile?.mkdirs()
-            item.file.renameTo(target).also { if (it) deleteItem(item.file.parentFile!!) }
+            val moved = runCatching {
+                Files.move(item.file.toPath(), target.toPath())
+                true
+            }.getOrDefault(false)
+            if (moved) deleteItem(item.file.parentFile!!)
+            moved
         }
         changed(restored.map { it.path })
         restored
@@ -88,18 +97,31 @@ class AppTrash(
 
     override suspend fun purgeExpired(): List<ImageRef> = io {
         val now = clock.instant()
-        items().filter { it.purgeAt <= now }.onEach { deleteItem(it.file.parentFile!!) }.map { it.original }
+        val expired = mutableListOf<ImageRef>()
+        for (volume in volumes()) {
+            val trashFolder = File(volume, TRASH_FOLDER)
+            for (folder in trashFolder.listFiles().orEmpty()) {
+                val item = readItem(folder, syncSeenAt = true) ?: continue
+                if (item.purgeAt <= now) {
+                    deleteItem(folder)
+                    expired += item.original
+                }
+            }
+        }
+        expired
     }
 
     private fun move(image: ImageRef): Boolean {
         val file = File(image.path)
+        if (file.name == ORIGIN) return false
         if (!file.isFile || runCatching { file.toImageRef() }.getOrNull() != image) return false
         val root = rootOf(file) ?: return false
         val folder = File(root, UUID.randomUUID().toString())
         try {
             if (!folder.mkdirs()) return false
             File(root, ".nomedia").createNewFile()
-            writeOrigin(folder, image, clock.instant())
+            val now = clock.instant()
+            recordWriter(folder, image, now, now)
             if (file.renameTo(File(folder, file.name))) return true
         } catch (_: IOException) {
         }
@@ -108,7 +130,7 @@ class AppTrash(
     }
 
     private fun items(): List<TrashedImage> = volumes().flatMap { volume ->
-        File(volume, TRASH_FOLDER).listFiles().orEmpty().mapNotNull(::readItem)
+        File(volume, TRASH_FOLDER).listFiles().orEmpty().mapNotNull { readItem(it) }
     }.sortedByDescending { it.trashedAt }
 
     private fun rootOf(file: File): File? {
@@ -117,35 +139,52 @@ class AppTrash(
         return File(volume, TRASH_FOLDER)
     }
 
-    private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant) {
+    private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant, seenAt: Instant) {
         val origin = Properties()
         origin["path"] = image.path
         origin["size"] = image.size.toString()
         origin["mtime_ns"] = image.mtimeNs.toString()
         origin["trashed_at"] = trashedAt.toString()
+        origin["seen_at"] = seenAt.toString()
         File(folder, ORIGIN).outputStream().use { origin.store(it, "Cribrum trash: where this file came from") }
     }
 
     /** Null for anything the trash did not write, or that lost its file. */
-    private fun readItem(folder: File): TrashedImage? {
+    internal fun readItem(folder: File, syncSeenAt: Boolean = false): TrashedImage? = runCatching {
         val originFile = File(folder, ORIGIN)
         if (!originFile.isFile) return null
         val origin = Properties().apply { originFile.inputStream().use(::load) }
         val path = origin.getProperty("path") ?: return null
-        val file = File(folder, File(path).name).takeIf { it.isFile } ?: return null
-        return runCatching {
-            val trashedAt = Instant.parse(origin.getProperty("trashed_at"))
-            TrashedImage(
-                ImageRef(path, origin.getProperty("size").toLong(), origin.getProperty("mtime_ns").toLong()),
-                trashedAt,
-                file,
-                trashedAt + retention(),
-            )
-        }.getOrNull()
-    }
+        val fileName = File(path).name
+        if (fileName == ORIGIN) return null
+        val file = File(folder, fileName).takeIf { it.isFile } ?: return null
+        val now = clock.instant()
+        val rawTrashedAt = origin.getProperty("trashed_at")?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return null
+        val trashedAt = if (rawTrashedAt > now) now else rawTrashedAt
+        val rawSeenAt = origin.parsedSeenAt()
+        val seenAt = if (syncSeenAt && (rawSeenAt == null || rawSeenAt > now)) {
+            origin["seen_at"] = now.toString()
+            runCatching {
+                originFile.outputStream().use { origin.store(it, "Cribrum trash: where this file came from") }
+            }
+            now
+        } else {
+            origin.seenAt(now)
+        }
+        val size = origin.getProperty("size")?.toLongOrNull() ?: return null
+        val mtimeNs = origin.getProperty("mtime_ns")?.toLongOrNull() ?: return null
+        val purgeAt = maxOf(trashedAt, seenAt) + retention()
+        TrashedImage(
+            ImageRef(path, size, mtimeNs),
+            trashedAt,
+            file,
+            purgeAt,
+            seenAt,
+        )
+    }.getOrNull()
 
     /** Deletes one item folder of the trash, never anything outside it. */
-    private fun deleteItem(folder: File) {
+    internal fun deleteItem(folder: File) {
         val trash = folder.canonicalFile.parentFile
         check(trash?.name == TRASH_FOLDER) { "not a trash item: $folder" }
         folder.deleteRecursively()
@@ -171,5 +210,9 @@ class AppTrash(
         }
     }
 }
+
+private fun Properties.parsedSeenAt(): Instant? = getProperty("seen_at")?.let { runCatching { Instant.parse(it) }.getOrNull() }
+
+private fun Properties.seenAt(now: Instant): Instant = parsedSeenAt()?.takeIf { it <= now } ?: now
 
 private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }

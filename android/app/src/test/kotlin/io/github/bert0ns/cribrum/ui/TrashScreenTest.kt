@@ -49,7 +49,7 @@ class TrashScreenTest {
         }
 
         compose.onNodeWithText("Restore 0").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("a.jpg. 26 days left").performClick()
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").performClick()
         compose.onNodeWithText("Restore 1").performClick()
 
         assertEquals(setOf("/sdcard/DCIM/a.jpg"), restored)
@@ -69,33 +69,33 @@ class TrashScreenTest {
             TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = {}, onEmpty = {})
         }
 
-        compose.onNodeWithContentDescription("a.jpg. 26 days left").assertIsNotSelected()
-        compose.onNodeWithContentDescription("a.jpg. 26 days left").performClick()
-        compose.onNodeWithContentDescription("a.jpg. 26 days left").assertIsSelected()
-        compose.onNodeWithContentDescription("b.jpg. 26 days left").assertIsNotSelected()
-        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox) and hasContentDescription("a.jpg. 26 days left")).assertExists()
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").assertIsNotSelected()
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").performClick()
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").assertIsSelected()
+        compose.onNodeWithContentDescription("b.jpg. 27 days left").assertIsNotSelected()
+        compose.onNode(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Checkbox) and hasContentDescription("a.jpg. 27 days left")).assertExists()
     }
 
     @Test
     fun `each image says the days before it is purged`() {
         compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}) }
 
-        assertEquals(2, compose.onAllNodes(hasContentDescription("26 days left", substring = true)).fetchSemanticsNodes().size)
+        assertEquals(2, compose.onAllNodes(hasContentDescription("27 days left", substring = true)).fetchSemanticsNodes().size)
     }
 
     @Test
     fun `a screen reader hears the days left once and not the file path`() {
         compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}) }
 
-        val tile = compose.onNodeWithContentDescription("a.jpg. 26 days left").fetchSemanticsNode()
-        assertEquals(listOf("a.jpg. 26 days left"), tile.config.getOrNull(SemanticsProperties.ContentDescription))
+        val tile = compose.onNodeWithContentDescription("a.jpg. 27 days left").fetchSemanticsNode()
+        assertEquals(listOf("a.jpg. 27 days left"), tile.config.getOrNull(SemanticsProperties.ContentDescription))
         assertEquals(null, tile.config.getOrNull(SemanticsProperties.Text))
     }
 
     @Test
     fun `one day left is spoken in the singular`() {
         val at = Instant.now()
-        val last = TrashedImage(ImageRef("/sdcard/DCIM/c.jpg", 1, 0), at, File("/sdcard/.cribrum-trash/x/c.jpg"), at + Duration.ofHours(25))
+        val last = TrashedImage(ImageRef("/sdcard/DCIM/c.jpg", 1, 0), at, File("/sdcard/.cribrum-trash/x/c.jpg"), at + Duration.ofHours(20))
         compose.setContent { TrashScreen(listOf(last), emptySet(), {}, { _, _ -> }, {}, {}) }
 
         compose.onNodeWithContentDescription("c.jpg. 1 day left").assertExists()
