@@ -19,6 +19,8 @@ import io.github.bert0ns.cribrum.ranker.Ranker
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.DayOfWeek
 import java.time.Duration
@@ -93,20 +95,20 @@ class Review(
      * and the union of all the candidates by path. The figures of two categories overlap, so they are
      * not added. One ranking serves both, so the home screen reads the index once.
      */
-    suspend fun overview(): Overview {
+    suspend fun overview(): Overview = withContext(Dispatchers.Default) {
         val byCategory = byCategory(thresholds())
         val categories = Category.entries.map { category ->
             val candidates = byCategory[category].orEmpty()
             CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
         }
         val union = byCategory.values.flatten().associate { it.image.ref.path to it.image.ref.size }
-        return Overview(categories, union.values.sum())
+        Overview(categories, union.values.sum())
     }
 
     /** How many candidates each category would list at [thresholds], which are the ones in use by default. */
-    suspend fun counts(thresholds: Map<Category, Float> = this.thresholds()): Map<Category, Int> {
+    suspend fun counts(thresholds: Map<Category, Float> = this.thresholds()): Map<Category, Int> = withContext(Dispatchers.Default) {
         val byCategory = byCategory(thresholds)
-        return Category.entries.associateWith { byCategory[it]?.size ?: 0 }
+        Category.entries.associateWith { byCategory[it]?.size ?: 0 }
     }
 
     private suspend fun byCategory(thresholds: Map<Category, Float>) = Ranker.byCategory(Ranker(thresholds).rank(index.indexedImages(), index.excludedFolders()))
@@ -117,7 +119,7 @@ class Review(
      * With a date [grouping], the newest date comes first and the ranker's order holds inside each date.
      * With [ReviewOrder.SIZE], the group with the most bytes to trash comes first and the ranker's order breaks a tie.
      */
-    suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page {
+    suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page = withContext(Dispatchers.Default) {
         val excluded = index.excludedFolders()
         val images = index.indexedImages()
         val byCategory = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))
@@ -140,7 +142,7 @@ class Review(
             size += group.images.size
         }
         val skippedCandidates = hidden.sumOf { group -> group.images.count { it.suggestTrash } }
-        return Page(page, candidates.size - skippedCandidates)
+        Page(page, candidates.size - skippedCandidates)
     }
 
     /**

@@ -27,7 +27,6 @@ import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.mobileclip.preprocess
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
-import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.sources.ImageSource
 import kotlinx.coroutines.CancellationException
@@ -117,7 +116,7 @@ class Pipeline(
             if (index.record(image)) stats.newOrChanged++
             if (found.size % 100 == 0) progress("scan", found.size, 0)
         }
-        val trashed = index.indexedImages().filter { it.reviewState == ReviewState.TRASHED }.map { it.ref.path }.toSet()
+        val trashed = index.trashedPaths()
         val gone = index.images().map { it.path }.filter { it !in found && it !in trashed }
         index.forget(gone)
         stats.forgotten = gone.size
@@ -271,15 +270,18 @@ class Pipeline(
         stats: Stats,
         progress: Progress,
     ) = coroutineScope {
+        val analyzed = selected.associateWith { index.analyzedPaths(it.id, it.version) }
+        val hashed = if (beforeEmbeddings) index.hashedPaths() else emptySet()
         val tasks = images.mapNotNull { image ->
-            val todo = selected.filter { !index.isAnalyzed(image.path, it.id, it.version) }
-            val needsPhash = beforeEmbeddings && index.perceptualHash(image.path) == null
+            val todo = selected.filter { image.path !in analyzed.getValue(it) }
+            val needsPhash = beforeEmbeddings && image.path !in hashed
             if (todo.isEmpty() && !needsPhash) {
                 null
             } else {
                 AnalysisTask(image, index.metadata(image.path)!!, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
             }
         }
+        progress(step, 0, tasks.size)
         val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
         tasks.forEach(queue::trySend)
         queue.close()

@@ -163,6 +163,48 @@ class PipelineTest {
         assertEquals(3, stats.detectorRuns)
     }
 
+    private class Probe : Detector {
+        override val id = "probe"
+        override val version = 1
+        val seen = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
+            seen += image.path
+            return listOf(Signal(id, version, Category.BLURRY, 0.5f))
+        }
+    }
+
+    @Test
+    fun `a run analyzes the new, the forgotten and the changed, and nothing else, trashed images included`() {
+        photos()
+        val probe = Probe()
+        run(Pipeline(index, listOf(probe), emptyList()))
+        val paths = listOf("DCIM/Camera/a.png", "WhatsApp/Media/a-copy.png", "Pictures/Screenshots/Screenshot_1.png").map { File(root, it).path }
+        runBlocking {
+            index.setReviewState(paths[0], ReviewState.TRASHED)
+            index.forgetAnalyses(listOf(paths[0]), listOf("probe")) // trashed, no analysis: analyzed again
+        }
+        val added = save("DCIM/Camera/new.png", seed = 3).path
+        probe.seen.clear()
+
+        val stats = run(Pipeline(index, listOf(probe), emptyList()))
+
+        assertEquals(setOf(paths[0], added), probe.seen.toSet())
+        assertEquals(2, probe.seen.size)
+        assertEquals(3, stats.detectorRuns) // two analyses and the new image's hash
+        assertNotNull(runBlocking { index.perceptualHash(added) })
+    }
+
+    @Test
+    fun `progress reports how many images the pass has to analyze before it analyzes the first`() {
+        photos()
+        val calls = mutableListOf<Triple<String, Int, Int>>()
+
+        runBlocking { Pipeline(index, listOf(Probe()), emptyList()).run(source) { step, done, total -> calls += Triple(step, done, total) } }
+
+        assertEquals(Triple("detectors", 0, 3), calls.first { it.first == "detectors" })
+    }
+
     @Test
     fun `one image at a time gives the same signals as many`() {
         photos()

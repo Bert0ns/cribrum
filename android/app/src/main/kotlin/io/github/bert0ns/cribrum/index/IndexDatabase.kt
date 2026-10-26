@@ -192,6 +192,12 @@ interface IndexDao {
     @Query("SELECT perceptual_hash FROM images WHERE path = :path")
     suspend fun perceptualHash(path: String): String?
 
+    @Query("SELECT path FROM images WHERE perceptual_hash IS NOT NULL")
+    suspend fun hashedPaths(): List<String>
+
+    @Query("SELECT path FROM images WHERE review_state = 'trashed'")
+    suspend fun trashedPaths(): List<String>
+
     @Query("SELECT count(*) FROM images WHERE path = :path")
     suspend fun count(path: String): Int
 
