@@ -56,7 +56,7 @@ class CoverageTest {
         assertEquals(Coverage("embedding", 1, analysed = 2, needed = 2), rows["embedding"])
         assertEquals(Coverage("document", 3, analysed = 2, needed = 2), rows["document"])
         assertEquals(Coverage("blur", 1, analysed = 3, needed = 3), rows["blur"])
-        assertEquals(Coverage("near_duplicate", 2, analysed = 3, needed = 3), rows["near_duplicate"])
+        assertEquals(Coverage("near_duplicate", 3, analysed = 3, needed = 3), rows["near_duplicate"])
     }
 
     @Test

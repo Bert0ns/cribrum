@@ -76,6 +76,14 @@ fun perceptualHash(image: ImageRef): ULong {
     return hash
 }
 
+/**
+ * True for a hash that is 0 or has only the DC bit set, which has no AC energy to tell it apart.
+ * A uniform image gives one of them, since every AC term rounds to 0: black hashes to 0 and any
+ * other flat image to the DC bit, all within a bit of each other. A few simple shapes give the
+ * same hash and are treated the same way.
+ */
+fun isFlatHash(hash: ULong): Boolean = hash == 0uL || hash == (1uL shl 63)
+
 private val DCT = dctMatrix(PHASH_SIZE)
 
 /** Orthonormal DCT-II matrix: `M @ x` is the DCT of the column vector x. */

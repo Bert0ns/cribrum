@@ -94,7 +94,7 @@
       "role": "inferior"
      },
      "score": 0.4584,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 640
@@ -276,7 +276,7 @@
       "role": "inferior"
      },
      "score": 0.9091,
-     "version": 2
+     "version": 3
     },
     {
      "category": "burst",
@@ -385,7 +385,7 @@
       "role": "best"
      },
      "score": 0.0,
-     "version": 2
+     "version": 3
     },
     {
      "category": "burst",
@@ -494,7 +494,7 @@
       "role": "inferior"
      },
      "score": 1.0,
-     "version": 2
+     "version": 3
     },
     {
      "category": "burst",
@@ -698,7 +698,7 @@
       "role": "best"
      },
      "score": 0.0,
-     "version": 2
+     "version": 3
     },
     {
      "category": "burst",
@@ -892,7 +892,7 @@
       "role": "inferior"
      },
      "score": 0.9866,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 320
@@ -1084,7 +1084,7 @@
       "role": "inferior"
      },
      "score": 1.0,
-     "version": 2
+     "version": 3
     },
     {
      "category": "burst",

@@ -34,6 +34,16 @@ def perceptual_hash(image: ImageRef) -> int:
     return int.from_bytes(np.packbits(bits).tobytes())
 
 
+def is_flat_hash(phash: int) -> bool:
+    """True for a hash that is 0 or has only the DC bit set: it has no AC energy to tell it apart.
+
+    A uniform image gives one of them, since every AC term rounds to 0: black hashes to 0 and
+    any other flat image to the DC bit, all within a bit of each other. A few simple shapes
+    give the same hash and are treated the same way.
+    """
+    return phash in (0, 1 << 63)
+
+
 _PHASH_SIZE = 32
 _PHASH_DECODE_SIDE = 256
 """Decode at this size before shrinking to 32 px: cheap, and enough for a smooth downscale."""

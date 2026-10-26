@@ -254,4 +254,29 @@ class NearDuplicateDetectorTest {
         assertEquals(setOf(a, b), cosine(0.90f).keys)
         assertTrue(cosine(0.89f).isEmpty())
     }
+
+    @Test
+    fun `flat images do not link by hash`() {
+        val black = fake("black", 3000)
+        val gray = fake("gray", 2000)
+        val white = fake("white", 1000)
+        val photo = fake("photo", 500)
+
+        // Black hashes to 0 and any other flat image to its DC bit, so they are 1 bit apart.
+        val signals = runFakes(mapOf(black to 0uL, gray to (1uL shl 63), white to (1uL shl 63), photo to base))
+
+        assertTrue(signals.isEmpty())
+    }
+
+    @Test
+    fun `a flat image that an embedding links is marked flat in the evidence`() {
+        val flat = fake("flat", 2000)
+        val photo = fake("photo", 1000)
+        val vectors = mapOf(flat to unit(1f), photo to unit(1f))
+
+        val signals = runFakes(mapOf(flat to (1uL shl 63), photo to base), vectors)
+
+        assertEquals("true", signals[flat]!![0].evidence["flat"])
+        assertFalse("flat" in signals[photo]!![0].evidence)
+    }
 }

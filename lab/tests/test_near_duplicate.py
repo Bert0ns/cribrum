@@ -173,3 +173,26 @@ def test_embeddings_link_at_cosine_0_90_and_not_below(cosine, linked):
     signals = run_fakes({a: BASE, b: ~BASE & (2**64 - 1)}, vectors)  # 64 bits apart
 
     assert (set(signals) == {a, b}) is linked
+
+
+def test_flat_images_do_not_link_by_hash():
+    black, gray, white, photo = (
+        fake("black", 3000),
+        fake("gray", 2000),
+        fake("white", 1000),
+        fake("photo", 500),
+    )
+
+    # Black hashes to 0 and any other flat image to its DC bit, so they are 1 bit apart.
+    signals = run_fakes({black: 0, gray: 1 << 63, white: 1 << 63, photo: BASE})
+
+    assert signals == {}
+
+
+def test_a_flat_image_that_an_embedding_links_is_marked_flat_in_the_evidence():
+    flat, photo = fake("flat", 2000), fake("photo", 1000)
+
+    signals = run_fakes({flat: 1 << 63, photo: BASE}, {flat: unit(1), photo: unit(1)})
+
+    assert signals[flat][0].evidence["flat"] == "true"
+    assert "flat" not in signals[photo][0].evidence
