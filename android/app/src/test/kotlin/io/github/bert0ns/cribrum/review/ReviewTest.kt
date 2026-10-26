@@ -556,4 +556,25 @@ class ReviewTest {
         assertEquals(emptyList<Any>(), trashed())
         assertEquals(emptyList<ImageRef>(), index.images())
     }
+
+    @Test
+    fun `the ranking runs off the calling thread and gives the same results`() = test {
+        image("a.jpg", blurry(0.9f))
+        image("DCIM/d.jpg", duplicate("g", Role.BEST))
+        image("DCIM/e.jpg", duplicate("g", Role.INFERIOR))
+        val caller = Thread.currentThread()
+        val readOn = mutableSetOf<Thread>()
+        val spying = Review(index, AppTrash({ listOf(volume) }), thresholds = {
+            readOn += Thread.currentThread()
+            THRESHOLDS
+        })
+
+        val page = spying.page(Category.BLURRY)
+        val overview = spying.overview()
+
+        assertEquals(page, review.page(Category.BLURRY))
+        assertEquals(overview, review.overview())
+        assertEquals(review.counts(), spying.counts(THRESHOLDS))
+        assertTrue(readOn.isNotEmpty() && caller !in readOn)
+    }
 }

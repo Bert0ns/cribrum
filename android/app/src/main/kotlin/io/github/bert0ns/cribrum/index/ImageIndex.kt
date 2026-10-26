@@ -104,6 +104,10 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         return dao.perceptualHash(path)?.toULong(16)
     }
 
+    suspend fun hashedPaths(): Set<String> = dao.hashedPaths().toSet()
+
+    suspend fun trashedPaths(): Set<String> = dao.trashedPaths().toSet()
+
     /**
      * Deletes every stored embedding and nothing else: the next pipeline run computes them again.
      * A plain DELETE leaves the file as big as it was, so the pages go back to the system with a
