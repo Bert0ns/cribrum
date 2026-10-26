@@ -38,6 +38,10 @@ private fun duplicate(group: String, role: Role): Signal {
 
 private fun faces(score: Float = 1f) = Signal("faces", 1, Protection.FACES, score, mapOf("faces" to "2"))
 
+private fun favorite(score: Float = 1f) = Signal("favorite", 1, Protection.FAVORITE, score)
+
+private fun album(score: Float = 1f) = Signal("album", 1, Protection.ALBUM, score)
+
 private fun rank(vararg images: IndexedImage) = Ranker(TEST_THRESHOLDS).rank(images.toList())
 
 private fun names(candidates: List<Candidate>) = candidates.map { it.image.ref.path }
@@ -200,6 +204,39 @@ class RankerTest {
         )
 
         assertEquals(listOf("people", "unflagged"), names(order))
+    }
+
+    @Test
+    fun `each protection lowers the likelihood by its weight`() {
+        // In a group, so the uniqueness factor does not apply.
+        val group = duplicate("g", Role.INFERIOR)
+        val factors = listOf(faces(), favorite(), album(), favorite(0.5f), faces(0f)).map {
+            rank(image("a", group, it)).single().protection
+        }
+
+        listOf(0.5f, 0.2f, 0.4f, 0.6f, 1f).forEachIndexed { i, expected -> assertEquals(expected, factors[i], 1e-6f) }
+    }
+
+    @Test
+    fun `protections multiply`() {
+        val group = duplicate("g", Role.INFERIOR)
+
+        val both = rank(image("a", group, faces(), favorite())).single()
+        val all = rank(image("a", group, faces(), favorite(), album())).single()
+
+        assertEquals(0.1f, both.protection, 1e-6f)
+        assertEquals(0.04f, all.protection, 1e-6f)
+        assertEquals(all.protection * 2f, all.likelihood, 1e-6f) // a duplicate scores 1, likelihood 2
+        assertTrue(all.isCandidate)
+    }
+
+    @Test
+    fun `a favorite or an album lowers an image below an unprotected one`() {
+        val group = duplicate("g", Role.INFERIOR)
+
+        val order = rank(image("fav", group, favorite()), image("plain", group), image("album", group, album()))
+
+        assertEquals(listOf("plain", "album", "fav"), names(order))
     }
 
     @Test

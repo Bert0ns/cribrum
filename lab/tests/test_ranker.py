@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from cribrum_lab.detectors import GROUP_KEY, ROLE_KEY, Role
 from cribrum_lab.model import Category, ImageRef, IndexedImage, Protection, ReviewState, Signal
 from cribrum_lab.ranker import Ranker
@@ -245,3 +247,42 @@ def test_equal_likelihoods_are_not_ordered_by_the_date_in_the_file_name():
 
     # Ordered by a hash of the path (xxh3), so neither oldest first nor newest first.
     assert forward == backward == [Path(n).name for n in (dated[1], dated[2], dated[3], dated[0])]
+
+
+def favorite(score=1.0):
+    return Signal("favorite", 1, Protection.FAVORITE, score)
+
+
+def album(score=1.0):
+    return Signal("album", 1, Protection.ALBUM, score)
+
+
+def test_each_protection_lowers_the_likelihood_by_its_weight():
+    group = duplicate("g", Role.INFERIOR)  # in a group, so the uniqueness factor does not apply
+    protections = [faces(), favorite(), album(), favorite(0.5), faces(0.0)]
+
+    factors = [rank(image("a", group, p))[0].protection for p in protections]
+
+    assert factors == pytest.approx([0.5, 0.2, 0.4, 0.6, 1.0])
+
+
+def test_protections_multiply():
+    group = duplicate("g", Role.INFERIOR)
+
+    both = rank(image("a", group, faces(), favorite()))[0]
+    everything = rank(image("a", group, faces(), favorite(), album()))[0]
+
+    assert both.protection == pytest.approx(0.1)
+    assert everything.protection == pytest.approx(0.04)
+    assert everything.likelihood == pytest.approx(0.04 * 2)  # a duplicate scores 1, likelihood 2
+    assert everything.is_candidate
+
+
+def test_a_favorite_or_an_album_lowers_an_image_below_an_unprotected_one():
+    group = duplicate("g", Role.INFERIOR)
+
+    order = rank(
+        image("fav", group, favorite()), image("plain", group), image("album", group, album())
+    )
+
+    assert names(order) == ["plain", "album", "fav"]

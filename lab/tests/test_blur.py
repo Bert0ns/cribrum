@@ -57,7 +57,7 @@ def test_evidence_records_the_measures(tmp_path):
     assert set(signal.evidence) == {"global_variance", "peak_variance"}
 
 
-@pytest.mark.parametrize("size", [(1, 1), (2, 2), (4, 4), (10000, 20)])
+@pytest.mark.parametrize("size", [(4, 4), (10000, 200)])
 def test_tiny_and_thin_images_do_not_crash(tmp_path, size):
     path = tmp_path / "a.png"
     texture((max(size[0], 8), max(size[1], 8))).resize(size).save(path)
@@ -66,4 +66,13 @@ def test_tiny_and_thin_images_do_not_crash(tmp_path, size):
         warnings.simplefilter("error")
         signals = BlurDetector().analyze(ImageRef(path, 0, 0), AnalysisContext())
 
+    assert signals
     assert all(0.0 <= s.score <= 1.0 for s in signals)
+
+
+@pytest.mark.parametrize("size", [(1, 1), (2, 2), (10000, 20)])
+def test_an_image_that_ends_under_3_px_on_a_side_yields_no_signal(tmp_path, size):
+    path = tmp_path / "a.png"
+    texture((max(size[0], 8), max(size[1], 8))).resize(size).save(path)
+
+    assert BlurDetector().analyze(ImageRef(path, 0, 0), AnalysisContext()) == []
