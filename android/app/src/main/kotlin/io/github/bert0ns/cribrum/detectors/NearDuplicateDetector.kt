@@ -4,6 +4,7 @@ package io.github.bert0ns.cribrum.detectors
 
 import io.github.bert0ns.cribrum.folders.isCameraFolder
 import io.github.bert0ns.cribrum.folders.isMessagingFolder
+import io.github.bert0ns.cribrum.hashing.isFlatHash
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -29,7 +30,7 @@ const val NEAR_DUPLICATE_MIN_COSINE = 0.90f
  */
 class NearDuplicateDetector : GroupDetector {
     override val id = "near_duplicate"
-    override val version = 2
+    override val version = 3
     override val category = Category.NEAR_DUPLICATE
 
     override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
@@ -68,6 +69,7 @@ class NearDuplicateDetector : GroupDetector {
                     ROLE_KEY to role.value,
                     "distance" to distance.toString(),
                 )
+                if (isFlatHash(hashes[i])) evidence["flat"] = "true"
                 // Each measure scores 1 for an identical copy and 0.5 at its linking threshold.
                 val scores = mutableListOf(1.0 - distance / (2.0 * (MAX_DISTANCE + 1)))
                 val vi = vectors[i]
@@ -88,8 +90,9 @@ class NearDuplicateDetector : GroupDetector {
     private fun hashLinks(hashes: List<ULong>): List<Pair<Int, Int>> {
         val links = mutableListOf<Pair<Int, Int>>()
         for (i in hashes.indices) {
+            if (isFlatHash(hashes[i])) continue // flat images share a hash, whatever they show
             for (j in (i + 1) until hashes.size) {
-                if ((hashes[i] xor hashes[j]).countOneBits() <= MAX_DISTANCE) {
+                if (!isFlatHash(hashes[j]) && (hashes[i] xor hashes[j]).countOneBits() <= MAX_DISTANCE) {
                     links += i to j
                 }
             }

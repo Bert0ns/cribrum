@@ -13,6 +13,7 @@ import xxhash
 
 from cribrum_lab.detectors.base import AnalysisContext, Role
 from cribrum_lab.folders import is_camera_folder, is_messaging_folder
+from cribrum_lab.hashing import is_flat_hash
 from cribrum_lab.model import GROUP_KEY, ROLE_KEY, Category, ImageRef, Signal
 
 MAX_DISTANCE = 10
@@ -26,7 +27,7 @@ _CHUNK = 1024
 
 class NearDuplicateDetector:
     id = "near_duplicate"
-    version = 2
+    version = 3
     category = Category.NEAR_DUPLICATE
 
     def analyze(
@@ -63,6 +64,8 @@ class NearDuplicateDetector:
     ) -> Signal:
         distance = (hashes[i] ^ hashes[best]).bit_count()
         evidence = {GROUP_KEY: group_id, ROLE_KEY: Role.INFERIOR, "distance": str(distance)}
+        if is_flat_hash(hashes[i]):
+            evidence["flat"] = "true"
         # Each measure scores 1 for an identical copy and 0.5 at its linking threshold.
         scores = [1.0 - distance / (2 * (MAX_DISTANCE + 1))]
         if vectors[i] is not None and vectors[best] is not None:
@@ -78,9 +81,11 @@ class NearDuplicateDetector:
 
 def _hash_links(hashes: list[int]) -> Iterable[tuple[int, int]]:
     array = np.array(hashes, dtype=np.uint64)
+    flat = np.array([is_flat_hash(h) for h in hashes], dtype=bool)  # flat images share a hash
     for start in range(0, len(array), _CHUNK):
         distances = np.bitwise_count(array[start : start + _CHUNK, None] ^ array[None, :])
-        for i, j in zip(*np.nonzero(distances <= MAX_DISTANCE), strict=True):
+        close = (distances <= MAX_DISTANCE) & ~flat[start : start + _CHUNK, None] & ~flat[None, :]
+        for i, j in zip(*np.nonzero(close), strict=True):
             yield start + int(i), int(j)
 
 
