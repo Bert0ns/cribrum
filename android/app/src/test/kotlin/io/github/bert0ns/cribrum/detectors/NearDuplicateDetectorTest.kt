@@ -11,6 +11,7 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -22,6 +23,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import kotlin.math.sqrt
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -184,5 +186,72 @@ class NearDuplicateDetectorTest {
         )
 
         assertEquals(setOf(original, resized, recompressed), signals.keys)
+    }
+
+    // Fake images with chosen hashes and embeddings, so the linking thresholds are hit exactly.
+    private val base = 0x5555555555555555uL
+
+    private fun fake(name: String, size: Long) = ImageRef("/fake/$name.jpg", size, 0)
+
+    private fun runFakes(
+        hashes: Map<ImageRef, ULong>,
+        vectors: Map<ImageRef, FloatArray> = emptyMap(),
+    ) = runBlocking {
+        val context = AnalysisContext(
+            perceptualHash = { hashes.getValue(it) },
+            embedding = { vectors[it] ?: throw MissingEmbedding(it) },
+        )
+        NearDuplicateDetector().analyze(hashes.keys.toList(), context)
+    }
+
+    @Test
+    fun `a copy linked only through another copy joins the group but scores under the threshold`() {
+        // The largest file is the best copy: no metadata, so every image has the same pixels.
+        val a = fake("a", 3000)
+        val b = fake("b", 2000)
+        val c = fake("c", 1000)
+        val hashes = mapOf(a to base, b to (base xor 0x3FFuL), c to (base xor 0x3FFuL xor 0xFFC00uL))
+
+        val signals = runFakes(hashes)
+
+        assertEquals(setOf(a, b, c), signals.keys)
+        assertEquals(1, signals.values.map { it[0].evidence[GROUP_KEY] }.toSet().size)
+        assertEquals(Role.BEST.value, signals[a]!![0].evidence[ROLE_KEY])
+        assertEquals("20", signals[c]!![0].evidence["distance"])
+        // Scored against the best copy, as in the lab: 1 - 20 / 22.
+        assertEquals(0.091f, signals[c]!![0].score, 1e-3f)
+        assertTrue(signals[c]!![0].score < THRESHOLDS.getValue(Category.NEAR_DUPLICATE))
+        assertTrue(signals[b]!![0].score >= THRESHOLDS.getValue(Category.NEAR_DUPLICATE))
+    }
+
+    @Test
+    fun `hashes 10 bits apart link and 11 bits apart do not`() {
+        val a = fake("a", 2000)
+        val b = fake("b", 1000)
+
+        val linked = runFakes(mapOf(a to base, b to (base xor 0x3FFuL)))
+        val apart = runFakes(mapOf(a to base, b to (base xor 0x7FFuL)))
+
+        assertEquals(setOf(a, b), linked.keys)
+        assertEquals(0.545f, linked[b]!![0].score, 1e-3f)
+        assertTrue(apart.isEmpty())
+    }
+
+    @Test
+    fun `embeddings with cosine 0 90 link and 0 89 do not`() {
+        val a = fake("a", 2000)
+        val b = fake("b", 1000)
+        val hashes = mapOf(a to base, b to base.inv()) // 64 bits apart: only the embedding can link
+
+        fun cosine(value: Float) = runFakes(
+            hashes,
+            mapOf(
+                a to unit(1f),
+                b to unit(value, sqrt(1f - value * value)), // unit length, cosine `value` with a
+            ),
+        )
+
+        assertEquals(setOf(a, b), cosine(0.90f).keys)
+        assertTrue(cosine(0.89f).isEmpty())
     }
 }

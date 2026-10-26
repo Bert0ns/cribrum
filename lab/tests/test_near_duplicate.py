@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 from PIL import Image
 
 from cribrum_lab.detectors import GROUP_KEY, ROLE_KEY, AnalysisContext, Role
 from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
-from cribrum_lab.metadata import read_metadata
+from cribrum_lab.metadata import ImageMetadata, read_metadata
 from cribrum_lab.model import Category, ImageRef
 
 
@@ -119,3 +121,55 @@ def test_images_without_an_embedding_still_link_by_hash(copies):
     signals = run(list(copies), embedding=embedding)
 
     assert set(signals) == {original, resized, recompressed}
+
+
+BASE = 0x5555555555555555
+
+
+def run_fakes(hashes, vectors=None):
+    """Images with chosen hashes and embeddings, so the linking thresholds are hit exactly."""
+    vectors = vectors or {}
+    context = AnalysisContext(
+        perceptual_hash=hashes.__getitem__,
+        embedding=lambda image: vectors[image] if image in vectors else no_embedding(image),
+        metadata=lambda image: ImageMetadata(100, 100, "image/jpeg", None, None, None),
+    )
+    return NearDuplicateDetector().analyze(list(hashes), context)
+
+
+def fake(name, size):
+    return ImageRef(Path(f"/fake/{name}.jpg"), size, 0)
+
+
+def test_a_copy_linked_only_through_another_copy_scores_under_the_threshold():
+    a, b, c = fake("a", 3000), fake("b", 2000), fake("c", 1000)
+
+    signals = run_fakes({a: BASE, b: BASE ^ 0x3FF, c: BASE ^ 0x3FF ^ 0xFFC00})
+
+    assert set(signals) == {a, b, c}
+    assert len({s[0].evidence[GROUP_KEY] for s in signals.values()}) == 1
+    assert signals[a][0].evidence[ROLE_KEY] == Role.BEST
+    assert signals[c][0].evidence["distance"] == "20"
+    assert signals[c][0].score == pytest.approx(1 - 20 / 22)  # scored against the best copy
+    assert signals[c][0].score < 0.5 <= signals[b][0].score
+
+
+def test_hashes_10_bits_apart_link_and_11_bits_apart_do_not():
+    a, b = fake("a", 2000), fake("b", 1000)
+
+    linked = run_fakes({a: BASE, b: BASE ^ 0x3FF})
+    apart = run_fakes({a: BASE, b: BASE ^ 0x7FF})
+
+    assert set(linked) == {a, b}
+    assert linked[b][0].score == pytest.approx(1 - 10 / 22)
+    assert apart == {}
+
+
+@pytest.mark.parametrize(("cosine", "linked"), [(0.90, True), (0.89, False)])
+def test_embeddings_link_at_cosine_0_90_and_not_below(cosine, linked):
+    a, b = fake("a", 2000), fake("b", 1000)
+    vectors = {a: unit(1), b: unit(cosine, np.sqrt(1 - cosine**2))}
+
+    signals = run_fakes({a: BASE, b: ~BASE & (2**64 - 1)}, vectors)  # 64 bits apart
+
+    assert (set(signals) == {a, b}) is linked
