@@ -29,7 +29,7 @@ const val BURST_MIN_COSINE = 0.80f
  */
 class BurstDetector : GroupDetector {
     override val id = "burst"
-    override val version = 1
+    override val version = 2
     override val category = Category.BURST
 
     override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
@@ -55,24 +55,39 @@ class BurstDetector : GroupDetector {
         return result
     }
 
+    /**
+     * Chains shots into bursts. A shot that does not follow the last shot of the burst starts a
+     * new one, but if the next shot follows the last shot of the burst instead, the shot between
+     * was one different frame and is dropped, so a single other subject does not split a burst.
+     */
     private suspend fun bursts(
         shots: List<Pair<LocalDateTime, ImageRef>>,
         context: AnalysisContext,
     ): List<List<ImageRef>> {
-        val bursts = mutableListOf<List<ImageRef>>()
-        var current = mutableListOf(shots[0].second)
-        for (i in 1 until shots.size) {
-            val (previousTime, previous) = shots[i - 1]
-            val (time, image) = shots[i]
-            if (Duration.between(previousTime, time) <= MAX_GAP && alike(previous, image, context)) {
-                current += image
+        suspend fun follows(previous: Pair<LocalDateTime, ImageRef>, shot: Pair<LocalDateTime, ImageRef>) = Duration.between(previous.first, shot.first) <= MAX_GAP && alike(previous.second, shot.second, context)
+
+        val bursts = mutableListOf<List<Pair<LocalDateTime, ImageRef>>>()
+        var current = mutableListOf(shots[0])
+        var pending: Pair<LocalDateTime, ImageRef>? = null
+        for (shot in shots.drop(1)) {
+            val skipped = pending
+            if (skipped != null && follows(skipped, shot)) {
+                bursts += current
+                current = mutableListOf(skipped, shot)
+                pending = null
+            } else if (follows(current.last(), shot)) {
+                current += shot
+                pending = null
+            } else if (skipped == null) {
+                pending = shot
             } else {
                 bursts += current
-                current = mutableListOf(image)
+                current = mutableListOf(shot)
+                pending = null
             }
         }
         bursts += current
-        return bursts.filter { it.size > 1 }
+        return bursts.filter { it.size > 1 }.map { burst -> burst.map { it.second } }
     }
 
     /** Recall first: without both embeddings, time alone decides. */

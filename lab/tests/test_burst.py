@@ -121,3 +121,43 @@ def test_undecodable_image_has_sharpness_zero_and_is_never_best_shot(shots):
     assert role(signals, broken_ref) == Role.INFERIOR
     assert signals[broken_ref][0].score == 1.0
     assert signals[broken_ref][0].evidence["sharpness"] == "0.0"
+
+
+def test_one_different_shot_inside_a_burst_does_not_split_it(shots):
+    a = shots.add("1", 0, vector=[1, 0])
+    odd = shots.add("2", 1, vector=[0, 1])
+    c = shots.add("3", 2, vector=[1, 0])
+    d = shots.add("4", 3, vector=[1, 0])
+
+    signals = shots.run()
+
+    assert set(signals) == {a, c, d}
+    assert odd not in signals
+    assert signals[a][0].evidence["shots"] == "3"
+
+
+def test_the_skipped_shot_is_still_measured_from_the_last_shot_of_the_burst(shots):
+    shots.add("1", 0, vector=[1, 0])
+    shots.add("2", 1, vector=[0, 1])
+    shots.add("3", 4, vector=[1, 0])  # alike, but 4 s after the last shot of the burst
+
+    assert shots.run() == {}
+
+
+def test_shots_3_s_apart_join_and_4_s_apart_split(shots):
+    joined = [shots.add("1", 0), shots.add("2", 3)]
+    split = [shots.add("3", 100), shots.add("4", 104)]
+
+    signals = shots.run()
+
+    assert set(signals) == set(joined)
+    assert not set(split) & set(signals)
+
+
+def test_a_chain_longer_than_the_gap_is_one_burst(shots):
+    chain = [shots.add(str(i), 2 * i) for i in range(5)]  # 8 s from first to last
+
+    signals = shots.run()
+
+    assert set(signals) == set(chain)
+    assert len({s[0].evidence[GROUP_KEY] for s in signals.values()}) == 1

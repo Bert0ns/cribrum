@@ -151,4 +151,52 @@ class BurstDetectorTest {
         assertEquals(1.0f, signals.getValue(brokenRef).single().score)
         assertEquals("0.0", signals.getValue(brokenRef).single().evidence["sharpness"])
     }
+
+    @Test
+    fun `one different shot inside a burst does not split it`() {
+        val shots = Shots(folder.root, start)
+        val a = shots.add("1", 0, vector = unit(1f, 0f))
+        val odd = shots.add("2", 1, vector = unit(0f, 1f))
+        val c = shots.add("3", 2, vector = unit(1f, 0f))
+        val d = shots.add("4", 3, vector = unit(1f, 0f))
+
+        val signals = shots.run()
+
+        assertEquals(setOf(a, c, d), signals.keys)
+        assertFalse(odd in signals)
+        assertEquals("3", signals.getValue(a).single().evidence["shots"])
+    }
+
+    @Test
+    fun `the skipped shot is still measured from the last shot of the burst`() {
+        val shots = Shots(folder.root, start)
+        shots.add("1", 0, vector = unit(1f, 0f))
+        shots.add("2", 1, vector = unit(0f, 1f))
+        shots.add("3", 4, vector = unit(1f, 0f)) // alike, but 4 s after the last shot of the burst
+
+        assertTrue(shots.run().isEmpty())
+    }
+
+    @Test
+    fun `shots 3 s apart join and 4 s apart split`() {
+        val shots = Shots(folder.root, start)
+        val joined = listOf(shots.add("1", 0), shots.add("2", 3))
+        val split = listOf(shots.add("3", 100), shots.add("4", 104))
+
+        val signals = shots.run()
+
+        assertEquals(joined.toSet(), signals.keys)
+        assertTrue(split.none { it in signals })
+    }
+
+    @Test
+    fun `a chain longer than the gap is one burst`() {
+        val shots = Shots(folder.root, start)
+        val chain = (0 until 5).map { shots.add("$it", 2L * it) } // 8 s from first to last
+
+        val signals = shots.run()
+
+        assertEquals(chain.toSet(), signals.keys)
+        assertEquals(1, signals.values.map { it.single().evidence.getValue(GROUP_KEY) }.toSet().size)
+    }
 }
