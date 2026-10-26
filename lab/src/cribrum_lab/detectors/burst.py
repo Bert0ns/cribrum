@@ -10,7 +10,6 @@ shortcut: sharpness only; add "eyes open" once a face detector exists.
 from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime, timedelta
-from itertools import pairwise
 
 import numpy as np
 import xxhash
@@ -28,7 +27,7 @@ BURST_MIN_COSINE = 0.80
 
 class BurstDetector:
     id = "burst"
-    version = 1
+    version = 2
     category = Category.BURST
 
     def analyze(
@@ -71,15 +70,28 @@ class BurstDetector:
 def _bursts(
     shots: list[tuple[datetime, ImageRef]], context: AnalysisContext
 ) -> list[list[ImageRef]]:
-    bursts, current = [], [shots[0][1]]
-    for (previous_time, previous), (time, image) in pairwise(shots):
-        if time - previous_time <= MAX_GAP and _alike(previous, image, context):
-            current.append(image)
+    """Chains shots into bursts. A shot that does not follow the last shot of the burst starts
+    a new one, but if the next shot follows the last shot of the burst instead, the shot between
+    was one different frame and is dropped, so a single other subject does not split a burst."""
+
+    def follows(previous: tuple[datetime, ImageRef], shot: tuple[datetime, ImageRef]) -> bool:
+        return shot[0] - previous[0] <= MAX_GAP and _alike(previous[1], shot[1], context)
+
+    bursts, current, pending = [], [shots[0]], None
+    for shot in shots[1:]:
+        if pending is not None and follows(pending, shot):
+            bursts.append(current)
+            current, pending = [pending, shot], None
+        elif follows(current[-1], shot):
+            current.append(shot)
+            pending = None
+        elif pending is None:
+            pending = shot
         else:
             bursts.append(current)
-            current = [image]
+            current, pending = [shot], None
     bursts.append(current)
-    return [burst for burst in bursts if len(burst) > 1]
+    return [[image for _, image in burst] for burst in bursts if len(burst) > 1]
 
 
 def _alike(a: ImageRef, b: ImageRef, context: AnalysisContext) -> bool:
