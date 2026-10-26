@@ -240,6 +240,18 @@ class RankerTest {
     }
 
     @Test
+    fun `equal likelihoods are not ordered by the date in the file name`() {
+        val dated = listOf("20190101", "20210615", "20240101", "20250301").map { "/DCIM/Camera/IMG_${it}_100000.jpg" }
+
+        val forward = names(rank(*dated.map { image(it, blur(0.9f)) }.toTypedArray()))
+        val backward = names(rank(*dated.reversed().map { image(it, blur(0.9f)) }.toTypedArray()))
+
+        // Ordered by a hash of the path (xxh3), so neither oldest first nor newest first.
+        assertEquals(listOf(dated[1], dated[2], dated[3], dated[0]), forward)
+        assertEquals(forward, backward)
+    }
+
+    @Test
     fun `thresholds are the lab's`() {
         val lab = java.io.File("../../lab/src/cribrum_lab/ranker.py").readText()
         for ((category, threshold) in THRESHOLDS) {

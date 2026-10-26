@@ -2,6 +2,7 @@
 // docs/design.md §6.
 package io.github.bert0ns.cribrum.ranker
 
+import io.github.bert0ns.cribrum.detectors.groupId
 import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.IndexedImage
@@ -72,10 +73,13 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
             val likelihood = protection * (image.signals.maxOfOrNull(::likelihood) ?: 0f)
             ranked += Candidate(image, reasons.sortedByDescending(::likelihood), likelihood, protection)
         }
+        // Ties go by a hash of the path: the path itself holds the date in many file names, and
+        // photo age is never a signal (docs/design.md, D5).
+        val tieBreak = ranked.associate { it.image.ref.path to pathHash(it.image.ref.path) }
         return ranked.sortedWith(
             compareBy<Candidate> { !it.isCandidate }
                 .thenByDescending { it.likelihood }
-                .thenBy { it.image.ref.path },
+                .thenBy { tieBreak.getValue(it.image.ref.path) },
         )
     }
 
@@ -117,6 +121,9 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
         }
     }
 }
+
+/** xxh3 of the path, the same as `_tie_break` in the lab's ranker. */
+private fun pathHash(path: String): String = groupId(path)
 
 private fun protection(signals: List<Signal>): Float {
     var factor = 1f

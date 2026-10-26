@@ -5,6 +5,8 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import xxhash
+
 from cribrum_lab.folders import is_excluded
 from cribrum_lab.model import Category, IndexedImage, Protection, ReviewState, Signal
 
@@ -75,7 +77,9 @@ class Ranker:
             protection = _protection(image.signals)
             likelihood = protection * max(map(self._likelihood, image.signals), default=0.0)
             ranked.append(Candidate(image, tuple(reasons), likelihood, protection))
-        ranked.sort(key=lambda c: (not c.is_candidate, -c.likelihood, str(c.image.ref.path)))
+        # Ties go by a hash of the path: the path itself holds the date in many file names, and
+        # photo age is never a signal (docs/design.md, D5).
+        ranked.sort(key=lambda c: (not c.is_candidate, -c.likelihood, _tie_break(c.image.ref.path)))
         return ranked
 
     @staticmethod
@@ -113,6 +117,10 @@ class Ranker:
         if threshold == 1.0:
             return 1.0
         return 1.0 + (signal.score - threshold) / (1.0 - threshold)
+
+
+def _tie_break(path: Path) -> str:
+    return xxhash.xxh3_64(str(path).encode()).hexdigest()
 
 
 def _protection(signals: Sequence[Signal]) -> float:
