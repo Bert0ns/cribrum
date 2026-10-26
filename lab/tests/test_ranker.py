@@ -232,3 +232,16 @@ def test_images_in_an_excluded_folder_are_never_listed_whatever_their_signals():
     )
 
     assert names(order) == ["c.jpg"]
+
+
+def test_equal_likelihoods_are_not_ordered_by_the_date_in_the_file_name():
+    dated = [
+        f"/DCIM/Camera/IMG_{day}_100000.jpg"
+        for day in ("20190101", "20210615", "20240101", "20250301")
+    ]
+
+    forward = names(rank(*(image(n, blur(0.9)) for n in dated)))
+    backward = names(rank(*(image(n, blur(0.9)) for n in reversed(dated))))
+
+    # Ordered by a hash of the path (xxh3), so neither oldest first nor newest first.
+    assert forward == backward == [Path(n).name for n in (dated[1], dated[2], dated[3], dated[0])]
