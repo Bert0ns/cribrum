@@ -80,8 +80,8 @@ data class Overview(val categories: List<CategorySummary>, val freeableBytes: Lo
 /** The groups shown now, and how many candidates the category has left in all, these included and the skipped ones not. */
 data class Page(val groups: List<ReviewGroup>, val remaining: Int)
 
-/** What an image in [Decision.kept] had before: its review state, and the signals it was kept with. */
-data class PreviousReview(val state: ReviewState, val kept: Set<SignalIdentity>)
+/** What an image in [Decision.kept] had before: its review state, and the signals and detectors it was kept with. */
+data class PreviousReview(val state: ReviewState, val kept: Set<SignalIdentity>, val detectors: Set<String>)
 
 /** What applying a page did, so it can be undone. [previous] holds what each image in [kept] had before. */
 data class Decision(
@@ -162,7 +162,7 @@ class Review(
      */
     suspend fun apply(toTrash: List<ImageRef>, toKeep: List<ImageRef>): Decision = withContext(NonCancellable) {
         // Read first: a row that is missing fails before any file moves.
-        val previous = toKeep.associate { it.path to PreviousReview(index.reviewState(it.path), index.keptSignals(it.path)) }
+        val previous = toKeep.associate { it.path to PreviousReview(index.reviewState(it.path), index.keptSignals(it.path), index.keptDetectors(it.path)) }
         val moved = trash.moveToTrash(toTrash)
         moved.forEach { index.setReviewState(it.path, ReviewState.TRASHED) }
         toKeep.forEach { index.setReviewState(it.path, ReviewState.KEPT) }
@@ -197,8 +197,8 @@ class Review(
             index.setReviewState(it.path, ReviewState.UNREVIEWED)
         }
         decision.kept.forEach {
-            val before = decision.previous[it.path] ?: PreviousReview(ReviewState.UNREVIEWED, emptySet())
-            index.restoreReviewState(it.path, before.state, before.kept)
+            val before = decision.previous[it.path] ?: PreviousReview(ReviewState.UNREVIEWED, emptySet(), emptySet())
+            index.restoreReviewState(it.path, before.state, before.kept, before.detectors)
         }
         decision.trashed - restored.toSet()
     }

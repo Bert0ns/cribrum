@@ -57,4 +57,19 @@ class IndexMigrationTest {
             assertEquals(emptyList<String>(), runBlocking { it.excludedFolders() })
         }
     }
+
+    @Test
+    fun `version 2 opens with the detectors a kept image had run`() {
+        createDatabase(context, 2).use {
+            it.execSQL("INSERT INTO images (path, size, mtime_ns, review_state) VALUES ('/photos/a.jpg', 100, 1, 'kept')")
+            it.execSQL("INSERT INTO images (path, size, mtime_ns) VALUES ('/photos/b.jpg', 100, 1)")
+            it.execSQL("INSERT INTO analyses (path, detector_id, detector_version) VALUES ('/photos/a.jpg', 'blur', 1)")
+            it.execSQL("INSERT INTO analyses (path, detector_id, detector_version) VALUES ('/photos/b.jpg', 'blur', 1)")
+        }
+
+        ImageIndex.open(context, NAME).use {
+            assertEquals(setOf("blur"), runBlocking { it.keptDetectors("/photos/a.jpg") })
+            assertEquals(emptySet<String>(), runBlocking { it.keptDetectors("/photos/b.jpg") })
+        }
+    }
 }

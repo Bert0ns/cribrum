@@ -213,7 +213,9 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun setReviewState(path: String, state: ReviewState) = db.withTransaction {
         require(dao.setReviewState(path, state.value), path)
         dao.deleteKeptSignals(path)
+        dao.deleteKeptDetectors(path)
         if (state == ReviewState.KEPT) {
+            dao.keepRanDetectors(path)
             dao.insertKeptSignals(
                 signals(path).map { it.identity }.map { KeptSignalRow(path, it.kind.value, it.group, it.role) },
             )
@@ -223,14 +225,19 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     /** The signals the image had when the user kept it, empty if it was never kept. */
     suspend fun keptSignals(path: String): Set<SignalIdentity> = dao.keptSignals(path).map { SignalIdentity(Kind.of(it.category), it.groupId, it.role) }.toSet()
 
+    /** The ids of the detectors that had stored a result when the user kept it, empty if it was never kept. */
+    suspend fun keptDetectors(path: String): Set<String> = dao.keptDetectors(path).toSet()
+
     /**
      * Puts back a state and the kept signals that went with it, as [setReviewState] cannot: it records the
      * signals the image has now. Returns false, and writes nothing, for an image that has no row.
      */
-    suspend fun restoreReviewState(path: String, state: ReviewState, kept: Set<SignalIdentity>): Boolean = db.withTransaction {
+    suspend fun restoreReviewState(path: String, state: ReviewState, kept: Set<SignalIdentity>, detectors: Set<String>): Boolean = db.withTransaction {
         if (dao.setReviewState(path, state.value) == 0) return@withTransaction false
         dao.deleteKeptSignals(path)
         dao.insertKeptSignals(kept.map { KeptSignalRow(path, it.kind.value, it.group, it.role) })
+        dao.deleteKeptDetectors(path)
+        dao.insertKeptDetectors(detectors.map { KeptDetectorRow(path, it) })
         true
     }
 
@@ -258,12 +265,14 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun indexedImages(): List<IndexedImage> = db.withTransaction {
         val signals = dao.allSignals().groupBy({ it.path }, ::signal)
         val seen = dao.allKeptSignals().groupBy({ it.path }) { SignalIdentity(Kind.of(it.category), it.groupId, it.role) }
+        val ran = dao.allKeptDetectors().groupBy({ it.path }, { it.detectorId })
         dao.states().map { row ->
             IndexedImage(
                 ImageRef(row.path, row.size, row.mtimeNs),
                 ReviewState.of(row.reviewState),
                 signals[row.path].orEmpty(),
                 seen[row.path].orEmpty().toSet(),
+                ran[row.path].orEmpty().toSet(),
             )
         }
     }
@@ -277,7 +286,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     companion object {
-        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2).build())
+        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build())
     }
 }
 

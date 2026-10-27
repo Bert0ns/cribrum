@@ -82,6 +82,17 @@ data class KeptSignalRow(
     val role: String,
 )
 
+/** Ids of the detectors that had stored a result when the user kept the image. */
+@Entity(
+    tableName = "kept_detectors",
+    primaryKeys = ["path", "detector_id"],
+    foreignKeys = [ForeignKey(ImageRow::class, ["path"], ["path"], onDelete = ForeignKey.CASCADE)],
+)
+data class KeptDetectorRow(
+    val path: String,
+    @ColumnInfo(name = "detector_id") val detectorId: String,
+)
+
 @Entity(
     tableName = "embeddings",
     primaryKeys = ["path", "model"],
@@ -277,6 +288,21 @@ interface IndexDao {
     @Query("SELECT * FROM kept_signals WHERE path = :path")
     suspend fun keptSignals(path: String): List<KeptSignalRow>
 
+    @Query("DELETE FROM kept_detectors WHERE path = :path")
+    suspend fun deleteKeptDetectors(path: String)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertKeptDetectors(detectors: List<KeptDetectorRow>)
+
+    @Query("INSERT INTO kept_detectors SELECT path, detector_id FROM analyses WHERE path = :path")
+    suspend fun keepRanDetectors(path: String)
+
+    @Query("SELECT * FROM kept_detectors")
+    suspend fun allKeptDetectors(): List<KeptDetectorRow>
+
+    @Query("SELECT detector_id FROM kept_detectors WHERE path = :path")
+    suspend fun keptDetectors(path: String): List<String>
+
     @Query("SELECT path, captured_at FROM images WHERE captured_at IS NOT NULL")
     suspend fun capturedAt(): List<StoredCapture>
 
@@ -299,10 +325,10 @@ interface IndexDao {
  */
 @Database(
     entities = [
-        ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, EmbeddingRow::class,
+        ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, KeptDetectorRow::class, EmbeddingRow::class,
         GroupRunRow::class, ExcludedFolderRow::class,
     ],
-    version = 2,
+    version = 3,
 )
 abstract class IndexDatabase : RoomDatabase() {
     abstract fun dao(): IndexDao
@@ -312,5 +338,21 @@ abstract class IndexDatabase : RoomDatabase() {
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `excluded_folders` (`path` TEXT NOT NULL, PRIMARY KEY(`path`))")
+    }
+}
+
+/**
+ * Version 2 did not record which detectors had run when an image was kept. A kept image gets the ones
+ * that have a result now, so it behaves as it did.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `kept_detectors` (`path` TEXT NOT NULL, `detector_id` TEXT NOT NULL, " +
+                "PRIMARY KEY(`path`, `detector_id`), FOREIGN KEY(`path`) REFERENCES `images`(`path`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        db.execSQL(
+            "INSERT INTO kept_detectors SELECT a.path, a.detector_id FROM analyses a JOIN images i ON i.path = a.path WHERE i.review_state = 'kept'",
+        )
     }
 }

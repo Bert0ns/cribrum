@@ -151,7 +151,7 @@ class Pipeline(
         if (inTrash != null) {
             // The file is back on disk and the trash does not hold it: someone put it back by hand.
             judged.filter { (path, state) -> state == ReviewState.TRASHED && path in found && path !in inTrash }
-                .keys.forEach { index.restoreReviewState(it, ReviewState.UNREVIEWED, emptySet()) }
+                .keys.forEach { index.restoreReviewState(it, ReviewState.UNREVIEWED, emptySet(), emptySet()) }
         }
         stats.forgotten = gone.size
         stats.images = found.size

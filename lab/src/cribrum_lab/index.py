@@ -58,6 +58,12 @@ CREATE TABLE IF NOT EXISTS kept_signals (
     role TEXT NOT NULL,
     PRIMARY KEY (path, category, group_id, role)
 );
+-- Ids of the detectors that had stored a result when the user kept it.
+CREATE TABLE IF NOT EXISTS kept_detectors (
+    path TEXT NOT NULL REFERENCES images ON DELETE CASCADE,
+    detector_id TEXT NOT NULL,
+    PRIMARY KEY (path, detector_id)
+);
 CREATE TABLE IF NOT EXISTS embeddings (
     path TEXT NOT NULL REFERENCES images ON DELETE CASCADE,
     model TEXT NOT NULL,
@@ -76,7 +82,7 @@ CREATE TABLE IF NOT EXISTS excluded_folders (
     path TEXT PRIMARY KEY
 );
 """
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 """Bump on every schema change: an index from another version is refused, not misread."""
 
 
@@ -349,7 +355,13 @@ class ImageIndex:
             )
             _require(updated.rowcount, path)
             self._db.execute("DELETE FROM kept_signals WHERE path = ?", (str(path),))
+            self._db.execute("DELETE FROM kept_detectors WHERE path = ?", (str(path),))
             if state is ReviewState.KEPT:
+                self._db.execute(
+                    """INSERT INTO kept_detectors
+                       SELECT path, detector_id FROM analyses WHERE path = ?""",
+                    (str(path),),
+                )
                 self._db.executemany(
                     "INSERT OR IGNORE INTO kept_signals VALUES (?, ?, ?, ?)",
                     [
@@ -391,6 +403,9 @@ class ImageIndex:
         seen = defaultdict(set)
         for path, category, group, role in self._db.execute("SELECT * FROM kept_signals"):
             seen[path].add((kind(category), group, role))
+        ran = defaultdict(set)
+        for path, detector_id in self._db.execute("SELECT * FROM kept_detectors"):
+            ran[path].add(detector_id)
         rows = self._db.execute(
             "SELECT path, size, mtime_ns, review_state FROM images ORDER BY path"
         )
@@ -400,6 +415,7 @@ class ImageIndex:
                 ReviewState(state),
                 tuple(signals[path]),
                 frozenset(seen[path]),
+                frozenset(ran[path]),
             )
             for path, size, mtime_ns, state in rows
         ]

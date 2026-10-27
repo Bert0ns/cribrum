@@ -58,7 +58,7 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
      * its part of the order but never move a candidate behind a non-candidate. A kept image is
      * listed again only for a signal it did not have when the user kept it, such as a new
      * duplicate group or a new role in its group. A newer detector version or a higher score is
-     * not new. Trashed images are never listed, nor are those in an excluded folder.
+     * not new, and neither is a signal of a detector that had not stored a result yet. Trashed images are never listed, nor are those in an excluded folder.
      */
     fun rank(images: List<IndexedImage>, excludedFolders: Collection<String> = emptyList()): List<Candidate> {
         val ranked = mutableListOf<Candidate>()
@@ -66,7 +66,7 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
             if (image.reviewState == ReviewState.TRASHED || isExcluded(image.ref.path, excludedFolders)) continue
             var reasons = image.signals.filter(::passes)
             if (image.reviewState == ReviewState.KEPT) {
-                reasons = reasons.filter { it.identity !in image.seenWhenKept }
+                reasons = reasons.filter { it.identity !in image.seenWhenKept && it.detectorId in image.detectorsWhenKept }
                 if (reasons.isEmpty()) continue
             }
             val protection = protection(image.signals)

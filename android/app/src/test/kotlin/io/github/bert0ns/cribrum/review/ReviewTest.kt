@@ -476,7 +476,7 @@ class ReviewTest {
 
         val decision = apply(listOf(bad), listOf(good))
 
-        assertEquals(Decision(listOf(bad), listOf(good), emptyList(), mapOf(good.path to PreviousReview(ReviewState.UNREVIEWED, emptySet()))), decision)
+        assertEquals(Decision(listOf(bad), listOf(good), emptyList(), mapOf(good.path to PreviousReview(ReviewState.UNREVIEWED, emptySet(), emptySet()))), decision)
         assertFalse(File(bad.path).exists())
         assertEquals(ReviewState.TRASHED, index.reviewState(bad.path))
         assertEquals(ReviewState.KEPT, index.reviewState(good.path))
@@ -593,7 +593,8 @@ class ReviewTest {
         val copy = image("DCIM/copy.jpg", nearDuplicate("g", Role.INFERIOR))
         apply(emptyList(), listOf(best)) // kept in an earlier session
         val kept = index.indexedImages().single { it.ref.path == best.path }.seenWhenKept
-        assertTrue(kept.isNotEmpty())
+        val detectors = index.indexedImages().single { it.ref.path == best.path }.detectorsWhenKept
+        assertTrue(kept.isNotEmpty() && detectors.isNotEmpty())
 
         val p = page(Category.NEAR_DUPLICATE)
         val decision = applyPage(p, setOf(copy.path))
@@ -602,6 +603,7 @@ class ReviewTest {
 
         assertEquals(ReviewState.KEPT, index.reviewState(best.path))
         assertEquals(kept, index.indexedImages().single { it.ref.path == best.path }.seenWhenKept)
+        assertEquals(detectors, index.indexedImages().single { it.ref.path == best.path }.detectorsWhenKept)
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
         assertTrue(File(copy.path).exists())
     }
@@ -610,6 +612,7 @@ class ReviewTest {
     fun `undo of a keep made for a new signal brings the image back for it, and not for the old one`() = test {
         val exposure = Signal("exposure", 1, Category.BAD_EXPOSURE, 0.9f)
         val image = image("a.jpg", blurry(0.9f))
+        index.setSignals(image.path, "exposure", 1, emptyList()) // ran, found nothing
         apply(emptyList(), listOf(image)) // kept for BLURRY
         index.setSignals(image.path, "exposure", 1, listOf(exposure)) // a new signal makes it a candidate again
         assertEquals(listOf(image), shown(page(Category.BAD_EXPOSURE)))
