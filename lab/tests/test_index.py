@@ -193,6 +193,7 @@ def test_keeping_records_the_current_signals(index):
     assert image.review_state is ReviewState.KEPT
     assert image.signals == (Signal("blur", 2, Category.BLURRY, 0.9),)
     assert image.seen_when_kept == {BLUR.identity}
+    assert image.detectors_when_kept == {"blur"}
 
 
 def test_leaving_kept_forgets_the_recorded_signals(index):
@@ -204,6 +205,7 @@ def test_leaving_kept_forgets_the_recorded_signals(index):
 
     [image] = index.indexed_images()
     assert image.seen_when_kept == frozenset()
+    assert image.detectors_when_kept == frozenset()
 
 
 def test_indexed_images_lists_unanalyzed_images_too(index):

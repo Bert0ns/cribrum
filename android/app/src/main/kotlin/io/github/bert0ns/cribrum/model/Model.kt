@@ -103,4 +103,6 @@ data class IndexedImage(
     val signals: List<Signal> = emptyList(),
     /** Identities of the signals the image had when the user kept it. */
     val seenWhenKept: Set<SignalIdentity> = emptySet(),
+    /** Ids of the detectors that had stored a result when the user kept it. */
+    val detectorsWhenKept: Set<String> = emptySet(),
 )

@@ -333,6 +333,7 @@ class ImageIndexTest {
         assertEquals(ReviewState.KEPT, image.reviewState)
         assertEquals(listOf(Signal("blur", 2, Category.BLURRY, 0.9f)), image.signals)
         assertEquals(setOf(BLUR.identity), image.seenWhenKept)
+        assertEquals(setOf("blur"), image.detectorsWhenKept)
     }
 
     @Test
@@ -344,6 +345,7 @@ class ImageIndexTest {
         setReviewState(PHOTO.path, ReviewState.UNREVIEWED)
 
         assertEquals(emptySet<Any>(), indexedImages().single().seenWhenKept)
+        assertEquals(emptySet<Any>(), indexedImages().single().detectorsWhenKept)
     }
 
     @Test

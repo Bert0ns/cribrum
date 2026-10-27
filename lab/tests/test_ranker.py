@@ -9,8 +9,12 @@ from cribrum_lab.ranker import Ranker
 THRESHOLDS = {Category.BLURRY: 0.5, Category.SCREENSHOT: 0.8, Category.EXACT_DUPLICATE: 0.5}
 
 
-def image(name, *signals, state=ReviewState.UNREVIEWED, seen_when_kept=frozenset()):
-    return IndexedImage(ImageRef(Path(name), 0, 0), state, signals, frozenset(seen_when_kept))
+def image(name, *signals, state=ReviewState.UNREVIEWED, seen_when_kept=frozenset(), detectors=None):
+    if detectors is None:
+        detectors = {s.detector_id for s in signals}
+    return IndexedImage(
+        ImageRef(Path(name), 0, 0), state, signals, frozenset(seen_when_kept), frozenset(detectors)
+    )
 
 
 def blur(score, version=1):
@@ -136,6 +140,19 @@ def test_kept_image_comes_back_for_a_new_signal_only():
     [candidate] = rank(kept)
 
     assert candidate.reasons == (duplicate("new-group", Role.INFERIOR),)
+
+
+def test_kept_image_ignores_a_signal_from_a_detector_that_had_not_run():
+    kept = image(
+        "kept",
+        blur(0.9),
+        screenshot(0.9),
+        state=ReviewState.KEPT,
+        seen_when_kept={blur(0.9).identity},
+        detectors={"blur"},
+    )
+
+    assert rank(kept) == []
 
 
 def test_kept_best_copy_comes_back_when_it_becomes_the_inferior_one():
