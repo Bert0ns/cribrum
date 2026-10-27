@@ -132,7 +132,7 @@ class CategoryScreenTest {
             var marked by remember { mutableStateOf(images.map { it.path }.toSet()) }
             CategoryScreen(page, 100, marked, grouped = false, onToggle = { image ->
                 marked = if (image.path in marked) marked - image.path else marked + image.path
-            }, onApply = { applied++ }, onSkip = {})
+            }, onApply = { _, _ -> applied++ }, onSkip = {})
         }
 
         compose.onNodeWithText("3 of 100 images to review. Confirm these to see the next ones.").assertExists()
@@ -147,11 +147,66 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `confirming hands over the paths to trash and the paths to keep`() {
+        var confirmed: Pair<Set<String>, Set<String>>? = null
+        compose.setContent {
+            CategoryScreen(page, 3, setOf(images[0].path, images[2].path), false, {}, { trash, keep -> confirmed = trash to keep }, {})
+        }
+
+        compose.onNodeWithText("Trash 2, keep 1").performClick()
+        compose.onNodeWithText("Move to trash").performClick()
+
+        assertEquals(setOf(images[0].path, images[2].path) to setOf(images[1].path), confirmed)
+    }
+
+    @Test
+    fun `the trash button and the summary confirm are off while a change loads`() {
+        var applied = 0
+        var loading by mutableStateOf(false)
+        compose.setContent {
+            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}, loading = loading)
+        }
+        compose.onNodeWithText("Trash 3, keep 0").performClick() // opens the summary before the load starts
+        loading = true
+
+        compose.onNodeWithText("Move to trash").assertIsNotEnabled().performClick()
+        assertEquals(0, applied)
+        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("Trash 3, keep 0").assertIsNotEnabled()
+        loading = false
+        compose.onNodeWithText("Trash 3, keep 0").assertIsEnabled()
+    }
+
+    @Test
+    fun `the full size view closes when the page empties under it`() {
+        var shown by mutableStateOf(page)
+        compose.setContent { CategoryScreen(shown, 3, emptySet(), false, {}, { _, _ -> }, {}) }
+        openFullSize("img1.jpg")
+        compose.onNodeWithTag("fullSize").assertExists()
+
+        shown = emptyList()
+
+        compose.onNodeWithTag("fullSize").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the full size view closes when its image leaves the page and the others stay`() {
+        var shown by mutableStateOf(page)
+        compose.setContent { CategoryScreen(shown, 3, emptySet(), false, {}, { _, _ -> }, {}) }
+        openFullSize("img3.jpg")
+
+        shown = page.take(2)
+
+        compose.onNodeWithTag("fullSize").assertDoesNotExist()
+        tile("img1.jpg").assertExists()
+    }
+
+    @Test
     fun `skip sits right of the trash button and skips without a summary`() {
         var skipped = emptySet<String>()
         var applied = 0
         compose.setContent {
-            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, onSkip = { skipped = it })
+            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, onSkip = { skipped = it })
         }
 
         val trash = compose.onNodeWithText("Trash 3, keep 0").fetchSemanticsNode().boundsInRoot
@@ -166,7 +221,7 @@ class CategoryScreenTest {
 
     @Test
     fun `an empty page says there is nothing more and offers no buttons`() {
-        compose.setContent { CategoryScreen(emptyList(), 0, emptySet(), false, {}, {}, {}) }
+        compose.setContent { CategoryScreen(emptyList(), 0, emptySet(), false, {}, { _, _ -> }, {}) }
 
         compose.onNodeWithText("No more images to review. Skipped ones come back when you open this category again.").assertExists()
         compose.onNodeWithText("Skip").assertDoesNotExist()
@@ -176,7 +231,7 @@ class CategoryScreenTest {
     fun `holding an image offers to never suggest its folder again`() {
         var excluded: ImageRef? = null
         compose.setContent {
-            CategoryScreen(page, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = { excluded = it })
+            CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, onExcludeFolder = { excluded = it })
         }
 
         tile("img2.jpg").performTouchInput { longClick() }
@@ -194,7 +249,7 @@ class CategoryScreenTest {
     fun `a header marks where each date starts and nothing is shown when the grouping is off`() {
         val days = arrayOf(LocalDate.of(2026, 3, 2), LocalDate.of(2026, 3, 2), LocalDate.of(2026, 2, 28))
         var grouping by mutableStateOf(ReviewOrder.DAY)
-        compose.setContent { CategoryScreen(dated(grouping, *days), 3, emptySet(), false, {}, {}, {}, reviewOrder = grouping) }
+        compose.setContent { CategoryScreen(dated(grouping, *days), 3, emptySet(), false, {}, { _, _ -> }, {}, reviewOrder = grouping) }
 
         compose.onNodeWithText("Mar 2, 2026").assertExists()
         compose.onNodeWithText("Feb 28, 2026").assertExists()
@@ -209,7 +264,7 @@ class CategoryScreenTest {
         val many = (1..80).map { ImageRef("/sdcard/DCIM/many$it.jpg", 1_000, 0) }
         val long = many.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
         var grouping by mutableStateOf(ReviewOrder.OFF)
-        compose.setContent { CategoryScreen(long, 80, emptySet(), false, {}, {}, {}, reviewOrder = grouping) }
+        compose.setContent { CategoryScreen(long, 80, emptySet(), false, {}, { _, _ -> }, {}, reviewOrder = grouping) }
 
         compose.onNode(hasScrollAction()).performScrollToIndex(60)
         compose.onAllNodesWithContentDescription("many1.jpg", substring = true).assertCountEquals(0)
@@ -248,7 +303,7 @@ class CategoryScreenTest {
 
     @Test
     fun `swiping the full size view pages through the images of the list`() {
-        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}) }
 
         openFullSize("img1.jpg")
         compose.onNodeWithText(images[0].path).assertExists()
@@ -265,7 +320,7 @@ class CategoryScreenTest {
             var marked by remember { mutableStateOf(setOf(images[1].path)) }
             CategoryScreen(listOf(best), 1, marked, true, { image ->
                 marked = if (image.path in marked) marked - image.path else marked + image.path
-            }, {}, {})
+            }, { _, _ -> }, {})
         }
 
         openFullSize("img1.jpg")
@@ -283,7 +338,7 @@ class CategoryScreenTest {
         val dark = Signal("exposure", 1, Category.BAD_EXPOSURE, 1f, mapOf("case" to "dark"))
         val blurry = Signal("blur", 1, Category.BLURRY, 0.9f)
         val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = true, reasons = listOf(dark, blurry)), ReviewItem(images[1], suggestTrash = true)))
-        compose.setContent { CategoryScreen(listOf(group), 2, emptySet(), false, {}, {}, {}) }
+        compose.setContent { CategoryScreen(listOf(group), 2, emptySet(), false, {}, { _, _ -> }, {}) }
 
         openFullSize("Too dark")
         compose.onNodeWithText("Too dark").assertExists()
@@ -295,7 +350,7 @@ class CategoryScreenTest {
     @Test
     fun `excluding a folder from the full size view excludes the image on show and closes the view`() {
         var excluded: ImageRef? = null
-        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}, onExcludeFolder = { excluded = it }) }
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, onExcludeFolder = { excluded = it }) }
         val exclude = "Never suggest this folder or its subfolders"
 
         openFullSize("img1.jpg")
@@ -308,7 +363,7 @@ class CategoryScreenTest {
 
     @Test
     fun `a drag on a zoomed image pans instead of changing page`() {
-        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}) }
 
         openFullSize("img1.jpg")
         compose.onNodeWithTag("fullSize").performTouchInput {
@@ -322,7 +377,7 @@ class CategoryScreenTest {
     @Test
     fun `a group with a copy in an excluded folder says so`() {
         val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = true)), hasExcludedCopy = true)
-        compose.setContent { CategoryScreen(listOf(group), 1, emptySet(), grouped = true, {}, {}, {}) }
+        compose.setContent { CategoryScreen(listOf(group), 1, emptySet(), grouped = true, {}, { _, _ -> }, {}) }
 
         compose.onNodeWithText("Another copy is in an excluded folder").assertExists()
     }
@@ -330,7 +385,7 @@ class CategoryScreenTest {
     @Test
     fun `a group with its best copy in the trash says so`() {
         val group = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = false)), hasTrashedBestCopy = true)
-        compose.setContent { CategoryScreen(listOf(group), 1, emptySet(), grouped = true, {}, {}, {}) }
+        compose.setContent { CategoryScreen(listOf(group), 1, emptySet(), grouped = true, {}, { _, _ -> }, {}) }
 
         compose.onNodeWithText("The best copy is in the trash").assertExists()
     }
@@ -338,7 +393,7 @@ class CategoryScreenTest {
     @Test
     fun `cancelling the summary trashes nothing`() {
         var applied = 0
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { applied++ }, {}) }
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}) }
 
         compose.onNodeWithText("The last 3 images to review.").assertExists()
         compose.onNodeWithText("Trash 3, keep 0").performClick()
@@ -349,7 +404,7 @@ class CategoryScreenTest {
 
     @Test
     fun `the summary promises the retention the user chose`() {
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, {}, retentionDays = 7) }
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> }, {}, retentionDays = 7) }
 
         compose.onNodeWithText("Trash 3, keep 0").performClick()
 
@@ -359,7 +414,7 @@ class CategoryScreenTest {
     @Test
     fun `the undo snackbar shows above the trash button, not over it`() {
         val snackbar = SnackbarHostState()
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, {}, {}, snackbar = snackbar) }
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> }, {}, snackbar = snackbar) }
 
         compose.runOnIdle { scope.launch { snackbar.showSnackbar("3 images moved to the trash", "Undo") } }
 
@@ -377,7 +432,7 @@ class CategoryScreenTest {
                 var now by remember { mutableStateOf(marked) }
                 CategoryScreen(page, 3, now, false, { image ->
                     now = if (image.path in now) now - image.path else now + image.path
-                }, {}, {}, onExcludeFolder = {})
+                }, { _, _ -> }, {}, onExcludeFolder = {})
             }
         }
         act()
@@ -443,7 +498,7 @@ class CategoryScreenTest {
 
     private fun togglingScreen(page: List<ReviewGroup>, marked: Set<String>) = compose.setContent {
         var now by remember { mutableStateOf(marked) }
-        CategoryScreen(page, 3, now, false, { image -> now = if (image.path in now) now - image.path else now + image.path }, {}, {})
+        CategoryScreen(page, 3, now, false, { image -> now = if (image.path in now) now - image.path else now + image.path }, { _, _ -> }, {})
     }
 
     @Test
@@ -453,7 +508,7 @@ class CategoryScreenTest {
         val reasoned = ReviewItem(images[0], suggestTrash = true, reasons = listOf(dark, blurry))
         val best = ReviewItem(images[1], suggestTrash = false, isBest = true, reasons = listOf(Signal("exact", 1, Category.EXACT_DUPLICATE, 1f, mapOf(ROLE_KEY to Role.BEST.value))))
         val group = ReviewGroup("g", listOf(reasoned, best, ReviewItem(images[2], suggestTrash = true)))
-        compose.setContent { CategoryScreen(listOf(group), 3, setOf(images[0].path), true, {}, {}, {}) }
+        compose.setContent { CategoryScreen(listOf(group), 3, setOf(images[0].path), true, {}, { _, _ -> }, {}) }
 
         compose.onNodeWithContentDescription("Too dark. Marked for the trash").assertExists()
         compose.onNodeWithContentDescription("Best copy: the others are identical to it. Best copy, kept").assertExists()
@@ -484,7 +539,7 @@ class CategoryScreenTest {
 
     @Test
     fun `the open full size action opens the image`() {
-        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, {}, {}) }
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}) }
 
         perform(tile("img2.jpg"), "Open full size")
 

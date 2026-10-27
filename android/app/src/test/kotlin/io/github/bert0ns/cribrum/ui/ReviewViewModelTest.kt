@@ -25,6 +25,7 @@ import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -39,6 +40,8 @@ import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -122,10 +125,10 @@ class ReviewViewModelTest {
         settle(model) { paths(it) == listOf("/sdcard/b.jpg") }
 
         // The file is not on disk, so nothing moves, but the page is rebuilt and the decision can be undone.
-        model.applyPage()
+        applyShown(model)
         settle(model) { it.state.value.lastDecision != null }
         assertEquals(listOf("/sdcard/b.jpg"), paths(model))
-        model.undo()
+        model.undo(model.state.value.lastDecision!!)
         settle(model) { it.state.value.lastDecision == null }
         assertEquals(listOf("/sdcard/b.jpg"), paths(model))
     }
@@ -183,7 +186,7 @@ class ReviewViewModelTest {
         if (blurry in model.state.value.marked) model.toggle(ImageRef(blurry, 1_000, 1L))
         settle(model) { model.state.value.marked.isEmpty() }
 
-        model.applyPage()
+        applyShown(model)
         settle(model) { it.state.value.lastDecision != null }
 
         runBlocking {
@@ -243,11 +246,11 @@ class ReviewViewModelTest {
         assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
 
         // The files are not on disk, so nothing moves, but the page is rebuilt and the decision can be undone.
-        model.applyPage()
+        applyShown(model)
         settle(model) { it.state.value.lastDecision != null }
         assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
 
-        model.undo()
+        model.undo(model.state.value.lastDecision!!)
         settle(model) { it.state.value.lastDecision == null }
         assertEquals(listOf("/sdcard/new.jpg", "/sdcard/old.jpg"), paths(model))
     }
@@ -648,5 +651,309 @@ class ReviewViewModelTest {
         Thread.sleep(300)
         shadowOf(Looper.getMainLooper()).idle()
         assertNull(model.state.value.storage)
+    }
+
+    /** A trash that records what it was asked and can hold the moves, like a slow volume. */
+    private class RecordingTrash(private val gate: CompletableDeferred<Unit>? = null) : Trash {
+        val moves = mutableListOf<List<ImageRef>>()
+        val restores = mutableListOf<List<ImageRef>>()
+
+        override suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef> {
+            gate?.await()
+            moves += images
+            return images
+        }
+
+        override suspend fun restore(images: List<ImageRef>): List<ImageRef> {
+            restores += images
+            return images
+        }
+
+        override suspend fun trashed() = emptyList<TrashedImage>()
+
+        override suspend fun purge(images: List<ImageRef>) {}
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
+    /** What the screen hands over when the user confirms: the marked paths to trash, and the others on the page to keep. */
+    private fun confirm(model: ReviewViewModel): Pair<Set<String>, Set<String>> {
+        val marked = model.state.value.marked
+        return marked to (paths(model).toSet() - marked)
+    }
+
+    private fun applyShown(model: ReviewViewModel) {
+        val (trash, keep) = confirm(model)
+        model.applyPage(trash, keep)
+    }
+
+    /** A page of [PAGE_SIZE] blurry images, and [more] on the next one. */
+    private fun twoPages(more: Int = 1) {
+        repeat(PAGE_SIZE) { blurry("/sdcard/a$it.jpg", 0.9f) }
+        repeat(more) { blurry("/sdcard/b$it.jpg", 0.5f) }
+    }
+
+    @Test
+    fun `confirming the same page twice while the first apply runs trashes the next page for no one`() {
+        twoPages()
+        val gate = CompletableDeferred<Unit>()
+        val trash = RecordingTrash(gate)
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        val (toTrash, toKeep) = confirm(model)
+
+        model.applyPage(toTrash, toKeep)
+        model.applyPage(toTrash, toKeep) // a second tap, while the first still moves files
+        gate.complete(Unit)
+        settle(model) { paths(it) == listOf("/sdcard/b0.jpg") && it.state.value.lastDecision != null }
+        Thread.sleep(200)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(1, trash.moves.size)
+        assertEquals(PAGE_SIZE, model.state.value.lastDecision!!.trashed.size)
+        assertEquals(listOf("/sdcard/b0.jpg"), paths(model))
+        runBlocking { assertEquals(ReviewState.UNREVIEWED, app.index.reviewState("/sdcard/b0.jpg")) }
+    }
+
+    @Test
+    fun `an apply for a page that is no longer shown does nothing`() {
+        twoPages()
+        val trash = RecordingTrash()
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+
+        model.applyPage(setOf("/sdcard/a0.jpg"), emptySet()) // not what the page holds
+        settle(model) { true }
+
+        assertEquals(emptyList<List<ImageRef>>(), trash.moves)
+        assertNull(model.state.value.lastDecision)
+        assertEquals(PAGE_SIZE, paths(model).size)
+    }
+
+    @Test
+    fun `undo of a decision that is no longer the last one does nothing`() {
+        twoPages()
+        val trash = RecordingTrash()
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != null }
+        val first = model.state.value.lastDecision!!
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != first }
+        val second = model.state.value.lastDecision!!
+
+        model.undo(first) // the snackbar of the first page, still on screen
+        settle(model) { true }
+
+        assertEquals(emptyList<List<ImageRef>>(), trash.restores)
+        assertEquals(second, model.state.value.lastDecision)
+        model.undo(second)
+        settle(model) { it.state.value.lastDecision == null }
+        assertEquals(listOf(second.trashed), trash.restores)
+    }
+
+    @Test
+    fun `a tap made while a page loads is kept`() {
+        repeat(3) { blurry("/sdcard/a$it.jpg", 0.9f - it / 10f) }
+        val slow = AtomicBoolean(false)
+        val held = CountDownLatch(1)
+        val review = Review(app.index, RecordingTrash(), thresholds = {
+            if (slow.get()) held.await()
+            THRESHOLDS
+        })
+        val model = ReviewViewModel(app, review)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 3 }
+        slow.set(true)
+
+        model.setReviewOrder(ReviewOrder.MONTH)
+        shadowOf(Looper.getMainLooper()).idle()
+        model.toggle(ImageRef("/sdcard/a0.jpg", 1_000, 1L)) // the page is still the old one on screen
+        held.countDown()
+        settle(model) { it.state.value.reviewOrder == ReviewOrder.MONTH && "/sdcard/a0.jpg" !in it.state.value.marked }
+
+        assertEquals(setOf("/sdcard/a1.jpg", "/sdcard/a2.jpg"), model.state.value.marked)
+    }
+
+    @Test
+    fun `skipping after an apply keeps the undo of that apply`() {
+        twoPages(more = 2)
+        val trash = RecordingTrash()
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != null }
+        val applied = model.state.value.lastDecision
+
+        model.skip(shownIds(model))
+        settle(model) { paths(it).isEmpty() }
+
+        assertEquals(applied, model.state.value.lastDecision)
+        model.undo(applied!!)
+        settle(model) { it.state.value.lastDecision == null }
+        assertEquals(listOf(applied.trashed), trash.restores)
+    }
+
+    /** A trash holding [held], whose restore and purge handle only the first image asked. */
+    private class StubbornTrash(held: List<ImageRef>) : Trash {
+        private val inside = held.toMutableList()
+
+        override suspend fun moveToTrash(images: List<ImageRef>) = images
+
+        override suspend fun restore(images: List<ImageRef>) = images.take(1).also { inside.removeAll(it) }
+
+        override suspend fun trashed() = inside.map { TrashedImage(it, Instant.EPOCH, File(it.path), Instant.EPOCH) }
+
+        override suspend fun purge(images: List<ImageRef>) {
+            inside.removeAll(images.take(1))
+        }
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
+    @Test
+    fun `restoring from the trash keeps only what came back and shows what is left`() {
+        val one = ImageRef("/sdcard/one.jpg", 1_000, 1L)
+        val two = ImageRef("/sdcard/two.jpg", 1_000, 1L)
+        runBlocking {
+            listOf(one, two).forEach {
+                app.index.record(it)
+                app.index.setReviewState(it.path, ReviewState.TRASHED)
+            }
+        }
+        val model = ReviewViewModel(app, Review(app.index, StubbornTrash(listOf(one, two))))
+        model.openTrash()
+        settle(model) { it.state.value.trashed.size == 2 }
+        model.select(model.state.value.trashed[0])
+        model.select(model.state.value.trashed[1])
+
+        model.restoreSelected()
+        settle(model) { it.state.value.trashed.size == 1 }
+
+        assertEquals(listOf(two), model.state.value.trashed.map { it.original })
+        runBlocking {
+            assertEquals(ReviewState.KEPT, app.index.reviewState(one.path))
+            assertEquals(ReviewState.TRASHED, app.index.reviewState(two.path))
+        }
+    }
+
+    @Test
+    fun `emptying the trash shows what the trash still holds`() {
+        val one = ImageRef("/sdcard/one.jpg", 1_000, 1L)
+        val two = ImageRef("/sdcard/two.jpg", 1_000, 1L)
+        val model = ReviewViewModel(app, Review(app.index, StubbornTrash(listOf(one, two))))
+        model.openTrash()
+        settle(model) { it.state.value.trashed.size == 2 }
+        model.select(model.state.value.trashed[0])
+
+        model.emptyTrash()
+        settle(model) { it.state.value.trashed.size == 1 }
+
+        assertEquals(listOf(two), model.state.value.trashed.map { it.original })
+        assertTrue(model.state.value.selected.isEmpty())
+    }
+
+    @Test
+    fun `a settings reload queued behind Back does not pull the user back to settings`() {
+        val slow = AtomicBoolean(false)
+        val held = CountDownLatch(1)
+        val review = Review(app.index, RecordingTrash(), thresholds = {
+            if (slow.get()) held.await()
+            THRESHOLDS
+        })
+        val model = ReviewViewModel(app, review)
+        model.openSettings()
+        settle(model) { it.state.value.screen == Screen.Settings }
+        slow.set(true)
+
+        model.back() // waits for the overview
+        shadowOf(Looper.getMainLooper()).idle()
+        model.reloadSettings() // a scan changed phase meanwhile
+        held.countDown()
+        settle(model) { it.state.value.screen == Screen.Home }
+        Thread.sleep(200)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(Screen.Home, model.state.value.screen)
+    }
+
+    @Test
+    fun `the old snackbar timing out during the next apply keeps the undo of that apply`() {
+        twoPages(more = PAGE_SIZE + 1)
+        var gate: CompletableDeferred<Unit>? = null
+        val trash = object : Trash by RecordingTrash() {
+            override suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef> {
+                gate?.await()
+                return images
+            }
+        }
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != null }
+        val first = model.state.value.lastDecision!!
+        gate = CompletableDeferred()
+
+        applyShown(model)
+        model.dismissUndo(first) // the first snackbar times out while the second apply runs
+        gate!!.complete(Unit)
+        settle(model) { it.state.value.lastDecision != first }
+        Thread.sleep(200)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertNotNull(model.state.value.lastDecision)
+    }
+
+    @Test
+    fun `the old exclusion snackbar timing out during the next exclusion keeps the undo of that one`() {
+        blurry("/sdcard/A/a.jpg", 0.9f)
+        blurry("/sdcard/B/b.jpg", 0.8f)
+        blurry("/sdcard/C/c.jpg", 0.7f)
+        val slow = AtomicBoolean(false)
+        val held = CountDownLatch(1)
+        val review = Review(app.index, RecordingTrash(), thresholds = {
+            if (slow.get()) held.await()
+            THRESHOLDS
+        })
+        val model = ReviewViewModel(app, review)
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 3 }
+        model.excludeFolder(ImageRef("/sdcard/A/a.jpg", 1_000, 1L))
+        settle(model) { it.state.value.lastExclusion == "/sdcard/A" }
+        slow.set(true)
+
+        model.excludeFolder(ImageRef("/sdcard/B/b.jpg", 1_000, 1L)) // waits in the page read
+        shadowOf(Looper.getMainLooper()).idle()
+        model.dismissExclusion("/sdcard/A") // the first snackbar times out meanwhile
+        held.countDown()
+        settle(model) { it.state.value.lastExclusion != "/sdcard/A" }
+        Thread.sleep(200)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals("/sdcard/B", model.state.value.lastExclusion)
+    }
+
+    @Test
+    fun `a thresholds reload queued behind another screen does not pull the user back to thresholds`() {
+        val release = CompletableDeferred<Unit>()
+        val model = ReviewViewModel(app, Review(app.index, SlowTrash(release)))
+        model.openThresholds()
+        settle(model) { it.state.value.screen == Screen.Thresholds }
+
+        model.openTrash() // waits for the trash listing
+        shadowOf(Looper.getMainLooper()).idle()
+        model.reloadThresholds() // a scan changed phase meanwhile
+        release.complete(Unit)
+        settle(model) { it.state.value.screen == Screen.Trash }
+        Thread.sleep(200)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(Screen.Trash, model.state.value.screen)
     }
 }

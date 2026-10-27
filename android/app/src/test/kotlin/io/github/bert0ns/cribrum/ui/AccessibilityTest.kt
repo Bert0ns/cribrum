@@ -81,7 +81,7 @@ class AccessibilityTest {
 
     @Test
     fun `the category screen has targets of 48 dp`() {
-        compose.setContent { CategoryScreen(page, 3, marked, false, {}, {}, {}) }
+        compose.setContent { CategoryScreen(page, 3, marked, false, {}, { _, _ -> }, {}) }
 
         assertTouchTargets("category")
     }
@@ -124,7 +124,7 @@ class AccessibilityTest {
     fun `the category screen still works at twice the font size`() {
         RuntimeEnvironment.setFontScale(2f)
         var applied = 0
-        compose.setContent { CategoryScreen(page, 3, marked, false, {}, { applied++ }, {}) }
+        compose.setContent { CategoryScreen(page, 3, marked, false, {}, { _, _ -> applied++ }, {}) }
 
         // Both buttons stay on the screen, side by side, and nothing is hidden.
         val screen = compose.onRoot().fetchSemanticsNode().boundsInRoot

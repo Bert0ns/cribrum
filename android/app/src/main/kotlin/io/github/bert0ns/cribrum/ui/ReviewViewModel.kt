@@ -140,8 +140,14 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     /** Measures the sizes each time it opens, after the screen is up: the trash and the index change elsewhere and in scans. */
-    fun openSettings() {
+    fun openSettings() = showSettings(onlyIfOpen = false)
+
+    /** Reads settings again after a scan changed something. Does nothing once the user has left it, even if this was queued before. */
+    fun reloadSettings() = showSettings(onlyIfOpen = true)
+
+    private fun showSettings(onlyIfOpen: Boolean) {
         load {
+            if (onlyIfOpen && it.screen != Screen.Settings) return@load it
             it.copy(
                 screen = Screen.Settings,
                 excludedFolders = app.index.excludedFolders(),
@@ -203,7 +209,8 @@ class ReviewViewModel @JvmOverloads constructor(
         }
     }
 
-    fun dismissExclusion() = mutableState.update { it.copy(lastExclusion = null) }
+    /** Dismisses [folder], the exclusion the snackbar shows, and only while it is still the last one. */
+    fun dismissExclusion(folder: String) = queue { if (it.lastExclusion == folder) it.copy(lastExclusion = null) else it }
 
     fun removeExcludedFolder(folder: String) = load { state ->
         review.removeExcludedFolder(folder)
@@ -220,10 +227,10 @@ class ReviewViewModel @JvmOverloads constructor(
 
     fun setHaptics(enabled: Boolean) {
         app.haptics.enabled = enabled
-        mutableState.update { it.copy(hapticsEnabled = enabled) }
+        queue { it.copy(hapticsEnabled = enabled) }
     }
 
-    fun cancelRetention() = mutableState.update { it.copy(pendingRetention = null) }
+    fun cancelRetention() = queue { it.copy(pendingRetention = null) }
 
     private fun ReviewState.withRetention(days: Int): ReviewState {
         app.trashRetention.days = days
@@ -231,7 +238,13 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     /** Reads counts for the defaults and current thresholds; reloaded when opened and when a scan progresses. */
-    fun openThresholds() = load {
+    fun openThresholds() = showThresholds(onlyIfOpen = false)
+
+    /** Reads the counts again after a scan changed something. Does nothing once the user has left the screen, even if this was queued before. */
+    fun reloadThresholds() = showThresholds(onlyIfOpen = true)
+
+    private fun showThresholds(onlyIfOpen: Boolean) = load {
+        if (onlyIfOpen && it.screen != Screen.Thresholds) return@load it
         it.copy(screen = Screen.Thresholds, defaultCounts = review.counts(THRESHOLDS)).withThresholds(app.thresholds.values)
     }
 
@@ -273,14 +286,21 @@ class ReviewViewModel @JvmOverloads constructor(
         }
     }
 
-    fun toggle(image: ImageRef) = mutableState.update {
+    /** An image that left the page while the tap waited for a change has no mark to flip. */
+    fun toggle(image: ImageRef) = queue {
+        if (it.page.none { group -> group.images.any { item -> item.image.path == image.path } }) return@queue it
         it.copy(marked = if (image.path in it.marked) it.marked - image.path else it.marked + image.path)
     }
 
-    /** Trashes the marked images of the page, keeps the others, and shows the next page. */
-    fun applyPage() = load { state ->
+    /**
+     * Trashes [toTrash], keeps [toKeep] and shows the next page. They are what the user confirmed, so a
+     * confirmation of a page that is no longer on screen, like a second tap during an apply, does nothing.
+     */
+    fun applyPage(toTrash: Set<String>, toKeep: Set<String>) = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
-        val decision = review.applyPage(state.page, state.marked)
+        val shown = state.page.flatMap { group -> group.images.map { it.image.path } }.toSet()
+        if (toTrash != state.marked || toTrash + toKeep != shown) return@load state
+        val decision = review.applyPage(state.page, toTrash)
         state.showing(pageFor(category, state)).copy(lastDecision = decision)
     }
 
@@ -288,24 +308,26 @@ class ReviewViewModel @JvmOverloads constructor(
     fun skip(ids: Set<String>) = load { state ->
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val skipped = state.skipped + ids
-        state.showing(pageFor(category, state, skipped)).copy(lastDecision = null, skipped = skipped)
+        state.showing(pageFor(category, state, skipped)).copy(skipped = skipped)
     }
 
-    fun undo() = load { state ->
-        val decision = state.lastDecision ?: return@load state
+    /** Undoes [decision], the one the snackbar shows, and only while it is still the last one: an older Undo must not undo a newer page. */
+    fun undo(decision: Decision) = load { state ->
+        if (state.lastDecision != decision) return@load state
         review.undo(decision)
         val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null)
         state.showing(pageFor(category, state)).copy(lastDecision = null)
     }
 
-    fun dismissUndo() = mutableState.update { it.copy(lastDecision = null) }
+    /** Dismisses [decision], the one the snackbar shows, and only while it is still the last one: a late dismiss must not drop the Undo of the next apply. */
+    fun dismissUndo(decision: Decision) = queue { if (it.lastDecision == decision) it.copy(lastDecision = null) else it }
 
-    fun select(item: TrashedImage) = mutableState.update {
+    fun select(item: TrashedImage) = queue {
         val path = item.original.path
         it.copy(selected = if (path in it.selected) it.selected - path else it.selected + path)
     }
 
-    fun selectAll(items: List<TrashedImage>, select: Boolean) = mutableState.update {
+    fun selectAll(items: List<TrashedImage>, select: Boolean) = queue {
         val paths = items.map { item -> item.original.path }.toSet()
         it.copy(selected = if (select) it.selected + paths else it.selected - paths)
     }
@@ -330,6 +352,11 @@ class ReviewViewModel @JvmOverloads constructor(
             .filter { if (keepMarksOf != null && it.image.path in before) it.image.path in keepMarksOf.marked else it.suggestTrash }
             .map { it.image.path }.toSet()
         return copy(page = page.groups, remaining = page.remaining, marked = marked)
+    }
+
+    /** A change that needs no loading, in the same line as [load]: it never lands between a load's read and its write. */
+    private fun queue(change: (ReviewState) -> ReviewState) = viewModelScope.launch {
+        changes.withLock { mutableState.update(change) }
     }
 
     /** One change at a time: the index and the trash see decisions in the order they were made. */
