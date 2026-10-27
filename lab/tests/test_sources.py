@@ -114,3 +114,38 @@ def test_skips_system_trash_and_pending_files(tmp_path):
     write(tmp_path / ".pending-1790000000-IMG_2.jpg", JPEG)
 
     assert scanned_paths(tmp_path) == {Path("IMG.jpg")}
+
+
+def test_reports_its_root_as_walked_once_the_whole_tree_is_listed(tmp_path):
+    write(tmp_path / "a/b.jpg", JPEG)
+    source = FilesystemImageSource(tmp_path)
+
+    list(source.scan())
+
+    assert source.walked_roots == [tmp_path]
+
+
+def test_reports_no_walked_root_when_a_folder_cannot_be_listed(tmp_path):
+    write(tmp_path / "a/b.jpg", JPEG)
+    write(tmp_path / "c.jpg", JPEG)
+    locked = tmp_path / "a"
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("the folder is still listable (running as root?)")
+        source = FilesystemImageSource(tmp_path)
+
+        found = [ref.path for ref in source.scan()]
+    finally:
+        locked.chmod(0o755)
+
+    assert found == [tmp_path / "c.jpg"]
+    assert source.walked_roots == []
+
+
+def test_reports_no_walked_root_when_the_root_is_missing(tmp_path):
+    source = FilesystemImageSource(tmp_path / "gone")
+
+    list(source.scan())
+
+    assert source.walked_roots == []

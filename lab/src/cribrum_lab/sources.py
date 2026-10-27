@@ -19,6 +19,15 @@ _HEAD_SIZE = 64
 class ImageSource(Protocol):
     def scan(self) -> Iterator[ImageRef]: ...
 
+    @property
+    def walked_roots(self) -> list[Path]:
+        """The roots the last `scan` listed in full.
+
+        An image under one of them that `scan` did not yield is gone; under any other root the
+        scan could not look, so it says nothing.
+        """
+        ...
+
 
 class FilesystemImageSource:
     """Walks a folder tree and yields every image file, like the Android deep scan.
@@ -36,9 +45,19 @@ class FilesystemImageSource:
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        self.walked_roots: list[Path] = []
+        """The root once the walk listed every folder; a folder that cannot be listed, or a
+        missing root, leaves it out."""
 
     def scan(self) -> Iterator[ImageRef]:
-        for folder, dirs, files in self.root.walk():
+        self.walked_roots = []
+        listed_all = True
+
+        def on_error(_: OSError) -> None:
+            nonlocal listed_all
+            listed_all = False
+
+        for folder, dirs, files in self.root.walk(on_error=on_error):
             dirs[:] = sorted(
                 d for d in dirs if (folder / d).relative_to(self.root) not in self.SKIPPED_FOLDERS
             )
@@ -53,6 +72,8 @@ class FilesystemImageSource:
                 except OSError:
                     continue  # unreadable or vanished during the scan
                 yield ImageRef(path, info.st_size, info.st_mtime_ns)
+        if listed_all:
+            self.walked_roots = [self.root]
 
 
 def _is_image(path: Path) -> bool:
