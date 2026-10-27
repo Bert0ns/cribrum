@@ -21,6 +21,7 @@ import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
@@ -363,6 +364,40 @@ class IndexingWorkTest {
         assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
         assertTrue(appInstance.lastScan.failed)
         assertEquals(1, appInstance.lastScan.report?.failures?.get("trash"))
+    }
+
+    @Test
+    fun `the scan forgets the rows of what the trash purged and keeps the others`() {
+        val appInstance = app as CribrumApp
+        val purged = ImageRef("/storage/emulated/0/purged.jpg", 10, 1)
+        val stuck = ImageRef("/storage/emulated/0/stuck.jpg", 10, 1)
+        runBlocking {
+            listOf(purged, stuck).forEach {
+                appInstance.index.record(it)
+                appInstance.index.setReviewState(it.path, ReviewState.TRASHED)
+            }
+        }
+        val done = CompletableDeferred<Unit>()
+        workerFactory = { ctx, params ->
+            object : IndexWorker(ctx, params) {
+                override fun hasStorageAccess() = true
+                override suspend fun setForegroundInfo(info: ForegroundInfo) {}
+                override suspend fun purgeExpired(app: CribrumApp) = listOf(purged) // the trash could not delete `stuck`
+                override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
+                override suspend fun scan(): Result {
+                    try {
+                        return super.scan()
+                    } finally {
+                        done.complete(Unit)
+                    }
+                }
+            }
+        }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+
+        assertEquals(listOf(stuck), runBlocking { appInstance.index.images() })
     }
 
     /** A model that counts how often it is closed. */
