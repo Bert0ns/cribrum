@@ -273,6 +273,9 @@ interface IndexDao {
     @Query("SELECT * FROM kept_signals")
     suspend fun allKeptSignals(): List<KeptSignalRow>
 
+    @Query("SELECT * FROM kept_signals WHERE path = :path")
+    suspend fun keptSignals(path: String): List<KeptSignalRow>
+
     @Query("SELECT path, captured_at FROM images WHERE captured_at IS NOT NULL")
     suspend fun capturedAt(): List<StoredCapture>
 

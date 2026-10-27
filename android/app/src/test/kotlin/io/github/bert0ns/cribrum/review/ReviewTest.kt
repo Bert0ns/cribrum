@@ -473,7 +473,7 @@ class ReviewTest {
 
         val decision = apply(listOf(bad), listOf(good))
 
-        assertEquals(Decision(listOf(bad), listOf(good), emptyList()), decision)
+        assertEquals(Decision(listOf(bad), listOf(good), emptyList(), mapOf(good.path to PreviousReview(ReviewState.UNREVIEWED, emptySet()))), decision)
         assertFalse(File(bad.path).exists())
         assertEquals(ReviewState.TRASHED, index.reviewState(bad.path))
         assertEquals(ReviewState.KEPT, index.reviewState(good.path))
@@ -517,6 +517,157 @@ class ReviewTest {
         assertEquals(ReviewState.KEPT, index.reviewState(image.path))
         assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY).groups)
         assertEquals(emptyList<Any>(), trashed())
+    }
+
+    @Test
+    fun `undo into an empty index puts the trashed file back with a row, and adds none for a kept one`() = test {
+        val bad = image("bad.jpg", blurry(0.9f))
+        val good = image("good.jpg", blurry(0.8f))
+        val decision = apply(listOf(bad), listOf(good))
+        index.forget(listOf(bad.path, good.path)) // a reinstall: the trash survives, the index does not
+
+        assertEquals(emptyList<ImageRef>(), undo(decision))
+
+        assertTrue(File(bad.path).exists())
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(bad.path))
+        assertEquals(listOf(bad), index.images()) // the kept image gets no row: its file never left, and a scan will find it
+    }
+
+    @Test
+    fun `restoring into an empty index brings the file back and creates its row unreviewed`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        apply(listOf(image), emptyList())
+        index.forget(listOf(image.path))
+
+        assertEquals(listOf(image), restore(listOf(image)))
+
+        assertTrue(File(image.path).exists())
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(image.path))
+        assertEquals(emptyList<Any>(), trashed())
+    }
+
+    @Test
+    fun `restoring an image whose row has changed since is unreviewed, not trashed`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        apply(listOf(image), emptyList())
+        index.record(image.copy(size = image.size + 1)) // the row no longer matches the file in the trash
+
+        assertEquals(listOf(image), restore(listOf(image)))
+
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(image.path))
+    }
+
+    @Test
+    fun `undo leaves in the trash an image whose path is taken, and says so`() = test {
+        val bad = image("bad.jpg", blurry(0.9f))
+        val good = image("good.jpg", blurry(0.8f))
+        val decision = apply(listOf(bad), listOf(good))
+        File(bad.path).writeText("another file")
+
+        assertEquals(listOf(bad), undo(decision))
+
+        assertEquals("another file", File(bad.path).readText())
+        assertEquals(ReviewState.TRASHED, index.reviewState(bad.path))
+        assertEquals(listOf(bad), trashed().map { it.original })
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(good.path))
+    }
+
+    @Test
+    fun `restoring an image whose path is taken leaves it in the trash and trashed in the index`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        apply(listOf(image), emptyList())
+        File(image.path).writeText("another file")
+
+        assertEquals(emptyList<ImageRef>(), restore(listOf(image)))
+
+        assertEquals(ReviewState.TRASHED, index.reviewState(image.path))
+        assertEquals(listOf(image), trashed().map { it.original })
+    }
+
+    @Test
+    fun `undo keeps a member kept in an earlier session kept, with the signals it was kept with`() = test {
+        val best = image("DCIM/best.jpg", nearDuplicate("g", Role.BEST))
+        val copy = image("DCIM/copy.jpg", nearDuplicate("g", Role.INFERIOR))
+        apply(emptyList(), listOf(best)) // kept in an earlier session
+        val kept = index.indexedImages().single { it.ref.path == best.path }.seenWhenKept
+        assertTrue(kept.isNotEmpty())
+
+        val p = page(Category.NEAR_DUPLICATE)
+        val decision = applyPage(p, setOf(copy.path))
+        assertEquals(ReviewState.KEPT, index.reviewState(best.path))
+        assertEquals(emptyList<ImageRef>(), undo(decision))
+
+        assertEquals(ReviewState.KEPT, index.reviewState(best.path))
+        assertEquals(kept, index.indexedImages().single { it.ref.path == best.path }.seenWhenKept)
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
+        assertTrue(File(copy.path).exists())
+    }
+
+    @Test
+    fun `undo of a keep made for a new signal brings the image back for it, and not for the old one`() = test {
+        val exposure = Signal("exposure", 1, Category.BAD_EXPOSURE, 0.9f)
+        val image = image("a.jpg", blurry(0.9f))
+        apply(emptyList(), listOf(image)) // kept for BLURRY
+        index.setSignals(image.path, "exposure", 1, listOf(exposure)) // a new signal makes it a candidate again
+        assertEquals(listOf(image), shown(page(Category.BAD_EXPOSURE)))
+
+        val decision = applyPage(page(Category.BAD_EXPOSURE))
+        assertEquals(emptyList<ReviewGroup>(), page(Category.BAD_EXPOSURE).groups)
+        undo(decision)
+
+        assertEquals(listOf(image), shown(page(Category.BAD_EXPOSURE)))
+        assertEquals(ReviewState.KEPT, index.reviewState(image.path))
+        assertEquals(emptyList<ReviewGroup>(), page(Category.BLURRY).groups)
+    }
+
+    @Test
+    fun `undo of a keep does not reset a row a scan recorded again with a new size`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        val decision = apply(emptyList(), listOf(image))
+        val changed = image.copy(size = image.size + 5)
+        index.record(changed) // a scan found the file changed
+        index.setSignals(image.path, "blur", 1, listOf(blurry(0.9f)))
+
+        undo(decision)
+
+        assertEquals(listOf(changed), index.images())
+        assertEquals(1, index.signals(image.path).size)
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(image.path))
+    }
+
+    @Test
+    fun `undo of a keep does not bring back a row a scan forgot`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        val decision = apply(emptyList(), listOf(image))
+        index.forget(listOf(image.path)) // the file is gone
+
+        assertEquals(emptyList<ImageRef>(), undo(decision))
+
+        assertEquals(emptyList<ImageRef>(), index.images())
+    }
+
+    @Test
+    fun `an apply that cannot read a row fails before it moves any file`() = test {
+        val bad = image("bad.jpg", blurry(0.9f))
+        val ghost = File(volume, "ghost.jpg").apply { writeText("x") }.toImageRef() // never recorded
+
+        runCatching { apply(listOf(bad), listOf(ghost)) }.also { assertTrue(it.isFailure) }
+
+        assertTrue(File(bad.path).exists())
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(bad.path))
+    }
+
+    @Test
+    fun `undo makes unreviewed again a member the page kept for the first time`() = test {
+        val best = image("DCIM/best.jpg", nearDuplicate("g", Role.BEST))
+        val copy = image("DCIM/copy.jpg", nearDuplicate("g", Role.INFERIOR))
+
+        val decision = applyPage(page(Category.NEAR_DUPLICATE), setOf(copy.path))
+        assertEquals(ReviewState.KEPT, index.reviewState(best.path))
+        undo(decision)
+
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(best.path))
+        assertEquals(emptySet<Any>(), index.indexedImages().single { it.ref.path == best.path }.seenWhenKept)
     }
 
     @Test

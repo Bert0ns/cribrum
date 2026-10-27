@@ -1,6 +1,7 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.bert0ns.cribrum.CribrumApp
@@ -19,6 +20,7 @@ import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +33,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.temporal.WeekFields
+
+private const val TAG = "review"
 
 sealed interface Screen {
     data object Home : Screen
@@ -86,6 +90,10 @@ data class ReviewState(
     val defaultCounts: Map<Category, Int> = emptyMap(),
     /** The folder the user just excluded, until they undo it or move on. */
     val lastExclusion: String? = null,
+    /** Images a restore or an undo left in the trash because a file has their path, until the snackbar goes. */
+    val stayedInTrash: List<ImageRef> = emptyList(),
+    /** The last change failed and the screen is as it was, until the snackbar goes. */
+    val changeFailed: Boolean = false,
 )
 
 class ReviewViewModel @JvmOverloads constructor(
@@ -314,13 +322,18 @@ class ReviewViewModel @JvmOverloads constructor(
     /** Undoes [decision], the one the snackbar shows, and only while it is still the last one: an older Undo must not undo a newer page. */
     fun undo(decision: Decision) = load { state ->
         if (state.lastDecision != decision) return@load state
-        review.undo(decision)
-        val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null)
-        state.showing(pageFor(category, state)).copy(lastDecision = null)
+        val stayed = review.undo(decision)
+        val category = (state.screen as? Screen.Category)?.category ?: return@load state.copy(lastDecision = null, stayedInTrash = stayed)
+        state.showing(pageFor(category, state)).copy(lastDecision = null, stayedInTrash = stayed)
     }
 
     /** Dismisses [decision], the one the snackbar shows, and only while it is still the last one: a late dismiss must not drop the Undo of the next apply. */
     fun dismissUndo(decision: Decision) = queue { if (it.lastDecision == decision) it.copy(lastDecision = null) else it }
+
+    /** Dismisses [images], the ones the snackbar shows, and only while they are still the last. */
+    fun dismissStayedInTrash(images: List<ImageRef>) = queue { if (it.stayedInTrash == images) it.copy(stayedInTrash = emptyList()) else it }
+
+    fun dismissChangeFailed() = queue { it.copy(changeFailed = false) }
 
     fun select(item: TrashedImage) = queue {
         val path = item.original.path
@@ -333,8 +346,9 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     fun restoreSelected() = load { state ->
-        review.restore(state.trashed.filter { it.original.path in state.selected }.map { it.original })
-        state.copy(trashed = review.trashed(), selected = emptySet())
+        val asked = state.trashed.filter { it.original.path in state.selected }.map { it.original }
+        val stayed = asked - review.restore(asked).toSet()
+        state.copy(trashed = review.trashed(), selected = stayed.map { it.path }.toSet(), stayedInTrash = stayed)
     }
 
     fun emptyTrash() = load { state ->
@@ -359,11 +373,21 @@ class ReviewViewModel @JvmOverloads constructor(
         changes.withLock { mutableState.update(change) }
     }
 
-    /** One change at a time: the index and the trash see decisions in the order they were made. */
+    /**
+     * One change at a time: the index and the trash see decisions in the order they were made. A change
+     * that fails leaves the state as it was and reports it, so one bad row or volume cannot kill the process.
+     */
     private fun load(change: suspend (ReviewState) -> ReviewState) = viewModelScope.launch {
         changes.withLock {
             mutableState.update { it.copy(loading = true) }
-            mutableState.value = change(mutableState.value).copy(loading = false)
+            try {
+                mutableState.value = change(mutableState.value).copy(loading = false)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Change failed", e)
+                mutableState.update { it.copy(loading = false, changeFailed = true) }
+            }
         }
     }
 }

@@ -110,6 +110,12 @@
         <item quantity="other">%d immagini sono cambiate dopo la scansione e sono rimaste dov\'erano</item>
         <item quantity="many">%d di immagini sono cambiate dopo la scansione e sono rimaste dov\'erano</item>
     </plurals>
+    <plurals name="stayed_in_trash_snackbar">
+        <item quantity="one">%d immagine resta nel cestino: un file ha ora il suo nome, oppure la sua cartella non c\'è più</item>
+        <item quantity="other">%d immagini restano nel cestino: un file ha ora il loro nome, oppure la loro cartella non c\'è più</item>
+        <item quantity="many">%d di immagini restano nel cestino: un file ha ora il loro nome, oppure la loro cartella non c\'è più</item>
+    </plurals>
+    <string name="change_failed_snackbar">Non ha funzionato. Riprova.</string>
     <string name="undo">Annulla</string>
     <string name="trash_empty">Il cestino è vuoto.</string>
     <plurals name="trash_hint">
