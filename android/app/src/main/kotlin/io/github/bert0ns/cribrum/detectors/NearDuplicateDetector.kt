@@ -12,6 +12,9 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.util.Locale
 
 const val MAX_DISTANCE = 10
@@ -40,7 +43,8 @@ class NearDuplicateDetector : GroupDetector {
         for (image in images) {
             val hash = try {
                 context.perceptualHash(image)
-            } catch (_: Exception) { // undecodable pixels: BitmapFactory returns null, files can vanish
+            } catch (error: Exception) { // undecodable pixels: BitmapFactory returns null, files can vanish
+                if (error is CancellationException) throw error
                 continue
             }
             val vector = try {
@@ -87,10 +91,11 @@ class NearDuplicateDetector : GroupDetector {
         return result
     }
 
-    private fun hashLinks(hashes: List<ULong>): List<Pair<Int, Int>> {
+    private suspend fun hashLinks(hashes: List<ULong>): List<Pair<Int, Int>> {
         val links = mutableListOf<Pair<Int, Int>>()
         for (i in hashes.indices) {
             if (isFlatHash(hashes[i])) continue // flat images share a hash, whatever they show
+            currentCoroutineContext().ensureActive() // the pair loops run for a minute on a large library
             for (j in (i + 1) until hashes.size) {
                 if (!isFlatHash(hashes[j]) && (hashes[i] xor hashes[j]).countOneBits() <= MAX_DISTANCE) {
                     links += i to j
@@ -100,10 +105,11 @@ class NearDuplicateDetector : GroupDetector {
         return links
     }
 
-    private fun embeddingLinks(vectors: List<FloatArray?>): List<Pair<Int, Int>> {
+    private suspend fun embeddingLinks(vectors: List<FloatArray?>): List<Pair<Int, Int>> {
         val links = mutableListOf<Pair<Int, Int>>()
         for (i in vectors.indices) {
             val vi = vectors[i] ?: continue
+            currentCoroutineContext().ensureActive()
             for (j in (i + 1) until vectors.size) {
                 val vj = vectors[j] ?: continue
                 if (dot(vi, vj) >= NEAR_DUPLICATE_MIN_COSINE) {
@@ -152,7 +158,8 @@ class NearDuplicateDetector : GroupDetector {
     private suspend fun preference(index: Int, image: ImageRef, context: AnalysisContext): CandidatePreference {
         val meta = try {
             context.metadata(image)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
             ImageMetadata(0, 0, null)
         }
         val pixels = (meta.width.toLong() * meta.height).coerceAtLeast(1L)

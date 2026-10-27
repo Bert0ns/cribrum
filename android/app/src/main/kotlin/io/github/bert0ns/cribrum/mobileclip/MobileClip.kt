@@ -74,18 +74,29 @@ private fun cropChannel(decoded: Argb, shift: Int, orientation: Int, out: FloatA
 }
 
 /** Embeddings are L2-normalized, so a dot product is the cosine similarity. */
-class MobileClip(loadVision: () -> ModelRuntime) : Embedder {
+class MobileClip(loadVision: () -> ModelRuntime) :
+    Embedder,
+    AutoCloseable {
     override val id = MODEL_ID
     override val version = MODEL_VERSION
 
-    private val vision by lazy(loadVision)
+    private val vision = lazy(loadVision)
+
+    override fun load() {
+        vision.value
+    }
+
+    /** Closes the model if it was loaded. */
+    override fun close() {
+        if (vision.isInitialized()) vision.value.close()
+    }
 
     /** [pixels] are [preprocess] outputs. */
     override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
         val batch = FloatArray(pixels.size * PIXELS)
         pixels.forEachIndexed { i, image -> image.copyInto(batch, i * PIXELS) }
         val shape = longArrayOf(pixels.size.toLong(), 3, INPUT_SIDE.toLong(), INPUT_SIDE.toLong())
-        val embeds = vision.run(mapOf("pixel_values" to Tensor(shape, batch))).getValue("image_embeds").values
+        val embeds = vision.value.run(mapOf("pixel_values" to Tensor(shape, batch))).getValue("image_embeds").values
         return List(pixels.size) { i -> normalize(embeds.copyOfRange(i * DIMENSIONS, (i + 1) * DIMENSIONS)) }
     }
 

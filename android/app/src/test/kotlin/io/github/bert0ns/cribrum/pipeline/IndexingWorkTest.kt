@@ -17,8 +17,14 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import androidx.work.workDataOf
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.detectors.AnalysisContext
+import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.Signal
+import io.github.bert0ns.cribrum.runtime.ModelRuntime
+import io.github.bert0ns.cribrum.runtime.Tensor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -191,6 +197,26 @@ class IndexingWorkTest {
 
     private fun notificationTitle() = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.last().extras.getString("android.title")
 
+    private fun notificationText() = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.last().extras.getString("android.text")
+
+    @Test
+    fun `the notification shows no total while the scan does not know one`() {
+        steps += Triple("scan", 300, 0)
+        Indexing.scanNow(app)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        assertEquals("300 so far", notificationText())
+    }
+
+    @Test
+    fun `the notification shows the total once the phase knows it`() {
+        steps += Triple("embeddings", 3, 10)
+        Indexing.scanNow(app)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        assertEquals("3 of 10", notificationText())
+    }
+
     @Test
     fun `each phase of the pipeline has a title of its own`() {
         assertEquals(R.string.scan_phase_scan, Indexing.phaseTitle("scan"))
@@ -244,6 +270,7 @@ class IndexingWorkTest {
         assertEquals(1, scans.get())
         assertTrue(appInstance.lastScan.failed)
         assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
+        assertFalse(IndexWorker.running.isLocked)
     }
 
     @Test
@@ -336,5 +363,108 @@ class IndexingWorkTest {
         assertEquals(millis(at(23, 2)), nightly().nextScheduleTimeMillis)
         assertTrue(appInstance.lastScan.failed)
         assertEquals(1, appInstance.lastScan.report?.failures?.get("trash"))
+    }
+
+    /** A model that counts how often it is closed. */
+    private class CountingRuntime : ModelRuntime {
+        var closed = 0
+
+        override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = emptyMap()
+
+        override fun close() {
+            closed++
+        }
+    }
+
+    /** The real [IndexWorker.scan] with its outside calls replaced: they are counted and nothing touches the device. */
+    private class CountingScan(context: Context, parameters: WorkerParameters, private val runtime: CountingRuntime, private val done: CompletableDeferred<Unit>, private val loadModel: Boolean, private val stopWith: GroupDetector? = null, private val fail: Boolean = false) : IndexWorker(context, parameters) {
+        var foreground = 0
+        var purged = 0
+        var models = 0
+
+        override fun hasStorageAccess() = true
+
+        override suspend fun setForegroundInfo(info: ForegroundInfo) {
+            foreground++
+        }
+
+        override suspend fun purgeExpired(app: CribrumApp): List<ImageRef> {
+            purged++
+            return emptyList()
+        }
+
+        override fun loadVision(): ModelRuntime {
+            models++
+            return runtime
+        }
+
+        override fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline {
+            if (loadModel) embedder.load()
+            check(!fail) { "pipeline exploded" }
+            return Pipeline(app.index, detectors = emptyList(), groupDetectors = listOfNotNull(stopWith), embedder = embedder)
+        }
+
+        override suspend fun scan(): Result {
+            try {
+                return super.scan()
+            } finally {
+                done.complete(Unit)
+            }
+        }
+    }
+
+    private fun runCountingScan(loadModel: Boolean, stopWith: GroupDetector? = null, fail: Boolean = false): Pair<CountingScan, CountingRuntime> {
+        val runtime = CountingRuntime()
+        val done = CompletableDeferred<Unit>()
+        lateinit var worker: CountingScan
+        workerFactory = { ctx, params -> CountingScan(ctx, params, runtime, done, loadModel, stopWith, fail).also { worker = it } }
+        Indexing.schedulePeriodic(app, now)
+        startNightlyAt(at(22, 2, 30))
+        waitForScan(done)
+        return worker to runtime
+    }
+
+    @Test
+    fun `the real scan goes foreground, purges the trash and closes the model it loaded`() {
+        val (worker, runtime) = runCountingScan(loadModel = true)
+
+        assertEquals(1, worker.foreground)
+        assertEquals(1, worker.purged)
+        assertEquals(1, worker.models)
+        assertEquals(1, runtime.closed)
+        assertFalse(IndexWorker.running.isLocked)
+    }
+
+    @Test
+    fun `the real scan loads no model when it has nothing to embed`() {
+        val (worker, runtime) = runCountingScan(loadModel = false)
+
+        assertEquals(1, worker.purged)
+        assertEquals(0, worker.models)
+        assertEquals(0, runtime.closed)
+    }
+
+    @Test
+    fun `the real scan closes the model when the pipeline throws`() {
+        val (_, runtime) = runCountingScan(loadModel = true, fail = true)
+
+        assertEquals(1, runtime.closed)
+        assertFalse(IndexWorker.running.isLocked)
+    }
+
+    @Test
+    fun `the real scan closes the model when it is stopped`() {
+        // The device has no images here, so the group detector runs on an empty list and stops the scan.
+        val stop = object : GroupDetector {
+            override val id = "stop"
+            override val version = 1
+
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> = throw CancellationException("stopped")
+        }
+
+        val (_, runtime) = runCountingScan(loadModel = true, stopWith = stop)
+
+        assertEquals(1, runtime.closed)
+        assertFalse(IndexWorker.running.isLocked)
     }
 }

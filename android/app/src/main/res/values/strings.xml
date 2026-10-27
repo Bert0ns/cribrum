@@ -12,6 +12,7 @@
     <string name="scan_phase_groups">Finding duplicates and bursts</string>
     <string name="scan_starting">Starting…</string>
     <string name="scan_progress">%1$d of %2$d</string>
+    <string name="scan_progress_open">%1$d so far</string>
     <string name="scan_now">Scan now</string>
     <string name="scan_empty">No images indexed yet. Tap Scan now to start the first scan.</string>
     <string name="scan_step_scan">Finding images: %1$d so far</string>

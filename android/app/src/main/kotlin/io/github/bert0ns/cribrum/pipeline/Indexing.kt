@@ -28,12 +28,15 @@ import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.mobileclip.VISION_MODEL_ASSET
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -200,17 +203,21 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
                 Log.w(Indexing.TAG, "Failed to purge expired trash", error)
                 trashFailures += Failure("", "trash", failureMessage(error))
             }
-            val embedder = MobileClip { OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }) }
-            app.lastScan.run {
-                val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext), ::report)
-                stats.failures.addAll(trashFailures)
-                stats
+            // The model loads when the first batch needs it, and the session is closed when the scan ends.
+            MobileClip(::loadVision).use { embedder ->
+                app.lastScan.run {
+                    val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext), ::report)
+                    stats.failures.addAll(trashFailures)
+                    stats
+                }
             }
             return Result.success()
         } finally {
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
     }
+
+    protected open fun loadVision(): ModelRuntime = OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() })
 
     protected open fun hasStorageAccess(): Boolean = Environment.isExternalStorageManager()
 
@@ -232,8 +239,11 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         title = phaseTitle
         setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total))
         if (isForeground) {
+            // A stop that came meanwhile has had the notification removed: posting now would bring it back.
+            currentCoroutineContext().ensureActive()
             // The service is in the foreground since scan() began, so the notification is updated in place.
-            val info = foregroundInfo(phaseTitle, applicationContext.getString(R.string.scan_progress, done, total))
+            val text = if (total == 0) applicationContext.getString(R.string.scan_progress_open, done) else applicationContext.getString(R.string.scan_progress, done, total)
+            val info = foregroundInfo(phaseTitle, text)
             applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
         }
     }
