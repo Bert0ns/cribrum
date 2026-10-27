@@ -21,6 +21,8 @@ import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Trash
+import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -258,6 +260,24 @@ class PipelineTest {
 
         assertEquals(0, stats.forgotten)
         assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(onCard.path) })
+    }
+
+    @Test
+    fun `a trash that cannot be listed is a failure of the scan, not its end, and leaves TRASHED rows alone`() {
+        photos()
+        run()
+        val image = trashed("DCIM/Camera/a.png")
+        val unlistable = object : Trash by trash {
+            override suspend fun trashed(): List<TrashedImage> = throw IOException("volume gone")
+        }
+
+        val stats = run(Pipeline(index, trash = unlistable))
+
+        assertEquals(listOf("trash"), stats.failures.map { it.step })
+        assertEquals("", stats.failures.single().path)
+        assertEquals(0, stats.forgotten)
+        assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(image.path) })
+        assertEquals(2, stats.images) // the scan went on over what is on disk
     }
 
     @Test
