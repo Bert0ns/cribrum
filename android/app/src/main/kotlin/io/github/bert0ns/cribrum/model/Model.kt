@@ -48,6 +48,11 @@ enum class ReviewState(val value: String) {
     UNREVIEWED("unreviewed"),
     KEPT("kept"),
     TRASHED("trashed"),
+    ;
+
+    companion object {
+        fun of(value: String): ReviewState = entries.first { it.value == value }
+    }
 }
 
 /** A group member's role, stored in `evidence[ROLE_KEY]`. */

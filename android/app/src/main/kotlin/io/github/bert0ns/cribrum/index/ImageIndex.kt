@@ -116,7 +116,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun hashedPaths(): Set<String> = dao.hashedPaths().toSet()
 
     /** The review state of every image by path, for a pass that must tell whether a review action changed one meanwhile. */
-    suspend fun reviewStates(): Map<String, ReviewState> = dao.states().associate { row -> row.path to ReviewState.entries.first { it.value == row.reviewState } }
+    suspend fun reviewStates(): Map<String, ReviewState> = dao.states().associate { row -> row.path to ReviewState.of(row.reviewState) }
 
     /**
      * Deletes every stored embedding and nothing else: the next pipeline run computes them again.
@@ -236,7 +236,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun reviewState(path: String): ReviewState {
         val value = dao.reviewState(path) ?: throw NoSuchElementException("image not in the index: $path")
-        return ReviewState.entries.first { it.value == value }
+        return ReviewState.of(value)
     }
 
     suspend fun excludedFolders(): List<String> = dao.excludedFolders()
@@ -261,7 +261,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         dao.states().map { row ->
             IndexedImage(
                 ImageRef(row.path, row.size, row.mtimeNs),
-                ReviewState.entries.first { it.value == row.reviewState },
+                ReviewState.of(row.reviewState),
                 signals[row.path].orEmpty(),
                 seen[row.path].orEmpty().toSet(),
             )
