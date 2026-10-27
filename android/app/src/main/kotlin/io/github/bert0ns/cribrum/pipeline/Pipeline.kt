@@ -128,7 +128,14 @@ class Pipeline(
             if (index.record(image)) stats.newOrChanged++
             if (found.size % 100 == 0) progress("scan", found.size, 0)
         }
-        val inTrash = trash?.trashed()?.mapTo(HashSet()) { it.original.path }
+        // A trash that cannot be listed is a failure of this step. Its rows stay as they are until a scan can read it.
+        val inTrash = try {
+            trash?.trashed()?.mapTo(HashSet()) { it.original.path }
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            stats.failures += Failure("", "trash", failureMessage(error))
+            null
+        }
         val states = index.reviewStates()
         val walked = source.walkedRoots
         // A review action may have run during the walk: only a row in the state the walk began with is judged by it.
