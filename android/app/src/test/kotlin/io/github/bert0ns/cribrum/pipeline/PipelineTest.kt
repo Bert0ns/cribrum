@@ -9,6 +9,7 @@ import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.index.memoryIndex
+import io.github.bert0ns.cribrum.metadata.UnreadableImage
 import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.mobileclip.preprocess
 import io.github.bert0ns.cribrum.model.Category
@@ -368,15 +369,48 @@ class PipelineTest {
     }
 
     @Test
-    fun `a file whose metadata read throws NoSuchElementException is marked unreadable, not hidden`() {
+    fun `a metadata read that fails once leaves the image readable on the next scan`() {
+        photos()
+        val flaky = refOf("DCIM/Camera/a.png").path
+        var failing = true
+        val reader = { file: File -> if (failing && file.path == flaky) throw IOException("read error") else readMetadata(file) }
+
+        val first = run(Pipeline(index, metadataReader = reader))
+
+        assertEquals(listOf(flaky), first.failures.filter { it.step == "metadata" }.map { it.path })
+        assertEquals(0, first.unreadable)
+        assertEquals(emptyList<String>(), runBlocking { index.unreadable() })
+        failing = false
+        val second = run(Pipeline(index, metadataReader = reader))
+        assertEquals(emptyList<Failure>(), second.failures)
+        assertNotNull(runBlocking { index.metadata(flaky) })
+        assertTrue(Category.BLURRY in kinds("DCIM/Camera/a.png"))
+    }
+
+    @Test
+    fun `a metadata read that runs out of memory fails that image only`() {
+        photos()
+        val big = refOf("DCIM/Camera/a.png").path
+        val reader = { file: File -> if (file.path == big) throw OutOfMemoryError("heap") else readMetadata(file) }
+
+        val stats = run(Pipeline(index, metadataReader = reader))
+
+        assertEquals(listOf(Failure(big, "metadata", "OutOfMemoryError: heap")), stats.failures)
+        assertEquals(emptyList<String>(), runBlocking { index.unreadable() })
+        assertNotNull(runBlocking { index.metadata(refOf("WhatsApp/Media/a-copy.png").path) })
+    }
+
+    @Test
+    fun `only an UnreadableImage marks a file unreadable`() {
         photos()
         val broken = refOf("DCIM/Camera/a.png").path
-        val reader = { file: File -> if (file.path == broken) throw NoSuchElementException("malformed") else readMetadata(file) }
+        val reader = { file: File -> if (file.path == broken) throw UnreadableImage(file) else readMetadata(file) }
 
         val stats = run(Pipeline(index, metadataReader = reader))
 
         assertEquals(listOf(broken), runBlocking { index.unreadable() })
         assertEquals(1, stats.unreadable)
+        assertEquals(emptyList<Failure>(), stats.failures)
     }
 
     @Test

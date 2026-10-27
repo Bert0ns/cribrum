@@ -73,7 +73,7 @@ interface Embedder {
 /** Called with a step name, the items done and the items in total (0 while unknown). */
 typealias Progress = suspend (step: String, done: Int, total: Int) -> Unit
 
-/** An image that failed at [step]: "embedding", "perceptual hash" or a detector id. */
+/** An image that failed at [step]: "metadata", "embedding", "perceptual hash" or a detector id. */
 data class Failure(val path: String, val step: String, val error: String) {
     override fun toString() = "$path: $step: $error"
 }
@@ -161,7 +161,7 @@ class Pipeline(
 
         val pending = index.withoutMetadata()
         for ((done, image) in pending.withIndex()) {
-            storeMetadata(image.path)
+            storeMetadata(image.path, stats)
             progress("metadata", done + 1, pending.size)
         }
         val unreadable = index.unreadable().toSet()
@@ -431,15 +431,20 @@ class Pipeline(
 
     private suspend fun storedMetadata(image: ImageRef): ImageMetadata = index.metadata(image.path) ?: throw UnreadableImage(File(image.path))
 
-    /** A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back. */
-    private suspend fun storeMetadata(path: String) {
+    /**
+     * A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back.
+     * Only [UnreadableImage] marks a file unreadable. Any other error, [OutOfMemoryError] included, may pass, so it is a failure and the next scan reads the file again.
+     */
+    private suspend fun storeMetadata(path: String, stats: Stats) {
         val file = File(path)
         if (!file.isFile) return
-        val metadata = try {
-            metadataReader(file)
-        } catch (error: Exception) {
-            if (error is CancellationException) throw error
-            return markUnreadable(path) // decoders throw more than IOExceptions on broken files
+        val metadata = attempt { metadataReader(file) }.getOrElse { error ->
+            if (error is UnreadableImage) {
+                markUnreadable(path)
+            } else {
+                stats.failures += Failure(path, "metadata", failureMessage(error))
+            }
+            return
         }
         try {
             index.setMetadata(path, metadata)
