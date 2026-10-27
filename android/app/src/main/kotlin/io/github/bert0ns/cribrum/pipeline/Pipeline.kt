@@ -110,6 +110,7 @@ class Pipeline(
     /** Lists what the trash holds, to reconcile TRASHED rows with it. Without one, TRASHED rows are left alone. */
     private val trash: Trash? = null,
     private val metadataReader: (File) -> ImageMetadata = ::readMetadata,
+    private val perceptualHasher: (ImageRef) -> ULong = ::perceptualHash,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -187,7 +188,9 @@ class Pipeline(
         )
         // Embeddings change what group detectors can see: a run with them is a different run.
         val model = embedder?.let { "${it.id}:${it.version}:${embeddings.size}" }.orEmpty()
-        val fingerprint = fingerprint(images, model)
+        // A hash that failed on an earlier run is a result a group detector lacked.
+        val hashed = index.hashedPaths()
+        val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
         for (detector in groupDetectors) {
             if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
             progress(detector.id, 0, 1)
@@ -406,7 +409,7 @@ class Pipeline(
         return if (result.exceptionOrNull() is MissingEmbedding) Result.success(null) else result
     }
 
-    private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHash(image) }
+    private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHasher(image) }
 
     private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHash(image).also { index.setContentHash(image.path, it) }
 

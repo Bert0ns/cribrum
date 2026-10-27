@@ -171,7 +171,9 @@ def run(
     )
     # Embeddings change what group detectors can see: a run with them is a different run.
     model = f"{embedder.id}:{embedder.version}:{len(embeddings)}" if embedder else ""
-    fingerprint = _fingerprint(images, model)
+    # A hash that failed on an earlier run is a result a group detector lacked.
+    hashes = sum(index.perceptual_hash(i.path) is not None for i in images)
+    fingerprint = _fingerprint(images, f"{model}:{hashes}")
     for detector in group_detectors:
         if index.group_fingerprint(detector.id, detector.version) == fingerprint:
             continue
