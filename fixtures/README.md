@@ -32,3 +32,7 @@ uv run python -m cribrum_lab.fixtures
 ```
 
 Group detectors (exact and near duplicates, bursts) run over all the images at once, as they do on a phone. Decoders and resamplers differ between Pillow and Android, so scores must match within `tolerance.score` and embeddings within `tolerance.embedding_cosine`. Hashes, sizes, categories and roles must match exactly. Numbers in `evidence` are informative only.
+
+## `decode/`
+
+Three-frame animated GIF and WebP of 64 × 48 pixels for the android decoding tests, made by `lab/scripts/make_decode_fixtures.py`. They are not part of `expected.json`: the lab has no expected values for them. Never add personal photos here either.

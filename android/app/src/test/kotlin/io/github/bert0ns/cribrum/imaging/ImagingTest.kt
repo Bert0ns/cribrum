@@ -16,6 +16,8 @@ import java.nio.ByteBuffer
 
 private fun gray(width: Int, height: Int, vararg values: Int) = Gray(width, height, FloatArray(values.size) { values[it].toFloat() })
 
+private val DECODE_FIXTURES = File("../../fixtures/decode").canonicalFile
+
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ImagingTest {
@@ -50,6 +52,19 @@ class ImagingTest {
         val expected = IntArray(32) { i -> (0xff shl 24) or ((stored[i * 4].toInt() and 0xff) shl 16) or ((stored[i * 4 + 1].toInt() and 0xff) shl 8) or (stored[i * 4 + 2].toInt() and 0xff) }
 
         assertArrayEquals(expected, decode(file, 2).pixels)
+    }
+
+    /** The synthetic animated images of fixtures/decode: the first frame has red, green, blue and yellow quadrants. */
+    @Test
+    fun `an animated gif or webp decodes to its first frame`() {
+        val first = intArrayOf(0xffff0000.toInt(), 0xff00ff00.toInt(), 0xff0000ff.toInt(), 0xffffff00.toInt())
+        for (name in listOf("animated.gif", "animated.webp")) {
+            val decoded = decode(File(DECODE_FIXTURES, name), 8)
+
+            assertEquals(name, 64 to 48, decoded.width to decoded.height)
+            val quadrants = listOf(16 to 12, 48 to 12, 16 to 36, 48 to 36).map { (x, y) -> decoded.pixels[y * 64 + x] }
+            assertArrayEquals(name, first, quadrants.toIntArray())
+        }
     }
 
     @Test
