@@ -89,5 +89,3 @@ class IndexedImage:
     signals: tuple[Signal, ...] = ()
     seen_when_kept: frozenset[tuple[Category | Protection, str, str]] = frozenset()
     """Identities of the signals the image had when the user kept it."""
-    detectors_when_kept: frozenset[str] = frozenset()
-    """Ids of the detectors that had stored a result when the user kept it."""

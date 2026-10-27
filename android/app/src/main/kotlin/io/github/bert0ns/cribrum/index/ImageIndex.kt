@@ -183,6 +183,11 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
             requireRecorded(path)
             dao.deleteAnalysis(path, detectorId)
             dao.insertAnalysis(AnalysisRow(path, detectorId, detectorVersion))
+            // A detector that had not run when the image was kept has nothing to be new against: its first result is seen.
+            if (dao.keptWithoutDetector(path, detectorId)) {
+                dao.insertKeptSignals(imageSignals.map { it.identity }.map { KeptSignalRow(path, it.kind.value, it.group, it.role) })
+                dao.insertKeptDetectors(listOf(KeptDetectorRow(path, detectorId)))
+            }
             dao.insertSignals(
                 imageSignals.map {
                     SignalRow(
@@ -265,14 +270,12 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun indexedImages(): List<IndexedImage> = db.withTransaction {
         val signals = dao.allSignals().groupBy({ it.path }, ::signal)
         val seen = dao.allKeptSignals().groupBy({ it.path }) { SignalIdentity(Kind.of(it.category), it.groupId, it.role) }
-        val ran = dao.allKeptDetectors().groupBy({ it.path }, { it.detectorId })
         dao.states().map { row ->
             IndexedImage(
                 ImageRef(row.path, row.size, row.mtimeNs),
                 ReviewState.of(row.reviewState),
                 signals[row.path].orEmpty(),
                 seen[row.path].orEmpty().toSet(),
-                ran[row.path].orEmpty().toSet(),
             )
         }
     }

@@ -5,9 +5,11 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from cribrum_lab.detectors import GROUP_KEY, ROLE_KEY, Role
 from cribrum_lab.index import ImageIndex, IndexVersionError
 from cribrum_lab.metadata import ImageMetadata
 from cribrum_lab.model import Category, ImageRef, Protection, ReviewState, Signal
+from cribrum_lab.ranker import Ranker
 
 PHOTO = ImageRef(Path("/photos/a.jpg"), 100, 1)
 META = ImageMetadata(4000, 3000, "image/jpeg", "Google", "Pixel 8", datetime(2024, 5, 1, 10, 20))
@@ -193,7 +195,37 @@ def test_keeping_records_the_current_signals(index):
     assert image.review_state is ReviewState.KEPT
     assert image.signals == (Signal("blur", 2, Category.BLURRY, 0.9),)
     assert image.seen_when_kept == {BLUR.identity}
-    assert image.detectors_when_kept == {"blur"}
+
+
+def group(group_id, role):
+    score = 0.0 if role == Role.BEST else 0.8
+    evidence = {GROUP_KEY: group_id, ROLE_KEY: role}
+    return Signal("near_duplicate", 1, Category.NEAR_DUPLICATE, score, evidence)
+
+
+def test_a_first_result_after_the_keep_counts_as_seen_and_a_later_group_does_not(index):
+    index.record(PHOTO)
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+    index.set_review_state(PHOTO.path, ReviewState.KEPT)
+
+    index.set_signals(PHOTO.path, "near_duplicate", 1, [group("g", Role.BEST)])
+    [image] = index.indexed_images()
+    assert image.seen_when_kept == {BLUR.identity, group("g", Role.BEST).identity}
+    assert Ranker().rank([image]) == []
+
+    index.set_signals(PHOTO.path, "near_duplicate", 1, [group("g", Role.INFERIOR)])
+    [image] = index.indexed_images()
+    assert image.seen_when_kept == {BLUR.identity, group("g", Role.BEST).identity}
+    assert [c.image.ref.path for c in Ranker().rank([image])] == [PHOTO.path]
+
+
+def test_a_first_result_for_an_image_that_is_not_kept_is_not_recorded(index):
+    index.record(PHOTO)
+
+    index.set_signals(PHOTO.path, "blur", 1, [BLUR])
+
+    [image] = index.indexed_images()
+    assert image.seen_when_kept == frozenset()
 
 
 def test_leaving_kept_forgets_the_recorded_signals(index):
@@ -205,7 +237,6 @@ def test_leaving_kept_forgets_the_recorded_signals(index):
 
     [image] = index.indexed_images()
     assert image.seen_when_kept == frozenset()
-    assert image.detectors_when_kept == frozenset()
 
 
 def test_indexed_images_lists_unanalyzed_images_too(index):
