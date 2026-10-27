@@ -17,11 +17,17 @@ private val EXIF_DATETIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy
 /** EXIF orientations that turn the image by 90 degrees. */
 private val ROTATED_ORIENTATIONS = 5..8
 
-/** Reads the header only: the pixels are not decoded. */
-fun readMetadata(file: File): ImageMetadata {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(file.path, bounds)
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw UnreadableImage(file)
+private fun decodeBounds(file: File): BitmapFactory.Options = BitmapFactory.Options().apply {
+    inJustDecodeBounds = true
+    BitmapFactory.decodeFile(file.path, this)
+}
+
+/**
+ * Reads the header only: the pixels are not decoded. A header that does not decode is read once more
+ * before the file counts as unreadable, since the same failure comes from a transient I/O error.
+ */
+fun readMetadata(file: File, decodeBounds: (File) -> BitmapFactory.Options = ::decodeBounds): ImageMetadata {
+    val bounds = (1..2).firstNotNullOfOrNull { decodeBounds(file).takeIf { it.outWidth > 0 && it.outHeight > 0 } } ?: throw UnreadableImage(file)
     val exif = try {
         ExifInterface(file)
     } catch (_: IOException) {
