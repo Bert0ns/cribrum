@@ -109,6 +109,7 @@ class Pipeline(
     private val preprocessing: (File) -> FloatArray = ::preprocess,
     /** Lists what the trash holds, to reconcile TRASHED rows with it. Without one, TRASHED rows are left alone. */
     private val trash: Trash? = null,
+    private val metadataReader: (File) -> ImageMetadata = ::readMetadata,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -148,15 +149,7 @@ class Pipeline(
 
         val pending = index.withoutMetadata()
         for ((done, image) in pending.withIndex()) {
-            try {
-                // A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back.
-                if (File(image.path).isFile) index.setMetadata(image.path, readMetadata(File(image.path)))
-            } catch (_: NoSuchElementException) {
-                // the row went while the scan ran
-            } catch (error: Exception) {
-                if (error is CancellationException) throw error
-                markUnreadable(image.path) // decoders throw more than IOExceptions on broken files
-            }
+            storeMetadata(image.path)
             progress("metadata", done + 1, pending.size)
         }
         val unreadable = index.unreadable().toSet()
@@ -411,6 +404,23 @@ class Pipeline(
     private suspend fun storedPerceptualHash(image: ImageRef): ULong = index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
 
     private suspend fun storedMetadata(image: ImageRef): ImageMetadata = index.metadata(image.path) ?: throw UnreadableImage(File(image.path))
+
+    /** A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back. */
+    private suspend fun storeMetadata(path: String) {
+        val file = File(path)
+        if (!file.isFile) return
+        val metadata = try {
+            metadataReader(file)
+        } catch (error: Exception) {
+            if (error is CancellationException) throw error
+            return markUnreadable(path) // decoders throw more than IOExceptions on broken files
+        }
+        try {
+            index.setMetadata(path, metadata)
+        } catch (_: NoSuchElementException) {
+            // the row went while the scan ran
+        }
+    }
 
     private suspend fun markUnreadable(path: String) {
         try {

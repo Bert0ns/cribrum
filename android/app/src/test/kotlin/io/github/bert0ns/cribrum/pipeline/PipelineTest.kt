@@ -7,6 +7,7 @@ import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.index.memoryIndex
+import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.mobileclip.preprocess
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -324,6 +325,48 @@ class PipelineTest {
         run(Pipeline(index, trash = trash))
         assertNotNull(runBlocking { index.metadata(image.path) })
         assertTrue(Category.BLURRY in kinds("DCIM/Camera/a.png"))
+    }
+
+    @Test
+    fun `a file whose metadata read throws NoSuchElementException is marked unreadable, not hidden`() {
+        photos()
+        val broken = refOf("DCIM/Camera/a.png").path
+        val reader = { file: File -> if (file.path == broken) throw NoSuchElementException("malformed") else readMetadata(file) }
+
+        val stats = run(Pipeline(index, metadataReader = reader))
+
+        assertEquals(listOf(broken), runBlocking { index.unreadable() })
+        assertEquals(1, stats.unreadable)
+    }
+
+    @Test
+    fun `a row forgotten while its metadata is read does not end the scan`() {
+        photos()
+        val target = refOf("DCIM/Camera/a.png").path
+        val reader = { file: File ->
+            if (file.path == target) runBlocking { index.forget(listOf(target)) }
+            readMetadata(file)
+        }
+
+        val stats = run(Pipeline(index, metadataReader = reader))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(2, runBlocking { index.images() }.size)
+    }
+
+    @Test
+    fun `a row forgotten while its file fails to read does not end the scan`() {
+        photos()
+        val target = refOf("DCIM/Camera/a.png").path
+        val reader = { file: File ->
+            if (file.path == target) runBlocking { index.forget(listOf(target)) }
+            readMetadata(file).takeIf { file.path != target } ?: throw IOException("broken")
+        }
+
+        val stats = run(Pipeline(index, metadataReader = reader))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(2, runBlocking { index.images() }.size)
     }
 
     @Test
