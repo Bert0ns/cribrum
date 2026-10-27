@@ -138,7 +138,8 @@ interface IndexDao {
     @Query(
         """UPDATE images SET size = :size, mtime_ns = :mtimeNs, width = NULL, height = NULL,
            mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL,
-           unreadable = 0, content_hash = NULL, perceptual_hash = NULL WHERE path = :path""",
+           unreadable = 0, content_hash = NULL, perceptual_hash = NULL,
+           review_state = CASE WHEN review_state = 'trashed' THEN 'unreviewed' ELSE review_state END WHERE path = :path""",
     )
     suspend fun resetImage(path: String, size: Long, mtimeNs: Long)
 
