@@ -69,6 +69,17 @@ class ScanStatusSectionTest {
     }
 
     @Test
+    fun `the unreadable file names are one tap away`() {
+        show(coverage, ScanReport(1_700_000_000_000, unreadable = 2, failures = emptyMap(), files = emptyList(), unreadableFiles = listOf("a.heic", "b.avif")))
+
+        scrollTo("2 unreadable files")
+        compose.onNodeWithText("2 unreadable files").assertHasClickAction()
+        compose.onNodeWithText("2 unreadable files").performClick()
+        scrollTo("unreadable: a.heic")
+        scrollTo("unreadable: b.avif")
+    }
+
+    @Test
     fun `a clean scan says there were no failures`() {
         show(coverage, ScanReport(1_700_000_000_000, unreadable = 1, failures = emptyMap(), files = emptyList()))
 

@@ -10,7 +10,7 @@ import java.io.File
 data class FailedFile(val step: String, val name: String)
 
 /** What the last finished scan left, for the settings screen (docs/design.md §8). [failures] counts by step. */
-data class ScanReport(val finishedAt: Long, val unreadable: Int, val failures: Map<String, Int>, val files: List<FailedFile>)
+data class ScanReport(val finishedAt: Long, val unreadable: Int, val failures: Map<String, Int>, val files: List<FailedFile>, val unreadableFiles: List<String> = emptyList())
 
 /** The report of the last scan that finished, kept with the other settings. A scan that stops leaves the previous report. */
 class LastScan(private val preferences: SharedPreferences) {
@@ -33,6 +33,7 @@ class LastScan(private val preferences: SharedPreferences) {
             .put("unreadable", stats.unreadable)
             .put("failures", JSONObject(stats.failures.groupingBy { it.step }.eachCount()))
             .put("files", JSONArray(stats.failures.take(MAX_FILES).map { JSONArray(listOf(it.step, File(it.path).name)) }))
+            .put("unreadable_files", JSONArray(stats.unreadablePaths.take(MAX_FILES).map { File(it).name }))
         val hasFailed = stats.failures.any { it.path.isEmpty() || it.step == "trash" || it.step in GROUP_DETECTOR_IDS }
         preferences.edit {
             putString(KEY, json.toString())
@@ -43,11 +44,13 @@ class LastScan(private val preferences: SharedPreferences) {
     private fun parse(json: JSONObject): ScanReport {
         val failures = json.getJSONObject("failures")
         val files = json.getJSONArray("files")
+        val unreadableFiles = json.optJSONArray("unreadable_files") // absent in a report saved before the names were kept
         return ScanReport(
             json.getLong("finished_at"),
             json.getInt("unreadable"),
             failures.keys().asSequence().associateWith(failures::getInt),
             List(files.length()) { files.getJSONArray(it).let { file -> FailedFile(file.getString(0), file.getString(1)) } },
+            List(unreadableFiles?.length() ?: 0) { unreadableFiles!!.getString(it) },
         )
     }
 

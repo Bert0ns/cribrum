@@ -41,6 +41,25 @@ class LastScanTest {
     }
 
     @Test
+    fun `the names of the unreadable files are kept, without their paths, up to the same limit`() {
+        val stats = Stats(unreadable = LastScan.MAX_FILES + 5, unreadablePaths = List(LastScan.MAX_FILES + 5) { "/storage/emulated/0/DCIM/$it.heic" })
+
+        LastScan(preferences).record(stats, finishedAt = 1)
+
+        val report = LastScan(preferences).report!!
+        assertEquals(LastScan.MAX_FILES + 5, report.unreadable)
+        assertEquals(List(LastScan.MAX_FILES) { "$it.heic" }, report.unreadableFiles)
+        assertFalse("/storage" in preferences.all.values.joinToString())
+    }
+
+    @Test
+    fun `a report saved before the names were kept still reads`() {
+        preferences.edit().putString("last_scan", """{"finished_at":1,"unreadable":2,"failures":{},"files":[]}""").commit()
+
+        assertEquals(ScanReport(finishedAt = 1, unreadable = 2, failures = emptyMap(), files = emptyList()), LastScan(preferences).report)
+    }
+
+    @Test
     fun `only the first names are kept, but every failure is counted`() {
         val stats = Stats().apply { repeat(LastScan.MAX_FILES + 5) { failures += Failure("/d/$it.jpg", "embedding", "x") } }
 
