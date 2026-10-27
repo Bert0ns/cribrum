@@ -38,6 +38,7 @@ interface ImageSource {
  */
 class FilesystemImageSource(private val root: File) : ImageSource {
     /** The root once the walk listed every folder; a folder that cannot be listed, or a missing root, leaves it out. */
+    @Volatile // written on the IO thread of the flow, read by the collector
     override var walkedRoots: List<File> = emptyList()
         private set
 
