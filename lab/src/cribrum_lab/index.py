@@ -297,6 +297,19 @@ class ImageIndex:
                     "INSERT INTO analyses VALUES (?, ?, ?)",
                     (str(path), detector_id, detector_version),
                 )
+                # A detector that had not run when the image was kept has nothing to be new
+                # against: its first result is seen.
+                if self._kept_without_detector(path, detector_id):
+                    self._db.executemany(
+                        "INSERT OR IGNORE INTO kept_signals VALUES (?, ?, ?, ?)",
+                        [
+                            (str(path), c.value, g, r)
+                            for c, g, r in (s.identity for s in image_signals)
+                        ],
+                    )
+                    self._db.execute(
+                        "INSERT INTO kept_detectors VALUES (?, ?)", (str(path), detector_id)
+                    )
                 self._db.executemany(
                     "INSERT INTO signals VALUES (?, ?, ?, ?, ?, ?)",
                     [
@@ -311,6 +324,14 @@ class ImageIndex:
                         for s in image_signals
                     ],
                 )
+
+    def _kept_without_detector(self, path: Path, detector_id: str) -> bool:
+        (found,) = self._db.execute(
+            """SELECT EXISTS(SELECT 1 FROM images WHERE path = ?1 AND review_state = 'kept')
+               AND NOT EXISTS(SELECT 1 FROM kept_detectors WHERE path = ?1 AND detector_id = ?2)""",
+            (str(path), detector_id),
+        ).fetchone()
+        return bool(found)
 
     def group_fingerprint(self, detector_id: str, detector_version: int) -> str | None:
         row = self._db.execute(
@@ -403,9 +424,6 @@ class ImageIndex:
         seen = defaultdict(set)
         for path, category, group, role in self._db.execute("SELECT * FROM kept_signals"):
             seen[path].add((kind(category), group, role))
-        ran = defaultdict(set)
-        for path, detector_id in self._db.execute("SELECT * FROM kept_detectors"):
-            ran[path].add(detector_id)
         rows = self._db.execute(
             "SELECT path, size, mtime_ns, review_state FROM images ORDER BY path"
         )
@@ -415,7 +433,6 @@ class ImageIndex:
                 ReviewState(state),
                 tuple(signals[path]),
                 frozenset(seen[path]),
-                frozenset(ran[path]),
             )
             for path, size, mtime_ns, state in rows
         ]

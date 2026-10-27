@@ -5,9 +5,12 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
+import io.github.bert0ns.cribrum.model.GROUP_KEY
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Protection
+import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.ReviewState
+import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -333,7 +336,39 @@ class ImageIndexTest {
         assertEquals(ReviewState.KEPT, image.reviewState)
         assertEquals(listOf(Signal("blur", 2, Category.BLURRY, 0.9f)), image.signals)
         assertEquals(setOf(BLUR.identity), image.seenWhenKept)
-        assertEquals(setOf("blur"), image.detectorsWhenKept)
+        assertEquals(setOf("blur"), keptDetectors(PHOTO.path))
+    }
+
+    private fun group(id: String, role: Role) = Signal(
+        "near_duplicate",
+        1,
+        Category.NEAR_DUPLICATE,
+        if (role == Role.BEST) 0f else 0.8f,
+        mapOf(GROUP_KEY to id, ROLE_KEY to role.value),
+    )
+
+    @Test
+    fun `a detector's first result after the keep counts as seen, a later group does not`() = test {
+        record(PHOTO)
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+        setReviewState(PHOTO.path, ReviewState.KEPT)
+
+        setSignals(PHOTO.path, "near_duplicate", 1, listOf(group("g", Role.BEST)))
+        assertEquals(setOf(BLUR.identity, group("g", Role.BEST).identity), indexedImages().single().seenWhenKept)
+        assertEquals(setOf("blur", "near_duplicate"), keptDetectors(PHOTO.path))
+
+        setSignals(PHOTO.path, "near_duplicate", 1, listOf(group("g", Role.INFERIOR)))
+        assertEquals(setOf(BLUR.identity, group("g", Role.BEST).identity), indexedImages().single().seenWhenKept)
+    }
+
+    @Test
+    fun `a first result for an image that is not kept is not recorded`() = test {
+        record(PHOTO)
+
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+
+        assertEquals(emptySet<Any>(), indexedImages().single().seenWhenKept)
+        assertEquals(emptySet<Any>(), keptDetectors(PHOTO.path))
     }
 
     @Test
@@ -345,7 +380,7 @@ class ImageIndexTest {
         setReviewState(PHOTO.path, ReviewState.UNREVIEWED)
 
         assertEquals(emptySet<Any>(), indexedImages().single().seenWhenKept)
-        assertEquals(emptySet<Any>(), indexedImages().single().detectorsWhenKept)
+        assertEquals(emptySet<Any>(), keptDetectors(PHOTO.path))
     }
 
     @Test

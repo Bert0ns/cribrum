@@ -593,7 +593,7 @@ class ReviewTest {
         val copy = image("DCIM/copy.jpg", nearDuplicate("g", Role.INFERIOR))
         apply(emptyList(), listOf(best)) // kept in an earlier session
         val kept = index.indexedImages().single { it.ref.path == best.path }.seenWhenKept
-        val detectors = index.indexedImages().single { it.ref.path == best.path }.detectorsWhenKept
+        val detectors = index.keptDetectors(best.path)
         assertTrue(kept.isNotEmpty() && detectors.isNotEmpty())
 
         val p = page(Category.NEAR_DUPLICATE)
@@ -603,9 +603,31 @@ class ReviewTest {
 
         assertEquals(ReviewState.KEPT, index.reviewState(best.path))
         assertEquals(kept, index.indexedImages().single { it.ref.path == best.path }.seenWhenKept)
-        assertEquals(detectors, index.indexedImages().single { it.ref.path == best.path }.detectorsWhenKept)
+        assertEquals(detectors, index.keptDetectors(best.path))
         assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
         assertTrue(File(copy.path).exists())
+    }
+
+    @Test
+    fun `a kept image stays out for the first result of a detector that had not run when it was kept`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        apply(emptyList(), listOf(image))
+
+        index.setSignals(image.path, "document", 1, listOf(Signal("document", 1, Category.DOCUMENT, 0.9f)))
+
+        assertEquals(emptyList<ReviewGroup>(), page(Category.DOCUMENT).groups)
+    }
+
+    @Test
+    fun `a kept image comes back when a group forms after that detector's first result`() = test {
+        val image = image("DCIM/a.jpg", blurry(0.9f))
+        apply(emptyList(), listOf(image))
+        index.setSignals(image.path, "near_duplicate", 2, listOf(nearDuplicate("g", Role.BEST)))
+        assertEquals(emptyList<ReviewGroup>(), page(Category.NEAR_DUPLICATE).groups)
+
+        index.setSignals(image.path, "near_duplicate", 2, listOf(nearDuplicate("g", Role.INFERIOR)))
+
+        assertEquals(listOf(image), shown(page(Category.NEAR_DUPLICATE)))
     }
 
     @Test

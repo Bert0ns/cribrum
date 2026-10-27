@@ -60,9 +60,9 @@ class Ranker:
         within its part of the order but never move a candidate behind a non-candidate.
         A kept image is listed again only for a signal it did not have when the user kept
         it, such as a new duplicate group or a new role in its group. A newer detector
-        version or a higher score is not new, and neither is a signal of a detector that had
-        not stored a result yet. Trashed images are never listed, nor are those in an
-        excluded folder.
+        version or a higher score is not new. The index counts a detector's first result after
+        the keep as seen, so it is not new either. Trashed images are never listed, nor are
+        those in an excluded folder.
         """
         excluded = list(excluded_folders)
         ranked = []
@@ -71,12 +71,7 @@ class Ranker:
                 continue
             reasons = [s for s in image.signals if self._passes(s)]
             if image.review_state is ReviewState.KEPT:
-                reasons = [
-                    s
-                    for s in reasons
-                    if s.identity not in image.seen_when_kept
-                    and s.detector_id in image.detectors_when_kept
-                ]
+                reasons = [s for s in reasons if s.identity not in image.seen_when_kept]
                 if not reasons:
                     continue
             reasons.sort(key=self._likelihood, reverse=True)

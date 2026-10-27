@@ -297,8 +297,11 @@ interface IndexDao {
     @Query("INSERT INTO kept_detectors SELECT path, detector_id FROM analyses WHERE path = :path")
     suspend fun keepRanDetectors(path: String)
 
-    @Query("SELECT * FROM kept_detectors")
-    suspend fun allKeptDetectors(): List<KeptDetectorRow>
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM images WHERE path = :path AND review_state = 'kept') " +
+            "AND NOT EXISTS(SELECT 1 FROM kept_detectors WHERE path = :path AND detector_id = :detectorId)",
+    )
+    suspend fun keptWithoutDetector(path: String, detectorId: String): Boolean
 
     @Query("SELECT detector_id FROM kept_detectors WHERE path = :path")
     suspend fun keptDetectors(path: String): List<String>

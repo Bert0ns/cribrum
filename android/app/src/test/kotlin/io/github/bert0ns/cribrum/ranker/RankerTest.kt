@@ -24,8 +24,7 @@ private fun image(
     vararg signals: Signal,
     state: ReviewState = ReviewState.UNREVIEWED,
     seenWhenKept: Set<SignalIdentity> = emptySet(),
-    detectorsWhenKept: Set<String> = signals.mapTo(HashSet()) { it.detectorId },
-) = IndexedImage(ImageRef(name, 0, 0), state, signals.toList(), seenWhenKept, detectorsWhenKept)
+) = IndexedImage(ImageRef(name, 0, 0), state, signals.toList(), seenWhenKept)
 
 private fun blur(score: Float, version: Int = 1) = Signal("blur", version, Category.BLURRY, score)
 
@@ -161,20 +160,6 @@ class RankerTest {
         )
 
         assertEquals(listOf(duplicate("new-group", Role.INFERIOR)), rank(kept).single().reasons)
-    }
-
-    @Test
-    fun `kept image ignores a signal from a detector that had not run when it was kept`() {
-        val kept = image(
-            "kept",
-            blur(0.9f),
-            screenshot(0.9f),
-            state = ReviewState.KEPT,
-            seenWhenKept = setOf(blur(0.9f).identity),
-            detectorsWhenKept = setOf("blur"),
-        )
-
-        assertEquals(emptyList<Candidate>(), rank(kept))
     }
 
     @Test
