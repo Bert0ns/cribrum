@@ -25,6 +25,7 @@ import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -123,6 +124,23 @@ class PipelineTest {
 
         assertEquals(1, stats.forgotten)
         assertEquals(2, runBlocking { index.images() }.size)
+    }
+
+    @Test
+    fun `a row whose file is still on disk is not forgotten, though the walk missed it`() {
+        photos()
+        run()
+        val missed = refOf("DCIM/Camera/a.png").path
+        val blind = object : ImageSource {
+            override val walkedRoots get() = source.walkedRoots
+
+            override fun scan() = source.scan().filter { it.path != missed } // moved away and back while the walk was in its folder
+        }
+
+        val stats = runBlocking { Pipeline(index).run(blind) }
+
+        assertEquals(0, stats.forgotten)
+        assertEquals(3, runBlocking { index.images() }.size)
     }
 
     @Test
