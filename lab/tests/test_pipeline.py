@@ -64,6 +64,29 @@ def test_second_run_on_unchanged_data_does_no_detector_work(photos, index):
     assert stats.detector_runs == 0
 
 
+def test_a_perceptual_hash_that_failed_once_and_works_now_gets_its_image_grouped_again(
+    photos, index, monkeypatch
+):
+    copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
+    real = pipeline.hashing.perceptual_hash
+
+    def flaky(image):
+        if image.path == copy:
+            raise OSError("busy")
+        return real(image)
+
+    monkeypatch.setattr(pipeline.hashing, "perceptual_hash", flaky)
+    stats = pipeline.run(photos, index)
+    assert len(stats.failures) == 1
+    assert Category.NEAR_DUPLICATE not in categories(index, copy)
+
+    monkeypatch.setattr(pipeline.hashing, "perceptual_hash", real)
+    stats = pipeline.run(photos, index)
+
+    assert stats.failures == []
+    assert Category.NEAR_DUPLICATE in categories(index, copy)
+
+
 def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index):
     pipeline.run(photos, index)
     changed = save(photos / "DCIM/Camera/a.png", seed=2)
