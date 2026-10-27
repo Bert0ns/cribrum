@@ -1,6 +1,14 @@
 // The lab's tests/test_sources.py, translated, plus what only the phone has.
 package io.github.bert0ns.cribrum.sources
 
+import android.content.ContentProvider
+import android.content.ContentValues
+import android.content.Context
+import android.database.Cursor
+import android.database.MatrixCursor
+import android.net.Uri
+import android.provider.MediaStore
+import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.TRASH_FOLDER
@@ -9,9 +17,13 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.nio.file.Files
 
@@ -140,13 +152,131 @@ class ImageSourceTest {
     }
 
     @Test
+    fun `reports its root as walked once the whole tree is listed`() {
+        write("a/b.jpg", JPEG)
+        val source = FilesystemImageSource(root)
+
+        runBlocking { source.scan().toList() }
+
+        assertEquals(listOf(root), source.walkedRoots)
+    }
+
+    @Test
+    fun `reports no walked root when a folder cannot be listed`() {
+        write("a/b.jpg", JPEG)
+        write("c.jpg", JPEG)
+        val locked = File(root, "a").apply { setReadable(false) }
+        assumeTrue("the folder is still listable (running as root?)", locked.listFiles() == null)
+        val source = FilesystemImageSource(root)
+
+        val found = try {
+            runBlocking { source.scan().toList() }
+        } finally {
+            locked.setReadable(true)
+        }
+
+        assertEquals(listOf(File(root, "c.jpg").path), found.map { it.path })
+        assertEquals(emptyList<File>(), source.walkedRoots)
+    }
+
+    @Test
+    fun `reports no walked root when the root is missing`() {
+        val source = FilesystemImageSource(File(root, "gone"))
+
+        runBlocking { source.scan().toList() }
+
+        assertEquals(emptyList<File>(), source.walkedRoots)
+    }
+
+    @Test
+    fun `merged sources report the roots of the sources that walked`() {
+        write("a/x.jpg", JPEG)
+        val present = FilesystemImageSource(File(root, "a"))
+        val missing = FilesystemImageSource(File(root, "card"))
+        val merged = MergedImageSource(listOf(present, missing))
+
+        runBlocking { merged.scan().toList() }
+
+        assertEquals(listOf(File(root, "a")), merged.walkedRoots)
+    }
+
+    @Test
     fun `merged sources yield each path once, in source order`() {
         fun source(vararg paths: String) = object : ImageSource {
+            override val walkedRoots = emptyList<File>()
             override fun scan(): Flow<ImageRef> = flowOf(*paths.map { ImageRef(it, 1, 1) }.toTypedArray())
         }
 
         val merged = MergedImageSource(listOf(source("/a.jpg", "/b.jpg"), source("/b.jpg", "/sd/c.jpg")))
 
         assertEquals(listOf("/a.jpg", "/b.jpg", "/sd/c.jpg"), runBlocking { merged.scan().toList() }.map { it.path })
+    }
+}
+
+/** A MediaStore that answers every query with the same paths. */
+class FakeMedia : ContentProvider() {
+    companion object {
+        var paths: List<String?> = emptyList()
+    }
+
+    override fun onCreate() = true
+    override fun query(uri: Uri, projection: Array<String>?, selection: String?, args: Array<String>?, order: String?): Cursor = MatrixCursor(arrayOf(MediaStore.Images.Media.DATA)).apply { paths.forEach { addRow(arrayOf(it)) } }
+    override fun getType(uri: Uri): String? = null
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun delete(uri: Uri, selection: String?, args: Array<String>?) = 0
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<String>?) = 0
+}
+
+@RunWith(RobolectricTestRunner::class)
+class MediaStoreImageSourceTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    private val root by lazy { folder.root }
+
+    private fun write(path: String): String = File(root, path).apply {
+        parentFile!!.mkdirs()
+        writeBytes(JPEG)
+    }.path
+
+    private fun scanned(vararg paths: String?): List<String> {
+        FakeMedia.paths = paths.toList()
+        Robolectric.setupContentProvider(FakeMedia::class.java, MediaStore.AUTHORITY)
+        val resolver = ApplicationProvider.getApplicationContext<Context>().contentResolver
+        return runBlocking { MediaStoreImageSource(resolver, listOf(root)).scan().toList() }.map { it.path }
+    }
+
+    @Test
+    fun `yields what MediaStore lists, in path order`() {
+        val b = write("DCIM/b.jpg")
+        val a = write("DCIM/a.jpg")
+
+        assertEquals(listOf(a, b), scanned(b, a))
+    }
+
+    @Test
+    fun `skips the app trash, the system trash and pending files`() {
+        val trashed = write("$TRASH_FOLDER/0b1c/IMG_1.jpg")
+        val systemTrash = write("DCIM/Camera/.trashed-1760000000-IMG_2.jpg")
+        val pending = write("DCIM/Camera/.pending-1760000000-IMG_3.jpg")
+        val kept = write("DCIM/Camera/IMG_4.jpg")
+
+        assertEquals(listOf(kept), scanned(trashed, systemTrash, pending, kept))
+    }
+
+    @Test
+    fun `skips the folders the deep scan skips, at the root of a volume only`() {
+        val recycle = write("Android/.Trash/com.sec.android.gallery3d/a.jpg")
+        val private = write("Android/data/com.example/files/b.jpg")
+        val nested = write("DCIM/Android/.Trash/c.jpg")
+
+        assertEquals(listOf(nested), scanned(recycle, private, nested))
+    }
+
+    @Test
+    fun `ignores rows without a path or a file`() {
+        val ok = write("a.jpg")
+
+        assertEquals(listOf(ok), scanned(null, File(root, "missing.jpg").path, ok))
     }
 }
