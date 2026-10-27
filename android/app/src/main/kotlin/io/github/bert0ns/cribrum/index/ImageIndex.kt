@@ -107,7 +107,8 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun hashedPaths(): Set<String> = dao.hashedPaths().toSet()
 
-    suspend fun trashedPaths(): Set<String> = dao.trashedPaths().toSet()
+    /** The review state of every image by path, for a pass that must tell whether a review action changed one meanwhile. */
+    suspend fun reviewStates(): Map<String, ReviewState> = dao.states().associate { row -> row.path to ReviewState.entries.first { it.value == row.reviewState } }
 
     /**
      * Deletes every stored embedding and nothing else: the next pipeline run computes them again.
