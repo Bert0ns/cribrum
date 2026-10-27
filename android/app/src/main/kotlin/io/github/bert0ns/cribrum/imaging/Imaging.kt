@@ -9,6 +9,7 @@ import androidx.exifinterface.media.ExifInterface
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
 import java.io.File
 import java.io.IOException
+import java.nio.IntBuffer
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -44,7 +45,9 @@ internal const val MAX_PIXELS = 16_000_000
 /**
  * Decodes with Pillow's draft: a JPEG decodes straight at 1/2, 1/4 or 1/8 while both sides stay
  * >= [draftSide]. Another format has no draft, so above [maxPixels] it is sampled by the same rule.
- * Alpha is left as stored, since Pillow drops it when it converts to RGB or L.
+ * Alpha is left as stored, since Pillow drops it when it converts to RGB or L. A wide gamut image
+ * keeps its stored values, as Pillow does: converted to sRGB they moved the embeddings off the lab's,
+ * to a cosine of 0.9993 on a saturated test image.
  */
 internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Argb {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -59,7 +62,13 @@ internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Ar
     val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
     try {
         val argb = IntArray(bitmap.width * bitmap.height)
-        bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        if (bitmap.colorSpace?.isSrgb == false) {
+            // getPixels converts to sRGB, where Pillow reads the stored values and ignores the profile.
+            bitmap.copyPixelsToBuffer(IntBuffer.wrap(argb))
+            for (i in argb.indices) argb[i] = (argb[i] and 0xff00ff00.toInt()) or (argb[i] shl 16 and 0xff0000) or (argb[i] shr 16 and 0xff) // RGBA bytes to ARGB
+        } else {
+            bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        }
         return Argb(bitmap.width, bitmap.height, argb)
     } finally {
         bitmap.recycle()
