@@ -216,8 +216,8 @@ private fun AppContent(
     // detectors show up while the embeddings are still computed.
     LaunchedEffect(progress == null, progress?.step) {
         if (state.screen == Screen.Home) model.refresh()
-        if (state.screen == Screen.Settings) model.openSettings() // the scan changed the embedding count
-        if (state.screen == Screen.Thresholds) model.openThresholds()
+        if (state.screen == Screen.Settings) model.reloadSettings() // the scan changed the embedding count
+        if (state.screen == Screen.Thresholds) model.reloadThresholds()
     }
     val decision = state.lastDecision
     val trashedMessage = decision?.let {
@@ -234,9 +234,9 @@ private fun AppContent(
         val result = snackbar.showSnackbar(trashedMessage, undo, withDismissAction = true, duration = SnackbarDuration.Long)
         if (result == SnackbarResult.ActionPerformed) {
             haptics.performHapticFeedback(Haptic.TICK.type)
-            model.undo()
+            model.undo(decision)
         } else {
-            model.dismissUndo()
+            model.dismissUndo(decision)
         }
     }
     val exclusion = state.lastExclusion
@@ -248,7 +248,7 @@ private fun AppContent(
             haptics.performHapticFeedback(Haptic.TICK.type)
             model.undoExclusion()
         } else {
-            model.dismissExclusion()
+            model.dismissExclusion(exclusion)
         }
     }
     BackHandler(state.screen != Screen.Home) { model.back() }
@@ -310,6 +310,7 @@ private fun AppContent(
                     onExcludeFolder = model::excludeFolder,
                     reviewOrder = state.reviewOrder,
                     retentionDays = state.retentionDays,
+                    loading = state.loading,
                 )
                 Screen.Trash -> TrashScreen(
                     state.trashed,

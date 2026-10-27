@@ -94,7 +94,7 @@ class LanguageTest {
             if (showTrash) {
                 TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}, retentionDays = days)
             } else {
-                CategoryScreen(page, 1, setOf(image.path), false, {}, {}, {}, retentionDays = days)
+                CategoryScreen(page, 1, setOf(image.path), false, {}, { _, _ -> }, {}, retentionDays = days)
             }
         }
 

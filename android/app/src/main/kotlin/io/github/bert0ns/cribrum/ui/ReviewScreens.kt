@@ -241,7 +241,8 @@ fun CategoryScreen(
     marked: Set<String>,
     grouped: Boolean,
     onToggle: (ImageRef) -> Unit,
-    onApply: () -> Unit,
+    /** Gets the paths to trash and to keep that the user confirmed, so an apply is of what they saw. */
+    onApply: (toTrash: Set<String>, toKeep: Set<String>) -> Unit,
     /** Gets the ids of the groups on screen, so a skip is of what the user saw. */
     onSkip: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
@@ -250,6 +251,8 @@ fun CategoryScreen(
     onExcludeFolder: (ImageRef) -> Unit = {},
     reviewOrder: ReviewOrder = ReviewOrder.OFF,
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
+    /** A change is running: the page on screen is about to be replaced, so confirming it is off. */
+    loading: Boolean = false,
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val haptics = LocalHapticFeedback.current
@@ -311,7 +314,7 @@ fun CategoryScreen(
         SnackbarHost(snackbar)
         if (images.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showSummary = true }, Modifier.weight(1f)) {
+                Button(onClick = { showSummary = true }, Modifier.weight(1f), enabled = !loading) {
                     Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
                 }
                 OutlinedButton(onClick = {
@@ -331,11 +334,16 @@ fun CategoryScreen(
                 TextButton({
                     showSummary = false
                     haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
-                    onApply()
-                }) { Text(stringResource(R.string.summary_confirm)) }
+                    val trashPaths = toTrash.map { it.image.path }.toSet()
+                    onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
+                }, enabled = !loading) { Text(stringResource(R.string.summary_confirm)) }
             },
             dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+    // A skip, an apply or an exclusion can take the image off the page while it is open.
+    LaunchedEffect(images, fullSize) {
+        if (fullSize != null && images.none { it.image == fullSize }) fullSize = null
     }
     fullSize?.let { start ->
         FullSize(images, start, marked, onExcludeFolder = {
@@ -354,7 +362,7 @@ fun CategoryScreen(
 @Composable
 private fun FullSize(items: List<ReviewItem>, start: ImageRef, marked: Set<String>, onExcludeFolder: (ImageRef) -> Unit, onClose: () -> Unit) {
     val pager = rememberPagerState(items.indexOfFirst { it.image == start }.coerceAtLeast(0)) { items.size }
-    val current = items[pager.currentPage]
+    val current = items.getOrNull(pager.currentPage) ?: return // the page emptied under the dialog; CategoryScreen closes it next
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { items[it].image.path }) { page ->
