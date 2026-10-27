@@ -23,8 +23,10 @@ import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
+import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
+import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
@@ -37,12 +39,17 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import java.io.File
+import java.time.Duration
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.TimeZone
@@ -66,6 +73,9 @@ class FakeScan(context: Context, parameters: WorkerParameters, private val scans
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36]) // Same as the other Robolectric tests: SDK 37 needs more than the default setup
 class IndexingWorkTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
     private val app = ApplicationProvider.getApplicationContext<Context>()
     private val zone = ZoneId.of("Europe/Rome")
     private val defaultZone = TimeZone.getDefault()
@@ -367,22 +377,27 @@ class IndexingWorkTest {
     }
 
     @Test
-    fun `the scan forgets the rows of what the trash purged and keeps the others`() {
+    fun `the scan forgets the rows of what the real trash purged, and keeps the row of an item it could not delete`() {
         val appInstance = app as CribrumApp
-        val purged = ImageRef("/storage/emulated/0/purged.jpg", 10, 1)
-        val stuck = ImageRef("/storage/emulated/0/stuck.jpg", 10, 1)
+        val volume = folder.newFolder("storage")
+        val trash = AppTrash({ listOf(volume) }, retention = { Duration.ZERO })
+        val purged = File(volume, "purged.jpg").apply { writeText("purged") }.toImageRef()
+        val stuck = File(volume, "stuck.jpg").apply { writeText("stuck") }.toImageRef()
         runBlocking {
             listOf(purged, stuck).forEach {
                 appInstance.index.record(it)
                 appInstance.index.setReviewState(it.path, ReviewState.TRASHED)
             }
+            trash.moveToTrash(listOf(purged, stuck))
         }
+        val stuckFolder = runBlocking { trash.trashed() }.single { it.original == stuck }.file.parentFile!!
+        assumeTrue("the folder is still deletable (running as root?)", stuckFolder.setWritable(false) && !stuckFolder.canWrite())
         val done = CompletableDeferred<Unit>()
         workerFactory = { ctx, params ->
             object : IndexWorker(ctx, params) {
                 override fun hasStorageAccess() = true
                 override suspend fun setForegroundInfo(info: ForegroundInfo) {}
-                override suspend fun purgeExpired(app: CribrumApp) = listOf(purged) // the trash could not delete `stuck`
+                override suspend fun purgeExpired(app: CribrumApp) = trash.purgeExpired()
                 override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
                 override suspend fun scan(): Result {
                     try {
@@ -393,9 +408,13 @@ class IndexingWorkTest {
                 }
             }
         }
-        Indexing.schedulePeriodic(app, now)
-        startNightlyAt(at(22, 2, 30))
-        waitForScan(done)
+        try {
+            Indexing.schedulePeriodic(app, now)
+            startNightlyAt(at(22, 2, 30))
+            waitForScan(done)
+        } finally {
+            stuckFolder.setWritable(true)
+        }
 
         assertEquals(listOf(stuck), runBlocking { appInstance.index.images() })
     }

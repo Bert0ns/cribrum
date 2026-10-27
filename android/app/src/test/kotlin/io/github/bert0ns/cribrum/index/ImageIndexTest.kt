@@ -80,6 +80,19 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `forgetTrashed forgets trashed rows and leaves the others`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setReviewState(PHOTO.path, ReviewState.TRASHED)
+        setReviewState(OTHER.path, ReviewState.KEPT)
+
+        forgetTrashed(listOf(PHOTO.path, OTHER.path))
+
+        assertEquals(listOf(OTHER), images())
+        assertEquals(ReviewState.KEPT, reviewState(OTHER.path))
+    }
+
+    @Test
     fun `changed image drops its stale data but keeps the review decision`() = test {
         record(PHOTO)
         setMetadata(PHOTO.path, META)

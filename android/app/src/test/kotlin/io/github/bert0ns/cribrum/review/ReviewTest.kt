@@ -765,6 +765,21 @@ class ReviewTest {
     }
 
     @Test
+    fun `purging does not forget the row of a new file now at the path`() = test {
+        val old = image("a.jpg", blurry(0.9f))
+        apply(listOf(old), emptyList())
+        val written = File(volume, "a.jpg").apply { writeText("a different picture") }.toImageRef()
+        index.record(written) // a new file at the trashed path: its row starts unreviewed
+        index.setReviewState(written.path, ReviewState.KEPT)
+
+        purge(listOf(old))
+
+        assertEquals(emptyList<Any>(), trashed())
+        assertEquals(listOf(written), index.images())
+        assertEquals(ReviewState.KEPT, index.reviewState(written.path))
+    }
+
+    @Test
     fun `a scope that ends after the files moved still marks them trashed and kept`() {
         val trashed = image("a.jpg", blurry(0.9f))
         val kept = image("b.jpg", blurry(0.8f))

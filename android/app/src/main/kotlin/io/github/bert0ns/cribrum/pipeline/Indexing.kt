@@ -197,7 +197,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             val trashFailures = mutableListOf<Failure>()
             try {
                 val purged = purgeExpired(app)
-                app.index.forget(purged.map { it.path })
+                app.index.forgetTrashed(purged.map { it.path })
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 Log.w(Indexing.TAG, "Failed to purge expired trash", error)
