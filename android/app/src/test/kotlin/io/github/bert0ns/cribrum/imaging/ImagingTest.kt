@@ -1,6 +1,7 @@
 package io.github.bert0ns.cribrum.imaging
 
 import android.graphics.Bitmap
+import android.graphics.ColorSpace
 import androidx.exifinterface.media.ExifInterface
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -11,6 +12,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import java.nio.ByteBuffer
 
 private fun gray(width: Int, height: Int, vararg values: Int) = Gray(width, height, FloatArray(values.size) { values[it].toFloat() })
 
@@ -37,6 +39,17 @@ class ImagingTest {
 
         assertEquals(64 to 48, full.width to full.height)
         assertEquals(32 to 24, sampled.width to sampled.height)
+    }
+
+    @Test
+    fun `a Display P3 image decodes to the values it stores, as Pillow reads it`() {
+        val stored = ByteArray(8 * 4 * 4) { i -> if (i % 4 == 3) -1 else (i * 37 % 256).toByte() }
+        val bitmap = Bitmap.createBitmap(8, 4, Bitmap.Config.ARGB_8888, true, ColorSpace.get(ColorSpace.Named.DISPLAY_P3))
+        bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(stored))
+        val file = File(folder.root, "p3.png").apply { outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        val expected = IntArray(32) { i -> (0xff shl 24) or ((stored[i * 4].toInt() and 0xff) shl 16) or ((stored[i * 4 + 1].toInt() and 0xff) shl 8) or (stored[i * 4 + 2].toInt() and 0xff) }
+
+        assertArrayEquals(expected, decode(file, 2).pixels)
     }
 
     @Test
