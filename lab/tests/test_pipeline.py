@@ -87,6 +87,27 @@ def test_a_perceptual_hash_that_failed_once_and_works_now_gets_its_image_grouped
     assert Category.NEAR_DUPLICATE in categories(index, copy)
 
 
+def test_a_content_hash_that_failed_once_and_works_now_gets_its_image_grouped_again(
+    photos, index, monkeypatch
+):
+    copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
+    real = pipeline.hashing.content_hash
+
+    def flaky(image):
+        if image.path == copy:
+            raise OSError("busy")
+        return real(image)
+
+    monkeypatch.setattr(pipeline.hashing, "content_hash", flaky)
+    pipeline.run(photos, index)
+    assert Category.EXACT_DUPLICATE not in categories(index, copy)
+
+    monkeypatch.setattr(pipeline.hashing, "content_hash", real)
+    pipeline.run(photos, index)
+
+    assert Category.EXACT_DUPLICATE in categories(index, copy)
+
+
 def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index):
     pipeline.run(photos, index)
     changed = save(photos / "DCIM/Camera/a.png", seed=2)

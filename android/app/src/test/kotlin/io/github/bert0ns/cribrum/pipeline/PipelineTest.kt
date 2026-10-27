@@ -5,6 +5,7 @@ import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
+import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.index.memoryIndex
@@ -462,6 +463,20 @@ class PipelineTest {
 
         assertEquals(emptyList<Failure>(), stats.failures)
         assertTrue(Category.NEAR_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
+    }
+
+    @Test
+    fun `a content hash that failed once and works now gets its image grouped again`() {
+        photos()
+        val copy = File(root, "WhatsApp/Media/a-copy.png").path
+
+        run(Pipeline(index, contentHasher = { if (it.path == copy) throw IOException("busy") else contentHash(it) }))
+
+        assertFalse(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
+
+        run()
+
+        assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 
     private class Probe : Detector {

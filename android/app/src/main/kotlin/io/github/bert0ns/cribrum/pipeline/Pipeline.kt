@@ -40,6 +40,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 val DETECTORS: List<Detector> = listOf(
     BlurDetector(),
@@ -111,6 +112,7 @@ class Pipeline(
     private val trash: Trash? = null,
     private val metadataReader: (File) -> ImageMetadata = ::readMetadata,
     private val perceptualHasher: (ImageRef) -> ULong = ::perceptualHash,
+    private val contentHasher: (ImageRef) -> String = ::contentHash,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -182,8 +184,17 @@ class Pipeline(
         }
         analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
 
+        // The exact detector skips an image whose content hash fails: that run must not count as done for the same files.
+        var contentHashFailed = false
         val context = AnalysisContext(
-            contentHash = ::cachedContentHash,
+            contentHash = {
+                try {
+                    cachedContentHash(it)
+                } catch (error: IOException) {
+                    contentHashFailed = true
+                    throw error
+                }
+            },
             perceptualHash = ::storedPerceptualHash,
             embedding = { embeddings[it.path] ?: throw MissingEmbedding(it) },
             metadata = ::storedMetadata,
@@ -196,10 +207,11 @@ class Pipeline(
         for (detector in groupDetectors) {
             if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
             progress(detector.id, 0, 1)
+            contentHashFailed = false
             try {
                 val signals = detector.analyze(images, context)
                 index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-                index.setGroupFingerprint(detector.id, detector.version, fingerprint)
+                if (!contentHashFailed) index.setGroupFingerprint(detector.id, detector.version, fingerprint)
                 stats.detectorRuns++
                 progress(detector.id, 1, 1)
             } catch (error: Exception) {
@@ -413,7 +425,7 @@ class Pipeline(
 
     private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHasher(image) }
 
-    private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHash(image).also { index.setContentHash(image.path, it) }
+    private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHasher(image).also { index.setContentHash(image.path, it) }
 
     private suspend fun storedPerceptualHash(image: ImageRef): ULong = index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
 

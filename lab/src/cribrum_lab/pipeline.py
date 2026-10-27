@@ -163,8 +163,21 @@ def run(
         before_embeddings=False,
     )
 
+    # The exact detector skips an image whose content hash fails: that run must not count as
+    # done for the same files.
+    content_hash_failed = False
+    cached_content_hash = _cached_content_hash(index)
+
+    def content_hash(image: ImageRef) -> str:
+        nonlocal content_hash_failed
+        try:
+            return cached_content_hash(image)
+        except OSError:
+            content_hash_failed = True
+            raise
+
     context = AnalysisContext(
-        content_hash=_cached_content_hash(index),
+        content_hash=content_hash,
         perceptual_hash=_stored_perceptual_hash(index),
         metadata=_metadata(index),
         embedding=_stored_embedding(embeddings),
@@ -178,11 +191,13 @@ def run(
         if index.group_fingerprint(detector.id, detector.version) == fingerprint:
             continue
         progress(detector.id, 0, 1)
+        content_hash_failed = False
         signals = detector.analyze(images, context)
         index.set_signals_of_many(
             detector.id, detector.version, {i.path: signals.get(i, []) for i in images}
         )
-        index.set_group_fingerprint(detector.id, detector.version, fingerprint)
+        if not content_hash_failed:
+            index.set_group_fingerprint(detector.id, detector.version, fingerprint)
         stats.detector_runs += 1
         progress(detector.id, 1, 1)
     return stats
