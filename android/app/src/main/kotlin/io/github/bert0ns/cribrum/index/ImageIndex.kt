@@ -34,7 +34,8 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * A changed image (different size or mtime) loses its metadata, hashes, embeddings,
      * unreadable mark and signals, which must be computed again. It keeps its review state:
      * the file may only have been touched, and a decision the user made must not be lost. A real
-     * edit shows up as new signals, which the ranker treats as such.
+     * edit shows up as new signals, which the ranker treats as such. A trashed row is the exception:
+     * a file on disk at its path is not the one in the trash, so the row starts unreviewed.
      */
     suspend fun record(image: ImageRef): Boolean = db.withTransaction {
         val stored = dao.ref(image.path)

@@ -60,6 +60,26 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `a new file at the path of a trashed image starts unreviewed`() = test {
+        record(PHOTO)
+        setReviewState(PHOTO.path, ReviewState.TRASHED)
+
+        assertTrue(record(ImageRef(PHOTO.path, 101, 1)))
+
+        assertEquals(ReviewState.UNREVIEWED, reviewState(PHOTO.path))
+    }
+
+    @Test
+    fun `recording a trashed image again unchanged leaves it trashed`() = test {
+        record(PHOTO)
+        setReviewState(PHOTO.path, ReviewState.TRASHED)
+
+        assertFalse(record(PHOTO))
+
+        assertEquals(ReviewState.TRASHED, reviewState(PHOTO.path))
+    }
+
+    @Test
     fun `changed image drops its stale data but keeps the review decision`() = test {
         record(PHOTO)
         setMetadata(PHOTO.path, META)
