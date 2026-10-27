@@ -44,7 +44,7 @@ class DeepScanDeviceTest {
         scanned.await()
 
         val deep = FilesystemImageSource(folder).scan().toList().map { it.path }
-        val media = MediaStoreImageSource(context.contentResolver).scan().toList().map { it.path }
+        val media = MediaStoreImageSource(context.contentResolver, listOf(Environment.getExternalStorageDirectory())).scan().toList().map { it.path }
 
         assertTrue(image.path in deep)
         assertFalse(image.path in media)

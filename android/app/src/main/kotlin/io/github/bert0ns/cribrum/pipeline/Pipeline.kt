@@ -106,7 +106,8 @@ class Pipeline(
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
      * the trashed ones: they are in the app trash, and restoring them must find their review
-     * state and signals again (docs/design.md §9).
+     * state and signals again (docs/design.md §9). Only images under a root the source walked
+     * can be gone: an absent SD card or an unreadable folder is not a deletion.
      */
     suspend fun run(source: ImageSource, progress: Progress = { _, _, _ -> }): Stats = withContext(Dispatchers.IO) {
         val stats = Stats()
@@ -117,7 +118,8 @@ class Pipeline(
             if (found.size % 100 == 0) progress("scan", found.size, 0)
         }
         val trashed = index.trashedPaths()
-        val gone = index.images().map { it.path }.filter { it !in found && it !in trashed }
+        val walked = source.walkedRoots
+        val gone = index.images().map { it.path }.filter { it !in found && it !in trashed && walked.any { root -> File(it).startsWith(root) } }
         index.forget(gone)
         stats.forgotten = gone.size
         stats.images = found.size

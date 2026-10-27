@@ -17,6 +17,12 @@ import java.nio.file.LinkOption
 
 interface ImageSource {
     fun scan(): Flow<ImageRef>
+
+    /**
+     * The roots the last [scan] listed in full. An image under one of them that [scan] did not
+     * yield is gone; under any other root the scan could not look, so it says nothing.
+     */
+    val walkedRoots: List<File>
 }
 
 /**
@@ -31,14 +37,22 @@ interface ImageSource {
  * keep from every app.
  */
 class FilesystemImageSource(private val root: File) : ImageSource {
+    /** The root once the walk listed every folder; a folder that cannot be listed, or a missing root, leaves it out. */
+    override var walkedRoots: List<File> = emptyList()
+        private set
+
     override fun scan(): Flow<ImageRef> = flow {
+        walkedRoots = emptyList()
+        var listedAll = true
         val folders = ArrayDeque(listOf(root))
         while (folders.isNotEmpty()) {
             val folder = folders.removeFirst()
-            val entries = folder.listFiles().orEmpty().sortedBy { it.name }
+            val listing = folder.listFiles()
+            if (listing == null) listedAll = false
+            val entries = listing.orEmpty().sortedBy { it.name }
             val (dirs, files) = entries.partition { Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
             for (file in files) {
-                if (SKIPPED_PREFIXES.any(file.name::startsWith)) continue
+                if (isSkipped(root, file)) continue
                 val image = try {
                     if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS) || !isImage(file)) continue
                     file.toImageRef()
@@ -48,21 +62,31 @@ class FilesystemImageSource(private val root: File) : ImageSource {
                 emit(image)
             }
             // Depth first, in name order, like the lab's Path.walk.
-            folders.addAll(0, dirs.filter { it.name != TRASH_FOLDER && it.relativeTo(root).path !in SKIPPED_FOLDERS })
+            folders.addAll(0, dirs.filter { !isSkippedFolder(root, it) })
         }
+        if (listedAll) walkedRoots = listOf(root)
     }.flowOn(Dispatchers.IO)
+}
 
-    private companion object {
-        val SKIPPED_PREFIXES = listOf(".trashed-", ".pending-")
-        val SKIPPED_FOLDERS = setOf("Android/data", "Android/obb", "Android/.Trash")
-    }
+private val SKIPPED_PREFIXES = listOf(".trashed-", ".pending-")
+private val SKIPPED_FOLDERS = setOf("Android/data", "Android/obb", "Android/.Trash")
+
+private fun isSkippedFolder(root: File, folder: File) = folder.name == TRASH_FOLDER || folder.relativeTo(root).invariantSeparatorsPath in SKIPPED_FOLDERS
+
+/** Whether the deep scan leaves [file] out: a file the system is still writing or has trashed, or one below a skipped folder of its volume [root]. */
+internal fun isSkipped(root: File, file: File): Boolean {
+    if (SKIPPED_PREFIXES.any(file.name::startsWith)) return true
+    return generateSequence(file.parentFile) { it.parentFile }.takeWhile { it != root }.any { isSkippedFolder(root, it) }
 }
 
 /**
  * The images MediaStore indexes, on every volume, the SD card included. It misses `.nomedia`
- * folders, which the deep scan covers, and leaves out the system trash and pending files.
+ * folders, which the deep scan covers, and leaves out what the deep scan leaves out. It walks no
+ * folder, so it reports no walked root. [volumes] tell which folder is the root of a path.
  */
-class MediaStoreImageSource(private val resolver: ContentResolver) : ImageSource {
+class MediaStoreImageSource(private val resolver: ContentResolver, private val volumes: List<File>) : ImageSource {
+    override val walkedRoots: List<File> = emptyList()
+
     override fun scan(): Flow<ImageRef> = flow {
         val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         val paths = mutableListOf<String>()
@@ -72,6 +96,7 @@ class MediaStoreImageSource(private val resolver: ContentResolver) : ImageSource
         }
         for (path in paths.sorted()) {
             val file = File(path)
+            if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) continue
             val image = try {
                 if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
                 file.toImageRef()
@@ -88,6 +113,8 @@ class MediaStoreImageSource(private val resolver: ContentResolver) : ImageSource
  * file has the same path, size and mtime whichever source finds it.
  */
 class MergedImageSource(private val sources: List<ImageSource>) : ImageSource {
+    override val walkedRoots: List<File> get() = sources.flatMap { it.walkedRoots }
+
     override fun scan(): Flow<ImageRef> = flow {
         val seen = HashSet<String>()
         for (source in sources) {

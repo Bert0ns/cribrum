@@ -139,7 +139,7 @@ object Indexing {
     /** Every storage volume walked in full, then what MediaStore knows on top. */
     fun deviceSource(context: Context): ImageSource {
         val volumes = context.getSystemService(StorageManager::class.java).storageVolumes.mapNotNull { it.directory }
-        return MergedImageSource(volumes.map(::FilesystemImageSource) + MediaStoreImageSource(context.contentResolver))
+        return MergedImageSource(volumes.map(::FilesystemImageSource) + MediaStoreImageSource(context.contentResolver, volumes))
     }
 }
 

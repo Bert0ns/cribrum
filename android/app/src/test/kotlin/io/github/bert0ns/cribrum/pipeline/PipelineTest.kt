@@ -15,6 +15,7 @@ import io.github.bert0ns.cribrum.model.Protection
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
+import io.github.bert0ns.cribrum.sources.MergedImageSource
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -23,6 +24,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -106,6 +108,58 @@ class PipelineTest {
 
         assertEquals(1, stats.forgotten)
         assertEquals(2, runBlocking { index.images() }.size)
+    }
+
+    @Test
+    fun `a volume the scan did not walk keeps its rows and their state`() {
+        val card = File(folder.root, "card")
+        save("DCIM/Camera/a.png")
+        TestImage.texture(64, 48, 1).save(File(card, "DCIM/b.png").apply { parentFile!!.mkdirs() })
+        val both = MergedImageSource(listOf(FilesystemImageSource(root), FilesystemImageSource(card)))
+        runBlocking { Pipeline(index).run(both) }
+        val onCard = File(card, "DCIM/b.png").path
+        runBlocking { index.setReviewState(onCard, ReviewState.KEPT) }
+        card.deleteRecursively() // the card is out
+
+        val stats = runBlocking { Pipeline(index).run(both) }
+
+        assertEquals(0, stats.forgotten)
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(onCard) })
+        assertEquals(2, runBlocking { index.images() }.size)
+    }
+
+    @Test
+    fun `a volume the scan walked still forgets its removed images`() {
+        val card = File(folder.root, "card")
+        save("DCIM/Camera/a.png")
+        TestImage.texture(64, 48, 1).save(File(card, "DCIM/b.png").apply { parentFile!!.mkdirs() })
+        val both = MergedImageSource(listOf(FilesystemImageSource(root), FilesystemImageSource(card)))
+        runBlocking { Pipeline(index).run(both) }
+        File(card, "DCIM/b.png").delete()
+
+        val stats = runBlocking { Pipeline(index).run(both) }
+
+        assertEquals(1, stats.forgotten)
+    }
+
+    @Test
+    fun `a folder whose listing fails keeps its rows`() {
+        photos()
+        run()
+        val path = File(root, "DCIM/Camera/a.png").path
+        runBlocking { index.setReviewState(path, ReviewState.KEPT) }
+        val locked = File(root, "DCIM/Camera").apply { setReadable(false) }
+        assumeTrue("the folder is still listable (running as root?)", locked.listFiles() == null)
+
+        val stats = try {
+            run()
+        } finally {
+            locked.setReadable(true)
+        }
+
+        assertEquals(0, stats.forgotten)
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(path) })
+        assertEquals(3, runBlocking { index.images() }.size)
     }
 
     @Test
