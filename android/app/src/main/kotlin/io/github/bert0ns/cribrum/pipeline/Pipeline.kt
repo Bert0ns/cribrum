@@ -143,6 +143,8 @@ class Pipeline(
         val gone = judged.filter { (path, state) ->
             path !in found &&
                 walked.any { root -> File(path).startsWith(root) } &&
+                !File(path).exists() &&
+                // a file that went and came back while the walk was in its folder is not gone
                 (state != ReviewState.TRASHED || (inTrash != null && path !in inTrash))
         }.keys
         index.forget(gone)
