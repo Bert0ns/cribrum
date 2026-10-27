@@ -44,6 +44,7 @@
     <string name="scan_phase_groups">Ricerca di duplicati e raffiche</string>
     <string name="scan_starting">Avvio…</string>
     <string name="scan_progress">%1$d di %2$d</string>
+    <string name="scan_progress_open">finora %1$d</string>
     <string name="scan_now">Scansiona ora</string>
     <string name="scan_empty">Nessuna immagine indicizzata. Tocca Scansiona ora per avviare la prima scansione.</string>
     <string name="scan_step_scan">Ricerca delle immagini: finora %1$d</string>

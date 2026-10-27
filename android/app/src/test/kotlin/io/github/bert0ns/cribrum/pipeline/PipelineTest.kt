@@ -16,12 +16,16 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -700,5 +704,105 @@ class PipelineTest {
         assertThrows(kotlinx.coroutines.CancellationException::class.java) {
             run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(cancellingDetector)))
         }
+    }
+
+    /** Group detector that says when it starts and then waits for [gate]. */
+    private class GatedGroupDetector(private val started: CompletableDeferred<Unit>, private val gate: CompletableDeferred<Unit>) : GroupDetector {
+        override val id = "gated_group"
+        override val version = 1
+
+        override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
+            started.complete(Unit)
+            gate.await()
+            return emptyMap()
+        }
+    }
+
+    @Test
+    fun `a stop during a group detector ends the run promptly, and the next run does only the group detector`() {
+        photos()
+        val started = CompletableDeferred<Unit>()
+        val gated = GatedGroupDetector(started, CompletableDeferred())
+
+        runBlocking {
+            val job = launch { Pipeline(index, detectors = emptyList(), groupDetectors = listOf(gated)).run(source) }
+            withTimeout(10_000) { started.await() }
+            job.cancel()
+            withTimeout(5_000) { job.join() }
+            assertTrue(job.isCancelled)
+        }
+        assertNull(runBlocking { index.groupFingerprint(gated.id, gated.version) })
+
+        val open = GatedGroupDetector(CompletableDeferred(), CompletableDeferred<Unit>().apply { complete(Unit) })
+        val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(open)))
+
+        assertEquals(1, stats.detectorRuns) // the hashes were stored by the stopped run
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertNotNull(runBlocking { index.groupFingerprint(open.id, open.version) })
+    }
+
+    /** An embedder whose model does not load. */
+    private class BrokenModelEmbedder : Embedder {
+        override val id = "broken"
+        override val version = 1
+        var loads = 0
+        var embedded = 0
+
+        override fun load() {
+            loads++
+            throw IllegalStateException("model damaged")
+        }
+
+        override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+            embedded++
+            return pixels.map { FloatArray(512) }
+        }
+    }
+
+    @Test
+    fun `a model that does not load is one failure of the embedding step, with no attempt per image`() {
+        photos()
+        val embedder = BrokenModelEmbedder()
+
+        val stats = run(Pipeline(index, embedder = embedder))
+
+        assertEquals(1, embedder.loads)
+        assertEquals(0, embedder.embedded)
+        assertEquals(listOf(Failure("", EMBEDDING_STEP, "IllegalStateException: model damaged")), stats.failures)
+        assertEquals(3, stats.images)
+        assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
+        assertEquals(0, runBlocking { index.embeddings(embedder.id, embedder.version) }.size)
+    }
+
+    @Test
+    fun `the model loads once for a run, not once per batch`() {
+        repeat(EMBEDDING_BATCH + 4) { save("DCIM/Camera/shot-$it.png", seed = it) } // more than one batch
+        var loads = 0
+        val inner = MeanColorEmbedder()
+        val embedder = object : Embedder by inner {
+            override fun load() {
+                loads++
+            }
+        }
+
+        run(Pipeline(index, embedder = embedder))
+
+        assertEquals(EMBEDDING_BATCH + 4, runBlocking { index.embeddings(embedder.id, embedder.version) }.size)
+        assertEquals(1, loads)
+    }
+
+    @Test
+    fun `a run with every embedding stored does not load the model`() {
+        photos()
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
+        val embedder = BrokenModelEmbedder()
+        val stored = object : Embedder by MeanColorEmbedder() {
+            override fun load() = embedder.load()
+        }
+
+        val stats = run(Pipeline(index, embedder = stored))
+
+        assertEquals(0, embedder.loads)
+        assertEquals(emptyList<Failure>(), stats.failures)
     }
 }

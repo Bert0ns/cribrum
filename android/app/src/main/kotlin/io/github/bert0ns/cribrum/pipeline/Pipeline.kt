@@ -61,6 +61,9 @@ interface Embedder {
     val id: String
     val version: Int
 
+    /** Loads the model, so a model that cannot load fails once, here, and not once per image. Does nothing when it is loaded. */
+    fun load() {}
+
     fun embedPixels(pixels: List<FloatArray>): List<FloatArray>
 }
 
@@ -202,6 +205,13 @@ class Pipeline(
     private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
         val stored = index.embeddings(embedder.id, embedder.version).keys
         val todo = images.filter { it.path !in stored }
+        if (todo.isEmpty()) return
+        val loaded = withContext(Dispatchers.Default) { attempt { embedder.load() } }
+        loaded.exceptionOrNull()?.let { error ->
+            // The same model fails the same way for every image: one failure for the step, and no embedding this run.
+            stats.failures += Failure("", EMBEDDING_STEP, failureMessage(error))
+            return
+        }
         var done = 0
         fun fail(image: ImageRef, error: Throwable) {
             stats.failures += Failure(image.path, EMBEDDING_STEP, failureMessage(error))

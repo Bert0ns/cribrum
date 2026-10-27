@@ -9,6 +9,9 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.File
 import java.time.Duration
 import java.time.LocalDateTime
@@ -37,7 +40,8 @@ class BurstDetector : GroupDetector {
         for (image in images) {
             val meta = try {
                 context.metadata(image)
-            } catch (_: Exception) { // unreadable header: no capture time to cluster on
+            } catch (error: Exception) { // unreadable header: no capture time to cluster on
+                if (error is CancellationException) throw error
                 null
             }
             val capturedAt = meta?.capturedAt ?: continue
@@ -49,6 +53,7 @@ class BurstDetector : GroupDetector {
         for (shots in byCamera.values) {
             shots.sortWith(compareBy({ it.first }, { it.second.path }))
             for (burst in bursts(shots, context)) {
+                currentCoroutineContext().ensureActive() // signals() decodes every member of the burst
                 result.putAll(signals(burst))
             }
         }
