@@ -149,12 +149,13 @@ class Pipeline(
         val pending = index.withoutMetadata()
         for ((done, image) in pending.withIndex()) {
             try {
-                index.setMetadata(image.path, readMetadata(File(image.path)))
-            } catch (_: UnreadableImage) {
-                index.setUnreadable(image.path)
+                // A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back.
+                if (File(image.path).isFile) index.setMetadata(image.path, readMetadata(File(image.path)))
+            } catch (_: NoSuchElementException) {
+                // the row went while the scan ran
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                index.setUnreadable(image.path) // decoders throw more than IOExceptions on broken files
+                markUnreadable(image.path) // decoders throw more than IOExceptions on broken files
             }
             progress("metadata", done + 1, pending.size)
         }
@@ -199,6 +200,9 @@ class Pipeline(
                 stats.failures += Failure("", detector.id, failureMessage(error))
             }
         }
+        // An image forgotten, trashed or moved since the walk failed because of that, and the user can do nothing about it.
+        val statesNow = index.reviewStates()
+        stats.failures.removeAll { it.path.isNotEmpty() && (!File(it.path).isFile || statesNow[it.path].let { state -> state == null || state == ReviewState.TRASHED }) }
         stats
     }
 
@@ -306,10 +310,12 @@ class Pipeline(
         val tasks = images.mapNotNull { image ->
             val todo = selected.filter { image.path !in analyzed.getValue(it) }
             val needsPhash = beforeEmbeddings && image.path !in hashed
-            if (todo.isEmpty() && !needsPhash) {
+            // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
+            val metadata = index.metadata(image.path)
+            if ((todo.isEmpty() && !needsPhash) || metadata == null) {
                 null
             } else {
-                AnalysisTask(image, index.metadata(image.path)!!, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
+                AnalysisTask(image, metadata, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
             }
         }
         progress(step, 0, tasks.size)
@@ -348,7 +354,13 @@ class Pipeline(
     }
 
     /** Stores what [outcome] has. Unless [final], what ran out of memory is not stored but returned as a task to run again. */
-    private suspend fun store(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? {
+    private suspend fun store(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? = try {
+        storeOutcome(outcome, stats, final)
+    } catch (_: NoSuchElementException) {
+        null // the row went while the scan ran: the image is gone
+    }
+
+    private suspend fun storeOutcome(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? {
         val path = outcome.task.image.path
         fun again(result: Result<*>) = !final && result.exceptionOrNull() is OutOfMemoryError
         for ((detector, result) in outcome.detectorResults) {
@@ -399,6 +411,14 @@ class Pipeline(
     private suspend fun storedPerceptualHash(image: ImageRef): ULong = index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
 
     private suspend fun storedMetadata(image: ImageRef): ImageMetadata = index.metadata(image.path) ?: throw UnreadableImage(File(image.path))
+
+    private suspend fun markUnreadable(path: String) {
+        try {
+            index.setUnreadable(path)
+        } catch (_: NoSuchElementException) {
+            // the row went while the scan ran
+        }
+    }
 
     /** As the lab's: the same image set and model give the same text. */
     private fun fingerprint(images: List<ImageRef>, model: String): String {

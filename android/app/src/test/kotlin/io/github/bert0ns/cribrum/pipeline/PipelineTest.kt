@@ -42,6 +42,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 
@@ -269,6 +270,60 @@ class PipelineTest {
 
         assertEquals(0, stats.forgotten)
         assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(image.path) })
+    }
+
+    /** On [target], does what a review action does while a scan runs, then ends as [then] says. */
+    private inner class Interrupting(private val target: String, private val purge: Boolean, private val then: () -> Unit = {}) : Detector {
+        override val id = "interrupting"
+        override val version = 1
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
+            if (image.path == target) {
+                val review = Review(index, trash)
+                review.apply(listOf(image), emptyList())
+                if (purge) review.purge(listOf(image))
+                then()
+            }
+            return listOf(Signal(id, version, Category.BLURRY, 0.5f))
+        }
+    }
+
+    @Test
+    fun `emptying the trash while a scan analyzes an image does not end the scan`() {
+        photos()
+        val target = refOf("DCIM/Camera/a.png").path
+
+        val stats = run(Pipeline(index, listOf(Interrupting(target, purge = true)), emptyList(), trash = trash))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(setOf(refOf("WhatsApp/Media/a-copy.png").path, refOf("Pictures/Screenshots/Screenshot_1.png").path), runBlocking { index.images() }.map { it.path }.toSet())
+    }
+
+    @Test
+    fun `a failure on an image trashed since the walk is not listed`() {
+        photos()
+        val target = refOf("DCIM/Camera/a.png").path
+
+        val stats = run(Pipeline(index, listOf(Interrupting(target, purge = false) { throw FileNotFoundException(target) }), emptyList(), trash = trash))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(target) })
+    }
+
+    @Test
+    fun `an image trashed after the walk is not marked unreadable, so a restore brings it back analyzed`() {
+        photos()
+        val image = refOf("DCIM/Camera/a.png")
+        val review = Review(index, trash)
+
+        val stats = runBlocking { Pipeline(index, trash = trash).run(afterWalk { review.apply(listOf(image), emptyList()) }) }
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(emptyList<String>(), runBlocking { index.unreadable() })
+        runBlocking { review.restore(listOf(image)) }
+        run(Pipeline(index, trash = trash))
+        assertNotNull(runBlocking { index.metadata(image.path) })
+        assertTrue(Category.BLURRY in kinds("DCIM/Camera/a.png"))
     }
 
     @Test
