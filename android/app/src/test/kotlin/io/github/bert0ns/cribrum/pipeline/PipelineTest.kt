@@ -14,9 +14,15 @@ import io.github.bert0ns.cribrum.model.Kind
 import io.github.bert0ns.cribrum.model.Protection
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
+import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
+import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
+import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -37,6 +43,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -179,6 +186,89 @@ class PipelineTest {
         assertEquals(0, stats.forgotten)
         assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(path) })
         assertTrue(Category.BLURRY in kinds("DCIM/Camera/a.png"))
+    }
+
+    private val trash by lazy { AppTrash({ listOf(root) }) }
+
+    private fun refOf(path: String) = File(root, path).toImageRef()
+
+    /** The trash holds [path]'s file and the index says so, as after an apply. */
+    private fun trashed(path: String): ImageRef {
+        val ref = refOf(path)
+        runBlocking {
+            assertEquals(listOf(ref), trash.moveToTrash(listOf(ref)))
+            index.setReviewState(ref.path, ReviewState.TRASHED)
+        }
+        return ref
+    }
+
+    /** A source that runs [action] once the walk is over, like a review action that comes after the scan passed the folder. */
+    private fun afterWalk(action: suspend () -> Unit) = object : ImageSource {
+        override val walkedRoots get() = source.walkedRoots
+
+        override fun scan() = flow {
+            emitAll(source.scan())
+            action()
+        }
+    }
+
+    @Test
+    fun `a trashed row whose file is back on disk with no trash item becomes unreviewed`() {
+        photos()
+        run()
+        val image = trashed("DCIM/Camera/a.png")
+        val item = runBlocking { trash.trashed() }.single()
+        Files.move(item.file.toPath(), File(image.path).toPath()) // put back by hand
+        item.file.parentFile!!.deleteRecursively()
+
+        run(Pipeline(index, trash = trash))
+
+        assertEquals(ReviewState.UNREVIEWED, runBlocking { index.reviewState(image.path) })
+    }
+
+    @Test
+    fun `a trashed row stays while its item is in the trash, and goes when it is neither on disk nor in the trash`() {
+        photos()
+        run()
+        val kept = trashed("DCIM/Camera/a.png")
+        val lost = trashed("WhatsApp/Media/a-copy.png")
+        runBlocking { trash.trashed() }.single { it.original == lost }.file.parentFile!!.deleteRecursively()
+
+        val stats = run(Pipeline(index, trash = trash))
+
+        assertEquals(1, stats.forgotten)
+        assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(kept.path) })
+        assertEquals(setOf(kept.path, refOf("Pictures/Screenshots/Screenshot_1.png").path), runBlocking { index.images() }.map { it.path }.toSet())
+    }
+
+    @Test
+    fun `a trashed row on a volume the scan did not walk is kept even if the trash lost its item`() {
+        val card = File(folder.root, "card")
+        TestImage.texture(64, 48, 1).save(File(card, "DCIM/b.png").apply { parentFile!!.mkdirs() })
+        val both = MergedImageSource(listOf(FilesystemImageSource(root), FilesystemImageSource(card)))
+        save("DCIM/Camera/a.png")
+        runBlocking { Pipeline(index).run(both) }
+        val onCard = File(card, "DCIM/b.png").toImageRef()
+        runBlocking { index.setReviewState(onCard.path, ReviewState.TRASHED) }
+        card.deleteRecursively() // the card is out, and so is its trash
+
+        val stats = runBlocking { Pipeline(index, trash = trash).run(both) }
+
+        assertEquals(0, stats.forgotten)
+        assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(onCard.path) })
+    }
+
+    @Test
+    fun `an image restored after the walk passed its folder keeps the KEPT row the restore wrote`() {
+        photos()
+        run()
+        val image = trashed("DCIM/Camera/a.png")
+        val review = Review(index, trash)
+
+        val stats = runBlocking { Pipeline(index, trash = trash).run(afterWalk { review.restore(listOf(image)) }) }
+
+        assertEquals(0, stats.forgotten)
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(image.path) })
     }
 
     @Test

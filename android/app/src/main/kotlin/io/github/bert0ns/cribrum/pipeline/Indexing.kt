@@ -225,7 +225,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
 
     protected open suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = app.trash.purgeExpired()
 
-    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline = Pipeline(app.index, embedder = embedder)
+    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline = Pipeline(app.index, embedder = embedder, trash = app.trash)
 
     private var title = 0
     private var reported = 0L

@@ -27,8 +27,10 @@ import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.mobileclip.preprocess
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.sources.ImageSource
+import io.github.bert0ns.cribrum.trash.Trash
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -105,25 +107,42 @@ class Pipeline(
     /** Images analyzed at once: decoding is the slow part, and it runs on every core. */
     private val parallelism: Int = Runtime.getRuntime().availableProcessors(),
     private val preprocessing: (File) -> FloatArray = ::preprocess,
+    /** Lists what the trash holds, to reconcile TRASHED rows with it. Without one, TRASHED rows are left alone. */
+    private val trash: Trash? = null,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
-     * the trashed ones: they are in the app trash, and restoring them must find their review
-     * state and signals again (docs/design.md §9). Only images under a root the source walked
-     * can be gone: an absent SD card or an unreadable folder is not a deletion.
+     * the trashed ones the trash still holds: restoring them must find their review state and
+     * signals again (docs/design.md §9). A trashed row whose file is back on disk with no item in
+     * the trash becomes unreviewed, and one that is neither on disk nor in the trash leaves the index.
+     * Only images under a root the source walked can be gone: an absent SD card or an unreadable
+     * folder is not a deletion.
      */
     suspend fun run(source: ImageSource, progress: Progress = { _, _, _ -> }): Stats = withContext(Dispatchers.IO) {
         val stats = Stats()
         val found = LinkedHashSet<String>()
+        val before = index.reviewStates()
         source.scan().collect { image ->
             found += image.path
             if (index.record(image)) stats.newOrChanged++
             if (found.size % 100 == 0) progress("scan", found.size, 0)
         }
-        val trashed = index.trashedPaths()
+        val inTrash = trash?.trashed()?.mapTo(HashSet()) { it.original.path }
+        val states = index.reviewStates()
         val walked = source.walkedRoots
-        val gone = index.images().map { it.path }.filter { it !in found && it !in trashed && walked.any { root -> File(it).startsWith(root) } }
+        // A review action may have run during the walk: only a row in the state the walk began with is judged by it.
+        val judged = states.filter { (path, state) -> before[path] == state }
+        val gone = judged.filter { (path, state) ->
+            path !in found &&
+                walked.any { root -> File(path).startsWith(root) } &&
+                (state != ReviewState.TRASHED || (inTrash != null && path !in inTrash))
+        }.keys
         index.forget(gone)
+        if (inTrash != null) {
+            // The file is back on disk and the trash does not hold it: someone put it back by hand.
+            judged.filter { (path, state) -> state == ReviewState.TRASHED && path in found && path !in inTrash }
+                .keys.forEach { index.restoreReviewState(it, ReviewState.UNREVIEWED, emptySet()) }
+        }
         stats.forgotten = gone.size
         stats.images = found.size
 
