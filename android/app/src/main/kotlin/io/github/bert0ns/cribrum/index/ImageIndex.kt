@@ -58,6 +58,14 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         paths.chunked(SQL_VARIABLES).forEach { dao.forget(it) }
     }
 
+    /**
+     * [forget] for the trash's purge: only rows still TRASHED go. A new file at the path of a purged image has a row
+     * of its own, with a state the user chose, and it stays.
+     */
+    suspend fun forgetTrashed(paths: Collection<String>) = db.withTransaction {
+        paths.chunked(SQL_VARIABLES).forEach { dao.forgetTrashed(it) }
+    }
+
     /** Images whose metadata was never read, leaving out the unreadable ones. */
     suspend fun withoutMetadata(): List<ImageRef> = dao.withoutMetadata().map { ImageRef(it.path, it.size, it.mtimeNs) }
 

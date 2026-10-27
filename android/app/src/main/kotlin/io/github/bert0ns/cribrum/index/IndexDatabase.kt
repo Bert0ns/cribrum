@@ -152,6 +152,9 @@ interface IndexDao {
     @Query("DELETE FROM images WHERE path IN (:paths)")
     suspend fun forget(paths: List<String>)
 
+    @Query("DELETE FROM images WHERE path IN (:paths) AND review_state = 'trashed'")
+    suspend fun forgetTrashed(paths: List<String>)
+
     @Query("SELECT path, size, mtime_ns FROM images WHERE width IS NULL AND NOT unreadable ORDER BY path")
     suspend fun withoutMetadata(): List<StoredRef>
 
