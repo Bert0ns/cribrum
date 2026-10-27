@@ -238,6 +238,10 @@ class ImageIndex:
         _require(row, path)
         return None if row[0] is None else int(row[0], 16)
 
+    def hashed_paths(self) -> set[Path]:
+        rows = self._db.execute("SELECT path FROM images WHERE perceptual_hash IS NOT NULL")
+        return {Path(path) for (path,) in rows}
+
     def set_embeddings(
         self, model: str, model_version: int, vectors: Mapping[Path, np.ndarray]
     ) -> None:

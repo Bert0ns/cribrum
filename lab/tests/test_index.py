@@ -290,6 +290,16 @@ def test_signals_of_many_store_nothing_if_one_image_is_missing(index):
     assert index.signals(PHOTO.path) == []
 
 
+def test_hashed_paths_lists_the_images_that_have_a_perceptual_hash(index):
+    other = ImageRef(Path("/photos/b.jpg"), 100, 1)
+    index.record(PHOTO)
+    index.record(other)
+
+    index.set_perceptual_hash(PHOTO.path, 0xFF)
+
+    assert index.hashed_paths() == {PHOTO.path}
+
+
 def test_group_fingerprint_is_per_detector_version(index):
     assert index.group_fingerprint("exact_duplicate", 1) is None
 
