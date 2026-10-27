@@ -21,6 +21,7 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.DayOfWeek
@@ -156,15 +157,16 @@ class Review(
 
     /**
      * Moves [toTrash] to the trash and keeps [toKeep]. A file that changed or went missing since
-     * its scan stays where it is and in the review: it is listed in [Decision.failed].
+     * its scan stays where it is and in the review: it is listed in [Decision.failed]. The files and the
+     * rows change together even if the caller's scope ends meanwhile, and so do [undo] and [restore].
      */
-    suspend fun apply(toTrash: List<ImageRef>, toKeep: List<ImageRef>): Decision {
+    suspend fun apply(toTrash: List<ImageRef>, toKeep: List<ImageRef>): Decision = withContext(NonCancellable) {
         // Read first: a row that is missing fails before any file moves.
         val previous = toKeep.associate { it.path to PreviousReview(index.reviewState(it.path), index.keptSignals(it.path)) }
         val moved = trash.moveToTrash(toTrash)
         moved.forEach { index.setReviewState(it.path, ReviewState.TRASHED) }
         toKeep.forEach { index.setReviewState(it.path, ReviewState.KEPT) }
-        return Decision(moved, toKeep, toTrash - moved.toSet(), previous)
+        Decision(moved, toKeep, toTrash - moved.toSet(), previous)
     }
 
     /**
@@ -188,7 +190,7 @@ class Review(
      * it, and writing the old size back would reset it. Returns the images that stayed in the trash because
      * their path is taken.
      */
-    suspend fun undo(decision: Decision): List<ImageRef> {
+    suspend fun undo(decision: Decision): List<ImageRef> = withContext(NonCancellable) {
         val restored = trash.restore(decision.trashed)
         restored.forEach {
             index.record(it)
@@ -198,7 +200,7 @@ class Review(
             val before = decision.previous[it.path] ?: PreviousReview(ReviewState.UNREVIEWED, emptySet())
             index.restoreReviewState(it.path, before.state, before.kept)
         }
-        return decision.trashed - restored.toSet()
+        decision.trashed - restored.toSet()
     }
 
     suspend fun trashed(): List<TrashedImage> = trash.trashed()
@@ -212,13 +214,13 @@ class Review(
      * in the index, like after a reinstall (the trash survives it, the index does not), gets one, and stays
      * unreviewed: it has no signals yet, so there is nothing to remember it was kept with.
      */
-    suspend fun restore(images: List<ImageRef>): List<ImageRef> {
+    suspend fun restore(images: List<ImageRef>): List<ImageRef> = withContext(NonCancellable) {
         val restored = trash.restore(images)
         restored.forEach {
             val fresh = index.record(it)
             index.setReviewState(it.path, if (fresh) ReviewState.UNREVIEWED else ReviewState.KEPT)
         }
-        return restored
+        restored
     }
 
     /** Deletes images from the trash for good, and from the index with them. An image the trash could not delete keeps its row. */
