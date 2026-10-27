@@ -93,7 +93,10 @@ def run(
     jobs: int = 1,
     progress: Progress | None = None,
 ) -> Stats:
-    """Analyzes every image under `root`. Images under it that are gone leave the index.
+    """Analyzes every image under `root`.
+
+    Images under it that are gone leave the index, unless the scan could not list the root in
+    full: then it cannot tell a deleted file from a folder it could not read.
 
     Without an `embedder` no embeddings are computed. Per-image detectors that need one
     are skipped, without storing anything, so a later run with an embedder runs them.
@@ -103,12 +106,16 @@ def run(
     stats = Stats()
 
     found = set()
-    for image in FilesystemImageSource(root).scan():
+    source = FilesystemImageSource(root)
+    for image in source.scan():
         found.add(image.path)
         stats.new_or_changed += index.record(image)
         progress("scan", len(found), 0)
+    walked = source.walked_roots
     gone = [
-        p for p in (i.path for i in index.images()) if p.is_relative_to(root) and p not in found
+        p
+        for p in (i.path for i in index.images())
+        if p not in found and any(p.is_relative_to(r) for r in walked)
     ]
     index.forget(gone)
     stats.forgotten = len(gone)

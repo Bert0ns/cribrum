@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import numpy as np
 import pytest
@@ -6,7 +7,7 @@ from PIL import Image
 
 from cribrum_lab import pipeline
 from cribrum_lab.index import ImageIndex
-from cribrum_lab.model import Category, Protection, Signal
+from cribrum_lab.model import Category, Protection, ReviewState, Signal
 
 
 def save(path, seed=0, size=(64, 48)):
@@ -86,6 +87,38 @@ def test_removed_image_leaves_the_index(photos, index):
 
     assert stats.forgotten == 1
     assert len(index.images()) == 2
+
+
+def test_a_root_the_scan_did_not_walk_keeps_its_rows(photos, index):
+    pipeline.run(photos, index)
+    kept = (photos / "DCIM/Camera/a.png").resolve()
+    index.set_review_state(kept, ReviewState.KEPT)
+    shutil.rmtree(photos)  # the volume is out
+
+    stats = pipeline.run(photos, index)
+
+    assert stats.forgotten == 0
+    assert index.review_state(kept) == ReviewState.KEPT
+    assert len(index.images()) == 3
+
+
+def test_a_folder_whose_listing_fails_keeps_its_rows(photos, index):
+    pipeline.run(photos, index)
+    kept = (photos / "DCIM/Camera/a.png").resolve()
+    index.set_review_state(kept, ReviewState.KEPT)
+    locked = photos / "DCIM/Camera"
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("the folder is still listable (running as root?)")
+
+        stats = pipeline.run(photos, index)
+    finally:
+        locked.chmod(0o755)
+
+    assert stats.forgotten == 0
+    assert index.review_state(kept) == ReviewState.KEPT
+    assert len(index.images()) == 3
 
 
 def test_unreadable_image_gets_no_per_image_analysis(photos, index):
