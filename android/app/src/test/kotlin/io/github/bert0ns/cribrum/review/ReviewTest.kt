@@ -12,6 +12,8 @@ import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.Trash
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -736,6 +738,61 @@ class ReviewTest {
         assertEquals(listOf(stuck), review.trashed().map { it.original })
         assertEquals(ReviewState.TRASHED, index.reviewState(stuck.path))
         assertEquals(listOf(stuck), index.images())
+    }
+
+    /** Moves files for real, then stops at [gate] before it returns: the point where a scope that ends is felt. */
+    private inner class GatedTrash(private val real: Trash, private val started: CompletableDeferred<Unit>, private val gate: CompletableDeferred<Unit>) : Trash by real {
+        override suspend fun moveToTrash(images: List<ImageRef>) = real.moveToTrash(images).also { pause() }
+
+        override suspend fun restore(images: List<ImageRef>) = real.restore(images).also { pause() }
+
+        private suspend fun pause() {
+            started.complete(Unit)
+            gate.await()
+        }
+    }
+
+    /** Runs [action] on a review whose scope is cancelled once the files have moved, and lets it finish. */
+    private fun cancelledAfterMoving(action: suspend Review.() -> Unit) = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        val review = Review(index, GatedTrash(AppTrash({ listOf(volume) }), started, gate))
+        val job = launch { review.action() }
+        started.await()
+        job.cancel()
+        gate.complete(Unit)
+        job.join()
+    }
+
+    @Test
+    fun `a scope that ends after the files moved still marks them trashed and kept`() {
+        val trashed = image("a.jpg", blurry(0.9f))
+        val kept = image("b.jpg", blurry(0.8f))
+
+        cancelledAfterMoving { apply(listOf(trashed), listOf(kept)) }
+
+        assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(trashed.path) })
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(kept.path) })
+    }
+
+    @Test
+    fun `a scope that ends after a restore still keeps the image`() {
+        val image = image("a.jpg", blurry(0.9f))
+        runBlocking { review.apply(listOf(image), emptyList()) }
+
+        cancelledAfterMoving { restore(listOf(image)) }
+
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(image.path) })
+    }
+
+    @Test
+    fun `a scope that ends after an undo still makes the image unreviewed`() {
+        val image = image("a.jpg", blurry(0.9f))
+        val decision = runBlocking { review.apply(listOf(image), emptyList()) }
+
+        cancelledAfterMoving { undo(decision) }
+
+        assertEquals(ReviewState.UNREVIEWED, runBlocking { index.reviewState(image.path) })
     }
 
     @Test
