@@ -131,6 +131,16 @@ class MetadataTest {
     }
 
     @Test
+    fun `an animated gif or webp reads its size and mime from the first frame`() {
+        for ((name, mime) in listOf("animated.gif" to "image/gif", "animated.webp" to "image/webp")) {
+            val meta = readMetadata(File(File("../../fixtures/decode").canonicalFile, name))
+
+            assertEquals(name, Triple(64, 48, mime), Triple(meta.width, meta.height, meta.mime))
+            assertFalse(name, meta.hasCameraExif)
+        }
+    }
+
+    @Test
     fun `webp without exif`() {
         val meta = readMetadata(save("sticker.webp", 512, 512, Bitmap.CompressFormat.WEBP_LOSSLESS))
 
