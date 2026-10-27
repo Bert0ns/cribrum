@@ -86,6 +86,8 @@ data class Stats(
     var newOrChanged: Int = 0,
     var forgotten: Int = 0,
     var unreadable: Int = 0,
+    /** The unreadable files among the ones the scan found. */
+    var unreadablePaths: List<String> = emptyList(),
     /** Per-image analyses, perceptual hashes and embeddings computed, plus group detector runs. */
     var detectorRuns: Int = 0,
     /** Per-image analyses left for a run with embeddings. */
@@ -165,7 +167,8 @@ class Pipeline(
             progress("metadata", done + 1, pending.size)
         }
         val unreadable = index.unreadable().toSet()
-        stats.unreadable = found.count { it in unreadable }
+        stats.unreadablePaths = found.filter { it in unreadable }
+        stats.unreadable = stats.unreadablePaths.size
 
         val images = index.images().filter { it.path in found }
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files

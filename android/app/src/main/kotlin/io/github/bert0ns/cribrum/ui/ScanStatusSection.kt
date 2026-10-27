@@ -45,6 +45,7 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
     item {
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_scan_status_last)) },
+            modifier = if (lastScan == null || lastScan.unreadableFiles.isEmpty()) Modifier else Modifier.toggleFiles(showingFiles, onToggleFiles),
             supportingContent = {
                 val context = LocalContext.current
                 Column {
@@ -69,14 +70,7 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
                     Text(if (failed == 0) stringResource(R.string.settings_scan_status_no_failures) else pluralStringResource(R.plurals.settings_scan_status_failures, failed, failed))
                 },
                 supportingContent = if (failed == 0) null else ({ Text(stringResource(R.string.settings_scan_status_failures_hint)) }),
-                modifier = if (failed == 0) {
-                    Modifier
-                } else {
-                    val state = stringResource(if (showingFiles) R.string.settings_scan_status_files_shown else R.string.settings_scan_status_files_hidden)
-                    Modifier
-                        .clickable(role = Role.Button, onClickLabel = stringResource(R.string.settings_scan_status_toggle_files), onClick = onToggleFiles)
-                        .semantics { stateDescription = state }
-                },
+                modifier = if (failed == 0) Modifier else Modifier.toggleFiles(showingFiles, onToggleFiles),
             )
         }
     }
@@ -84,6 +78,10 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
         items(lastScan.files) { file -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, file.step, file.name)) }) }
         if (failed > lastScan.files.size) {
             item { ListItem(headlineContent = { Text(pluralStringResource(R.plurals.settings_scan_status_more, failed - lastScan.files.size, failed - lastScan.files.size)) }) }
+        }
+        items(lastScan.unreadableFiles) { name -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, "unreadable", name)) }) }
+        if (lastScan.unreadable > lastScan.unreadableFiles.size) {
+            item { ListItem(headlineContent = { Text(pluralStringResource(R.plurals.settings_scan_status_more, lastScan.unreadable - lastScan.unreadableFiles.size, lastScan.unreadable - lastScan.unreadableFiles.size)) }) }
         }
     }
     items(coverage, key = { it.id }) { row ->
@@ -98,6 +96,15 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
             },
         )
     }
+}
+
+/** A row that shows or hides the file names, and says which of the two it is doing. */
+@Composable
+private fun Modifier.toggleFiles(showingFiles: Boolean, onToggleFiles: () -> Unit): Modifier {
+    val state = stringResource(if (showingFiles) R.string.settings_scan_status_files_shown else R.string.settings_scan_status_files_hidden)
+    return this
+        .clickable(role = Role.Button, onClickLabel = stringResource(R.string.settings_scan_status_toggle_files), onClick = onToggleFiles)
+        .semantics { stateDescription = state }
 }
 
 /** A detector with a category goes by the category's name; a new one without a name yet shows its id. */
