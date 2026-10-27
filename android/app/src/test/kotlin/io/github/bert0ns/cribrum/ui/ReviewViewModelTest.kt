@@ -632,7 +632,7 @@ class ReviewViewModelTest {
             return emptyList()
         }
 
-        override suspend fun purge(images: List<ImageRef>) {}
+        override suspend fun purge(images: List<ImageRef>) = images
 
         override suspend fun purgeExpired() = emptyList<ImageRef>()
     }
@@ -672,7 +672,7 @@ class ReviewViewModelTest {
 
         override suspend fun trashed() = emptyList<TrashedImage>()
 
-        override suspend fun purge(images: List<ImageRef>) {}
+        override suspend fun purge(images: List<ImageRef>) = images
 
         override suspend fun purgeExpired() = emptyList<ImageRef>()
     }
@@ -810,9 +810,7 @@ class ReviewViewModelTest {
 
         override suspend fun trashed() = inside.map { TrashedImage(it, Instant.EPOCH, File(it.path), Instant.EPOCH) }
 
-        override suspend fun purge(images: List<ImageRef>) {
-            inside.removeAll(images.take(1))
-        }
+        override suspend fun purge(images: List<ImageRef>) = images.take(1).also { inside.removeAll(it) }
 
         override suspend fun purgeExpired() = emptyList<ImageRef>()
     }
@@ -855,9 +853,7 @@ class ReviewViewModelTest {
 
         override suspend fun trashed() = inside.map { TrashedImage(it, Instant.EPOCH, File(it.path), Instant.EPOCH) }
 
-        override suspend fun purge(images: List<ImageRef>) {
-            inside.removeAll(images)
-        }
+        override suspend fun purge(images: List<ImageRef>) = images.also { inside.removeAll(it) }
 
         override suspend fun purgeExpired() = emptyList<ImageRef>()
     }
@@ -939,7 +935,7 @@ class ReviewViewModelTest {
 
         override suspend fun trashed(): List<TrashedImage> = throw IOException("volume gone")
 
-        override suspend fun purge(images: List<ImageRef>) {}
+        override suspend fun purge(images: List<ImageRef>) = images
 
         override suspend fun purgeExpired() = emptyList<ImageRef>()
     }

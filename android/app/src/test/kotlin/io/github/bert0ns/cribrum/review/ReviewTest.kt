@@ -11,6 +11,7 @@ import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Trash
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -715,6 +716,26 @@ class ReviewTest {
 
         assertEquals(emptyList<Any>(), trashed())
         assertEquals(emptyList<ImageRef>(), index.images())
+    }
+
+    @Test
+    fun `purging keeps the row of an image the trash could not delete`() = runBlocking {
+        val stuck = image("a.jpg", blurry(0.9f))
+        val deleted = image("b.jpg", blurry(0.8f))
+        val real = AppTrash({ listOf(volume) })
+        val review = Review(
+            index,
+            object : Trash by real {
+                override suspend fun purge(images: List<ImageRef>) = real.purge(images - stuck)
+            },
+        )
+        review.apply(listOf(stuck, deleted), emptyList())
+
+        review.purge(listOf(stuck, deleted))
+
+        assertEquals(listOf(stuck), review.trashed().map { it.original })
+        assertEquals(ReviewState.TRASHED, index.reviewState(stuck.path))
+        assertEquals(listOf(stuck), index.images())
     }
 
     @Test

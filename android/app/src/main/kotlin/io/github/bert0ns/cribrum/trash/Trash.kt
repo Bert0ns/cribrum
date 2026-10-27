@@ -40,8 +40,8 @@ interface Trash {
 
     suspend fun trashed(): List<TrashedImage>
 
-    /** Deletes images from the trash for good. */
-    suspend fun purge(images: List<ImageRef>)
+    /** Deletes images from the trash for good. Returns the ones deleted: a file the system would not delete is still in the trash. */
+    suspend fun purge(images: List<ImageRef>): List<ImageRef>
 
     /** Deletes what has been in the trash for longer than the retention the user chose. Returns what it deleted. */
     suspend fun purgeExpired(): List<ImageRef>
@@ -90,9 +90,9 @@ class AppTrash(
 
     override suspend fun trashed(): List<TrashedImage> = io { items() }
 
-    override suspend fun purge(images: List<ImageRef>) = io {
+    override suspend fun purge(images: List<ImageRef>): List<ImageRef> = io {
         val wanted = images.toSet()
-        items().filter { it.original in wanted }.forEach { deleteItem(it.file.parentFile!!) }
+        items().filter { it.original in wanted && deleteItem(it.file.parentFile!!) }.map { it.original }
     }
 
     override suspend fun purgeExpired(): List<ImageRef> = io {
@@ -102,10 +102,7 @@ class AppTrash(
             val trashFolder = File(volume, TRASH_FOLDER)
             for (folder in trashFolder.listFiles().orEmpty()) {
                 val item = readItem(folder, syncSeenAt = true) ?: continue
-                if (item.purgeAt <= now) {
-                    deleteItem(folder)
-                    expired += item.original
-                }
+                if (item.purgeAt <= now && deleteItem(folder)) expired += item.original
             }
         }
         expired
@@ -183,11 +180,11 @@ class AppTrash(
         )
     }.getOrNull()
 
-    /** Deletes one item folder of the trash, never anything outside it. */
-    internal fun deleteItem(folder: File) {
+    /** Deletes one item folder of the trash, never anything outside it. Returns false if it could not delete all of it. */
+    internal fun deleteItem(folder: File): Boolean {
         val trash = folder.canonicalFile.parentFile
         check(trash?.name == TRASH_FOLDER) { "not a trash item: $folder" }
-        folder.deleteRecursively()
+        return folder.deleteRecursively()
     }
 
     companion object {

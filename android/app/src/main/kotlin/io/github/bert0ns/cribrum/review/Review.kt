@@ -221,10 +221,9 @@ class Review(
         return restored
     }
 
-    /** Deletes images from the trash for good, and from the index with them. */
+    /** Deletes images from the trash for good, and from the index with them. An image the trash could not delete keeps its row. */
     suspend fun purge(images: List<ImageRef>) {
-        trash.purge(images)
-        index.forget(images.map { it.path })
+        index.forget(trash.purge(images).map { it.path })
     }
 
     /**

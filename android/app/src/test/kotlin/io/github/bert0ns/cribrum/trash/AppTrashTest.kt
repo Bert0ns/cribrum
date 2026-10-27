@@ -7,6 +7,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -185,6 +186,43 @@ class AppTrashTest {
 
         assertEquals(listOf(other), trashed().map { it.original })
         assertFalse(File(image.path).exists())
+    }
+
+    @Test
+    fun `purging returns only the images it deleted`() = test {
+        val gone = photo("DCIM/stuck.jpg")
+        val deleted = photo("DCIM/free.jpg")
+        moveToTrash(listOf(gone, deleted))
+        val stuck = trashed().single { it.original == gone }.file.parentFile!!
+        assumeTrue("the folder is still deletable (running as root?)", stuck.setWritable(false) && !stuck.canWrite())
+
+        val purged = try {
+            purge(listOf(gone, deleted, photo("DCIM/never-trashed.jpg")))
+        } finally {
+            stuck.setWritable(true)
+        }
+
+        assertEquals(listOf(deleted), purged)
+        assertEquals(listOf(gone), trashed().map { it.original })
+    }
+
+    @Test
+    fun `purging expired returns only the images it deleted`() = test {
+        val stuck = photo("DCIM/stuck.jpg")
+        val free = photo("DCIM/free.jpg")
+        moveToTrash(listOf(stuck, free))
+        val folder = trashed().single { it.original == stuck }.file.parentFile!!
+        assumeTrue("the folder is still deletable (running as root?)", folder.setWritable(false) && !folder.canWrite())
+        clock.now += Duration.ofDays(31)
+
+        val purged = try {
+            purgeExpired()
+        } finally {
+            folder.setWritable(true)
+        }
+
+        assertEquals(listOf(free), purged)
+        assertEquals(listOf(stuck), trashed().map { it.original })
     }
 
     @Test
