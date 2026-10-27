@@ -35,17 +35,26 @@ fun loadGrayscale(file: File, maxSide: Int): Gray {
 internal data class Argb(val width: Int, val height: Int, val pixels: IntArray)
 
 /**
- * Decodes with Pillow's draft: a JPEG decodes straight at 1/2, 1/4 or 1/8 while both sides stay
- * >= [draftSide]. Alpha is left as stored, since Pillow drops it when it converts to RGB or L.
+ * More pixels than this and a non-JPEG image decodes at a sample size: the bitmap, the [Argb] array
+ * and a float plane are held at once, 12 bytes a pixel, and a 4320 x 7680 PNG did not fit the heap.
+ * 16 MP leaves every photo and screenshot at full size, so what the lab computes on them still matches.
  */
-internal fun decode(file: File, draftSide: Int): Argb {
+internal const val MAX_PIXELS = 16_000_000
+
+/**
+ * Decodes with Pillow's draft: a JPEG decodes straight at 1/2, 1/4 or 1/8 while both sides stay
+ * >= [draftSide]. Another format has no draft, so above [maxPixels] it is sampled by the same rule.
+ * Alpha is left as stored, since Pillow drops it when it converts to RGB or L.
+ */
+internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Argb {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.path, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw UnreadableImage(file)
     val options = BitmapFactory.Options().apply {
         inPreferredConfig = Bitmap.Config.ARGB_8888
         inPremultiplied = false
-        if (bounds.outMimeType == "image/jpeg") inSampleSize = draftScale(bounds.outWidth, bounds.outHeight, draftSide)
+        val draft = draftScale(bounds.outWidth, bounds.outHeight, draftSide)
+        inSampleSize = if (bounds.outMimeType == "image/jpeg") draft else min(draft, sampleFor(bounds.outWidth, bounds.outHeight, maxPixels))
     }
     val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
     try {
@@ -56,6 +65,9 @@ internal fun decode(file: File, draftSide: Int): Argb {
         bitmap.recycle()
     }
 }
+
+/** The smallest power of two that brings the image down to [maxPixels]. */
+private fun sampleFor(width: Int, height: Int, maxPixels: Int): Int = generateSequence(1) { it * 2 }.first { width.toLong() * height / (it.toLong() * it) <= maxPixels }
 
 internal fun draftScale(width: Int, height: Int, maxSide: Int): Int {
     val scale = min(width / maxSide, height / maxSide)

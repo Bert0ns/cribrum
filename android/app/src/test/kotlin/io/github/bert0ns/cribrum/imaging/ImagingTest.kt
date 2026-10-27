@@ -29,6 +29,26 @@ class ImagingTest {
     }
 
     @Test
+    fun `a non-jpeg image above the pixel limit decodes at a sample size, one below it at full size`() {
+        val file = TestImage.texture(64, 48).save(File(folder.root, "a.png"))
+
+        val full = decode(file, 8)
+        val sampled = decode(file, 8, maxPixels = 1000)
+
+        assertEquals(64 to 48, full.width to full.height)
+        assertEquals(32 to 24, sampled.width to sampled.height)
+    }
+
+    @Test
+    fun `the sample size of a big image keeps both sides at least the draft side`() {
+        val file = TestImage.texture(64, 48).save(File(folder.root, "a.webp"), Bitmap.CompressFormat.WEBP_LOSSLESS)
+
+        val sampled = decode(file, 40, maxPixels = 1000)
+
+        assertEquals(64 to 48, sampled.width to sampled.height)
+    }
+
+    @Test
     fun `thumbnail sizes are rounded like pillow's`() {
         assertEquals(512 to 384, fitted(640, 480, 512))
         assertEquals(230 to 512, fitted(1080, 2400, 512))
