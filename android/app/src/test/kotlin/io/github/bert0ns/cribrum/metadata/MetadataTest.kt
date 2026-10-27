@@ -2,6 +2,7 @@
 package io.github.bert0ns.cribrum.metadata
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import androidx.exifinterface.media.ExifInterface
 import org.junit.Assert.assertEquals
@@ -99,6 +100,34 @@ class MetadataTest {
         val file = File(folder.root, "a.jpg").apply { writeBytes(byteArrayOf(-1, -40, -1, -32) + " truncated".toByteArray()) }
 
         assertThrows(UnreadableImage::class.java) { readMetadata(file) }
+    }
+
+    private fun failing(times: Int, calls: () -> Int, count: () -> Unit): (File) -> BitmapFactory.Options = { file ->
+        count()
+        BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+            if (calls() > times) BitmapFactory.decodeFile(file.path, this)
+        }
+    }
+
+    @Test
+    fun `a header that fails to decode once is read again`() {
+        var calls = 0
+        val decodeBounds = failing(1, { calls }) { calls++ }
+
+        val meta = readMetadata(save("a.png", 40, 30, Bitmap.CompressFormat.PNG), decodeBounds)
+
+        assertEquals(Triple(40, 30, 2), Triple(meta.width, meta.height, calls))
+    }
+
+    @Test
+    fun `a header that fails to decode twice is unreadable, after two reads and no more`() {
+        var calls = 0
+        val decodeBounds = failing(2, { calls }) { calls++ }
+
+        assertThrows(UnreadableImage::class.java) { readMetadata(save("a.png", 40, 30, Bitmap.CompressFormat.PNG), decodeBounds) }
+
+        assertEquals(2, calls)
     }
 
     @Test
