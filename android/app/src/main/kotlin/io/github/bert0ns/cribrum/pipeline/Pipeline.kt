@@ -456,10 +456,10 @@ class Pipeline(
         }
     }
 
-    /** As the lab's: the same image set and model give the same text. */
-    private fun fingerprint(images: List<ImageRef>, model: String): String {
+    /** As the lab's: the same image set and inputs (embedding model, hashes) give the same text. */
+    private fun fingerprint(images: List<ImageRef>, inputs: String): String {
         val digest = Algorithm.XXH3_64().createDigest()
-        digest.update(model.toByteArray())
+        digest.update(inputs.toByteArray())
         for (image in images.sortedBy { it.path }) digest.update("${image.path}\u0000${image.size}\u0000${image.mtimeNs}\n".toByteArray())
         return digest.digest().joinToString("") { "%02x".format(it) }
     }

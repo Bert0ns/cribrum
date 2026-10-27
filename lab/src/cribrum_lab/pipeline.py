@@ -185,8 +185,8 @@ def run(
     # Embeddings change what group detectors can see: a run with them is a different run.
     model = f"{embedder.id}:{embedder.version}:{len(embeddings)}" if embedder else ""
     # A hash that failed on an earlier run is a result a group detector lacked.
-    hashes = sum(index.perceptual_hash(i.path) is not None for i in images)
-    fingerprint = _fingerprint(images, f"{model}:{hashes}")
+    hashed = index.hashed_paths()
+    fingerprint = _fingerprint(images, f"{model}:{sum(i.path in hashed for i in images)}")
     for detector in group_detectors:
         if index.group_fingerprint(detector.id, detector.version) == fingerprint:
             continue
@@ -390,8 +390,8 @@ def _metadata(index: ImageIndex) -> Callable[[ImageRef], ImageMetadata]:
     return metadata
 
 
-def _fingerprint(images: Sequence[ImageRef], model: str) -> str:
-    digest = xxhash.xxh3_64(model.encode())
+def _fingerprint(images: Sequence[ImageRef], inputs: str) -> str:
+    digest = xxhash.xxh3_64(inputs.encode())
     for image in sorted(images, key=lambda i: str(i.path)):
         digest.update(f"{image.path}\0{image.size}\0{image.mtime_ns}\n".encode())
     return digest.hexdigest()
