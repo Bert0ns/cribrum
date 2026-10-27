@@ -754,6 +754,23 @@ class PipelineTest {
     }
 
     @Test
+    fun `a sticker scanned before the rule loses its document and forwarded signals`() {
+        save("$stickerFolder/s.png", seed = 3)
+        val path = File(root, "$stickerFolder/s.png").path
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList()))
+        runBlocking {
+            index.setSignals(path, "document", 1, listOf(Signal("document", 1, Category.DOCUMENT, 0.9f)))
+            index.setSignals(path, "forwarded", 1, listOf(Signal("forwarded", 1, Category.FORWARDED, 0.9f)))
+        }
+
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        val kinds = runBlocking { index.signals(path) }.map { it.kind }.toSet()
+        assertFalse(Category.DOCUMENT in kinds || Category.FORWARDED in kinds)
+        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), kinds)
+    }
+
+    @Test
     fun `a sticker with no embedding is still in a near duplicate group, through its perceptual hash`() {
         save("$stickerFolder/s.png", seed = 3)
         File(root, "$stickerFolder/s.png").copyTo(File(root, "$stickerFolder/s-copy.png"))

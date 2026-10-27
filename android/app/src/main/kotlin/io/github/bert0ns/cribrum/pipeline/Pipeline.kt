@@ -170,7 +170,9 @@ class Pipeline(
         // The home screen lists candidates as soon as these are stored; the embeddings come after.
         analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
-        val embeddable = readable.filter { !isStickerFolder(it.path) }
+        val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
+        // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
+        index.forgetAnalyses(stickers.map { it.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
         val embeddings = if (embedder == null) {
             emptyMap()
         } else {
