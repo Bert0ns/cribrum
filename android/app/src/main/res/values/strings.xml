@@ -71,6 +71,11 @@
         <item quantity="one">%d image changed since the scan and stayed where it was</item>
         <item quantity="other">%d images changed since the scan and stayed where they were</item>
     </plurals>
+    <plurals name="stayed_in_trash_snackbar">
+        <item quantity="one">%d image stays in the trash: a file now has its name, or its folder is gone</item>
+        <item quantity="other">%d images stay in the trash: a file now has their name, or their folder is gone</item>
+    </plurals>
+    <string name="change_failed_snackbar">That did not work. Try again.</string>
     <string name="undo">Undo</string>
     <string name="trash_empty">The trash is empty.</string>
     <plurals name="trash_hint">

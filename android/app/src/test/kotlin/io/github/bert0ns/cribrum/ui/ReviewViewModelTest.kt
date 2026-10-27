@@ -37,6 +37,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.io.File
+import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -836,10 +837,127 @@ class ReviewViewModelTest {
         settle(model) { it.state.value.trashed.size == 1 }
 
         assertEquals(listOf(two), model.state.value.trashed.map { it.original })
+        assertEquals(setOf(two.path), model.state.value.selected) // what stayed in the trash stays selected
+        assertEquals(listOf(two), model.state.value.stayedInTrash)
         runBlocking {
             assertEquals(ReviewState.KEPT, app.index.reviewState(one.path))
             assertEquals(ReviewState.TRASHED, app.index.reviewState(two.path))
         }
+    }
+
+    /** A trash holding [held], whose restore refuses the paths in [occupied], like a file that took the name. */
+    private class OccupiedTrash(held: List<ImageRef>, var occupied: Set<String> = emptySet()) : Trash {
+        private val inside = held.toMutableList()
+
+        override suspend fun moveToTrash(images: List<ImageRef>) = images.also { inside += it }
+
+        override suspend fun restore(images: List<ImageRef>) = images.filter { it.path !in occupied }.also { inside.removeAll(it) }
+
+        override suspend fun trashed() = inside.map { TrashedImage(it, Instant.EPOCH, File(it.path), Instant.EPOCH) }
+
+        override suspend fun purge(images: List<ImageRef>) {
+            inside.removeAll(images)
+        }
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
+    @Test
+    fun `restoring an image whose path is taken keeps it selected and says it stayed`() {
+        val one = ImageRef("/sdcard/one.jpg", 1_000, 1L)
+        val two = ImageRef("/sdcard/two.jpg", 1_000, 1L)
+        runBlocking {
+            listOf(one, two).forEach {
+                app.index.record(it)
+                app.index.setReviewState(it.path, ReviewState.TRASHED)
+            }
+        }
+        val model = ReviewViewModel(app, Review(app.index, OccupiedTrash(listOf(one, two), occupied = setOf(two.path))))
+        model.openTrash()
+        settle(model) { it.state.value.trashed.size == 2 }
+        model.selectAll(model.state.value.trashed, true)
+        settle(model) { it.state.value.selected.size == 2 }
+
+        model.restoreSelected()
+        settle(model) { it.state.value.trashed.size == 1 }
+
+        assertEquals(listOf(two), model.state.value.stayedInTrash)
+        assertEquals(setOf(two.path), model.state.value.selected)
+
+        model.dismissStayedInTrash(listOf(two))
+        settle(model) { it.state.value.stayedInTrash.isEmpty() }
+    }
+
+    @Test
+    fun `undo of a page whose file now has another file at its path says it stayed in the trash`() {
+        twoPages(more = 0)
+        val trash = OccupiedTrash(emptyList())
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == PAGE_SIZE }
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != null }
+        val decision = model.state.value.lastDecision!!
+        val taken = decision.trashed.first()
+        trash.occupied = setOf(taken.path)
+
+        model.undo(decision)
+        settle(model) { it.state.value.lastDecision == null }
+
+        assertEquals(listOf(taken), model.state.value.stayedInTrash)
+        runBlocking {
+            assertEquals(ReviewState.TRASHED, app.index.reviewState(taken.path))
+            assertEquals(ReviewState.UNREVIEWED, app.index.reviewState(decision.trashed.last().path))
+        }
+    }
+
+    @Test
+    fun `restoring from the trash with an empty index brings the file back and does not crash`() {
+        val volume = folder.newFolder()
+        val trash = AppTrash({ listOf(volume) })
+        val image = File(volume, "a.jpg").apply { writeText("0123456789") }.toImageRef()
+        runBlocking { trash.moveToTrash(listOf(image)) } // the trash survived a reinstall, the index did not
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.openTrash()
+        settle(model) { it.state.value.trashed.size == 1 }
+        model.select(model.state.value.trashed.single())
+        settle(model) { it.state.value.selected.size == 1 }
+
+        model.restoreSelected()
+        settle(model) { it.state.value.trashed.isEmpty() }
+
+        assertTrue(File(image.path).exists())
+        assertEquals(false, model.state.value.changeFailed)
+        runBlocking { assertEquals(ReviewState.UNREVIEWED, app.index.reviewState(image.path)) }
+    }
+
+    /** A trash that cannot be read, like a volume that went away. */
+    private class BrokenTrash : Trash {
+        override suspend fun moveToTrash(images: List<ImageRef>) = images
+
+        override suspend fun restore(images: List<ImageRef>) = images
+
+        override suspend fun trashed(): List<TrashedImage> = throw IOException("volume gone")
+
+        override suspend fun purge(images: List<ImageRef>) {}
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
+    @Test
+    fun `a change that fails stops the loading, reports an error and leaves the screen as it was`() {
+        val model = ReviewViewModel(app, Review(app.index, BrokenTrash()))
+        settle(model) { true }
+
+        model.openTrash()
+        settle(model) { it.state.value.changeFailed }
+
+        assertEquals(false, model.state.value.loading)
+        assertEquals(Screen.Home, model.state.value.screen)
+
+        model.back() // later changes still run
+        model.dismissChangeFailed()
+        settle(model) { !it.state.value.changeFailed }
     }
 
     @Test

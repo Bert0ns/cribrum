@@ -239,6 +239,20 @@ private fun AppContent(
             model.dismissUndo(decision)
         }
     }
+    val stayed = state.stayedInTrash
+    val stayedMessage = if (stayed.isEmpty()) null else pluralStringResource(R.plurals.stayed_in_trash_snackbar, stayed.size, stayed.size)
+    LaunchedEffect(stayed) {
+        if (stayedMessage == null) return@LaunchedEffect
+        snackbar.showSnackbar(stayedMessage, withDismissAction = true, duration = SnackbarDuration.Long)
+        model.dismissStayedInTrash(stayed)
+    }
+    val changeFailed = state.changeFailed
+    val changeFailedMessage = stringResource(R.string.change_failed_snackbar)
+    LaunchedEffect(changeFailed) {
+        if (!changeFailed) return@LaunchedEffect
+        snackbar.showSnackbar(changeFailedMessage, withDismissAction = true, duration = SnackbarDuration.Long)
+        model.dismissChangeFailed()
+    }
     val exclusion = state.lastExclusion
     val excludedMessage = exclusion?.let { stringResource(R.string.excluded_folder_snackbar, File(it).name) }
     LaunchedEffect(exclusion) {

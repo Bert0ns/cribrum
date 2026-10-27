@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
+import io.github.bert0ns.cribrum.model.SignalIdentity
 import io.github.bert0ns.cribrum.pipeline.DETECTOR_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Candidate
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
@@ -78,8 +79,16 @@ data class Overview(val categories: List<CategorySummary>, val freeableBytes: Lo
 /** The groups shown now, and how many candidates the category has left in all, these included and the skipped ones not. */
 data class Page(val groups: List<ReviewGroup>, val remaining: Int)
 
-/** What applying a page did, so it can be undone. */
-data class Decision(val trashed: List<ImageRef>, val kept: List<ImageRef>, val failed: List<ImageRef>)
+/** What an image in [Decision.kept] had before: its review state, and the signals it was kept with. */
+data class PreviousReview(val state: ReviewState, val kept: Set<SignalIdentity>)
+
+/** What applying a page did, so it can be undone. [previous] holds what each image in [kept] had before. */
+data class Decision(
+    val trashed: List<ImageRef>,
+    val kept: List<ImageRef>,
+    val failed: List<ImageRef>,
+    val previous: Map<String, PreviousReview> = emptyMap(),
+)
 
 class Review(
     private val index: ImageIndex,
@@ -150,10 +159,12 @@ class Review(
      * its scan stays where it is and in the review: it is listed in [Decision.failed].
      */
     suspend fun apply(toTrash: List<ImageRef>, toKeep: List<ImageRef>): Decision {
+        // Read first: a row that is missing fails before any file moves.
+        val previous = toKeep.associate { it.path to PreviousReview(index.reviewState(it.path), index.keptSignals(it.path)) }
         val moved = trash.moveToTrash(toTrash)
         moved.forEach { index.setReviewState(it.path, ReviewState.TRASHED) }
         toKeep.forEach { index.setReviewState(it.path, ReviewState.KEPT) }
-        return Decision(moved, toKeep, toTrash - moved.toSet())
+        return Decision(moved, toKeep, toTrash - moved.toSet(), previous)
     }
 
     /**
@@ -170,10 +181,23 @@ class Review(
         return apply(toTrash, toKeep)
     }
 
-    /** Puts every image of a decision back as it was before: in its folder, and unreviewed. */
+    /**
+     * Puts every image of a decision back as it was before: trashed ones in their folder and unreviewed,
+     * kept ones in the state and with the kept signals they had, so a keep made for a new signal is undone
+     * for that signal too. A kept image the index no longer has is left out: the scan forgot it or changed
+     * it, and writing the old size back would reset it. Returns the images that stayed in the trash because
+     * their path is taken.
+     */
     suspend fun undo(decision: Decision): List<ImageRef> {
         val restored = trash.restore(decision.trashed)
-        (restored + decision.kept).forEach { index.setReviewState(it.path, ReviewState.UNREVIEWED) }
+        restored.forEach {
+            index.record(it)
+            index.setReviewState(it.path, ReviewState.UNREVIEWED)
+        }
+        decision.kept.forEach {
+            val before = decision.previous[it.path] ?: PreviousReview(ReviewState.UNREVIEWED, emptySet())
+            index.restoreReviewState(it.path, before.state, before.kept)
+        }
         return decision.trashed - restored.toSet()
     }
 
@@ -182,10 +206,18 @@ class Review(
     /** How many trashed images are older than [retention] at [now]: what the next scan would delete for good. */
     suspend fun expiring(retention: Duration, now: Instant = Instant.now()): Int = trash.trashed().count { it.trashedAt + retention <= now && it.seenAt + retention <= now }
 
-    /** Restoring from the trash is a decision to keep: the image is not suggested again for the same reasons. */
+    /**
+     * Restoring from the trash is a decision to keep: the image is not suggested again for the same reasons.
+     * Returns the images that came back; one whose path is taken stays in the trash. An image with no row
+     * in the index, like after a reinstall (the trash survives it, the index does not), gets one, and stays
+     * unreviewed: it has no signals yet, so there is nothing to remember it was kept with.
+     */
     suspend fun restore(images: List<ImageRef>): List<ImageRef> {
         val restored = trash.restore(images)
-        restored.forEach { index.setReviewState(it.path, ReviewState.KEPT) }
+        restored.forEach {
+            val fresh = index.record(it)
+            index.setReviewState(it.path, if (fresh) ReviewState.UNREVIEWED else ReviewState.KEPT)
+        }
         return restored
     }
 
