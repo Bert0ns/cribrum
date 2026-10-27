@@ -251,7 +251,8 @@ class Review(
                     if (role == Role.BEST) hasNonTrashedBest += group
                     continue
                 }
-                if (image.signals.any { it.kind == Category.STICKER }) {
+                // Every scanned image has a sticker score, 0 outside sticker folders: only a passing one makes a sticker.
+                if (image.signals.any { it.kind == Category.STICKER && it.score >= THRESHOLDS.getValue(Category.STICKER) }) {
                     continue
                 }
                 if (role == Role.BEST) {
