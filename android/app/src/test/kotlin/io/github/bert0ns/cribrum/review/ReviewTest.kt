@@ -458,6 +458,15 @@ class ReviewTest {
     }
 
     @Test
+    fun `group members that are not stickers stay on the page, though every scanned image has a sticker score`() = test {
+        val notSticker = Signal("sticker", 1, Category.STICKER, 0f)
+        val best = image("DCIM/Camera/best.jpg", nearDuplicate("g", Role.BEST), notSticker)
+        val copy = image("DCIM/Camera/copy.jpg", nearDuplicate("g", Role.INFERIOR), notSticker)
+
+        assertEquals(listOf(best, copy), page(Category.NEAR_DUPLICATE).groups.single().images.map { it.image })
+    }
+
+    @Test
     fun `applying trashes and keeps, and the page moves on`() = test {
         val bad = image("bad.jpg", blurry(0.9f))
         val good = image("good.jpg", blurry(0.8f))
