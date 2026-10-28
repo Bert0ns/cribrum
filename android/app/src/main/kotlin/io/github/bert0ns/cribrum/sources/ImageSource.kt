@@ -60,7 +60,7 @@ class FilesystemImageSource(
             val entries = listing.orEmpty().sortedBy { it.name }
             val (dirs, files) = entries.partition { Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
             for (file in files) {
-                if (isSkipped(root, file)) continue
+                if (hasSkippedPrefix(file)) continue // the folders were decided when they were listed
                 val image = try {
                     if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
                     val ref = file.toImageRef()
@@ -83,9 +83,11 @@ private val SKIPPED_FOLDERS = setOf("Android/data", "Android/obb", "Android/.Tra
 
 private fun isSkippedFolder(root: File, folder: File) = folder.name == TRASH_FOLDER || folder.relativeTo(root).invariantSeparatorsPath in SKIPPED_FOLDERS
 
+private fun hasSkippedPrefix(file: File) = SKIPPED_PREFIXES.any(file.name::startsWith)
+
 /** Whether the deep scan leaves [file] out: a file the system is still writing or has trashed, or one below a skipped folder of its volume [root]. */
 internal fun isSkipped(root: File, file: File): Boolean {
-    if (SKIPPED_PREFIXES.any(file.name::startsWith)) return true
+    if (hasSkippedPrefix(file)) return true
     return generateSequence(file.parentFile) { it.parentFile }.takeWhile { it != root }.any { isSkippedFolder(root, it) }
 }
 
