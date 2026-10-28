@@ -21,6 +21,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicLong
 
 /** Methods taking a path throw [NoSuchElementException] for an image that was never recorded. */
 class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
@@ -28,6 +29,15 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     internal val database: IndexDatabase get() = db
 
     private val dao = db.dao()
+
+    private val writes = AtomicLong()
+
+    /**
+     * Bumped after every write, so a reader that takes it before a read can tell whether what it read is still current.
+     * It sees every write because the app opens one index per process (CribrumApp.index), and the scan worker writes
+     * through that one too.
+     */
+    val version: Long get() = writes.get()
 
     /**
      * Adds or updates an image. Returns true if it is new or changed.
@@ -38,11 +48,11 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * edit shows up as new signals, which the ranker treats as such. A trashed row is the exception:
      * a file on disk at its path is not the one in the trash, so the row starts unreviewed.
      */
-    suspend fun record(image: ImageRef): Boolean = db.withTransaction {
+    suspend fun record(image: ImageRef): Boolean = writeTransaction {
         val stored = dao.ref(image.path)
         when {
             stored == null -> dao.insertImage(ImageRow(image.path, image.size, image.mtimeNs))
-            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return@withTransaction false
+            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return@writeTransaction false
             else -> {
                 dao.resetImage(image.path, image.size, image.mtimeNs)
                 dao.deleteAnalyses(image.path)
@@ -55,7 +65,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun images(): List<ImageRef> = dao.images().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
     /** Removes images from the index, with everything stored about them. Files are untouched. */
-    suspend fun forget(paths: Collection<String>) = db.withTransaction {
+    suspend fun forget(paths: Collection<String>) = writeTransaction {
         paths.chunked(SQL_VARIABLES).forEach { dao.forget(it) }
     }
 
@@ -63,7 +73,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * [forget] for the trash's purge: only rows still TRASHED go. A new file at the path of a purged image has a row
      * of its own, with a state the user chose, and it stays.
      */
-    suspend fun forgetTrashed(paths: Collection<String>) = db.withTransaction {
+    suspend fun forgetTrashed(paths: Collection<String>) = writeTransaction {
         paths.chunked(SQL_VARIABLES).forEach { dao.forgetTrashed(it) }
     }
 
@@ -71,22 +81,24 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun withoutMetadata(): List<ImageRef> = dao.withoutMetadata().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
     /** Marks an image whose header can't be decoded, so it isn't retried until it changes. */
-    suspend fun setUnreadable(path: String) = require(dao.setUnreadable(path), path)
+    suspend fun setUnreadable(path: String) = write { require(dao.setUnreadable(path), path) }
 
     suspend fun unreadable(): List<String> = dao.unreadable()
 
-    suspend fun setMetadata(path: String, metadata: ImageMetadata) = require(
-        dao.setMetadata(
+    suspend fun setMetadata(path: String, metadata: ImageMetadata) = write {
+        require(
+            dao.setMetadata(
+                path,
+                metadata.width,
+                metadata.height,
+                metadata.mime,
+                metadata.cameraMake,
+                metadata.cameraModel,
+                metadata.capturedAt?.format(ISO_SECONDS),
+            ),
             path,
-            metadata.width,
-            metadata.height,
-            metadata.mime,
-            metadata.cameraMake,
-            metadata.cameraModel,
-            metadata.capturedAt?.format(ISO_SECONDS),
-        ),
-        path,
-    )
+        )
+    }
 
     suspend fun metadata(path: String): ImageMetadata? = dao.metadata(path)?.let {
         ImageMetadata(
@@ -99,7 +111,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         )
     }
 
-    suspend fun setContentHash(path: String, digest: String) = require(dao.setContentHash(path, digest), path)
+    suspend fun setContentHash(path: String, digest: String) = write { require(dao.setContentHash(path, digest), path) }
 
     suspend fun contentHash(path: String): String? {
         requireRecorded(path)
@@ -107,7 +119,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     /** Stored as hex text: SQLite integers are signed and a hash may use all 64 bits. */
-    suspend fun setPerceptualHash(path: String, hash: ULong) = require(dao.setPerceptualHash(path, hash.toString(16).padStart(16, '0')), path)
+    suspend fun setPerceptualHash(path: String, hash: ULong) = write { require(dao.setPerceptualHash(path, hash.toString(16).padStart(16, '0')), path) }
 
     suspend fun perceptualHash(path: String): ULong? {
         requireRecorded(path)
@@ -125,7 +137,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * VACUUM, which can't run inside a transaction or while another statement is running: call
      * it when no scan is.
      */
-    suspend fun deleteEmbeddings() {
+    suspend fun deleteEmbeddings() = write {
         dao.deleteAllEmbeddings()
         withContext(Dispatchers.IO) { db.openHelper.writableDatabase.execSQL("VACUUM") }
     }
@@ -149,11 +161,11 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     /** Drops what these detectors stored for these images, signals included, so a run analyzes them again. */
-    suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = db.withTransaction {
+    suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = writeTransaction {
         paths.chunked(SQL_VARIABLES).forEach { dao.forgetAnalyses(it, detectorIds.toList()) }
     }
 
-    suspend fun setEmbeddings(model: String, modelVersion: Int, vectors: Map<String, FloatArray>) = db.withTransaction {
+    suspend fun setEmbeddings(model: String, modelVersion: Int, vectors: Map<String, FloatArray>) = writeTransaction {
         for ((path, vector) in vectors) {
             requireRecorded(path)
             val bytes = ByteBuffer.allocate(4 * vector.size).order(ByteOrder.LITTLE_ENDIAN)
@@ -179,7 +191,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun setSignals(path: String, detectorId: String, detectorVersion: Int, signals: List<Signal>) = setSignalsOfMany(detectorId, detectorVersion, mapOf(path to signals))
 
     /** [setSignals] for many images in one transaction, as group detectors need. */
-    suspend fun setSignalsOfMany(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>) = db.withTransaction {
+    suspend fun setSignalsOfMany(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>) = writeTransaction {
         for ((path, imageSignals) in signals) {
             requireRecorded(path)
             dao.deleteAnalysis(path, detectorId)
@@ -206,7 +218,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
 
     suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? = dao.groupFingerprint(detectorId, detectorVersion)
 
-    suspend fun setGroupFingerprint(detectorId: String, detectorVersion: Int, fingerprint: String) = dao.putGroupRun(GroupRunRow(detectorId, detectorVersion, fingerprint))
+    suspend fun setGroupFingerprint(detectorId: String, detectorVersion: Int, fingerprint: String) = write { dao.putGroupRun(GroupRunRow(detectorId, detectorVersion, fingerprint)) }
 
     suspend fun isAnalyzed(path: String, detectorId: String, detectorVersion: Int): Boolean = dao.analyses(path, detectorId, detectorVersion) > 0
 
@@ -216,7 +228,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * Keeping an image also records the signals it has now: only a different one brings it back
      * among the candidates (docs/design.md §6.3).
      */
-    suspend fun setReviewState(path: String, state: ReviewState) = db.withTransaction {
+    suspend fun setReviewState(path: String, state: ReviewState) = writeTransaction {
         require(dao.setReviewState(path, state.value), path)
         dao.deleteKeptSignals(path)
         dao.deleteKeptDetectors(path)
@@ -238,8 +250,8 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * Puts back a state and the kept signals that went with it, as [setReviewState] cannot: it records the
      * signals the image has now. Returns false, and writes nothing, for an image that has no row.
      */
-    suspend fun restoreReviewState(path: String, state: ReviewState, kept: Set<SignalIdentity>, detectors: Set<String>): Boolean = db.withTransaction {
-        if (dao.setReviewState(path, state.value) == 0) return@withTransaction false
+    suspend fun restoreReviewState(path: String, state: ReviewState, kept: Set<SignalIdentity>, detectors: Set<String>): Boolean = writeTransaction {
+        if (dao.setReviewState(path, state.value) == 0) return@writeTransaction false
         dao.deleteKeptSignals(path)
         dao.insertKeptSignals(kept.map { KeptSignalRow(path, it.kind.value, it.group, it.role) })
         dao.deleteKeptDetectors(path)
@@ -255,9 +267,9 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     suspend fun excludedFolders(): List<String> = dao.excludedFolders()
 
     /** Stored without a trailing separator, which [isExcluded][io.github.bert0ns.cribrum.folders.isExcluded] relies on. */
-    suspend fun excludeFolder(path: String) = dao.insertExcludedFolder(ExcludedFolderRow(File(path).path))
+    suspend fun excludeFolder(path: String) = write { dao.insertExcludedFolder(ExcludedFolderRow(File(path).path)) }
 
-    suspend fun removeExcludedFolder(path: String) = dao.deleteExcludedFolder(path)
+    suspend fun removeExcludedFolder(path: String) = write { dao.deleteExcludedFolder(path) }
 
     /** Every indexed image not in the trash, with its path, size, and mtime. */
     suspend fun notTrashed(): List<ImageRef> = dao.notTrashed().map { ImageRef(it.path, it.size, it.mtimeNs) }
@@ -284,6 +296,15 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     override fun close() = db.close()
+
+    /** Bumps the version after the block, even one that throws: a read that starts after the bump finds the write committed. */
+    private suspend fun <T> write(block: suspend () -> T): T = try {
+        block()
+    } finally {
+        writes.incrementAndGet()
+    }
+
+    private suspend fun <T> writeTransaction(block: suspend () -> T): T = write { db.withTransaction(block) }
 
     private suspend fun requireRecorded(path: String) = require(dao.count(path), path)
 

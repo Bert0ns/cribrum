@@ -23,6 +23,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.lang.reflect.Modifier
 import java.time.LocalDateTime
 
 private val PHOTO = ImageRef("/photos/a.jpg", 100, 1)
@@ -501,5 +502,68 @@ class ImageIndexTest {
         excludeFolder("/photos/a")
 
         assertEquals(listOf("/photos/a"), excludedFolders())
+    }
+
+    /** Every public write of the index, each run once on an index holding [PHOTO] with [BLUR]. */
+    private val writes: Map<String, suspend ImageIndex.() -> Unit> = mapOf(
+        "record" to { record(OTHER) },
+        "forget" to { forget(listOf(PHOTO.path)) },
+        "forgetTrashed" to { forgetTrashed(listOf(PHOTO.path)) },
+        "setUnreadable" to { setUnreadable(PHOTO.path) },
+        "setMetadata" to { setMetadata(PHOTO.path, META) },
+        "setContentHash" to { setContentHash(PHOTO.path, "abc") },
+        "setPerceptualHash" to { setPerceptualHash(PHOTO.path, 1uL) },
+        "deleteEmbeddings" to { deleteEmbeddings() },
+        "forgetAnalyses" to { forgetAnalyses(listOf(PHOTO.path), listOf("blur")) },
+        "setEmbeddings" to { setEmbeddings("clip", 1, mapOf(PHOTO.path to floatArrayOf(1f))) },
+        "setSignals" to { setSignals(PHOTO.path, "blur", 1, emptyList()) },
+        "setSignalsOfMany" to { setSignalsOfMany("blur", 1, mapOf(PHOTO.path to emptyList())) },
+        "setGroupFingerprint" to { setGroupFingerprint("exact_duplicate", 1, "abc") },
+        "setReviewState" to { setReviewState(PHOTO.path, ReviewState.KEPT) },
+        "restoreReviewState" to { restoreReviewState(PHOTO.path, ReviewState.KEPT, emptySet(), emptySet()) },
+        "excludeFolder" to { excludeFolder("/photos") },
+        "removeExcludedFolder" to { removeExcludedFolder("/photos") },
+    )
+
+    private val reads = setOf(
+        "images", "withoutMetadata", "unreadable", "metadata", "contentHash", "perceptualHash", "hashedPaths",
+        "reviewStates", "embeddingCount", "imageCount", "embeddingBytes", "fileBytes", "embeddings", "analyzedPaths",
+        "embeddedPaths", "readableNotTrashed", "groupFingerprint", "isAnalyzed", "signals", "keptSignals",
+        "keptDetectors", "reviewState", "excludedFolders", "notTrashed", "capturedAt", "indexedImages",
+        "getVersion", "close",
+    )
+
+    @Test
+    fun `every public method is known as a read or a write`() {
+        val methods = ImageIndex::class.java.declaredMethods
+            .filter { Modifier.isPublic(it.modifiers) && !it.isSynthetic && '$' !in it.name }
+            .map { it.name.substringBefore('-') } // Kotlin mangles names that take inline classes like ULong
+            .toSet()
+        // A new write must bump the version, or the review shows a stale ranking: add it to [writes].
+        assertEquals(writes.keys + reads, methods)
+    }
+
+    @Test
+    fun `every write bumps the version`() {
+        for ((name, write) in writes) {
+            memoryIndex().use { index ->
+                runBlocking {
+                    index.record(PHOTO)
+                    index.setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+                    val before = index.version
+                    index.write()
+                    assertTrue(name, index.version > before)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `reads leave the version alone`() = test {
+        record(PHOTO)
+        val before = version
+        indexedImages()
+        excludedFolders()
+        assertEquals(before, version)
     }
 }
