@@ -31,6 +31,17 @@ Enable USB debugging on the phone (see the [lab README](../lab/README.md#data); 
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Benchmark build
+
+A debug build runs the Kotlin image preprocessing about three times slower than a release one (`docs/design.md` §5), so measure on this one. It is the release build, not debuggable, with `profileable` in its manifest so the shell can profile it, and signed with the debug key, so it needs no release keystore:
+
+```bash
+./gradlew assembleBenchmark
+adb install -r app/build/outputs/apk/benchmark/app-benchmark.apk
+```
+
+It keeps the debug build's application id and signature, so it installs over a debug build and keeps its index. A release build has another signature: uninstall it first, which drops its index. CI does not build it.
+
 ## Release
 
 Releases are manual: on GitHub, Actions → release → Run workflow, on `main`, with the version as `MAJOR.MINOR.PATCH`. The workflow refuses a version that is not above the latest release, runs the unit tests and lint, and publishes `cribrum-X.Y.Z.apk` and its SHA-256 as the release `vX.Y.Z`. Install it with `adb install -r`, or open it on the phone.
