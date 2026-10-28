@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from cribrum_lab.model import ImageRef
 from cribrum_lab.sources import FilesystemImageSource
 
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
@@ -131,6 +132,45 @@ def test_skips_everything_below_the_recycle_bin(tmp_path):
     write(tmp_path / "Android/c.jpg", JPEG)
 
     assert scanned_paths(tmp_path) == {Path("Android/c.jpg")}
+
+
+def ref_of(path: Path) -> ImageRef:
+    info = path.stat()
+    return ImageRef(path, info.st_size, info.st_mtime_ns)
+
+
+def test_takes_a_file_the_index_has_with_the_same_size_and_mtime_as_an_image(tmp_path):
+    fake = write(tmp_path / "fake.jpg", b"not an image")  # the head would say no
+
+    found = {ref.path for ref in FilesystemImageSource(tmp_path, lambda: [ref_of(fake)]).scan()}
+
+    assert found == {fake}
+
+
+def test_sniffs_a_known_file_again_when_its_size_or_mtime_changed(tmp_path):
+    sized = write(tmp_path / "sized.jpg", b"not an image")
+    touched = write(tmp_path / "touched.jpg", b"not an image")
+    edited = write(tmp_path / "edited.jpg", JPEG)
+    before = [ref_of(p) for p in (sized, touched, edited)]
+
+    sized.write_bytes(b"not an image!")
+    os.utime(touched, ns=(1, touched.stat().st_mtime_ns + 5_000_000_000))
+    edited.write_bytes(JPEG + b"\x00")
+
+    found = {ref.path for ref in FilesystemImageSource(tmp_path, lambda: before).scan()}
+
+    assert found == {edited}
+
+
+def test_reads_the_known_files_once_per_scan_not_once_per_file(tmp_path):
+    for name in ["a.jpg", "b.jpg", "c.jpg"]:
+        write(tmp_path / name, JPEG)
+    reads = []
+    source = FilesystemImageSource(tmp_path, lambda: reads.append(1) or [])
+
+    list(source.scan())
+
+    assert len(reads) == 1
 
 
 def test_reports_its_root_as_walked_once_the_whole_tree_is_listed(tmp_path):

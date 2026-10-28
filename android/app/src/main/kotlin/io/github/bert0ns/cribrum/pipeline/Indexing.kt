@@ -139,10 +139,10 @@ object Indexing {
         }
     }
 
-    /** Every storage volume walked in full, then what MediaStore knows on top. */
-    fun deviceSource(context: Context): ImageSource {
+    /** Every storage volume walked in full, then what MediaStore knows on top. [indexed] is what the index already has. */
+    fun deviceSource(context: Context, indexed: suspend () -> Collection<ImageRef>): ImageSource {
         val volumes = context.getSystemService(StorageManager::class.java).storageVolumes.mapNotNull { it.directory }
-        return MergedImageSource(volumes.map(::FilesystemImageSource) + MediaStoreImageSource(context.contentResolver, volumes))
+        return MergedImageSource(volumes.map { FilesystemImageSource(it, indexed) } + MediaStoreImageSource(context.contentResolver, volumes))
     }
 }
 
@@ -206,7 +206,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             // The model loads when the first batch needs it, and the session is closed when the scan ends.
             MobileClip(::loadVision).use { embedder ->
                 app.lastScan.run {
-                    val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext), ::report)
+                    val stats = pipeline(app, embedder).run(Indexing.deviceSource(applicationContext, app.index::images), ::report)
                     stats.failures.addAll(trashFailures)
                     stats
                 }

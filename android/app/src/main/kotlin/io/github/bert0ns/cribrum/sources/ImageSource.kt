@@ -30,13 +30,19 @@ interface ImageSource {
  *
  * Hidden folders and folders with a `.nomedia` file are included: that is where messaging apps
  * keep media the gallery never shows. Files are recognized by their content, not their
- * extension. Symlinks are skipped so no file is yielded twice, and so are FIFOs and other special
- * files, which would block or fail on read. Left out on purpose: the app trash, files in the
- * system trash or still being written (`.trashed-*`, `.pending-*`), `Android/.Trash`, which is
- * Samsung Gallery's recycle bin, and `Android/data` and `Android/obb`, which Android 11 and newer
- * keep from every app.
+ * extension, except a file that [indexed] has with the same path, size and mtime: the index
+ * took it as an image, from this walk or from MediaStore, so its head is not read again.
+ * Symlinks are skipped so no file is yielded twice, and so are FIFOs and other special files,
+ * which would block or fail on read. Left out on purpose: the app trash, files in the system
+ * trash or still being written (`.trashed-*`, `.pending-*`), `Android/.Trash`, which is
+ * Samsung Gallery's recycle bin, and `Android/data` and `Android/obb`, which Android 11 and
+ * newer keep from every app.
  */
-class FilesystemImageSource(private val root: File) : ImageSource {
+class FilesystemImageSource(
+    private val root: File,
+    /** Read once per scan, before the walk. */
+    private val indexed: suspend () -> Collection<ImageRef> = { emptyList() },
+) : ImageSource {
     /** The root once the walk listed every folder; a folder that cannot be listed, or a missing root, leaves it out. */
     @Volatile // written on the IO thread of the flow, read by the collector
     override var walkedRoots: List<File> = emptyList()
@@ -45,6 +51,7 @@ class FilesystemImageSource(private val root: File) : ImageSource {
     override fun scan(): Flow<ImageRef> = flow {
         walkedRoots = emptyList()
         var listedAll = true
+        val known = indexed().toHashSet()
         val folders = ArrayDeque(listOf(root))
         while (folders.isNotEmpty()) {
             val folder = folders.removeFirst()
@@ -55,8 +62,10 @@ class FilesystemImageSource(private val root: File) : ImageSource {
             for (file in files) {
                 if (isSkipped(root, file)) continue
                 val image = try {
-                    if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS) || !isImage(file)) continue
-                    file.toImageRef()
+                    if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
+                    val ref = file.toImageRef()
+                    if (ref !in known && !isImage(file)) continue
+                    ref
                 } catch (_: IOException) {
                     continue // unreadable or vanished during the scan
                 }

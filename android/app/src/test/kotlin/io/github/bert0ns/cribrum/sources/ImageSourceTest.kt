@@ -181,6 +181,43 @@ class ImageSourceTest {
         assertEquals(listOf("DCIM/Android/.Trash/b.jpg"), scanned())
     }
 
+    private fun scannedKnowing(vararg known: ImageRef): List<String> = runBlocking { FilesystemImageSource(root) { known.toList() }.scan().toList() }.map { File(it.path).relativeTo(root).path }
+
+    @Test
+    fun `takes a file the index has with the same size and mtime as an image without reading it`() {
+        val fake = write("fake.jpg", ascii("not an image")) // the head would say no
+
+        assertEquals(listOf("fake.jpg"), scannedKnowing(fake.toImageRef()))
+    }
+
+    @Test
+    fun `sniffs a known file again when its size or mtime changed`() {
+        val sized = write("sized.jpg", ascii("not an image"))
+        val touched = write("touched.jpg", ascii("not an image"))
+        val edited = write("edited.jpg", JPEG)
+        val before = listOf(sized, touched, edited).map { it.toImageRef() }
+
+        sized.appendText("!")
+        touched.setLastModified(touched.lastModified() + 5_000)
+        edited.appendBytes(ZEROS)
+
+        assertEquals(listOf("edited.jpg"), scannedKnowing(*before.toTypedArray()))
+    }
+
+    @Test
+    fun `reads the known files once per scan, not once per file`() {
+        listOf("a.jpg", "b.jpg", "c.jpg").forEach { write(it, JPEG) }
+        var reads = 0
+        val source = FilesystemImageSource(root) {
+            reads++
+            emptyList()
+        }
+
+        runBlocking { source.scan().toList() }
+
+        assertEquals(1, reads)
+    }
+
     @Test
     fun `reports its root as walked once the whole tree is listed`() {
         write("a/b.jpg", JPEG)
