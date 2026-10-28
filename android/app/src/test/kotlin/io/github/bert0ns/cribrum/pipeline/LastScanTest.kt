@@ -56,7 +56,11 @@ class LastScanTest {
     @Test
     fun `a finished scan keeps how long it took in total and per phase`() {
         val elapsed = ArrayDeque(listOf(5_000L, 65_500L))
-        val stats = Stats(images = 12).apply { phaseMs += linkedMapOf("walk" to 40_000L, "metadata" to 1_500L) }
+        val stats = Stats(images = 12, newOrChanged = 2).apply {
+            phaseMs += linkedMapOf("walk" to 40_000L, "metadata" to 1_500L)
+            ranGroupDetectors += "exact_duplicate"
+            skippedGroupDetectors += listOf("near_duplicate", "burst")
+        }
 
         runBlocking { LastScan(preferences).run(now = { 1 }, elapsed = elapsed::removeFirst) { stats } }
 
@@ -64,7 +68,15 @@ class LastScanTest {
         assertEquals(60_500L, report.durationMs)
         assertEquals(mapOf("walk" to 40_000L, "metadata" to 1_500L), report.phaseMs)
         assertEquals(listOf("walk", "metadata"), report.phaseMs.keys.toList())
-        assertEquals(listOf("images 12", "walk 40000 ms", "metadata 1500 ms", "total 60500 ms"), ShadowLog.getLogsForTag(LastScan.TIME_TAG).map { it.msg })
+        val log = listOf(
+            "images 12",
+            "new or changed 2",
+            "walk 40000 ms",
+            "metadata 1500 ms",
+            "group detectors ran: exact_duplicate; skipped: near_duplicate, burst",
+            "total 60500 ms",
+        )
+        assertEquals(log, ShadowLog.getLogsForTag(LastScan.TIME_TAG).map { it.msg })
     }
 
     @Test
