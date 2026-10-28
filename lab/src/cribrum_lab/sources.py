@@ -1,7 +1,7 @@
 """Image sources: where images come from. Mirrors docs/design.md, sections 4 and 7."""
 
 import stat
-from collections.abc import Iterator
+from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Protocol
 
@@ -34,17 +34,20 @@ class FilesystemImageSource:
 
     Hidden folders and folders with a `.nomedia` file are included: that is where
     messaging apps keep media the gallery never shows. Files are recognized by their
-    content, not their extension. Symlinks are skipped so no file is yielded twice, and
-    so are FIFOs and other special files, which would block or fail on read. Left out on
-    purpose: files in the system trash or still being written (`.trashed-*`,
+    content, not their extension, except a file that `indexed` returns with the same path,
+    size and mtime: the index took it as an image, so its head is not read again. `indexed`
+    is called once per `scan`, before the walk. Symlinks are skipped so no file is yielded
+    twice, and so are FIFOs and other special files, which would block or fail on read. Left
+    out on purpose: files in the system trash or still being written (`.trashed-*`,
     `.pending-*`), and `Android/.Trash` at the root, which is Samsung Gallery's recycle bin.
     """
 
     SKIPPED_PREFIXES = (".trashed-", ".pending-")
     SKIPPED_FOLDERS = (Path("Android/.Trash"),)
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, indexed: Callable[[], Iterable[ImageRef]] = list) -> None:
         self.root = root
+        self._indexed = indexed
         self.walked_roots: list[Path] = []
         """The root once the walk listed every folder; a folder that cannot be listed, or a
         missing root, leaves it out."""
@@ -52,6 +55,7 @@ class FilesystemImageSource:
     def scan(self) -> Iterator[ImageRef]:
         self.walked_roots = []
         listed_all = True
+        known = set(self._indexed())
 
         def on_error(_: OSError) -> None:
             nonlocal listed_all
@@ -67,11 +71,14 @@ class FilesystemImageSource:
                 path = folder / name
                 try:
                     info = path.lstat()
-                    if not stat.S_ISREG(info.st_mode) or not _is_image(path):
+                    if not stat.S_ISREG(info.st_mode):
+                        continue
+                    image = ImageRef(path, info.st_size, info.st_mtime_ns)
+                    if image not in known and not _is_image(path):
                         continue
                 except OSError:
                     continue  # unreadable or vanished during the scan
-                yield ImageRef(path, info.st_size, info.st_mtime_ns)
+                yield image
         if listed_all:
             self.walked_roots = [self.root]
 

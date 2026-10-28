@@ -106,7 +106,7 @@ def run(
     stats = Stats()
 
     found = set()
-    source = FilesystemImageSource(root)
+    source = FilesystemImageSource(root, index.images)
     for image in source.scan():
         found.add(image.path)
         stats.new_or_changed += index.record(image)
