@@ -71,7 +71,8 @@ CREATE TABLE IF NOT EXISTS embeddings (
     vector BLOB NOT NULL,  -- float32, little-endian
     PRIMARY KEY (path, model)
 );
--- The image set a group detector version last ran on, so unchanged sets are skipped.
+-- The image set a group detector version last ran on, so unchanged sets are skipped, with the
+-- paths whose content hash failed in that run.
 CREATE TABLE IF NOT EXISTS group_runs (
     detector_id TEXT PRIMARY KEY,
     detector_version INTEGER NOT NULL,
@@ -338,20 +339,39 @@ class ImageIndex:
         return bool(found)
 
     def group_fingerprint(self, detector_id: str, detector_version: int) -> str | None:
+        run = self._group_run(detector_id, detector_version)
+        return run[0] if run else None
+
+    def group_hash_failed(self, detector_id: str, detector_version: int) -> list[str]:
+        """The paths whose content hash failed in the run that stored the fingerprint."""
+        return self._group_run(detector_id, detector_version)[1:]
+
+    def set_group_fingerprint(
+        self,
+        detector_id: str,
+        detector_version: int,
+        fingerprint: str,
+        hash_failed: Iterable[str] = (),
+    ) -> None:
+        """The paths go in the fingerprint's column, as a JSON array with it, so the schema
+        stays as it is."""
+        failed = list(hash_failed)
+        stored = json.dumps([fingerprint, *failed]) if failed else fingerprint
+        with self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO group_runs VALUES (?, ?, ?)",
+                (detector_id, detector_version, stored),
+            )
+
+    def _group_run(self, detector_id: str, detector_version: int) -> list[str]:
         row = self._db.execute(
             "SELECT fingerprint FROM group_runs WHERE detector_id = ? AND detector_version = ?",
             (detector_id, detector_version),
         ).fetchone()
-        return row[0] if row else None
-
-    def set_group_fingerprint(
-        self, detector_id: str, detector_version: int, fingerprint: str
-    ) -> None:
-        with self._db:
-            self._db.execute(
-                "INSERT OR REPLACE INTO group_runs VALUES (?, ?, ?)",
-                (detector_id, detector_version, fingerprint),
-            )
+        if row is None:
+            return []
+        # A fingerprint is hex, so a value that starts with "[" is the array written above.
+        return json.loads(row[0]) if row[0].startswith("[") else [row[0]]
 
     def is_analyzed(self, path: Path, detector_id: str, detector_version: int) -> bool:
         row = self._db.execute(

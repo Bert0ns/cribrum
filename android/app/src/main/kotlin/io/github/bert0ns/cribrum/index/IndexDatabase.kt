@@ -106,7 +106,7 @@ class EmbeddingRow(
     val vector: ByteArray,
 )
 
-/** The image set a group detector version last ran on, so unchanged sets are skipped. */
+/** The image set a group detector version last ran on, so unchanged sets are skipped, with the paths whose content hash failed in that run. */
 @Entity(tableName = "group_runs")
 data class GroupRunRow(
     @PrimaryKey @ColumnInfo(name = "detector_id") val detectorId: String,

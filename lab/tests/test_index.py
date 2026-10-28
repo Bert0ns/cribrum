@@ -309,6 +309,25 @@ def test_group_fingerprint_is_per_detector_version(index):
     assert index.group_fingerprint("exact_duplicate", 2) is None
 
 
+def test_a_group_fingerprint_keeps_the_paths_whose_content_hash_failed(index):
+    assert index.group_hash_failed("exact_duplicate", 1) == []
+
+    index.set_group_fingerprint(
+        "exact_duplicate", 1, "abc", ["/photos/a [1].jpg", '/photos/b"\n.jpg']
+    )
+
+    assert index.group_fingerprint("exact_duplicate", 1) == "abc"
+    assert index.group_hash_failed("exact_duplicate", 1) == [
+        "/photos/a [1].jpg",
+        '/photos/b"\n.jpg',
+    ]
+
+    index.set_group_fingerprint("exact_duplicate", 1, "def")
+
+    assert index.group_fingerprint("exact_duplicate", 1) == "def"
+    assert index.group_hash_failed("exact_duplicate", 1) == []
+
+
 def test_index_from_another_schema_version_is_refused(tmp_path):
     db = tmp_path / "index.sqlite"
     ImageIndex(db).close()

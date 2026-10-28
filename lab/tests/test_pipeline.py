@@ -108,6 +108,29 @@ def test_a_content_hash_that_failed_once_and_works_now_gets_its_image_grouped_ag
     assert Category.EXACT_DUPLICATE in categories(index, copy)
 
 
+def test_a_content_hash_that_fails_on_every_scan_runs_the_exact_detector_once_until_it_reads(
+    photos, index, monkeypatch
+):
+    copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
+    real = pipeline.hashing.content_hash
+
+    def failing(image):
+        if image.path == copy:
+            raise OSError("busy")
+        return real(image)
+
+    monkeypatch.setattr(pipeline.hashing, "content_hash", failing)
+    pipeline.run(photos, index)
+
+    assert pipeline.run(photos, index).detector_runs == 0
+
+    monkeypatch.setattr(pipeline.hashing, "content_hash", real)
+
+    assert pipeline.run(photos, index).detector_runs == 1  # the exact detector only
+    assert Category.EXACT_DUPLICATE in categories(index, copy)
+    assert pipeline.run(photos, index).detector_runs == 0
+
+
 def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index):
     pipeline.run(photos, index)
     changed = save(photos / "DCIM/Camera/a.png", seed=2)
