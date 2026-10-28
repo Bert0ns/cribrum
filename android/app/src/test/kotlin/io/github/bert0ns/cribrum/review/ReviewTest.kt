@@ -855,4 +855,78 @@ class ReviewTest {
         assertEquals(review.counts(), spying.counts(THRESHOLDS))
         assertTrue(readOn.isNotEmpty() && caller !in readOn)
     }
+
+    /** Writes behind the index's back, so its version stays: a review that reads the index again sees it, a cached one does not. */
+    private suspend fun trashUnseen(image: ImageRef) = index.database.dao().setReviewState(image.path, ReviewState.TRASHED.value)
+
+    @Test
+    fun `two reads with no write in between read the index once`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        val before = overview()
+
+        trashUnseen(a)
+
+        assertEquals(before, overview())
+        index.excludeFolder("/elsewhere")
+        assertEquals(0, overview().categories.single { it.category == Category.BLURRY }.count)
+    }
+
+    @Test
+    fun `opening a category after the home reuses the ranking the home computed`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        overview()
+
+        trashUnseen(a)
+
+        assertEquals(listOf(a), shown(page(Category.BLURRY)))
+    }
+
+    @Test
+    fun `a threshold change ranks again without reading the index`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        image("b.jpg", blurry(0.5f))
+        overview()
+        thresholds = THRESHOLDS + (Category.BLURRY to 0.4f)
+        val fresh = Review(index, AppTrash({ listOf(volume) }), thresholds = { thresholds })
+        val expected = fresh.counts()
+
+        trashUnseen(a)
+
+        assertEquals(expected, counts())
+        assertEquals(2, expected.getValue(Category.BLURRY))
+    }
+
+    @Test
+    fun `a cached review gives what a fresh one gives after every kind of write`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        val b = image("DCIM/b.jpg", duplicate("g", Role.BEST))
+        val c = image("DCIM/c.jpg", duplicate("g", Role.INFERIOR))
+        val d = image("other/d.jpg", nearDuplicate("n", Role.BEST))
+        val e = image("other/e.jpg", nearDuplicate("n", Role.INFERIOR), blurry(0.3f))
+        val writes: List<suspend () -> Unit> = listOf(
+            { image("f.jpg", blurry(0.95f)) },
+            { index.setSignals(a.path, "blur", 1, listOf(blurry(0.2f))) },
+            { apply(listOf(c), listOf(e)) },
+            { undo(apply(listOf(a), listOf(b))) },
+            { restore(listOf(c)) },
+            { thresholds = THRESHOLDS + (Category.BLURRY to 0.25f) },
+            { excludeFolderOf(d) },
+            { removeExcludedFolder(File(d.path).parent!!) },
+            { index.setReviewState(e.path, ReviewState.UNREVIEWED) },
+            { index.forgetAnalyses(listOf(e.path), listOf("near_duplicate")) },
+            { index.record(File(a.path).apply { appendText(" edited") }.toImageRef()) },
+            { index.forget(listOf(b.path)) },
+            { thresholds = THRESHOLDS },
+        )
+        for (write in writes) {
+            write()
+            val fresh = Review(index, AppTrash({ listOf(volume) }), thresholds = { thresholds })
+            assertEquals(fresh.overview(), overview())
+            assertEquals(fresh.counts(THRESHOLDS), counts(THRESHOLDS))
+            for (category in Category.entries) {
+                assertEquals(fresh.page(category), page(category))
+            }
+            assertEquals(fresh.counts(), counts())
+        }
+    }
 }

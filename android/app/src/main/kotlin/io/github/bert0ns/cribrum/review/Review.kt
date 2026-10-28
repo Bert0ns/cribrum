@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.lang.ref.SoftReference
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
@@ -93,6 +94,15 @@ data class Decision(
     val previous: Map<String, PreviousReview> = emptyMap(),
 )
 
+/** One ranking and the index it came from, valid while the index is at [version]. */
+private class Ranking(
+    val version: Long,
+    val images: List<IndexedImage>,
+    val excluded: List<String>,
+    val thresholds: Map<Category, Float>,
+    val byCategory: Map<Category, List<Candidate>>,
+)
+
 class Review(
     private val index: ImageIndex,
     private val trash: Trash,
@@ -103,13 +113,21 @@ class Review(
     private val firstDayOfWeek: () -> DayOfWeek = { WeekFields.of(Locale.getDefault()).firstDayOfWeek },
 ) {
     /**
+     * The last ranking, reused until the index or the thresholds change, so the home and a category opened from it
+     * read and rank the index once. Only one is kept, about 23 MB with 10,000 images on the JVM, and soft: the system
+     * can take it back when memory runs short, and the next call reads the index again.
+     */
+    @Volatile
+    private var last = SoftReference<Ranking>(null)
+
+    /**
      * Every category in fixed order, with its candidate count and size, and whether it has a detector,
      * and the union of all the candidates by path. The figures of two categories overlap, so they are
      * not added. One ranking serves both, so the home screen reads the index once.
      */
     suspend fun overview(): Overview = withContext(Dispatchers.Default) {
         traceSuspend("Review.overview") {
-            val byCategory = byCategory(thresholds())
+            val byCategory = ranking(thresholds()).byCategory
             val categories = Category.entries.map { category ->
                 val candidates = byCategory[category].orEmpty()
                 CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
@@ -122,7 +140,7 @@ class Review(
     /** How many candidates each category would list at [thresholds], which are the ones in use by default. */
     suspend fun counts(thresholds: Map<Category, Float> = this.thresholds()): Map<Category, Int> = withContext(Dispatchers.Default) {
         traceSuspend("Review.counts") {
-            val byCategory = byCategory(thresholds)
+            val byCategory = ranking(thresholds).byCategory
             Category.entries.associateWith { byCategory[it]?.size ?: 0 }
         }
     }
@@ -130,7 +148,18 @@ class Review(
     // Traced here and not in Ranker, whose tests run on the plain JVM, where android.os.Trace is not there.
     private fun rank(thresholds: Map<Category, Float>, images: List<IndexedImage>, excluded: Collection<String>) = trace("Ranker.rank") { Ranker(thresholds).rank(images, excluded) }
 
-    private suspend fun byCategory(thresholds: Map<Category, Float>) = Ranker.byCategory(rank(thresholds, index.indexedImages(), index.excludedFolders()))
+    /**
+     * The version is read before the index, so a read that a write overtakes is kept under the version before the
+     * write and not used after it. Excluded folders are writes to the index too, so the version covers them.
+     */
+    private suspend fun ranking(thresholds: Map<Category, Float>): Ranking {
+        val version = index.version
+        val cached = last.get()?.takeIf { it.version == version }
+        if (cached != null && cached.thresholds == thresholds) return cached
+        val images = cached?.images ?: index.indexedImages()
+        val excluded = cached?.excluded ?: index.excludedFolders()
+        return Ranking(version, images, excluded, thresholds, Ranker.byCategory(rank(thresholds, images, excluded))).also { last = SoftReference(it) }
+    }
 
     /**
      * The first page of a category: groups in the ranker's order, never split across pages. Groups
@@ -140,14 +169,13 @@ class Review(
      */
     suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page = withContext(Dispatchers.Default) {
         traceSuspend("Review.page") {
-            val excluded = index.excludedFolders()
-            val images = index.indexedImages()
-            val byCategory = Ranker.byCategory(rank(thresholds(), images, excluded))
+            val ranking = ranking(thresholds())
+            val byCategory = ranking.byCategory
             val candidates = byCategory[category].orEmpty()
             val (hidden, groups) = (
                 if (category in GROUP_CATEGORIES) {
                     val otherCandidates = byCategory.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
-                    groups(category, candidates, images, excluded, otherCandidates)
+                    groups(category, candidates, ranking.images, ranking.excluded, otherCandidates)
                 } else {
                     singles(category, candidates, grouping)
                 }
