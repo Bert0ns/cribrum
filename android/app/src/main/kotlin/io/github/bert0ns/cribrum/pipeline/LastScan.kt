@@ -50,7 +50,7 @@ class LastScan(private val preferences: SharedPreferences) {
             json.getInt("unreadable"),
             failures.keys().asSequence().associateWith(failures::getInt),
             List(files.length()) { files.getJSONArray(it).let { file -> FailedFile(file.getString(0), file.getString(1)) } },
-            List(unreadableFiles?.length() ?: 0) { unreadableFiles!!.getString(it) },
+            unreadableFiles?.let { a -> List(a.length()) { a.getString(it) } }.orEmpty(),
         )
     }
 
