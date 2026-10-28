@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowLog
 
 @RunWith(RobolectricTestRunner::class)
 class LastScanTest {
@@ -53,6 +54,29 @@ class LastScanTest {
     }
 
     @Test
+    fun `a finished scan keeps how long it took in total and per phase`() {
+        val elapsed = ArrayDeque(listOf(5_000L, 65_500L))
+        val stats = Stats(images = 12).apply { phaseMs += linkedMapOf("walk" to 40_000L, "metadata" to 1_500L) }
+
+        runBlocking { LastScan(preferences).run(now = { 1 }, elapsed = elapsed::removeFirst) { stats } }
+
+        val report = LastScan(preferences).report!!
+        assertEquals(60_500L, report.durationMs)
+        assertEquals(mapOf("walk" to 40_000L, "metadata" to 1_500L), report.phaseMs)
+        assertEquals(listOf("walk", "metadata"), report.phaseMs.keys.toList())
+        assertEquals(listOf("images 12", "walk 40000 ms", "metadata 1500 ms", "total 60500 ms"), ShadowLog.getLogsForTag(LastScan.TIME_TAG).map { it.msg })
+    }
+
+    @Test
+    fun `a report saved before the times were kept reads them as unknown`() {
+        preferences.edit().putString("last_scan", """{"finished_at":1,"unreadable":0,"failures":{},"files":[],"unreadable_files":[]}""").commit()
+
+        val report = LastScan(preferences).report!!
+        assertNull(report.durationMs)
+        assertEquals(emptyMap<String, Long>(), report.phaseMs)
+    }
+
+    @Test
     fun `a report saved before the names were kept still reads`() {
         preferences.edit().putString("last_scan", """{"finished_at":1,"unreadable":2,"failures":{},"files":[]}""").commit()
 
@@ -83,12 +107,12 @@ class LastScanTest {
     @Test
     fun `a scan that finishes is recorded, one that throws or is cancelled leaves the previous report`() {
         val scan = LastScan(preferences)
-        runBlocking { scan.run(now = { 1 }) { Stats(unreadable = 1) } }
+        runBlocking { scan.run(now = { 1 }, elapsed = { 0 }) { Stats(unreadable = 1, phaseMs = mutableMapOf("walk" to 7L)) } }
 
         assertThrows(IllegalStateException::class.java) { runBlocking { scan.run(now = { 2 }) { error("disk gone") } } }
         assertThrows(CancellationException::class.java) { runBlocking { scan.run(now = { 3 }) { throw CancellationException("stopped") } } }
 
-        assertEquals(ScanReport(finishedAt = 1, unreadable = 1, failures = emptyMap(), files = emptyList()), scan.report)
+        assertEquals(ScanReport(finishedAt = 1, unreadable = 1, failures = emptyMap(), files = emptyList(), durationMs = 0, phaseMs = mapOf("walk" to 7L)), scan.report)
         runBlocking { scan.run(now = { 4 }) { Stats() } }
         assertEquals(4, scan.report!!.finishedAt)
     }

@@ -252,6 +252,7 @@
     <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i passaggi embedding, documenti e inoltrate, che li saltano di proposito.</string>
     <string name="settings_scan_status_last">Ultima scansione completata</string>
     <string name="settings_scan_status_none">Nessuna scansione completata con questa versione.</string>
+    <string name="settings_scan_status_duration">Durata: %1$s</string>
     <string name="settings_scan_status_failed">L\'ultimo tentativo di scansione non è riuscito.</string>
     <plurals name="settings_scan_status_unreadable">
         <item quantity="one">%1$d file illeggibile</item>
