@@ -120,6 +120,12 @@ class Review(
     @Volatile
     private var last = SoftReference<Ranking>(null)
 
+    /** For tests that write while the index is read. */
+    internal var readImages: suspend () -> List<IndexedImage> = index::indexedImages
+
+    /** For tests: what the system does to [last] when memory runs short. */
+    internal fun dropRanking() = last.clear()
+
     /**
      * Every category in fixed order, with its candidate count and size, and whether it has a detector,
      * and the union of all the candidates by path. The figures of two categories overlap, so they are
@@ -156,9 +162,16 @@ class Review(
         val version = index.version
         val cached = last.get()?.takeIf { it.version == version }
         if (cached != null && cached.thresholds == thresholds) return cached
-        val images = cached?.images ?: index.indexedImages()
+        val images = cached?.images ?: readImages()
         val excluded = cached?.excluded ?: index.excludedFolders()
-        return Ranking(version, images, excluded, thresholds, Ranker.byCategory(rank(thresholds, images, excluded))).also { last = SoftReference(it) }
+        // A copy, so a caller that changes its map afterwards does not change the key.
+        val key = thresholds.toMap()
+        return Ranking(version, images, excluded, key, Ranker.byCategory(rank(key, images, excluded))).also(::store)
+    }
+
+    /** A slow read from before a write must not replace what a read after it stored. */
+    private fun store(ranking: Ranking) = synchronized(this) {
+        if (ranking.version >= (last.get()?.version ?: Long.MIN_VALUE)) last = SoftReference(ranking)
     }
 
     /**

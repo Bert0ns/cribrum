@@ -1,5 +1,6 @@
 package io.github.bert0ns.cribrum.review
 
+import io.github.bert0ns.cribrum.index.ExcludedFolderRow
 import io.github.bert0ns.cribrum.index.memoryIndex
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -13,6 +14,8 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.Trash
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -28,6 +31,7 @@ import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.Properties
+import java.util.concurrent.atomic.AtomicBoolean
 
 @RunWith(RobolectricTestRunner::class)
 class ReviewTest {
@@ -857,10 +861,12 @@ class ReviewTest {
     }
 
     /** Writes behind the index's back, so its version stays: a review that reads the index again sees it, a cached one does not. */
+    private fun blurryCount(overview: Overview) = overview.categories.single { it.category == Category.BLURRY }.count
+
     private suspend fun trashUnseen(image: ImageRef) = index.database.dao().setReviewState(image.path, ReviewState.TRASHED.value)
 
     @Test
-    fun `two reads with no write in between read the index once`() = test {
+    fun `a cached review does not see a change that bypasses the index version, until a write`() = test {
         val a = image("a.jpg", blurry(0.9f))
         val before = overview()
 
@@ -882,18 +888,80 @@ class ReviewTest {
     }
 
     @Test
-    fun `a threshold change ranks again without reading the index`() = test {
+    fun `a threshold change ranks again from the cached images and excluded folders without reading the index`() = test {
         val a = image("a.jpg", blurry(0.9f))
-        image("b.jpg", blurry(0.5f))
+        val b = image("b/b.jpg", blurry(0.5f))
         overview()
         thresholds = THRESHOLDS + (Category.BLURRY to 0.4f)
         val fresh = Review(index, AppTrash({ listOf(volume) }), thresholds = { thresholds })
         val expected = fresh.counts()
 
         trashUnseen(a)
+        index.database.dao().insertExcludedFolder(ExcludedFolderRow(File(b.path).parent!!))
 
         assertEquals(expected, counts())
         assertEquals(2, expected.getValue(Category.BLURRY))
+    }
+
+    @Test
+    fun `a ranking the system took back is read again from the index`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        overview()
+        trashUnseen(a)
+
+        dropRanking()
+
+        assertEquals(0, blurryCount(overview()))
+    }
+
+    @Test
+    fun `a write during the read leaves the ranking for the next read to replace`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        readImages = { index.indexedImages().also { index.setReviewState(a.path, ReviewState.TRASHED) } }
+        assertEquals(1, blurryCount(overview()))
+
+        readImages = index::indexedImages
+
+        assertEquals(0, blurryCount(overview()))
+    }
+
+    @Test
+    fun `a read that a write overtakes does not replace the ranking stored after the write`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        val first = AtomicBoolean(true)
+        readImages = {
+            if (first.getAndSet(false)) {
+                entered.complete(Unit)
+                release.await()
+            }
+            index.indexedImages()
+        }
+        coroutineScope {
+            val slow = async { overview() }
+            entered.await()
+            index.excludeFolder("/elsewhere")
+            overview()
+            release.complete(Unit)
+            slow.await()
+        }
+
+        trashUnseen(a)
+
+        assertEquals(1, blurryCount(overview()))
+    }
+
+    @Test
+    fun `changing the thresholds map after a call does not change what the cache holds for it`() = test {
+        image("a.jpg", blurry(0.9f))
+        image("b.jpg", blurry(0.5f))
+        val mutable = (THRESHOLDS + (Category.BLURRY to 0.4f)).toMutableMap()
+        assertEquals(2, counts(mutable).getValue(Category.BLURRY))
+
+        mutable[Category.BLURRY] = 0.95f
+
+        assertEquals(0, counts(mutable).getValue(Category.BLURRY))
     }
 
     @Test
