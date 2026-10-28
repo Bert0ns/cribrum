@@ -116,6 +116,23 @@ def test_skips_system_trash_and_pending_files(tmp_path):
     assert scanned_paths(tmp_path) == {Path("IMG.jpg")}
 
 
+def test_skips_prefixed_names_in_nested_folders_and_walks_a_prefixed_folder(tmp_path):
+    write(tmp_path / "a/b/.trashed-1790000000-IMG_1.jpg", JPEG)
+    write(tmp_path / "a/b/.pending-1790000000-IMG_2.jpg", JPEG)
+    write(tmp_path / "a/b/IMG_3.jpg", JPEG)
+    write(tmp_path / "a/.trashed-folder/IMG_4.jpg", JPEG)  # only file names carry the prefixes
+
+    assert scanned_paths(tmp_path) == {Path("a/b/IMG_3.jpg"), Path("a/.trashed-folder/IMG_4.jpg")}
+
+
+def test_skips_everything_below_the_recycle_bin(tmp_path):
+    write(tmp_path / "Android/.Trash/Android/.Trash/a.jpg", JPEG)
+    write(tmp_path / "Android/.Trash/com.sec.android.gallery3d/b.jpg", JPEG)
+    write(tmp_path / "Android/c.jpg", JPEG)
+
+    assert scanned_paths(tmp_path) == {Path("Android/c.jpg")}
+
+
 def test_reports_its_root_as_walked_once_the_whole_tree_is_listed(tmp_path):
     write(tmp_path / "a/b.jpg", JPEG)
     source = FilesystemImageSource(tmp_path)
