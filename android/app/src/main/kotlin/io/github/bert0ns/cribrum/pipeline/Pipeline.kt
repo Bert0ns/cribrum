@@ -2,6 +2,7 @@
 // read one → group detectors. Mirrors lab/src/cribrum_lab/pipeline.py.
 package io.github.bert0ns.cribrum.pipeline
 
+import android.os.SystemClock
 import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.BlurDetector
@@ -96,6 +97,8 @@ data class Stats(
     var skipped: Int = 0,
     /** Analyses that threw. They are not stored, so the next run retries them. */
     val failures: MutableList<Failure> = mutableListOf(),
+    /** Milliseconds each phase took, in the order they ran. */
+    val phaseMs: MutableMap<String, Long> = linkedMapOf(),
 )
 
 /**
@@ -117,6 +120,8 @@ class Pipeline(
     private val metadataReader: (File) -> ImageMetadata = ::readMetadata,
     private val perceptualHasher: (ImageRef) -> ULong = ::perceptualHash,
     private val contentHasher: (ImageRef) -> String = ::contentHash,
+    /** Monotonic milliseconds, for [Stats.phaseMs]. */
+    private val clock: () -> Long = SystemClock::elapsedRealtime,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -130,7 +135,7 @@ class Pipeline(
         val stats = Stats()
         val found = LinkedHashSet<String>()
         val before = index.reviewStates()
-        traceSuspend("Pipeline.walk") {
+        phase("walk", stats) {
             source.scan().collect { image ->
                 found += image.path
                 if (index.record(image)) stats.newOrChanged++
@@ -166,7 +171,7 @@ class Pipeline(
         stats.images = found.size
 
         val pending = index.withoutMetadata()
-        traceSuspend("Pipeline.metadata") {
+        phase("metadata", stats) {
             for ((done, image) in pending.withIndex()) {
                 storeMetadata(image.path, stats)
                 progress("metadata", done + 1, pending.size)
@@ -179,7 +184,7 @@ class Pipeline(
         val images = index.images().filter { it.path in found }
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
         // The home screen lists candidates as soon as these are stored; the embeddings come after.
-        traceSuspend("Pipeline.detectors") {
+        phase("detectors", stats) {
             analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
         }
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
@@ -189,11 +194,11 @@ class Pipeline(
         val embeddings = if (embedder == null) {
             emptyMap()
         } else {
-            traceSuspend("Pipeline.embeddings") { embed(embedder, embeddable, stats, progress) }
+            phase("embeddings", stats) { embed(embedder, embeddable, stats, progress) }
             val kept = embeddable.mapTo(HashSet()) { it.path }
             index.embeddings(embedder.id, embedder.version).filterKeys { it in kept }
         }
-        traceSuspend("Pipeline.embeddedDetectors") {
+        phase("embeddedDetectors", stats) {
             analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
         }
 
@@ -218,7 +223,7 @@ class Pipeline(
         // analysis), so when the next scan reads the metadata and the hash appears, this changes the fingerprint and is what puts the image back in its burst.
         val hashed = index.hashedPaths()
         val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
-        traceSuspend("Pipeline.groupDetectors") {
+        phase("groupDetectors", stats) {
             for (detector in groupDetectors) {
                 if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
                 progress(detector.id, 0, 1)
@@ -239,6 +244,12 @@ class Pipeline(
         val statesNow = index.reviewStates()
         stats.failures.removeAll { it.path.isNotEmpty() && (!File(it.path).isFile || statesNow[it.path].let { state -> state == null || state == ReviewState.TRASHED }) }
         stats
+    }
+
+    /** Runs one phase of [run] in a trace section, and keeps how long it took. */
+    private suspend fun <T> phase(name: String, stats: Stats, block: suspend () -> T): T {
+        val start = clock()
+        return traceSuspend("Pipeline.$name", block).also { stats.phaseMs[name] = clock() - start }
     }
 
     private class AnalysisTask(

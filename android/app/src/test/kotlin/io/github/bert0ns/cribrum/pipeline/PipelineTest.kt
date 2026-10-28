@@ -94,6 +94,19 @@ class PipelineTest {
     }
 
     @Test
+    fun `a run times each phase on the clock it is given`() {
+        photos()
+        var now = 0L
+        val clock = { now.also { now += 10 } }
+
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder(), clock = clock))
+
+        val phases = listOf("walk", "metadata", "detectors", "embeddings", "embeddedDetectors", "groupDetectors")
+        assertEquals(phases.associateWith { 10L }, stats.phaseMs)
+        assertEquals(phases, stats.phaseMs.keys.toList())
+    }
+
+    @Test
     fun `second run on unchanged data does no detector work`() {
         photos()
         run()

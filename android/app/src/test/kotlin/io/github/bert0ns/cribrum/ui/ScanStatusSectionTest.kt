@@ -82,6 +82,20 @@ class ScanStatusSectionTest {
     }
 
     @Test
+    fun `the last scan shows how long it took`() {
+        show(coverage, ScanReport(1_700_000_000_000, unreadable = 0, failures = emptyMap(), files = emptyList(), durationMs = 3_723_400))
+
+        scrollTo("Took 1:02:03")
+    }
+
+    @Test
+    fun `a report saved before the times were kept shows no time`() {
+        show(coverage, ScanReport(1_700_000_000_000, unreadable = 0, failures = emptyMap(), files = emptyList()))
+
+        compose.onNodeWithText("Took", substring = true).assertDoesNotExist()
+    }
+
+    @Test
     fun `a clean scan says there were no failures`() {
         show(coverage, ScanReport(1_700_000_000_000, unreadable = 1, failures = emptyMap(), files = emptyList()))
 
