@@ -128,7 +128,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         val granted = permissions.hasAllFilesAccess()
         if (granted && !hasAllFilesAccess) {
-            model.refresh()
+            model.refreshAfterAccessGranted()
         }
         hasAllFilesAccess = granted
         notificationsGranted = permissions.hasNotificationPermission(this)

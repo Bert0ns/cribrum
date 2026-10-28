@@ -120,7 +120,18 @@ class ReviewViewModel @JvmOverloads constructor(
         }
     }
 
-    fun refresh() = load { it.copy(indexEmpty = app.index.imageCount() == 0).withOverview(review.overview()) }
+    /** A newer refresh replaces an older one that still waits or runs: only the latest read of the index counts. */
+    fun refresh() {
+        refreshJob?.cancel()
+        refreshJob = load { it.copy(indexEmpty = app.index.imageCount() == 0).withOverview(review.overview()) }
+    }
+
+    private var refreshJob: Job? = null
+
+    /** The home loads itself when it comes up, which is what granting access does, so only another screen needs this. */
+    fun refreshAfterAccessGranted() {
+        if (state.value.screen != Screen.Home) refresh()
+    }
 
     fun open(category: Category) = load {
         val grouping = app.reviewOrder[category]

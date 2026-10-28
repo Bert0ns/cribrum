@@ -43,6 +43,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -582,6 +583,77 @@ class ReviewViewModelTest {
         blurry("/sdcard/a.jpg", 0.9f)
         model.refresh()
         settle(model) { !it.state.value.indexEmpty }
+    }
+
+    /** A view model whose [Review] counts the overview loads: each one reads the thresholds once. */
+    private fun modelCountingLoads(): Pair<ReviewViewModel, AtomicInteger> {
+        val loads = AtomicInteger()
+        val review = Review(app.index, app.trash, thresholds = {
+            loads.incrementAndGet()
+            THRESHOLDS
+        })
+        return ReviewViewModel(app, review) to loads
+    }
+
+    @Test
+    fun `a cold start loads the overview once, for the resume that sees access and the first composition together`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        val (model, loads) = modelCountingLoads()
+
+        model.refreshAfterAccessGranted() // MainActivity.onResume
+        model.refresh() // the first composition of the home
+        settle(model) { it.state.value.categories.isNotEmpty() }
+        Thread.sleep(100)
+
+        assertEquals(1, loads.get())
+    }
+
+    @Test
+    fun `access granted while another screen is open refreshes the overview`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        val (model, loads) = modelCountingLoads()
+        model.open(Category.BLURRY)
+        settle(model) { it.state.value.screen == Screen.Category(Category.BLURRY) }
+        val before = loads.get()
+
+        model.refreshAfterAccessGranted()
+        settle(model) { it.state.value.categories.isNotEmpty() }
+
+        assertEquals(before + 1, loads.get())
+    }
+
+    @Test
+    fun `a scan with several steps refreshes the overview once per refresh asked`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        val (model, loads) = modelCountingLoads()
+
+        repeat(4) {
+            // the start, two steps, the end
+            model.refresh()
+            settle(model) { true }
+        }
+
+        assertEquals(4, loads.get())
+    }
+
+    @Test
+    fun `a refresh replaces the one before it, so overlapping refreshes load once, and the queue is left alone`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        val (model, loads) = modelCountingLoads()
+        model.setHaptics(false)
+
+        model.refresh() // replaced by the next
+        model.refresh() // replaced by the last
+        model.setHaptics(true) // not a read: must not be cancelled
+        model.refresh()
+        settle(model) { it.state.value.categories.isNotEmpty() }
+        Thread.sleep(100)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(1, loads.get())
+        assertEquals(true, model.state.value.hapticsEnabled)
+        assertEquals(false, model.state.value.loading)
+        assertEquals(1, model.state.value.categories.first { it.category == Category.BLURRY }.count)
     }
 
     @Test
