@@ -163,18 +163,24 @@ def run(
         before_embeddings=False,
     )
 
-    # The exact detector skips an image whose content hash fails: that run must not count as
-    # done for the same files.
-    content_hash_failed = False
+    # The exact detector skips an image whose content hash fails: the run stores those paths
+    # with its fingerprint.
+    hash_failed: set[str] = set()
     cached_content_hash = _cached_content_hash(index)
 
     def content_hash(image: ImageRef) -> str:
-        nonlocal content_hash_failed
         try:
             return cached_content_hash(image)
         except OSError:
-            content_hash_failed = True
+            hash_failed.add(str(image.path))
             raise
+
+    def hashes(image: ImageRef) -> bool:
+        try:
+            cached_content_hash(image)
+        except OSError:
+            return False
+        return True
 
     context = AnalysisContext(
         content_hash=content_hash,
@@ -188,16 +194,20 @@ def run(
     hashed = index.hashed_paths()
     fingerprint = _fingerprint(images, f"{model}:{sum(i.path in hashed for i in images)}")
     for detector in group_detectors:
-        if index.group_fingerprint(detector.id, detector.version) == fingerprint:
+        # Hashing again only what failed in the last run groups a file that has become
+        # readable, without a run on every scan.
+        failed = set(index.group_hash_failed(detector.id, detector.version))
+        if index.group_fingerprint(detector.id, detector.version) == fingerprint and not any(
+            hashes(i) for i in images if str(i.path) in failed
+        ):
             continue
         progress(detector.id, 0, 1)
-        content_hash_failed = False
+        hash_failed.clear()
         signals = detector.analyze(images, context)
         index.set_signals_of_many(
             detector.id, detector.version, {i.path: signals.get(i, []) for i in images}
         )
-        if not content_hash_failed:
-            index.set_group_fingerprint(detector.id, detector.version, fingerprint)
+        index.set_group_fingerprint(detector.id, detector.version, fingerprint, sorted(hash_failed))
         stats.detector_runs += 1
         progress(detector.id, 1, 1)
     return stats

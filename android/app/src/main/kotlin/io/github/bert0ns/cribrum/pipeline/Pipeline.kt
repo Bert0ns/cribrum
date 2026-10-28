@@ -206,14 +206,14 @@ class Pipeline(
             analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
         }
 
-        // The exact detector skips an image whose content hash fails: that run must not count as done for the same files.
-        var contentHashFailed = false
+        // The exact detector skips an image whose content hash fails: the run stores those paths with its fingerprint.
+        val hashFailed = mutableSetOf<String>()
         val context = AnalysisContext(
             contentHash = {
                 try {
                     cachedContentHash(it)
                 } catch (error: IOException) {
-                    contentHashFailed = true
+                    hashFailed += it.path
                     throw error
                 }
             },
@@ -229,17 +229,17 @@ class Pipeline(
         val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
         phase("groupDetectors", stats) {
             for (detector in groupDetectors) {
-                if (index.groupFingerprint(detector.id, detector.version) == fingerprint) {
+                if (upToDate(detector, fingerprint, images)) {
                     stats.skippedGroupDetectors += detector.id
                     continue
                 }
                 stats.ranGroupDetectors += detector.id
                 progress(detector.id, 0, 1)
-                contentHashFailed = false
+                hashFailed.clear()
                 try {
                     val signals = detector.analyze(images, context)
                     index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-                    if (!contentHashFailed) index.setGroupFingerprint(detector.id, detector.version, fingerprint)
+                    index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
                     stats.detectorRuns++
                     progress(detector.id, 1, 1)
                 } catch (error: Exception) {
@@ -459,6 +459,23 @@ class Pipeline(
     }
 
     private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHasher(image) }
+
+    /**
+     * The detector last ran on [images] as they are, and every content hash that failed in that run fails again.
+     * Hashing only those again is what groups a file that has become readable, without a run on every scan.
+     */
+    private suspend fun upToDate(detector: GroupDetector, fingerprint: String, images: List<ImageRef>): Boolean {
+        if (index.groupFingerprint(detector.id, detector.version) != fingerprint) return false
+        val failed = index.groupHashFailed(detector.id, detector.version).toSet()
+        return images.filter { it.path in failed }.none { image ->
+            try {
+                cachedContentHash(image)
+                true
+            } catch (_: IOException) {
+                false
+            }
+        }
+    }
 
     private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHasher(image).also { index.setContentHash(image.path, it) }
 

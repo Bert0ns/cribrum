@@ -547,6 +547,24 @@ class PipelineTest {
         assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
     }
 
+    @Test
+    fun `a content hash that fails on every scan does not run the exact detector on every scan, and it runs once the file reads`() {
+        photos()
+        val copy = File(root, "WhatsApp/Media/a-copy.png").path
+        val failing = Pipeline(index, contentHasher = { if (it.path == copy) throw IOException("busy") else contentHash(it) })
+        run(failing)
+
+        val again = run(failing)
+
+        assertEquals(emptyList<String>(), again.ranGroupDetectors)
+
+        val readable = run()
+
+        assertEquals(listOf("exact_duplicate"), readable.ranGroupDetectors)
+        assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
+        assertEquals(emptyList<String>(), run().ranGroupDetectors)
+    }
+
     private class Probe : Detector {
         override val id = "probe"
         override val version = 1

@@ -15,6 +15,7 @@ import io.github.bert0ns.cribrum.model.SignalIdentity
 import io.github.bert0ns.cribrum.tracing.traceSuspend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.nio.ByteBuffer
@@ -217,9 +218,16 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         }
     }
 
-    suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? = dao.groupFingerprint(detectorId, detectorVersion)
+    suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? = dao.groupFingerprint(detectorId, detectorVersion)?.let { groupRun(it).first() }
 
-    suspend fun setGroupFingerprint(detectorId: String, detectorVersion: Int, fingerprint: String) = write { dao.putGroupRun(GroupRunRow(detectorId, detectorVersion, fingerprint)) }
+    /** The paths whose content hash failed in the run that stored the fingerprint. */
+    suspend fun groupHashFailed(detectorId: String, detectorVersion: Int): List<String> = dao.groupFingerprint(detectorId, detectorVersion)?.let { groupRun(it).drop(1) }.orEmpty()
+
+    /** The paths go in the fingerprint's column, as a JSON array with it, so the schema stays as it is. */
+    suspend fun setGroupFingerprint(detectorId: String, detectorVersion: Int, fingerprint: String, hashFailed: Collection<String> = emptyList()) = write {
+        val stored = if (hashFailed.isEmpty()) fingerprint else JSONArray(listOf(fingerprint) + hashFailed).toString()
+        dao.putGroupRun(GroupRunRow(detectorId, detectorVersion, stored))
+    }
 
     suspend fun isAnalyzed(path: String, detectorId: String, detectorVersion: Int): Boolean = dao.analyses(path, detectorId, detectorVersion) > 0
 
@@ -323,6 +331,9 @@ private val ISO_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 
 /** Under SQLite's limit on bound parameters per statement. */
 private const val SQL_VARIABLES = 500
+
+/** A fingerprint is hex, so a stored value that starts with "[" is the array [setGroupFingerprint] writes. */
+private fun groupRun(stored: String): List<String> = if (stored.startsWith("[")) JSONArray(stored).let { List(it.length(), it::getString) } else listOf(stored)
 
 private fun signal(row: SignalRow): Signal {
     val json = JSONObject(row.evidence)

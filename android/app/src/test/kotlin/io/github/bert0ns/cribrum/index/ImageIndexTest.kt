@@ -461,6 +461,21 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `a group fingerprint keeps the paths whose content hash failed, until the next one replaces it`() = test {
+        assertEquals(emptyList<String>(), groupHashFailed("exact_duplicate", 1))
+
+        setGroupFingerprint("exact_duplicate", 1, "abc", listOf("/photos/a [1].jpg", "/photos/b\"\n.jpg"))
+
+        assertEquals("abc", groupFingerprint("exact_duplicate", 1))
+        assertEquals(listOf("/photos/a [1].jpg", "/photos/b\"\n.jpg"), groupHashFailed("exact_duplicate", 1))
+
+        setGroupFingerprint("exact_duplicate", 1, "def")
+
+        assertEquals("def", groupFingerprint("exact_duplicate", 1))
+        assertEquals(emptyList<String>(), groupHashFailed("exact_duplicate", 1))
+    }
+
+    @Test
     fun `protection signals round trip`() = test {
         record(PHOTO)
         val faces = Signal("faces", 1, Protection.FACES, 0.8f, mapOf("faces" to "3"))
@@ -547,6 +562,7 @@ class ImageIndexTest {
         "embeddedPaths" to { embeddedPaths("clip", 1) },
         "readableNotTrashed" to { readableNotTrashed() },
         "groupFingerprint" to { groupFingerprint("exact_duplicate", 1) },
+        "groupHashFailed" to { groupHashFailed("exact_duplicate", 1) },
         "isAnalyzed" to { isAnalyzed(PHOTO.path, "blur", 1) },
         "signals" to { signals(PHOTO.path) },
         "keptSignals" to { keptSignals(PHOTO.path) },
