@@ -270,6 +270,9 @@
     <string name="settings_scan_status_files_hidden">Nomi dei file nascosti</string>
     <string name="settings_scan_status_embedding">Embedding</string>
     <string name="settings_scan_status_faces">Volti</string>
+    <string name="settings_scan_status_metadata">Metadati</string>
+    <string name="settings_scan_status_unreadable_step">Illeggibile</string>
+    <string name="settings_scan_status_unreadable_hint">Tocca per mostrare o nascondere i nomi dei file.</string>
     <plurals name="settings_scan_status_more">
         <item quantity="one">e %1$d altro</item>
         <item quantity="other">e altri %1$d</item>
