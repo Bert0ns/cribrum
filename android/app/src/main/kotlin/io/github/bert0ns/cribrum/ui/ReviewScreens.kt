@@ -3,6 +3,7 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.text.format.Formatter
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,13 +15,17 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -346,7 +351,7 @@ fun CategoryScreen(
         if (fullSize != null && images.none { it.image == fullSize }) fullSize = null
     }
     fullSize?.let { start ->
-        FullSize(images, start, marked, onExcludeFolder = {
+        FullSize(images, start, marked, onToggle, onExcludeFolder = {
             fullSize = null
             haptics.performHapticFeedback(Haptic.KEEP.type)
             onExcludeFolder(it)
@@ -356,43 +361,67 @@ fun CategoryScreen(
 
 /**
  * The images of the list at full size, to tell real blur from a small thumbnail. Swipe to page,
- * pinch to zoom, and drag to pan once zoomed. Tap to close. A chip says how the grid marks the
- * image, and the view offers to never suggest the image's folder again.
+ * pinch to zoom, and drag to pan once zoomed. Tap to close. A button says how the grid marks the
+ * image and toggles it on click, and the view offers to never suggest the image's folder again.
  */
 @Composable
-private fun FullSize(items: List<ReviewItem>, start: ImageRef, marked: Set<String>, onExcludeFolder: (ImageRef) -> Unit, onClose: () -> Unit) {
+private fun FullSize(
+    items: List<ReviewItem>,
+    start: ImageRef,
+    marked: Set<String>,
+    onToggle: (ImageRef) -> Unit,
+    onExcludeFolder: (ImageRef) -> Unit,
+    onClose: () -> Unit,
+) {
     val pager = rememberPagerState(items.indexOfFirst { it.image == start }.coerceAtLeast(0)) { items.size }
     val current = items.getOrNull(pager.currentPage) ?: return // the page emptied under the dialog; CategoryScreen closes it next
+    val haptics = LocalHapticFeedback.current
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { items[it].image.path }) { page ->
                 ZoomableImage(items[page].image, onClose)
             }
             val isMarked = current.image.path in marked
-            Text(
-                stringResource(
-                    if (isMarked) {
-                        R.string.selected_for_trash
-                    } else if (current.isBest) {
-                        R.string.kept_best_copy
-                    } else {
-                        R.string.kept
-                    },
+            Button(
+                onClick = {
+                    haptics.performHapticFeedback(Haptic.TICK.type)
+                    onToggle(current.image)
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
                 ),
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
-                    .background(if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-            )
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp),
+            ) {
+                Icon(
+                    if (isMarked) Icons.Default.Delete else Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    stringResource(
+                        if (isMarked) {
+                            R.string.selected_for_trash
+                        } else if (current.isBest) {
+                            R.string.kept_best_copy
+                        } else {
+                            R.string.kept
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
             Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)) {
                 for (reason in current.reasons.mapNotNull(::reasonOf)) {
                     Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
                 }
                 Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
-                TextButton(
+                OutlinedButton(
                     onClick = { onExcludeFolder(current.image) },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                    border = BorderStroke(1.dp, Color.White),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
                 ) { Text(stringResource(R.string.exclude_folder)) }
             }
         }
