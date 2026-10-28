@@ -39,7 +39,7 @@ class LastScan(private val preferences: SharedPreferences) {
 
     /**
      * Runs [scan] and keeps its report, with how long it took on the monotonic [elapsed] clock, and logs the
-     * times and the image count under [TIME_TAG]. A scan that throws or is cancelled leaves the previous one.
+     * times, the image counts and the group detectors that ran or skipped under [TIME_TAG]. A scan that throws or is cancelled leaves the previous one.
      */
     suspend fun run(now: () -> Long = System::currentTimeMillis, elapsed: () -> Long = SystemClock::elapsedRealtime, scan: suspend () -> Stats): Stats {
         val start = elapsed()
@@ -47,7 +47,10 @@ class LastScan(private val preferences: SharedPreferences) {
         val durationMs = elapsed() - start
         record(stats, now(), durationMs)
         Log.i(TIME_TAG, "images ${stats.images}")
+        Log.i(TIME_TAG, "new or changed ${stats.newOrChanged}")
         stats.phaseMs.forEach { (phase, ms) -> Log.i(TIME_TAG, "$phase $ms ms") }
+        fun ids(list: List<String>) = list.ifEmpty { listOf("none") }.joinToString(", ")
+        Log.i(TIME_TAG, "group detectors ran: ${ids(stats.ranGroupDetectors)}; skipped: ${ids(stats.skippedGroupDetectors)}")
         Log.i(TIME_TAG, "total $durationMs ms")
         return stats
     }

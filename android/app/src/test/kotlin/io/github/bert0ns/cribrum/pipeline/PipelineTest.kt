@@ -127,6 +127,18 @@ class PipelineTest {
     }
 
     @Test
+    fun `two scans of the same library run each group detector once`() {
+        photos()
+        val ids = listOf("exact_duplicate", "near_duplicate", "burst")
+
+        val first = run(Pipeline(index, embedder = MeanColorEmbedder()))
+        val second = run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        assertEquals(ids to emptyList<String>(), first.ranGroupDetectors to first.skippedGroupDetectors)
+        assertEquals(emptyList<String>() to ids, second.ranGroupDetectors to second.skippedGroupDetectors)
+    }
+
+    @Test
     fun `changed image is analyzed again and groups are recomputed`() {
         photos()
         run(Pipeline(index, embedder = MeanColorEmbedder()))

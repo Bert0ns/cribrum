@@ -97,6 +97,9 @@ data class Stats(
     var skipped: Int = 0,
     /** Analyses that threw. They are not stored, so the next run retries them. */
     val failures: MutableList<Failure> = mutableListOf(),
+    /** Ids of the group detectors that ran, a failed run included, and of those whose fingerprint let them skip. */
+    val ranGroupDetectors: MutableList<String> = mutableListOf(),
+    val skippedGroupDetectors: MutableList<String> = mutableListOf(),
     /** Milliseconds each phase took, in the order they ran. */
     val phaseMs: MutableMap<String, Long> = linkedMapOf(),
 )
@@ -226,7 +229,11 @@ class Pipeline(
         val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
         phase("groupDetectors", stats) {
             for (detector in groupDetectors) {
-                if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
+                if (index.groupFingerprint(detector.id, detector.version) == fingerprint) {
+                    stats.skippedGroupDetectors += detector.id
+                    continue
+                }
+                stats.ranGroupDetectors += detector.id
                 progress(detector.id, 0, 1)
                 contentHashFailed = false
                 try {
