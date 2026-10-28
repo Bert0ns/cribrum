@@ -120,7 +120,10 @@ class ReviewViewModel @JvmOverloads constructor(
         }
     }
 
-    /** A newer refresh replaces an older one that still waits or runs: only the latest read of the index counts. */
+    /**
+     * A newer refresh replaces an older one that still waits. One that already runs cannot stop inside
+     * the ranking: it finishes and its result is dropped, so only the latest read of the index counts.
+     */
     fun refresh() {
         refreshJob?.cancel()
         refreshJob = load { it.copy(indexEmpty = app.index.imageCount() == 0).withOverview(review.overview()) }

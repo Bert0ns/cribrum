@@ -623,7 +623,7 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `a scan with several steps refreshes the overview once per refresh asked`() {
+    fun `refreshes asked one after another are not merged`() {
         blurry("/sdcard/a.jpg", 0.9f)
         val (model, loads) = modelCountingLoads()
 
