@@ -525,12 +525,38 @@ class ImageIndexTest {
         "removeExcludedFolder" to { removeExcludedFolder("/photos") },
     )
 
-    private val reads = setOf(
-        "images", "withoutMetadata", "unreadable", "metadata", "contentHash", "perceptualHash", "hashedPaths",
-        "reviewStates", "embeddingCount", "imageCount", "embeddingBytes", "fileBytes", "embeddings", "analyzedPaths",
-        "embeddedPaths", "readableNotTrashed", "groupFingerprint", "isAnalyzed", "signals", "keptSignals",
-        "keptDetectors", "reviewState", "excludedFolders", "notTrashed", "capturedAt", "indexedImages",
-        "getVersion", "close",
+    /**
+     * Every public read, each run once on the same index. A method that writes anything must never go here: the review
+     * would keep showing what it ranked before the write. It goes in [writes].
+     */
+    private val reads: Map<String, suspend ImageIndex.() -> Unit> = mapOf(
+        "images" to { images() },
+        "withoutMetadata" to { withoutMetadata() },
+        "unreadable" to { unreadable() },
+        "metadata" to { metadata(PHOTO.path) },
+        "contentHash" to { contentHash(PHOTO.path) },
+        "perceptualHash" to { perceptualHash(PHOTO.path) },
+        "hashedPaths" to { hashedPaths() },
+        "reviewStates" to { reviewStates() },
+        "embeddingCount" to { embeddingCount() },
+        "imageCount" to { imageCount() },
+        "embeddingBytes" to { embeddingBytes() },
+        "fileBytes" to { fileBytes() },
+        "embeddings" to { embeddings("clip", 1) },
+        "analyzedPaths" to { analyzedPaths("blur", 1) },
+        "embeddedPaths" to { embeddedPaths("clip", 1) },
+        "readableNotTrashed" to { readableNotTrashed() },
+        "groupFingerprint" to { groupFingerprint("exact_duplicate", 1) },
+        "isAnalyzed" to { isAnalyzed(PHOTO.path, "blur", 1) },
+        "signals" to { signals(PHOTO.path) },
+        "keptSignals" to { keptSignals(PHOTO.path) },
+        "keptDetectors" to { keptDetectors(PHOTO.path) },
+        "reviewState" to { reviewState(PHOTO.path) },
+        "excludedFolders" to { excludedFolders() },
+        "notTrashed" to { notTrashed() },
+        "capturedAt" to { capturedAt() },
+        "indexedImages" to { indexedImages() },
+        "getVersion" to { version },
     )
 
     @Test
@@ -540,18 +566,30 @@ class ImageIndexTest {
             .map { it.name.substringBefore('-') } // Kotlin mangles names that take inline classes like ULong
             .toSet()
         // A new write must bump the version, or the review shows a stale ranking: add it to [writes].
-        assertEquals(writes.keys + reads, methods)
+        assertEquals(writes.keys + reads.keys + "close", methods)
     }
 
     @Test
-    fun `every write bumps the version`() {
+    fun `every write bumps the version after its last statement`() {
         for ((name, write) in writes) {
-            memoryIndex().use { index ->
+            lateinit var index: ImageIndex
+            val seen = mutableListOf<Pair<String, Long>>()
+            index = ImageIndex(
+                Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDatabase::class.java)
+                    // Room reports its transaction markers late and checks its own tables after the commit: only the index's statements count.
+                    .setQueryCallback({ sql, _ -> if ("TRANSACTION" !in sql && "room_" !in sql) seen += sql to index.version }, Runnable::run)
+                    .build(),
+            )
+            index.use {
                 runBlocking {
                     index.record(PHOTO)
                     index.setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
                     val before = index.version
+                    seen.clear()
                     index.write()
+                    assertTrue(name, seen.isNotEmpty())
+                    // The statements run at the old version: a reader that sees the new one finds the write.
+                    assertEquals(name, emptyList<Pair<String, Long>>(), seen.filter { it.second != before })
                     assertTrue(name, index.version > before)
                 }
             }
@@ -559,11 +597,23 @@ class ImageIndexTest {
     }
 
     @Test
-    fun `reads leave the version alone`() = test {
+    fun `an unchanged record keeps the version`() = test {
         record(PHOTO)
         val before = version
-        indexedImages()
-        excludedFolders()
+
+        assertFalse(record(PHOTO))
+
         assertEquals(before, version)
+    }
+
+    @Test
+    fun `reads leave the version alone`() = test {
+        record(PHOTO)
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+        val before = version
+        for ((name, read) in reads) {
+            read()
+            assertEquals(name, before, version)
+        }
     }
 }
