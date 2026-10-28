@@ -204,7 +204,8 @@ class Pipeline(
         )
         // Embeddings change what group detectors can see: a run with them is a different run.
         val model = embedder?.let { "${it.id}:${it.version}:${embeddings.size}" }.orEmpty()
-        // A hash that failed on an earlier run is a result a group detector lacked.
+        // A hash that failed on an earlier run is a result a group detector lacked. An image whose metadata failed has none either (it gets no per-image
+        // analysis), so when the next scan reads the metadata and the hash appears, this changes the fingerprint and is what puts the image back in its burst.
         val hashed = index.hashedPaths()
         val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
         for (detector in groupDetectors) {
