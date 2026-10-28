@@ -30,8 +30,8 @@ fun readMetadata(file: File, decodeBounds: (File) -> BitmapFactory.Options = ::d
     val bounds = (1..2).firstNotNullOfOrNull { decodeBounds(file).takeIf { it.outWidth > 0 && it.outHeight > 0 } } ?: throw UnreadableImage(file)
     val exif = try {
         ExifInterface(file)
-    } catch (_: IOException) {
-        null // a malformed EXIF block: the image itself still counts
+    } catch (_: Exception) {
+        null // a malformed EXIF block, which can throw unchecked exceptions too: the image itself still counts
     }
     val rotated = exif?.getAttributeInt(ExifInterface.TAG_ORIENTATION, 1) in ROTATED_ORIENTATIONS
     return ImageMetadata(
