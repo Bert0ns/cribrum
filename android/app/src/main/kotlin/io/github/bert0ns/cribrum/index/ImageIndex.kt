@@ -47,12 +47,13 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * the file may only have been touched, and a decision the user made must not be lost. A real
      * edit shows up as new signals, which the ranker treats as such. A trashed row is the exception:
      * a file on disk at its path is not the one in the trash, so the row starts unreviewed.
+     * An unchanged image keeps the version: a scan records every file, and would otherwise drop the review's ranking.
      */
-    suspend fun record(image: ImageRef): Boolean = writeTransaction {
+    suspend fun record(image: ImageRef): Boolean = db.withTransaction {
         val stored = dao.ref(image.path)
         when {
             stored == null -> dao.insertImage(ImageRow(image.path, image.size, image.mtimeNs))
-            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return@writeTransaction false
+            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return@withTransaction false
             else -> {
                 dao.resetImage(image.path, image.size, image.mtimeNs)
                 dao.deleteAnalyses(image.path)
@@ -60,7 +61,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
             }
         }
         true
-    }
+    }.also { changed -> if (changed) writes.incrementAndGet() }
 
     suspend fun images(): List<ImageRef> = dao.images().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
