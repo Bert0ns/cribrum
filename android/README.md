@@ -42,6 +42,22 @@ adb install -r app/build/outputs/apk/benchmark/app-benchmark.apk
 
 It keeps the debug build's application id and signature, so it installs over a debug build and keeps its index. A release build has another signature: uninstall it first, which drops its index. CI does not build it.
 
+### Trace sections
+
+The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of the benchmark build shows them. The names are stable, because the measurement script looks them up. A step that suspends is an async section, and the others are plain ones.
+
+| Section | Where |
+|---|---|
+| `Index.indexedImages` | `ImageIndex.indexedImages`: reading every image and signal |
+| `Ranker.rank` | `Review`'s calls of `Ranker.rank` |
+| `Review.overview`, `Review.counts`, `Review.page` | the three `Review` loads, each with the two above inside |
+| `Pipeline.walk`, `Pipeline.metadata`, `Pipeline.detectors`, `Pipeline.embeddings`, `Pipeline.embeddedDetectors`, `Pipeline.groupDetectors` | the phases of `Pipeline.run` |
+| `Imaging.decode` | one image's decode |
+| `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
+| `Onnx.run` | one `ModelRuntime.run` call of `OnnxRuntime` |
+
+Sections are per image at the finest, never per pixel or row. Perfetto shows the async sections on process tracks and the others on thread tracks, so a query for a name must read both.
+
 ## Release
 
 Releases are manual: on GitHub, Actions → release → Run workflow, on `main`, with the version as `MAJOR.MINOR.PATCH`. The workflow refuses a version that is not above the latest release, runs the unit tests and lint, and publishes `cribrum-X.Y.Z.apk` and its SHA-256 as the release `vX.Y.Z`. Install it with `adb install -r`, or open it on the phone.
@@ -69,3 +85,4 @@ A debug build is signed with another key, so it can't be installed over a releas
 | `io.github.bert0ns.cribrum.imaging` | `loadGrayscale`: Pillow's decoding, luminance and Lanczos thumbnail, step by step | `cribrum_lab.imaging` |
 | `io.github.bert0ns.cribrum.review` | `Review`: pages of candidates, and decisions applied to the trash and the index together | none |
 | `io.github.bert0ns.cribrum.pipeline` | `Pipeline`, and `IndexWorker` running it with WorkManager | `cribrum_lab.pipeline` |
+| `io.github.bert0ns.cribrum.tracing` | `traceSuspend`: a trace section around code that suspends | none |

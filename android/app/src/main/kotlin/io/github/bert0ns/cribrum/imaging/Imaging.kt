@@ -6,6 +6,7 @@ package io.github.bert0ns.cribrum.imaging
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.exifinterface.media.ExifInterface
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
 import java.io.File
 import java.io.IOException
@@ -50,7 +51,7 @@ internal const val MAX_PIXELS = 16_000_000
  * keeps its stored values, as Pillow does: converted to sRGB they moved the embeddings off the lab's,
  * to a cosine of 0.9993 on a saturated test image.
  */
-internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Argb {
+internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Argb = trace("Imaging.decode") {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeFile(file.path, bounds)
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw UnreadableImage(file)
@@ -74,7 +75,7 @@ internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Ar
         } else {
             bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         }
-        return Argb(bitmap.width, bitmap.height, argb)
+        Argb(bitmap.width, bitmap.height, argb)
     } finally {
         bitmap.recycle()
     }

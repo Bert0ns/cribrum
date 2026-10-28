@@ -2,6 +2,7 @@
 // without the text encoder: the app ships the prompts' embeddings instead.
 package io.github.bert0ns.cribrum.mobileclip
 
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.imaging.Argb
 import io.github.bert0ns.cribrum.imaging.BILINEAR
 import io.github.bert0ns.cribrum.imaging.channel
@@ -48,12 +49,12 @@ fun zeroShot(imageEmbedding: FloatArray, promptEmbeddings: List<FloatArray>): Fl
  * RGB in [0, 1], CHW: shortest side resized to 256 (Pillow's bilinear), then center-cropped.
  * Each channel goes through Pillow's steps on its own, which gives the same numbers.
  */
-fun preprocess(file: File): FloatArray {
+fun preprocess(file: File): FloatArray = trace("MobileClip.preprocess") {
     val decoded = decode(file, INPUT_SIDE)
     val orientation = orientation(file)
     val out = FloatArray(PIXELS)
     for ((c, shift) in listOf(16, 8, 0).withIndex()) cropChannel(decoded, shift, orientation, out, c * INPUT_SIDE * INPUT_SIDE)
-    return out
+    out
 }
 
 /** Writes one channel's center crop into [out]. Its own function so the full-size plane is out of scope before the next channel's. */

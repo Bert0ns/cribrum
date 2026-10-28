@@ -30,6 +30,7 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.sources.ImageSource
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.Trash
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -128,10 +129,12 @@ class Pipeline(
         val stats = Stats()
         val found = LinkedHashSet<String>()
         val before = index.reviewStates()
-        source.scan().collect { image ->
-            found += image.path
-            if (index.record(image)) stats.newOrChanged++
-            if (found.size % 100 == 0) progress("scan", found.size, 0)
+        traceSuspend("Pipeline.walk") {
+            source.scan().collect { image ->
+                found += image.path
+                if (index.record(image)) stats.newOrChanged++
+                if (found.size % 100 == 0) progress("scan", found.size, 0)
+            }
         }
         // A trash that cannot be listed is a failure of this step. Its rows stay as they are until a scan can read it.
         val inTrash = try {
@@ -162,9 +165,11 @@ class Pipeline(
         stats.images = found.size
 
         val pending = index.withoutMetadata()
-        for ((done, image) in pending.withIndex()) {
-            storeMetadata(image.path, stats)
-            progress("metadata", done + 1, pending.size)
+        traceSuspend("Pipeline.metadata") {
+            for ((done, image) in pending.withIndex()) {
+                storeMetadata(image.path, stats)
+                progress("metadata", done + 1, pending.size)
+            }
         }
         val unreadable = index.unreadable().toSet()
         stats.unreadablePaths = found.filter { it in unreadable }
@@ -173,7 +178,9 @@ class Pipeline(
         val images = index.images().filter { it.path in found }
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
         // The home screen lists candidates as soon as these are stored; the embeddings come after.
-        analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
+        traceSuspend("Pipeline.detectors") {
+            analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
+        }
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
         // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
@@ -181,11 +188,13 @@ class Pipeline(
         val embeddings = if (embedder == null) {
             emptyMap()
         } else {
-            embed(embedder, embeddable, stats, progress)
+            traceSuspend("Pipeline.embeddings") { embed(embedder, embeddable, stats, progress) }
             val kept = embeddable.mapTo(HashSet()) { it.path }
             index.embeddings(embedder.id, embedder.version).filterKeys { it in kept }
         }
-        analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
+        traceSuspend("Pipeline.embeddedDetectors") {
+            analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
+        }
 
         // The exact detector skips an image whose content hash fails: that run must not count as done for the same files.
         var contentHashFailed = false
@@ -208,19 +217,21 @@ class Pipeline(
         // analysis), so when the next scan reads the metadata and the hash appears, this changes the fingerprint and is what puts the image back in its burst.
         val hashed = index.hashedPaths()
         val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
-        for (detector in groupDetectors) {
-            if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
-            progress(detector.id, 0, 1)
-            contentHashFailed = false
-            try {
-                val signals = detector.analyze(images, context)
-                index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-                if (!contentHashFailed) index.setGroupFingerprint(detector.id, detector.version, fingerprint)
-                stats.detectorRuns++
-                progress(detector.id, 1, 1)
-            } catch (error: Exception) {
-                if (error is CancellationException || error is MissingEmbedding) throw error
-                stats.failures += Failure("", detector.id, failureMessage(error))
+        traceSuspend("Pipeline.groupDetectors") {
+            for (detector in groupDetectors) {
+                if (index.groupFingerprint(detector.id, detector.version) == fingerprint) continue
+                progress(detector.id, 0, 1)
+                contentHashFailed = false
+                try {
+                    val signals = detector.analyze(images, context)
+                    index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                    if (!contentHashFailed) index.setGroupFingerprint(detector.id, detector.version, fingerprint)
+                    stats.detectorRuns++
+                    progress(detector.id, 1, 1)
+                } catch (error: Exception) {
+                    if (error is CancellationException || error is MissingEmbedding) throw error
+                    stats.failures += Failure("", detector.id, failureMessage(error))
+                }
             }
         }
         // An image forgotten, trashed or moved since the walk failed because of that, and the user can do nothing about it.
