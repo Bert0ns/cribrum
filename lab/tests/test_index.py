@@ -30,6 +30,34 @@ def test_record_reports_new_and_changed_images(index):
     assert index.images() == [ImageRef(PHOTO.path, 101, 2)]
 
 
+def test_record_all_counts_the_new_and_changed_images_and_leaves_the_rest(index):
+    other = ImageRef(Path("/photos/b.jpg"), 5, 5)
+    fresh = ImageRef(Path("/photos/c.jpg"), 7, 7)
+    index.record(PHOTO)
+    index.record(other)
+    index.set_metadata(other.path, META)
+
+    changed_other = ImageRef(other.path, 6, 5)
+    assert index.record_all([PHOTO, changed_other, fresh]) == 2
+
+    assert index.images() == [PHOTO, changed_other, fresh]
+    assert index.metadata(other.path) is None  # the changed one was reset, like record does
+
+
+def test_a_batch_that_fails_part_way_leaves_the_index_as_it_was(index):
+    index.record(PHOTO)
+
+    def batch():
+        yield ImageRef(Path("/photos/new-0.jpg"), 1, 1)
+        yield ImageRef(Path("/photos/new-1.jpg"), 1, 1)
+        raise OSError("disk full")
+
+    with pytest.raises(OSError):
+        index.record_all(batch())
+
+    assert index.images() == [PHOTO]
+
+
 def test_changed_image_drops_its_stale_data_but_keeps_the_review_decision(index):
     index.record(PHOTO)
     index.set_metadata(PHOTO.path, META)

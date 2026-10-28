@@ -62,6 +62,9 @@ val DETECTOR_CATEGORIES: Set<Category> =
 /** Images embedded at once: bounds the memory held by decoded pixels. */
 const val EMBEDDING_BATCH = 16
 
+/** Images the walk records in one transaction. */
+private const val RECORD_BATCH = 300
+
 /** Embeds images preprocessed by [preprocess], as [io.github.bert0ns.cribrum.mobileclip.MobileClip] does. */
 interface Embedder {
     val id: String
@@ -125,6 +128,8 @@ class Pipeline(
     private val contentHasher: (ImageRef) -> String = ::contentHash,
     /** Monotonic milliseconds, for [Stats.phaseMs]. */
     private val clock: () -> Long = SystemClock::elapsedRealtime,
+    /** Images the walk records in one transaction; a test sets it low to cross it with a few files. */
+    internal val recordBatch: Int = RECORD_BATCH,
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -139,11 +144,18 @@ class Pipeline(
         val found = LinkedHashSet<String>()
         val before = index.reviewStates()
         phase("walk", stats) {
+            val batch = ArrayList<ImageRef>(recordBatch)
+            suspend fun flush() {
+                stats.newOrChanged += index.recordAll(batch)
+                batch.clear()
+            }
             source.scan().collect { image ->
                 found += image.path
-                if (index.record(image)) stats.newOrChanged++
+                batch += image
+                if (batch.size == recordBatch) flush()
                 if (found.size % 100 == 0) progress("scan", found.size, 0)
             }
+            flush()
         }
         // A trash that cannot be listed is a failure of this step. Its rows stay as they are until a scan can read it.
         val inTrash = try {

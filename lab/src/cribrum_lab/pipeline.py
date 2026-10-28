@@ -55,6 +55,8 @@ Progress = Callable[[str, int, int], None]
 EMBEDDING_CHUNK = 256
 """Images decoded per round before the model runs: bounds the memory held by decoded pixels."""
 EMBEDDING_BATCH = 32
+RECORD_BATCH = 300
+"""Images the walk records in one transaction."""
 
 
 class MissingEmbedding(LookupError):
@@ -92,6 +94,7 @@ def run(
     embedder: Embedder | None = None,
     jobs: int = 1,
     progress: Progress | None = None,
+    record_batch: int = RECORD_BATCH,
 ) -> Stats:
     """Analyzes every image under `root`.
 
@@ -107,10 +110,15 @@ def run(
 
     found = set()
     source = FilesystemImageSource(root, index.images)
+    batch: list[ImageRef] = []
     for image in source.scan():
         found.add(image.path)
-        stats.new_or_changed += index.record(image)
+        batch.append(image)
+        if len(batch) == record_batch:
+            stats.new_or_changed += index.record_all(batch)
+            batch.clear()
         progress("scan", len(found), 0)
+    stats.new_or_changed += index.record_all(batch)
     walked = source.walked_roots
     gone = [
         p

@@ -55,6 +55,21 @@ def test_first_run_stores_metadata_and_signals_of_every_detector(photos, index):
     assert {Category.EXACT_DUPLICATE, Category.NEAR_DUPLICATE} <= categories(index, copy)
 
 
+def test_a_walk_longer_than_the_record_batch_records_every_file_and_counts_them(tmp_path, index):
+    root = tmp_path / "device"
+    files = [save(root / f"DCIM/Camera/{i}.png", seed=i).resolve() for i in range(5)]
+
+    first = pipeline.run(root, index, detectors=[], group_detectors=[], record_batch=2)
+
+    assert first.new_or_changed == 5
+    assert {image.path for image in index.images()} == set(files)
+    again = pipeline.run(root, index, detectors=[], group_detectors=[], record_batch=2)
+    assert again.new_or_changed == 0
+    os.utime(files[3], ns=(1, 1))
+    touched = pipeline.run(root, index, detectors=[], group_detectors=[], record_batch=2)
+    assert touched.new_or_changed == 1
+
+
 def test_second_run_on_unchanged_data_does_no_detector_work(photos, index):
     pipeline.run(photos, index)
 

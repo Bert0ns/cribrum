@@ -126,28 +126,38 @@ class ImageIndex:
         state: the file may only have been touched, and a decision the user made must not
         be lost. A real edit shows up as new signals, which the ranker treats as such.
         """
+        return self.record_all([image]) > 0
+
+    def record_all(self, images: Iterable[ImageRef]) -> int:
+        """`record` for many images in one transaction. Returns how many are new or changed.
+
+        If it raises, none of them is recorded.
+        """
+        with self._db:
+            return sum(self._record(image) for image in images)
+
+    def _record(self, image: ImageRef) -> bool:
         path = str(image.path)
         row = self._db.execute(
             "SELECT size, mtime_ns FROM images WHERE path = ?", (path,)
         ).fetchone()
         if row == (image.size, image.mtime_ns):
             return False
-        with self._db:
-            if row is None:
-                self._db.execute(
-                    "INSERT INTO images (path, size, mtime_ns) VALUES (?, ?, ?)",
-                    (path, image.size, image.mtime_ns),
-                )
-            else:
-                self._db.execute(
-                    """UPDATE images SET size = ?, mtime_ns = ?, width = NULL, height = NULL,
-                       mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL,
-                       unreadable = 0, content_hash = NULL, perceptual_hash = NULL
-                       WHERE path = ?""",
-                    (image.size, image.mtime_ns, path),
-                )
-                self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
-                self._db.execute("DELETE FROM embeddings WHERE path = ?", (path,))
+        if row is None:
+            self._db.execute(
+                "INSERT INTO images (path, size, mtime_ns) VALUES (?, ?, ?)",
+                (path, image.size, image.mtime_ns),
+            )
+        else:
+            self._db.execute(
+                """UPDATE images SET size = ?, mtime_ns = ?, width = NULL, height = NULL,
+                   mime = NULL, camera_make = NULL, camera_model = NULL, captured_at = NULL,
+                   unreadable = 0, content_hash = NULL, perceptual_hash = NULL
+                   WHERE path = ?""",
+                (image.size, image.mtime_ns, path),
+            )
+            self._db.execute("DELETE FROM analyses WHERE path = ?", (path,))
+            self._db.execute("DELETE FROM embeddings WHERE path = ?", (path,))
         return True
 
     def images(self) -> list[ImageRef]:

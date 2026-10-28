@@ -64,6 +64,45 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `recordAll counts the new and changed images and leaves the rest as they were`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setMetadata(OTHER.path, META)
+        val fresh = ImageRef("/photos/c.jpg", 7, 7)
+
+        assertEquals(2, recordAll(listOf(PHOTO, ImageRef(OTHER.path, 6, 5), fresh)))
+
+        assertEquals(listOf(PHOTO, ImageRef(OTHER.path, 6, 5), fresh), images())
+        assertNull(metadata(OTHER.path)) // the changed one was reset, like record does
+    }
+
+    @Test
+    fun `recordAll of images already recorded keeps the version`() = test {
+        recordAll(listOf(PHOTO, OTHER))
+        val before = version
+
+        assertEquals(0, recordAll(listOf(PHOTO, OTHER)))
+
+        assertEquals(before, version)
+    }
+
+    @Test
+    fun `a batch that fails part way leaves the index as it was`() = test {
+        record(PHOTO)
+        val before = version
+        val batch = object : AbstractList<ImageRef>() {
+            override val size = 3
+            override fun get(index: Int) = if (index == 2) error("disk full") else ImageRef("/photos/new-$index.jpg", 1, 1)
+        }
+
+        assertThrows(IllegalStateException::class.java) { runBlocking { recordAll(batch) } }
+
+        assertEquals(listOf(PHOTO), images())
+        assertEquals(before, version)
+        assertEquals(2, recordAll(batch.take(2))) // the index still takes the same files
+    }
+
+    @Test
     fun `a new file at the path of a trashed image starts unreviewed`() = test {
         record(PHOTO)
         setReviewState(PHOTO.path, ReviewState.TRASHED)
@@ -522,6 +561,7 @@ class ImageIndexTest {
     /** Every public write of the index, each run once on an index holding [PHOTO] with [BLUR]. */
     private val writes: Map<String, suspend ImageIndex.() -> Unit> = mapOf(
         "record" to { record(OTHER) },
+        "recordAll" to { recordAll(listOf(OTHER)) },
         "forget" to { forget(listOf(PHOTO.path)) },
         "forgetTrashed" to { forgetTrashed(listOf(PHOTO.path)) },
         "setUnreadable" to { setUnreadable(PHOTO.path) },
