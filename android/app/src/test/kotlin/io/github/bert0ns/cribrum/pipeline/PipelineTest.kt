@@ -107,6 +107,15 @@ class PipelineTest {
     }
 
     @Test
+    fun `a run without an embedder still times every phase, the embeddings one included`() {
+        photos()
+
+        val stats = run(Pipeline(index, clock = { 0 }))
+
+        assertEquals(listOf("walk", "metadata", "detectors", "embeddings", "embeddedDetectors", "groupDetectors"), stats.phaseMs.keys.toList())
+    }
+
+    @Test
     fun `second run on unchanged data does no detector work`() {
         photos()
         run()
