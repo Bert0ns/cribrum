@@ -62,7 +62,8 @@ internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Ar
     val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
     try {
         val argb = IntArray(bitmap.width * bitmap.height)
-        if (bitmap.colorSpace?.isSrgb == false) {
+        // A 16-bit or 10-bit image comes in another config, which the raw copy does not fit: getPixels reads those.
+        if (bitmap.config == Bitmap.Config.ARGB_8888 && bitmap.colorSpace?.isSrgb == false) {
             // getPixels converts to sRGB, where Pillow reads the stored values and ignores the profile.
             bitmap.copyPixelsToBuffer(IntBuffer.wrap(argb))
             for (i in argb.indices) argb[i] = (argb[i] and 0xff00ff00.toInt()) or (argb[i] shl 16 and 0xff0000) or (argb[i] shr 16 and 0xff) // RGBA bytes to ARGB
