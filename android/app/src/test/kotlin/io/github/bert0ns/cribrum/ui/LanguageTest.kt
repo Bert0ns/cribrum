@@ -83,6 +83,20 @@ class LanguageTest {
 
     @Test
     @Config(qualifiers = "it")
+    fun `the file names of a scan read in Italian too`() {
+        val report = ScanReport(1_700_000_000_000, unreadable = 1, failures = mapOf("metadata" to 1), files = listOf(FailedFile("metadata", "b.jpg")), unreadableFiles = listOf("foto.heic"))
+        compose.setContent { SettingsScreen(coverage = emptyList(), lastScan = report) }
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("1 file illeggibile"))
+        compose.onNodeWithText("1 file illeggibile").performClick()
+        for (text in listOf("Tocca per mostrare o nascondere i nomi dei file.", "Illeggibile: foto.heic", "Metadati: b.jpg")) {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
+            compose.onNodeWithText(text).assertExists()
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "it")
     fun `the summary and the trash hint give the chosen retention in Italian`() {
         val image = ImageRef("/sdcard/DCIM/a.jpg", 1, 0)
         val page = listOf(ReviewGroup("a", listOf(ReviewItem(image, suggestTrash = true))))

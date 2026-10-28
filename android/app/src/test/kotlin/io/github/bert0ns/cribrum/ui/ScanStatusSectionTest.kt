@@ -64,19 +64,21 @@ class ScanStatusSectionTest {
         compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names hidden")).assertExists()
         compose.onNodeWithText("2 failures in the last scan").performClick()
         compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names shown")).assertExists()
-        scrollTo("embedding: a.jpg")
-        scrollTo("embedding: b.jpg")
+        scrollTo("Embeddings: a.jpg")
+        scrollTo("Embeddings: b.jpg")
     }
 
     @Test
-    fun `the unreadable file names are one tap away`() {
-        show(coverage, ScanReport(1_700_000_000_000, unreadable = 2, failures = emptyMap(), files = emptyList(), unreadableFiles = listOf("a.heic", "b.avif")))
+    fun `the unreadable file names are one tap away, and a hint says so`() {
+        show(coverage, ScanReport(1_700_000_000_000, unreadable = 2, failures = mapOf("metadata" to 1), files = listOf(FailedFile("metadata", "c.jpg")), unreadableFiles = listOf("a.heic", "b.avif")))
 
         scrollTo("2 unreadable files")
+        scrollTo("Tap to show or hide their file names.")
         compose.onNodeWithText("2 unreadable files").assertHasClickAction()
         compose.onNodeWithText("2 unreadable files").performClick()
-        scrollTo("unreadable: a.heic")
-        scrollTo("unreadable: b.avif")
+        scrollTo("Unreadable: a.heic")
+        scrollTo("Unreadable: b.avif")
+        scrollTo("Metadata: c.jpg")
     }
 
     @Test

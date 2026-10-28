@@ -221,6 +221,9 @@
     <string name="settings_scan_status_files_hidden">File names hidden</string>
     <string name="settings_scan_status_embedding">Embeddings</string>
     <string name="settings_scan_status_faces">Faces</string>
+    <string name="settings_scan_status_metadata">Metadata</string>
+    <string name="settings_scan_status_unreadable_step">Unreadable</string>
+    <string name="settings_scan_status_unreadable_hint">Tap to show or hide their file names.</string>
     <string name="settings_scan_status_file" translatable="false">%1$s: %2$s</string>
     <plurals name="settings_scan_status_more">
         <item quantity="one">and %1$d more</item>

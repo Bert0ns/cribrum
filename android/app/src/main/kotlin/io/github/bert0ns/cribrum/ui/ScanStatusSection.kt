@@ -54,6 +54,7 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
                     } else {
                         Text(DateUtils.formatDateTime(context, lastScan.finishedAt, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH))
                         Text(pluralStringResource(R.plurals.settings_scan_status_unreadable, lastScan.unreadable, lastScan.unreadable))
+                        if (lastScan.unreadableFiles.isNotEmpty()) Text(stringResource(R.string.settings_scan_status_unreadable_hint))
                     }
                     if (lastScanFailed) {
                         Text(stringResource(R.string.settings_scan_status_failed))
@@ -75,11 +76,11 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
         }
     }
     if (lastScan != null && showingFiles) {
-        items(lastScan.files) { file -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, file.step, file.name)) }) }
+        items(lastScan.files) { file -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, stepName(file.step), file.name)) }) }
         if (failed > lastScan.files.size) {
             item { ListItem(headlineContent = { Text(pluralStringResource(R.plurals.settings_scan_status_more, failed - lastScan.files.size, failed - lastScan.files.size)) }) }
         }
-        items(lastScan.unreadableFiles) { name -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, "unreadable", name)) }) }
+        items(lastScan.unreadableFiles) { name -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, stringResource(R.string.settings_scan_status_unreadable_step), name)) }) }
         if (lastScan.unreadable > lastScan.unreadableFiles.size) {
             item { ListItem(headlineContent = { Text(pluralStringResource(R.plurals.settings_scan_status_more, lastScan.unreadable - lastScan.unreadableFiles.size, lastScan.unreadable - lastScan.unreadableFiles.size)) }) }
         }
@@ -115,6 +116,7 @@ private fun stepName(id: String): String {
         category != null -> categoryName(category)
         id == EMBEDDING_STEP -> stringResource(R.string.settings_scan_status_embedding)
         id == "faces" -> stringResource(R.string.settings_scan_status_faces)
+        id == "metadata" -> stringResource(R.string.settings_scan_status_metadata)
         else -> id
     }
 }
