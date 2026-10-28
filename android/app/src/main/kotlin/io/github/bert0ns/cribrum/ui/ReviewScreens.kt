@@ -80,6 +80,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -362,7 +363,8 @@ fun CategoryScreen(
 /**
  * The images of the list at full size, to tell real blur from a small thumbnail. Swipe to page,
  * pinch to zoom, and drag to pan once zoomed. Tap to close. A button says how the grid marks the
- * image and toggles it on click, and the view offers to never suggest the image's folder again.
+ * image and toggles that mark, which writes nothing on its own, and the view offers to never
+ * suggest the image's folder again.
  */
 @Composable
 private fun FullSize(
@@ -382,17 +384,26 @@ private fun FullSize(
                 ZoomableImage(items[page].image, onClose)
             }
             val isMarked = current.image.path in marked
+            val toggle = {
+                haptics.performHapticFeedback(Haptic.TICK.type)
+                onToggle(current.image)
+            }
+            val toggleLabel = stringResource(if (isMarked) R.string.action_keep else R.string.action_trash)
             Button(
-                onClick = {
-                    haptics.performHapticFeedback(Haptic.TICK.type)
-                    onToggle(current.image)
-                },
+                onClick = toggle,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
+                    contentColor = if (isMarked) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
                 ),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp),
+                // The text says the mark; the label says what a tap does to it, as on a tile.
+                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
+                    .semantics {
+                        onClick(label = toggleLabel) {
+                            toggle()
+                            true
+                        }
+                    },
             ) {
                 Icon(
                     if (isMarked) Icons.Default.Delete else Icons.Default.Check,

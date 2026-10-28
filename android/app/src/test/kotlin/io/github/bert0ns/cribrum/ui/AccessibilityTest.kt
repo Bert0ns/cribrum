@@ -11,12 +11,16 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -56,7 +60,7 @@ class AccessibilityTest {
      */
     private fun assertTouchTargets(screen: String) {
         val minimum = with(compose.density) { 48.dp.toPx() } - 1f // layout rounds to whole pixels
-        val root = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val root = compose.onAllNodes(isRoot()).fetchSemanticsNodes().last().boundsInRoot // a dialog is the last root
         val controls = compose.onAllNodes(hasClickAction() or SemanticsMatcher.keyIsDefined(SemanticsActions.SetProgress)).fetchSemanticsNodes()
             .filter { it.touchBoundsInRoot.top > root.top && it.touchBoundsInRoot.bottom < root.bottom }
         assertTrue("$screen has no control", controls.isNotEmpty())
@@ -84,6 +88,15 @@ class AccessibilityTest {
         compose.setContent { CategoryScreen(page, 3, marked, false, {}, { _, _ -> }, {}) }
 
         assertTouchTargets("category")
+    }
+
+    @Test
+    fun `the full size view has targets of 48 dp`() {
+        compose.setContent { CategoryScreen(page, 3, marked, false, {}, { _, _ -> }, {}) }
+        compose.onAllNodesWithContentDescription("img1.jpg", substring = true)[0].performTouchInput { longClick() }
+
+        compose.onNodeWithText("Marked for the trash").assertExists()
+        assertTouchTargets("full size")
     }
 
     @Test
