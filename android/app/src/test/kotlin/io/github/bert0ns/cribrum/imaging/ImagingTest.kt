@@ -11,8 +11,11 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
+import java.util.zip.CRC32
+import java.util.zip.DeflaterOutputStream
 
 private fun gray(width: Int, height: Int, vararg values: Int) = Gray(width, height, FloatArray(values.size) { values[it].toFloat() })
 
@@ -52,6 +55,38 @@ class ImagingTest {
         val expected = IntArray(32) { i -> (0xff shl 24) or ((stored[i * 4].toInt() and 0xff) shl 16) or ((stored[i * 4 + 1].toInt() and 0xff) shl 8) or (stored[i * 4 + 2].toInt() and 0xff) }
 
         assertArrayEquals(expected, decode(file, 2).pixels)
+    }
+
+    /** Skia decodes a 16-bit PNG to RGBA_F16 whatever config is asked for: eight bytes a pixel, not four. */
+    @Test
+    fun `a 16-bit png decodes to its values at 8 bits`() {
+        val rows = ByteArrayOutputStream()
+        for (y in 0 until 4) {
+            rows.write(0) // filter: none
+            for (x in 0 until 8) {
+                listOf(x * 30, y * 60, 255 - x * 30).forEach { v ->
+                    rows.write(v)
+                    rows.write(v)
+                } // 16 bits: the high byte twice
+            }
+        }
+        val file = File(folder.root, "deep.png").apply { writeBytes(png16(8, 4, rows.toByteArray())) }
+
+        val decoded = decode(file, 2)
+
+        val expected = IntArray(32) { i -> (0xff shl 24) or ((i % 8 * 30) shl 16) or ((i / 8 * 60) shl 8) or (255 - i % 8 * 30) }
+        assertArrayEquals(expected, decoded.pixels)
+    }
+
+    private fun png16(width: Int, height: Int, rows: ByteArray): ByteArray {
+        fun chunk(type: String, data: ByteArray): ByteArray {
+            val body = type.toByteArray() + data
+            val crc = CRC32().apply { update(body) }.value.toInt()
+            return ByteBuffer.allocate(8 + body.size).putInt(data.size).put(body).putInt(crc).array()
+        }
+        val header = ByteBuffer.allocate(13).putInt(width).putInt(height).put(16).put(2).put(0).put(0).put(0).array() // 16 bits, RGB
+        val deflated = ByteArrayOutputStream().also { DeflaterOutputStream(it).use { out -> out.write(rows) } }.toByteArray()
+        return byteArrayOf(-119, 80, 78, 71, 13, 10, 26, 10) + chunk("IHDR", header) + chunk("IDAT", deflated) + chunk("IEND", ByteArray(0))
     }
 
     /** The synthetic animated images of fixtures/decode: the first frame has red, green, blue and yellow quadrants. */
