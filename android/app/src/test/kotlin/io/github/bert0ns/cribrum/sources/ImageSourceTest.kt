@@ -144,6 +144,36 @@ class ImageSourceTest {
     }
 
     @Test
+    fun `skips a skipped folder wherever it is, and everything below it`() {
+        write("DCIM/$TRASH_FOLDER/0b1c/a.jpg", JPEG)
+        write("$TRASH_FOLDER/Android/data/b.jpg", JPEG)
+        write("Android/data/com.example/$TRASH_FOLDER/c.jpg", JPEG)
+        write("Android/.Trash/Android/obb/d.jpg", JPEG)
+        write("Android/media/e.jpg", JPEG)
+
+        assertEquals(listOf("Android/media/e.jpg"), scanned())
+    }
+
+    @Test
+    fun `keeps the folders that only look like a skipped one`() {
+        write("DCIM/Android/data/a.jpg", JPEG)
+        write("Pictures/Android/obb/b.jpg", JPEG)
+        write("Android/dataset/c.jpg", JPEG)
+
+        assertEquals(listOf("Android/dataset/c.jpg", "DCIM/Android/data/a.jpg", "Pictures/Android/obb/b.jpg"), scanned())
+    }
+
+    @Test
+    fun `skips prefixed names in nested folders, and walks a prefixed folder`() {
+        write("a/b/.trashed-1760000000-IMG_1.jpg", JPEG)
+        write("a/b/.pending-1760000000-IMG_2.jpg", JPEG)
+        write("a/b/IMG_3.jpg", JPEG)
+        write("a/.trashed-folder/IMG_4.jpg", JPEG) // only file names carry the prefixes
+
+        assertEquals(listOf("a/.trashed-folder/IMG_4.jpg", "a/b/IMG_3.jpg"), scanned())
+    }
+
+    @Test
     fun `skips the Samsung Gallery recycle bin at the root only`() {
         write("Android/.Trash/com.sec.android.gallery3d/a.jpg", JPEG)
         write("DCIM/Android/.Trash/b.jpg", JPEG)
