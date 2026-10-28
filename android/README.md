@@ -58,6 +58,32 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 
 Sections are per image at the finest, never per pixel or row. Perfetto shows the async sections on process tracks and the others on thread tracks, so a query for a name must read both.
 
+### Measuring
+
+`scripts/measure.sh` measures the benchmark build on a connected phone, and prints one line per number:
+
+- `cold start`: `TotalTime` of `am start -W`.
+- `home ready`: from the start of the process to the end of the last `Review.overview` before the category opens, from a Perfetto trace.
+- `category open`: the length of the first `Review.page`, from the same trace.
+- `scroll frames`, `scroll janky frames`, `scroll p90`, `scroll p99`: `dumpsys gfxinfo` over ten flings on the category page.
+- `indexed images` and `last scan` with the time of each phase: what the last scan logged under the `scan-time` tag (`adb logcat -s scan-time`), while the log still holds it. Settings shows the total time of the last scan.
+
+It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It starts the app cold, opens one category from the home, scrolls it and goes back, and taps nothing else. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review:
+
+```bash
+android/scripts/measure.sh
+android/scripts/measure.sh Screenshots
+```
+
+`ADB` overrides the adb command. Under WSL with the Windows adb, run it from a folder Windows can reach, since adb gets its files through a temporary folder under the current directory:
+
+```bash
+cd /mnt/c/Users/Public
+ADB='cmd.exe /c C:\Users\<you>\AppData\Local\Android\Sdk\platform-tools\adb.exe' ~/cribrum/android/scripts/measure.sh
+```
+
+The times grow with the library, so write down `indexed images` with every number.
+
 ## Release
 
 Releases are manual: on GitHub, Actions → release → Run workflow, on `main`, with the version as `MAJOR.MINOR.PATCH`. The workflow refuses a version that is not above the latest release, runs the unit tests and lint, and publishes `cribrum-X.Y.Z.apk` and its SHA-256 as the release `vX.Y.Z`. Install it with `adb install -r`, or open it on the phone.
