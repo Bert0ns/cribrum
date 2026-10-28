@@ -44,7 +44,8 @@ internal const val MAX_PIXELS = 16_000_000
 
 /**
  * Decodes with Pillow's draft: a JPEG decodes straight at 1/2, 1/4 or 1/8 while both sides stay
- * >= [draftSide]. Another format has no draft, so above [maxPixels] it is sampled by the same rule.
+ * >= [draftSide]. Another format has no draft: above [maxPixels] it is sampled until it fits, even if a side
+ * falls under [draftSide], since a long screenshot must not run the heap out.
  * Alpha is left as stored, since Pillow drops it when it converts to RGB or L. A wide gamut image
  * keeps its stored values, as Pillow does: converted to sRGB they moved the embeddings off the lab's,
  * to a cosine of 0.9993 on a saturated test image.
@@ -56,8 +57,11 @@ internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Ar
     val options = BitmapFactory.Options().apply {
         inPreferredConfig = Bitmap.Config.ARGB_8888
         inPremultiplied = false
-        val draft = draftScale(bounds.outWidth, bounds.outHeight, draftSide)
-        inSampleSize = if (bounds.outMimeType == "image/jpeg") draft else min(draft, sampleFor(bounds.outWidth, bounds.outHeight, maxPixels))
+        inSampleSize = if (bounds.outMimeType == "image/jpeg") {
+            draftScale(bounds.outWidth, bounds.outHeight, draftSide)
+        } else {
+            sampleFor(bounds.outWidth, bounds.outHeight, maxPixels)
+        }
     }
     val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
     try {

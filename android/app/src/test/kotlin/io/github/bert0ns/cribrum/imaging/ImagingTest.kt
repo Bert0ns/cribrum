@@ -103,12 +103,13 @@ class ImagingTest {
     }
 
     @Test
-    fun `the sample size of a big image keeps both sides at least the draft side`() {
-        val file = TestImage.texture(64, 48).save(File(folder.root, "a.webp"), Bitmap.CompressFormat.WEBP_LOSSLESS)
+    fun `a long image above the pixel limit is sampled past the draft side`() {
+        val file = TestImage.texture(40, 400).save(File(folder.root, "long.png"))
 
-        val sampled = decode(file, 40, maxPixels = 1000)
+        val sampled = decode(file, 20, maxPixels = 1000)
 
-        assertEquals(64 to 48, sampled.width to sampled.height)
+        // The draft rule would stop at 1/2 (20 x 200 = 4000 pixels) and a long screenshot would still not fit the heap.
+        assertEquals(10 to 100, sampled.width to sampled.height)
     }
 
     @Test
