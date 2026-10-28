@@ -53,7 +53,7 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
                         Text(stringResource(R.string.settings_scan_status_none))
                     } else {
                         Text(DateUtils.formatDateTime(context, lastScan.finishedAt, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH))
-                        lastScan.durationMs?.let { Text(stringResource(R.string.settings_scan_status_duration, DateUtils.formatElapsedTime(it / 1000))) }
+                        lastScan.durationMs?.let { Text(stringResource(R.string.settings_scan_status_duration, if (it < 60_000) "${it / 1000} s" else DateUtils.formatElapsedTime(it / 1000))) }
                         Text(pluralStringResource(R.plurals.settings_scan_status_unreadable, lastScan.unreadable, lastScan.unreadable))
                         if (lastScan.unreadableFiles.isNotEmpty()) Text(stringResource(R.string.settings_scan_status_unreadable_hint))
                     }

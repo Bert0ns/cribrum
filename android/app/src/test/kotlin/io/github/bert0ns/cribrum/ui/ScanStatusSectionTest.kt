@@ -89,6 +89,13 @@ class ScanStatusSectionTest {
     }
 
     @Test
+    fun `a scan under a minute shows its seconds`() {
+        show(coverage, ScanReport(1_700_000_000_000, unreadable = 0, failures = emptyMap(), files = emptyList(), durationMs = 45_900))
+
+        scrollTo("Took 45 s")
+    }
+
+    @Test
     fun `a report saved before the times were kept shows no time`() {
         show(coverage, ScanReport(1_700_000_000_000, unreadable = 0, failures = emptyMap(), files = emptyList()))
 

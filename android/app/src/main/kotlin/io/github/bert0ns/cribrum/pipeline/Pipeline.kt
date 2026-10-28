@@ -192,6 +192,7 @@ class Pipeline(
         // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
         index.forgetAnalyses(stickers.map { it.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
         val embeddings = if (embedder == null) {
+            phase("embeddings", stats) {} // so every scan logs the same phases
             emptyMap()
         } else {
             phase("embeddings", stats) { embed(embedder, embeddable, stats, progress) }

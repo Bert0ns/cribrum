@@ -59,7 +59,7 @@ class LastScan(private val preferences: SharedPreferences) {
             .put("failures", JSONObject(stats.failures.groupingBy { it.step }.eachCount()))
             .put("files", JSONArray(stats.failures.take(MAX_FILES).map { JSONArray(listOf(it.step, File(it.path).name)) }))
             .put("unreadable_files", JSONArray(stats.unreadablePaths.take(MAX_FILES).map { File(it).name }))
-            .put("phase_ms", JSONObject(stats.phaseMs as Map<*, *>))
+            .put("phase_ms", JSONObject(stats.phaseMs))
         if (durationMs != null) json.put("duration_ms", durationMs)
         val hasFailed = stats.failures.any { it.path.isEmpty() || it.step == "trash" || it.step in GROUP_DETECTOR_IDS }
         preferences.edit {
