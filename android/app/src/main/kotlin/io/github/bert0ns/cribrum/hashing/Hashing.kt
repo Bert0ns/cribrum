@@ -25,7 +25,7 @@ fun contentHash(image: ImageRef): String {
             digest.update(buffer, 0, read)
         }
     }
-    return digest.digest().joinToString("") { "%02x".format(it) }
+    return digest.digest().toHex()
 }
 
 /**

@@ -3,6 +3,7 @@
 package io.github.bert0ns.cribrum.detectors
 
 import com.appmattus.crypto.Algorithm
+import io.github.bert0ns.cribrum.hashing.toHex
 
 internal fun dot(a: FloatArray, b: FloatArray): Float {
     var sum = 0f
@@ -12,9 +13,12 @@ internal fun dot(a: FloatArray, b: FloatArray): Float {
     return sum
 }
 
-internal fun groupId(path: String): String {
+internal fun groupId(path: String): String = pathDigest(path).toHex()
+
+/** The big-endian xxh3 digest of the path, 8 bytes. */
+internal fun pathDigest(path: String): ByteArray {
     val digest = Algorithm.XXH3_64().createDigest()
     val bytes = path.toByteArray()
     digest.update(bytes, 0, bytes.size)
-    return digest.digest().joinToString("") { "%02x".format(it) }
+    return digest.digest()
 }

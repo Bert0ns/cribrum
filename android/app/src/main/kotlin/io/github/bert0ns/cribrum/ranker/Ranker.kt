@@ -2,13 +2,14 @@
 // docs/design.md §6.
 package io.github.bert0ns.cribrum.ranker
 
-import io.github.bert0ns.cribrum.detectors.groupId
+import io.github.bert0ns.cribrum.detectors.pathDigest
 import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.IndexedImage
 import io.github.bert0ns.cribrum.model.Protection
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
+import java.nio.ByteBuffer
 
 /**
  * Score a signal needs to make an image a candidate. Picked by the maintainer from the lab
@@ -122,8 +123,11 @@ class Ranker(private val thresholds: Map<Category, Float> = THRESHOLDS) {
     }
 }
 
-/** xxh3 of the path, the same as `_tie_break` in the lab's ranker. */
-private fun pathHash(path: String): String = groupId(path)
+/**
+ * xxh3 of the path as an unsigned number, which orders the same as the lab's `_tie_break` hex
+ * text: `getLong` reads the 8 bytes most significant first, the order the fixed-length hex writes them.
+ */
+private fun pathHash(path: String): ULong = ByteBuffer.wrap(pathDigest(path)).getLong().toULong()
 
 private fun protection(signals: List<Signal>): Float {
     var factor = 1f

@@ -20,6 +20,7 @@ import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.folders.isStickerFolder
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
+import io.github.bert0ns.cribrum.hashing.toHex
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
@@ -470,6 +471,6 @@ class Pipeline(
         val digest = Algorithm.XXH3_64().createDigest()
         digest.update(inputs.toByteArray())
         for (image in images.sortedBy { it.path }) digest.update("${image.path}\u0000${image.size}\u0000${image.mtimeNs}\n".toByteArray())
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        return digest.digest().toHex()
     }
 }
