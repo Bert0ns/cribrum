@@ -334,6 +334,55 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `tapping the status button in full size toggles the mark`() {
+        var marked by mutableStateOf(setOf(images[0].path))
+        compose.setContent {
+            CategoryScreen(page, 3, marked, false, { image ->
+                marked = if (image.path in marked) marked - image.path else marked + image.path
+            }, { _, _ -> }, {})
+        }
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithText("Marked for the trash").performClick()
+        compose.onNodeWithText("Kept").assertExists()
+        assertEquals(emptySet<String>(), marked)
+
+        compose.onNodeWithText("Kept").performClick()
+        compose.onNodeWithText("Marked for the trash").assertExists()
+        assertEquals(setOf(images[0].path), marked)
+    }
+
+    @Test
+    fun `the status button in full size tells a screen reader what a tap does`() {
+        compose.setContent { CategoryScreen(page, 3, setOf(images[0].path), false, {}, { _, _ -> }, {}) }
+
+        openFullSize("img1.jpg")
+        assertEquals("Keep", compose.onNodeWithText("Marked for the trash").fetchSemanticsNode().config[SemanticsActions.OnClick].label)
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+        assertEquals("Mark for the trash", compose.onNodeWithText("Kept").fetchSemanticsNode().config[SemanticsActions.OnClick].label)
+    }
+
+    @Test
+    fun `a mark changed in full size shows in the grid and is what confirming applies`() {
+        var confirmed: Pair<Set<String>, Set<String>>? = null
+        compose.setContent {
+            var marked by remember { mutableStateOf(images.map { it.path }.toSet()) }
+            CategoryScreen(page, 3, marked, false, { image ->
+                marked = if (image.path in marked) marked - image.path else marked + image.path
+            }, { trash, keep -> confirmed = trash to keep }, {})
+        }
+
+        openFullSize("img1.jpg")
+        compose.onNodeWithText("Marked for the trash").performClick()
+        compose.onNodeWithTag("fullSize").performTouchInput { click() }
+        compose.onNodeWithContentDescription("img1.jpg. Kept").assertExists()
+        compose.onNodeWithText("Trash 2, keep 1").performClick()
+        compose.onNodeWithText("Move to trash").performClick()
+
+        assertEquals(setOf(images[1].path, images[2].path) to setOf(images[0].path), confirmed)
+    }
+
+    @Test
     fun `the full size view says why the image is a candidate, strongest reason first`() {
         val dark = Signal("exposure", 1, Category.BAD_EXPOSURE, 1f, mapOf("case" to "dark"))
         val blurry = Signal("blur", 1, Category.BLURRY, 0.9f)
@@ -483,6 +532,16 @@ class CategoryScreenTest {
 
         // The long press that opens the image is the platform's own.
         assertEquals(listOf(HapticFeedbackType.LongPress, Haptic.KEEP.type), given)
+    }
+
+    @Test
+    fun `tapping the status button in full size gives tick feedback`() {
+        val given = haptics(page, setOf(images[0].path)) {
+            tile("img1.jpg").performTouchInput { longClick() }
+            compose.onNodeWithText("Marked for the trash").performClick()
+        }
+
+        assertEquals(listOf(HapticFeedbackType.LongPress, Haptic.TICK.type), given)
     }
 
     /** A tile is found by what a screen reader says of it, which starts with the file name when nothing tells why it is here. */
