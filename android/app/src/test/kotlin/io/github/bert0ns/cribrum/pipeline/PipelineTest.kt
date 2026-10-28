@@ -79,6 +79,19 @@ class PipelineTest {
     private fun kinds(path: String): Set<Kind> = runBlocking { index.signals(File(root, path).path) }.map { it.kind }.toSet()
 
     @Test
+    fun `a walk longer than the record batch records every file and counts the new and changed ones`() {
+        val files = (0 until 5).map { save("DCIM/Camera/$it.png", seed = it) }
+        fun batched() = Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), recordBatch = 2)
+
+        assertEquals(5, run(batched()).newOrChanged)
+        assertEquals(files.map { it.path }.toSet(), runBlocking { index.images() }.map { it.path }.toSet())
+
+        assertEquals(0, run(batched()).newOrChanged)
+        files[3].setLastModified(files[3].lastModified() + 5_000)
+        assertEquals(1, run(batched()).newOrChanged)
+    }
+
+    @Test
     fun `first run stores metadata and signals of every detector`() {
         photos()
 
@@ -390,6 +403,7 @@ class PipelineTest {
     fun `an image trashed after the walk is not marked unreadable, so a restore brings it back analyzed`() {
         photos()
         val image = refOf("DCIM/Camera/a.png")
+        runBlocking { index.record(image) } // a scan that stopped before the metadata step: the user can only act on an indexed image
         val review = Review(index, trash)
 
         val stats = runBlocking { Pipeline(index, trash = trash).run(afterWalk { review.apply(listOf(image), emptyList()) }) }

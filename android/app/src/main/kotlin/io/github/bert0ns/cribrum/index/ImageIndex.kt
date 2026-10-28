@@ -50,19 +50,27 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
      * a file on disk at its path is not the one in the trash, so the row starts unreviewed.
      * An unchanged image keeps the version: a scan records every file, and would otherwise drop the review's ranking.
      */
-    suspend fun record(image: ImageRef): Boolean = db.withTransaction {
+    suspend fun record(image: ImageRef): Boolean = recordAll(listOf(image)) > 0
+
+    /**
+     * [record] for many images in one transaction, which is much cheaper than one each. Returns how many are new or
+     * changed. If it throws, none of them is recorded and the version stays.
+     */
+    suspend fun recordAll(images: List<ImageRef>): Int = db.withTransaction { images.count { recordOne(it) } }.also { changed -> if (changed > 0) writes.incrementAndGet() }
+
+    private suspend fun recordOne(image: ImageRef): Boolean {
         val stored = dao.ref(image.path)
         when {
             stored == null -> dao.insertImage(ImageRow(image.path, image.size, image.mtimeNs))
-            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return@withTransaction false
+            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return false
             else -> {
                 dao.resetImage(image.path, image.size, image.mtimeNs)
                 dao.deleteAnalyses(image.path)
                 dao.deleteEmbeddings(image.path)
             }
         }
-        true
-    }.also { changed -> if (changed) writes.incrementAndGet() }
+        return true
+    }
 
     suspend fun images(): List<ImageRef> = dao.images().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
