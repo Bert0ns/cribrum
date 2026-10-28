@@ -68,7 +68,9 @@ Sections are per image at the finest, never per pixel or row. Perfetto shows the
 - `scroll frames`, `scroll janky frames`, `scroll p90`, `scroll p99`: `dumpsys gfxinfo` over ten flings on the category page.
 - `indexed images` and `last scan` with the time of each phase: what the last scan logged under the `scan-time` tag (`adb logcat -s scan-time`), while the log still holds it. Settings shows the total time of the last scan.
 
-It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It starts the app cold, opens one category from the home, scrolls it and goes back, and taps nothing else. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review:
+It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It starts the app cold, opens one category from the home, scrolls it and goes back, and taps nothing else. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review. It refuses a name that is not a category title, and stops before the flings if the category screen did not open.
+
+A cold start force-stops the app, which would kill a running scan. The script stops instead when a scan is running (WorkManager's job or foreground service in `dumpsys activity services`), so start it when the scan is done:
 
 ```bash
 android/scripts/measure.sh
