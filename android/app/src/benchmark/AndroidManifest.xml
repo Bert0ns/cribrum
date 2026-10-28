@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Lets the shell profile a build that is not debuggable (android/README.md, Benchmark build). -->
+    <application>
+        <profileable android:shell="true" />
+    </application>
+
+</manifest>

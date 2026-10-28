@@ -48,6 +48,11 @@ android {
             )
             signingConfig = signingConfigs.findByName("release")
         }
+        // The release build for measuring, installable without the release key (android/README.md). Its manifest adds profileable.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     compileOptions {
