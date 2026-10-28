@@ -1,6 +1,7 @@
 // The lab's tests/test_ranker.py, translated.
 package io.github.bert0ns.cribrum.ranker
 
+import io.github.bert0ns.cribrum.detectors.groupId
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -47,6 +48,18 @@ private fun rank(vararg images: IndexedImage) = Ranker(TEST_THRESHOLDS).rank(ima
 private fun names(candidates: List<Candidate>) = candidates.map { it.image.ref.path }
 
 class RankerTest {
+    @Test
+    fun `ties go by the hex of the path digest, whatever the top bit`() {
+        val paths = (0 until 200).map { "/pics/img_$it.jpg" }
+        val expected = paths.sortedBy { groupId(it) }
+        // a signed compare of the digests would put the top-bit-set ones first
+        assertTrue(expected.first().let { groupId(it)[0] } < '8' && expected.any { groupId(it)[0] >= '8' })
+
+        val order = rank(*paths.map { image(it, blur(0.9f)) }.toTypedArray())
+
+        assertEquals(expected, names(order))
+    }
+
     @Test
     fun `images in an excluded folder are never listed, whatever their signals`() {
         val order = Ranker(TEST_THRESHOLDS).rank(
