@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.model.Kind
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.SignalIdentity
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -267,16 +268,18 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }.toMap()
 
     /** Every image with its review state and signals, as the ranker takes them. */
-    suspend fun indexedImages(): List<IndexedImage> = db.withTransaction {
-        val signals = dao.allSignals().groupBy({ it.path }, ::signal)
-        val seen = dao.allKeptSignals().groupBy({ it.path }) { SignalIdentity(Kind.of(it.category), it.groupId, it.role) }
-        dao.states().map { row ->
-            IndexedImage(
-                ImageRef(row.path, row.size, row.mtimeNs),
-                ReviewState.of(row.reviewState),
-                signals[row.path].orEmpty(),
-                seen[row.path].orEmpty().toSet(),
-            )
+    suspend fun indexedImages(): List<IndexedImage> = traceSuspend("Index.indexedImages") {
+        db.withTransaction {
+            val signals = dao.allSignals().groupBy({ it.path }, ::signal)
+            val seen = dao.allKeptSignals().groupBy({ it.path }) { SignalIdentity(Kind.of(it.category), it.groupId, it.role) }
+            dao.states().map { row ->
+                IndexedImage(
+                    ImageRef(row.path, row.size, row.mtimeNs),
+                    ReviewState.of(row.reviewState),
+                    signals[row.path].orEmpty(),
+                    seen[row.path].orEmpty().toSet(),
+                )
+            }
         }
     }
 

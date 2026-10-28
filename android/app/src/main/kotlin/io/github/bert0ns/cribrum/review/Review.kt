@@ -2,6 +2,7 @@
 // every decision applied to the trash and the index together, so each one can be undone.
 package io.github.bert0ns.cribrum.review
 
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.model.Category
@@ -18,6 +19,7 @@ import io.github.bert0ns.cribrum.ranker.Candidate
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.ranker.Ranker
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.Dispatchers
@@ -106,22 +108,29 @@ class Review(
      * not added. One ranking serves both, so the home screen reads the index once.
      */
     suspend fun overview(): Overview = withContext(Dispatchers.Default) {
-        val byCategory = byCategory(thresholds())
-        val categories = Category.entries.map { category ->
-            val candidates = byCategory[category].orEmpty()
-            CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
+        traceSuspend("Review.overview") {
+            val byCategory = byCategory(thresholds())
+            val categories = Category.entries.map { category ->
+                val candidates = byCategory[category].orEmpty()
+                CategorySummary(category, candidates.size, category in detectorCategories, candidates.sumOf { it.image.ref.size })
+            }
+            val union = byCategory.values.flatten().associate { it.image.ref.path to it.image.ref.size }
+            Overview(categories, union.values.sum())
         }
-        val union = byCategory.values.flatten().associate { it.image.ref.path to it.image.ref.size }
-        Overview(categories, union.values.sum())
     }
 
     /** How many candidates each category would list at [thresholds], which are the ones in use by default. */
     suspend fun counts(thresholds: Map<Category, Float> = this.thresholds()): Map<Category, Int> = withContext(Dispatchers.Default) {
-        val byCategory = byCategory(thresholds)
-        Category.entries.associateWith { byCategory[it]?.size ?: 0 }
+        traceSuspend("Review.counts") {
+            val byCategory = byCategory(thresholds)
+            Category.entries.associateWith { byCategory[it]?.size ?: 0 }
+        }
     }
 
-    private suspend fun byCategory(thresholds: Map<Category, Float>) = Ranker.byCategory(Ranker(thresholds).rank(index.indexedImages(), index.excludedFolders()))
+    // Traced here and not in Ranker, whose tests run on the plain JVM, where android.os.Trace is not there.
+    private fun rank(thresholds: Map<Category, Float>, images: List<IndexedImage>, excluded: Collection<String>) = trace("Ranker.rank") { Ranker(thresholds).rank(images, excluded) }
+
+    private suspend fun byCategory(thresholds: Map<Category, Float>) = Ranker.byCategory(rank(thresholds, index.indexedImages(), index.excludedFolders()))
 
     /**
      * The first page of a category: groups in the ranker's order, never split across pages. Groups
@@ -130,29 +139,31 @@ class Review(
      * With [ReviewOrder.SIZE], the group with the most bytes to trash comes first and the ranker's order breaks a tie.
      */
     suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page = withContext(Dispatchers.Default) {
-        val excluded = index.excludedFolders()
-        val images = index.indexedImages()
-        val byCategory = Ranker.byCategory(Ranker(thresholds()).rank(images, excluded))
-        val candidates = byCategory[category].orEmpty()
-        val (hidden, groups) = (
-            if (category in GROUP_CATEGORIES) {
-                val otherCandidates = byCategory.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
-                groups(category, candidates, images, excluded, otherCandidates)
-            } else {
-                singles(category, candidates, grouping)
+        traceSuspend("Review.page") {
+            val excluded = index.excludedFolders()
+            val images = index.indexedImages()
+            val byCategory = Ranker.byCategory(rank(thresholds(), images, excluded))
+            val candidates = byCategory[category].orEmpty()
+            val (hidden, groups) = (
+                if (category in GROUP_CATEGORIES) {
+                    val otherCandidates = byCategory.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
+                    groups(category, candidates, images, excluded, otherCandidates)
+                } else {
+                    singles(category, candidates, grouping)
+                }
+                )
+                .let { all -> if (grouping == ReviewOrder.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
+                .partition { it.id in skipped }
+            val page = mutableListOf<ReviewGroup>()
+            var size = 0
+            for (group in groups) {
+                if (page.isNotEmpty() && size + group.images.size > PAGE_SIZE) break
+                page += group
+                size += group.images.size
             }
-            )
-            .let { all -> if (grouping == ReviewOrder.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
-            .partition { it.id in skipped }
-        val page = mutableListOf<ReviewGroup>()
-        var size = 0
-        for (group in groups) {
-            if (page.isNotEmpty() && size + group.images.size > PAGE_SIZE) break
-            page += group
-            size += group.images.size
+            val skippedCandidates = hidden.sumOf { group -> group.images.count { it.suggestTrash } }
+            Page(page, candidates.size - skippedCandidates)
         }
-        val skippedCandidates = hidden.sumOf { group -> group.images.count { it.suggestTrash } }
-        Page(page, candidates.size - skippedCandidates)
     }
 
     /**

@@ -6,6 +6,7 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtLoggingLevel
 import ai.onnxruntime.OrtSession
+import androidx.tracing.trace
 import java.nio.FloatBuffer
 
 /** Float values in row-major order, with their shape. */
@@ -27,12 +28,12 @@ class OnnxRuntime(model: ByteArray, threads: Int? = null) : ModelRuntime {
         environment.createSession(model, options)
     }
 
-    override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> {
+    override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = trace("Onnx.run") {
         val tensors = LinkedHashMap<String, OnnxTensor>()
         try {
             for ((name, tensor) in inputs) tensors[name] = OnnxTensor.createTensor(environment, FloatBuffer.wrap(tensor.values), tensor.shape)
             session.run(tensors).use { result ->
-                return result.associate { (name, value) ->
+                result.associate { (name, value) ->
                     val tensor = value as OnnxTensor
                     val buffer = tensor.floatBuffer
                     name to Tensor(tensor.info.shape, FloatArray(buffer.remaining()).also { buffer.get(it) })
