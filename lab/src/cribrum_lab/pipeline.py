@@ -6,6 +6,7 @@ same detector version, so an interrupted run resumes where it stopped and a seco
 unchanged data does no detector work.
 """
 
+import contextlib
 import multiprocessing
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -17,7 +18,7 @@ import numpy as np
 import xxhash
 
 from cribrum_lab import hashing, mobileclip
-from cribrum_lab.detectors import AnalysisContext, Detector, GroupDetector
+from cribrum_lab.detectors import AnalysisContext, Detector, GroupDetector, blur
 from cribrum_lab.detectors.blur import BlurDetector
 from cribrum_lab.detectors.burst import BurstDetector
 from cribrum_lab.detectors.document import DocumentDetector
@@ -31,7 +32,7 @@ from cribrum_lab.detectors.sticker import StickerDetector
 from cribrum_lab.folders import is_sticker_folder
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.metadata import ImageMetadata, UnreadableImage, read_metadata
-from cribrum_lab.model import ImageRef, Signal
+from cribrum_lab.model import Category, ImageRef, Signal
 from cribrum_lab.sources import FilesystemImageSource
 
 DETECTORS: list[Detector] = [
@@ -190,17 +191,25 @@ def run(
             return False
         return True
 
+    blur_detector = next(
+        (d for d in detectors if getattr(d, "category", None) == Category.BLURRY), None
+    )
     context = AnalysisContext(
         content_hash=content_hash,
         perceptual_hash=_stored_perceptual_hash(index),
         metadata=_metadata(index),
         embedding=_stored_embedding(embeddings),
+        sharpness=_stored_sharpness(index, blur_detector),
     )
     # Embeddings change what group detectors can see: a run with them is a different run.
     model = f"{embedder.id}:{embedder.version}:{len(embeddings)}" if embedder else ""
     # A hash that failed on an earlier run is a result a group detector lacked.
     hashed = index.hashed_paths()
-    fingerprint = _fingerprint(images, f"{model}:{sum(i.path in hashed for i in images)}")
+    # Burst reads blur's stored measure: a new blur version is new input, though no file changed.
+    blur_input = f"{blur_detector.id}:{blur_detector.version}" if blur_detector else ""
+    fingerprint = _fingerprint(
+        images, f"{model}:{sum(i.path in hashed for i in images)}:{blur_input}"
+    )
     for detector in group_detectors:
         # Hashing again only what failed in the last run groups a file that has become
         # readable, without a run on every scan.
@@ -396,6 +405,26 @@ def _stored_embedding(embeddings: dict[Path, np.ndarray]) -> Callable[[ImageRef]
         return found
 
     return embedding
+
+
+def _stored_sharpness(
+    index: ImageIndex, blur_detector: Detector | None
+) -> Callable[[ImageRef], float]:
+    """Burst ranks its shots by the measure blur stored, and decodes a shot again only when
+    blur left none."""
+
+    def sharpness(image: ImageRef) -> float:
+        if blur_detector is not None:
+            for signal in index.signals(image.path):
+                if (signal.detector_id, signal.detector_version) == (
+                    blur_detector.id,
+                    blur_detector.version,
+                ):
+                    with contextlib.suppress(KeyError, ValueError):
+                        return float(signal.evidence[blur.PEAK_VARIANCE_KEY])
+        return blur.peak_variance(image)
+
+    return sharpness
 
 
 def _metadata(index: ImageIndex) -> Callable[[ImageRef], ImageMetadata]:

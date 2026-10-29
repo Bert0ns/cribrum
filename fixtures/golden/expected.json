@@ -288,7 +288,7 @@
       "shots": "3"
      },
      "score": 0.9985,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 640
@@ -397,7 +397,7 @@
       "shots": "3"
      },
      "score": 0.0,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 640
@@ -506,7 +506,7 @@
       "shots": "3"
      },
      "score": 0.9861,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 640
@@ -710,7 +710,7 @@
       "shots": "2"
      },
      "score": 0.0,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 640
@@ -1096,7 +1096,7 @@
       "shots": "2"
      },
      "score": 0.5,
-     "version": 2
+     "version": 3
     }
    ],
    "width": 640

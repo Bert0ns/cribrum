@@ -13,6 +13,8 @@ TILES = 4
 """The image is split into TILES x TILES regions; the sharpest one stands for the subject."""
 HALF_SCORE_VARIANCE = 100.0
 """Laplacian variance that scores 0.5. A starting point, to be tuned for recall in the lab."""
+PEAK_VARIANCE_KEY = "peak_variance"
+"""The evidence key of the sharpest region's variance, which BURST reads back as sharpness."""
 
 
 class BlurDetector:
@@ -28,7 +30,7 @@ class BlurDetector:
         score = HALF_SCORE_VARIANCE / (HALF_SCORE_VARIANCE + peak_variance)
         evidence = {
             "global_variance": f"{global_variance:.1f}",
-            "peak_variance": f"{peak_variance:.1f}",
+            PEAK_VARIANCE_KEY: f"{peak_variance:.1f}",
         }
         return [Signal(self.id, self.version, Category.BLURRY, score, evidence)]
 
@@ -47,6 +49,16 @@ def measure(path: Path) -> tuple[float, float] | None:
         if tile.size > 0  # images narrower than TILES px leave some tiles empty
     )
     return float(laplacian.var()), peak_variance
+
+
+def peak_variance(image: ImageRef) -> float:
+    """The peak variance `measure` gives for the image, 0 when it can't be decoded or is under
+    3 px on a side."""
+    try:
+        measured = measure(image.path)
+    except Exception:  # undecodable pixels have no detail
+        return 0.0
+    return measured[1] if measured else 0.0
 
 
 def _laplacian(gray: np.ndarray) -> np.ndarray:

@@ -2,7 +2,7 @@
 
 Photos from the same camera whose capture times are at most MAX_GAP apart are chained
 into a burst, as long as consecutive shots also look alike when both have an embedding.
-The sharpest shot, by the BLURRY measure, is the one to keep.
+The sharpest shot, by the BLURRY measure to one decimal as blur stores it, is the one to keep.
 
 shortcut: sharpness only; add "eyes open" once a face detector exists.
 """
@@ -14,7 +14,6 @@ from datetime import datetime, timedelta
 import numpy as np
 import xxhash
 
-from cribrum_lab.detectors import blur
 from cribrum_lab.detectors.base import AnalysisContext, Role
 from cribrum_lab.metadata import ImageMetadata
 from cribrum_lab.model import GROUP_KEY, ROLE_KEY, Category, ImageRef, Signal
@@ -27,7 +26,7 @@ BURST_MIN_COSINE = 0.80
 
 class BurstDetector:
     id = "burst"
-    version = 2
+    version = 3
     category = Category.BURST
 
     def analyze(
@@ -42,11 +41,14 @@ class BurstDetector:
         for shots in by_camera.values():
             shots.sort(key=lambda shot: (shot[0], str(shot[1].path)))
             for burst in _bursts(shots, context):
-                result.update(self._signals(burst))
+                # Rounded as blur stores it: a stored measure and a decoded one rank shots the same.
+                sharpness = {image: float(f"{context.sharpness(image):.1f}") for image in burst}
+                result.update(self._signals(burst, sharpness))
         return result
 
-    def _signals(self, burst: list[ImageRef]) -> dict[ImageRef, list[Signal]]:
-        sharpness = {image: _sharpness(image) for image in burst}
+    def _signals(
+        self, burst: list[ImageRef], sharpness: dict[ImageRef, float]
+    ) -> dict[ImageRef, list[Signal]]:
         best = max(burst, key=lambda image: sharpness[image])
         group_id = xxhash.xxh3_64(str(burst[0].path).encode()).hexdigest()
         result = {}
@@ -107,11 +109,3 @@ def _metadata(image: ImageRef, context: AnalysisContext) -> ImageMetadata | None
         return context.metadata(image)
     except Exception:  # unreadable header: no capture time to cluster on
         return None
-
-
-def _sharpness(image: ImageRef) -> float:
-    try:
-        measured = blur.measure(image.path)
-    except Exception:  # undecodable pixels: never the best shot
-        return 0.0
-    return measured[1] if measured else 0.0

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -67,6 +68,28 @@ def test_shots_seconds_apart_form_a_burst_with_the_sharpest_as_best(shots):
     assert signals[blurry][0].score > signals[shaky][0].score >= 0.5
     assert len({s[0].evidence[GROUP_KEY] for s in signals.values()}) == 1
     assert all(s[0].category is Category.BURST for s in signals.values())
+
+
+def test_the_sharpness_lookup_picks_the_best_shot_to_one_decimal_as_blur_stores_it():
+    photos = [ImageRef(Path(f"/fake/{i}.jpg"), 1000, 0) for i in range(3)]
+    sharpness = dict(zip(photos, [50.04, 50.01, 25.0], strict=True))
+    meta = {
+        image: ImageMetadata(
+            640, 480, "image/jpeg", "Google", "Pixel 8", START + timedelta(seconds=i)
+        )
+        for i, image in enumerate(photos)
+    }
+    context = AnalysisContext(
+        metadata=meta.__getitem__, embedding={}.__getitem__, sharpness=sharpness.__getitem__
+    )
+
+    signals = BurstDetector().analyze(photos, context)
+
+    # Both round to 50.0: a tie, which the earlier shot wins.
+    assert role(signals, photos[0]) == Role.BEST
+    assert signals[photos[1]][0].score == 0.5
+    assert signals[photos[1]][0].evidence["sharpness"] == "50.0"
+    assert signals[photos[2]][0].score == 0.75
 
 
 def test_a_long_pause_splits_bursts(shots):

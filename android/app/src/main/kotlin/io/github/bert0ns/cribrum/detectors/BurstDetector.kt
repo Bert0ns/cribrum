@@ -2,7 +2,6 @@
 // lab/src/cribrum_lab/detectors/burst.py.
 package io.github.bert0ns.cribrum.detectors
 
-import io.github.bert0ns.cribrum.imaging.loadGrayscale
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -12,7 +11,6 @@ import io.github.bert0ns.cribrum.model.Signal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import java.io.File
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.Locale
@@ -26,13 +24,13 @@ const val BURST_MIN_COSINE = 0.80f
 /**
  * Photos from the same camera whose capture times are at most MAX_GAP apart are chained
  * into a burst, as long as consecutive shots also look alike when both have an embedding.
- * The sharpest shot, by the BLURRY measure, is the one to keep.
+ * The sharpest shot, by the BLURRY measure to one decimal as blur stores it, is the one to keep.
  *
  * shortcut: sharpness only; add "eyes open" once a face detector exists.
  */
 class BurstDetector : GroupDetector {
     override val id = "burst"
-    override val version = 2
+    override val version = 3
     override val category = Category.BURST
 
     override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
@@ -53,8 +51,10 @@ class BurstDetector : GroupDetector {
         for (shots in byCamera.values) {
             shots.sortWith(compareBy({ it.first }, { it.second.path }))
             for (burst in bursts(shots, context)) {
-                currentCoroutineContext().ensureActive() // signals() decodes every member of the burst
-                result.putAll(signals(burst))
+                currentCoroutineContext().ensureActive() // a shot blur did not measure is decoded
+                // Rounded as blur stores it: a stored measure and a decoded one rank shots the same.
+                val sharpness = burst.associateWith { "%.1f".format(Locale.ROOT, context.sharpness(it)).toDouble() }
+                result.putAll(signals(burst, sharpness))
             }
         }
         return result
@@ -110,15 +110,7 @@ class BurstDetector : GroupDetector {
         return dot(va, vb) >= BURST_MIN_COSINE
     }
 
-    private fun sharpness(image: ImageRef): Double = try {
-        val gray = loadGrayscale(File(image.path), BlurDetector.MAX_SIDE)
-        BlurDetector.measure(gray)?.second ?: 0.0
-    } catch (_: Exception) { // undecodable pixels: never the best shot
-        0.0
-    }
-
-    private fun signals(burst: List<ImageRef>): Map<ImageRef, List<Signal>> {
-        val sharpness = burst.associateWith { sharpness(it) }
+    private fun signals(burst: List<ImageRef>, sharpness: Map<ImageRef, Double>): Map<ImageRef, List<Signal>> {
         val best = burst.maxBy { sharpness.getValue(it) }
         val groupId = groupId(burst[0].path)
         val bestSharpness = sharpness.getValue(best)
