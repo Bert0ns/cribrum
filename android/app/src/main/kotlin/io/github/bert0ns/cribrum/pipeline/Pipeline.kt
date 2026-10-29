@@ -296,8 +296,9 @@ class Pipeline(
     )
 
     /**
-     * Decodes on every core, then runs the model on a batch at a time. An image that fails is a
-     * failure of that image only: it gets no embedding and the run goes on.
+     * Decodes on every core and runs the model on a batch at a time, decoding the next batch while
+     * the model runs on this one. An image that fails is a failure of that image only: it gets no
+     * embedding and the run goes on.
      */
     private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
         val stored = index.embeddings(embedder.id, embedder.version).keys
@@ -313,33 +314,38 @@ class Pipeline(
         fun fail(image: ImageRef, error: Throwable) {
             stats.failures += Failure(image.path, EMBEDDING_STEP, failureMessage(error))
         }
-        for (batch in todo.chunked(EMBEDDING_BATCH)) {
-            val decoded = coroutineScope {
-                batch.map { image -> async(Dispatchers.Default) { image to attempt { preprocessing(File(image.path)) } } }.awaitAll()
-            }
-            val pixels = mutableListOf<Pair<ImageRef, FloatArray>>()
-            val outOfMemory = mutableListOf<ImageRef>()
-            for ((image, outcome) in decoded) {
-                val error = outcome.exceptionOrNull()
-                when {
-                    error == null -> pixels += image to outcome.getOrThrow()
-                    error is OutOfMemoryError -> outOfMemory += image
-                    else -> fail(image, error)
+        val batches = todo.chunked(EMBEDDING_BATCH)
+        coroutineScope {
+            fun decode(batch: List<ImageRef>) = batch.map { image -> async(Dispatchers.Default) { image to attempt { preprocessing(File(image.path)) } } }
+            var next = decode(batches.first())
+            for ((i, batch) in batches.withIndex()) {
+                val pixels = mutableListOf<Pair<ImageRef, FloatArray>>()
+                val outOfMemory = mutableListOf<ImageRef>()
+                for ((image, outcome) in next.awaitAll()) {
+                    val error = outcome.exceptionOrNull()
+                    when {
+                        error == null -> pixels += image to outcome.getOrThrow()
+                        error is OutOfMemoryError -> outOfMemory += image
+                        else -> fail(image, error)
+                    }
                 }
+                // Other decodes may have taken the memory this one needed, so it gets one more go, alone, before the next batch starts.
+                for (image in outOfMemory) {
+                    attempt { preprocessing(File(image.path)) }.fold({ pixels += image to it }, { fail(image, it) })
+                }
+                // One batch ahead at most, so memory holds two batches of pixels.
+                batches.getOrNull(i + 1)?.let { next = decode(it) }
+                // Not on Dispatchers.Default, where the model would wait behind the decodes queued ahead.
+                val vectors = withContext(Dispatchers.IO) { embedBatch(embedder, pixels, ::fail) }
+                if (vectors.isNotEmpty()) {
+                    // A detector's result belongs to the embedding it read: a new one means analyzing again.
+                    index.forgetAnalyses(vectors.keys.toList(), detectors.filter { it.usesEmbeddings }.map { it.id })
+                    index.setEmbeddings(embedder.id, embedder.version, vectors)
+                    stats.detectorRuns += vectors.size
+                }
+                done += batch.size
+                progress("embeddings", done, todo.size)
             }
-            // Other decodes may have taken the memory this one needed, so it gets one more go, alone.
-            for (image in outOfMemory) {
-                attempt { preprocessing(File(image.path)) }.fold({ pixels += image to it }, { fail(image, it) })
-            }
-            val vectors = withContext(Dispatchers.Default) { embedBatch(embedder, pixels, ::fail) }
-            if (vectors.isNotEmpty()) {
-                // A detector's result belongs to the embedding it read: a new one means analyzing again.
-                index.forgetAnalyses(vectors.keys.toList(), detectors.filter { it.usesEmbeddings }.map { it.id })
-                index.setEmbeddings(embedder.id, embedder.version, vectors)
-                stats.detectorRuns += vectors.size
-            }
-            done += batch.size
-            progress("embeddings", done, todo.size)
         }
     }
 

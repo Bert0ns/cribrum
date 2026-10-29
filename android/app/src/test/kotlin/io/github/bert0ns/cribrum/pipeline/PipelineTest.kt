@@ -29,6 +29,7 @@ import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
@@ -55,6 +56,9 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 import java.time.LocalDateTime
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -1214,5 +1218,123 @@ class PipelineTest {
 
         assertEquals(0, embedder.loads)
         assertEquals(emptyList<Failure>(), stats.failures)
+    }
+
+    @Test
+    fun `the next batch decodes while the model runs on the current one`() {
+        repeat(2 * EMBEDDING_BATCH) { save("DCIM/Camera/shot-$it.png", seed = it) } // a whole batch ahead, more decodes than most machines have cores
+        val decodes = AtomicInteger()
+        val nextBatchDecoding = CountDownLatch(1)
+        val modelRunning = CountDownLatch(1)
+        val decodesSawModel = java.util.concurrent.ConcurrentLinkedQueue<Boolean>()
+        val decoder = { file: File ->
+            if (decodes.incrementAndGet() > EMBEDDING_BATCH) {
+                nextBatchDecoding.countDown()
+                decodesSawModel += modelRunning.await(5, TimeUnit.SECONDS)
+            }
+            preprocess(file)
+        }
+        val inner = MeanColorEmbedder()
+        val modelSawDecode = mutableListOf<Boolean>()
+        val embedder = object : Embedder by inner {
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+                if (modelSawDecode.isEmpty()) {
+                    modelRunning.countDown()
+                    modelSawDecode += nextBatchDecoding.await(5, TimeUnit.SECONDS)
+                }
+                return inner.embedPixels(pixels)
+            }
+        }
+
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), embedder = embedder, preprocessing = decoder))
+
+        assertEquals(listOf(true), modelSawDecode)
+        assertEquals(List(EMBEDDING_BATCH) { true }, decodesSawModel.toList())
+        assertEquals(2 * EMBEDDING_BATCH, runBlocking { index.embeddings(embedder.id, embedder.version) }.size)
+    }
+
+    @Test
+    fun `decoding a batch ahead gives each image the embedding and signal it gets alone, in batches in index order`() {
+        repeat(2 * EMBEDDING_BATCH + 4) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        val decodedFrom = java.util.Collections.synchronizedMap(java.util.IdentityHashMap<FloatArray, String>())
+        val decoder = { file: File -> preprocess(file).also { decodedFrom[it] = file.path } }
+        val inner = MeanColorEmbedder()
+        val batches = mutableListOf<List<String>>()
+        val embedder = object : Embedder by inner {
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+                batches += pixels.map { decodedFrom.getValue(it) }
+                return inner.embedPixels(pixels)
+            }
+        }
+
+        val stats = run(Pipeline(index, detectors = listOf(EmbeddingDetector()), groupDetectors = emptyList(), embedder = embedder, preprocessing = decoder))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        val paths = runBlocking { index.images() }.map { it.path }
+        assertEquals(paths.chunked(EMBEDDING_BATCH), batches)
+        val stored = runBlocking { index.embeddings(embedder.id, embedder.version) }
+        for (path in paths) {
+            val alone = MeanColorEmbedder().embedPixels(listOf(preprocess(File(path)))).single()
+            assertTrue(path, alone.contentEquals(stored.getValue(path)))
+            assertEquals(listOf(alone[0]), runBlocking { index.signals(path) }.filter { it.detectorId == "embedding_user" }.map { it.score })
+        }
+    }
+
+    @Test
+    fun `a decode that fails in the batch ahead is a failure of that image only`() {
+        repeat(2 * EMBEDDING_BATCH) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        val decodes = AtomicInteger()
+        val broken = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val decoder = { file: File ->
+            // the first decode of the second batch, which runs while the model embeds the first
+            if (decodes.incrementAndGet() == EMBEDDING_BATCH + 1) {
+                broken += file.path
+                throw IOException("truncated")
+            }
+            preprocess(file)
+        }
+
+        val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), preprocessing = decoder))
+
+        assertEquals(listOf(Failure(broken.single(), EMBEDDING_STEP, "IOException: truncated")), stats.failures)
+        val stored = runBlocking { index.embeddings("mean_color", 1) }
+        assertEquals(2 * EMBEDDING_BATCH - 1, stored.size)
+        assertFalse(broken.single() in stored)
+    }
+
+    @Test
+    fun `a stop while the model runs stops the decoding ahead and the model`() {
+        repeat(3 * EMBEDDING_BATCH) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        val modelRunning = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val decodes = AtomicInteger()
+        val decoder = { file: File ->
+            if (decodes.incrementAndGet() > EMBEDDING_BATCH) release.await(5, TimeUnit.SECONDS)
+            preprocess(file)
+        }
+        val inner = MeanColorEmbedder()
+        val runs = AtomicInteger()
+        val embedder = object : Embedder by inner {
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+                runs.incrementAndGet()
+                modelRunning.countDown()
+                release.await(5, TimeUnit.SECONDS)
+                return inner.embedPixels(pixels)
+            }
+        }
+
+        runBlocking {
+            val scan = launch(Dispatchers.Default) {
+                Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), embedder = embedder, preprocessing = decoder).run(source)
+            }
+            assertTrue(modelRunning.await(5, TimeUnit.SECONDS))
+            scan.cancel()
+            release.countDown()
+            withTimeout(5_000) { scan.join() }
+        }
+
+        assertEquals(1, runs.get())
+        assertTrue("${decodes.get()} decodes", decodes.get() <= 2 * EMBEDDING_BATCH) // the batch after the one ahead never starts
+        assertEquals(0, runBlocking { index.embeddings(embedder.id, embedder.version) }.size)
     }
 }
