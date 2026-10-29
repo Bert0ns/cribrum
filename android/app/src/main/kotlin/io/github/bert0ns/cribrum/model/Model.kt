@@ -65,10 +65,10 @@ enum class Role(val value: String) {
 data class ImageRef(val path: String, val size: Long, val mtimeNs: Long)
 
 /** The file as it is now, not a symlink's target. Every component builds its [ImageRef]s with it. */
-fun File.toImageRef(): ImageRef {
-    val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-    return ImageRef(path, attributes.size(), attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS))
-}
+fun File.toImageRef(): ImageRef = toImageRef(Files.readAttributes(toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS))
+
+/** [toImageRef] for a caller that has read the attributes already, with `NOFOLLOW_LINKS`. */
+fun File.toImageRef(attributes: BasicFileAttributes): ImageRef = ImageRef(path, attributes.size(), attributes.lastModifiedTime().to(TimeUnit.NANOSECONDS))
 
 /**
  * A detector's evidence that an image may belong to a deletable category, or, with a

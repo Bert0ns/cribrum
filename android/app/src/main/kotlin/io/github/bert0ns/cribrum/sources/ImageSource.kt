@@ -14,6 +14,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 
 interface ImageSource {
     fun scan(): Flow<ImageRef>
@@ -81,16 +82,19 @@ class FilesystemImageSource(
             val folder = folders.removeFirst()
             val listing = folder.listFiles()
             if (listing == null) listedAll = false
-            val entries = listing.orEmpty().sortedBy { it.name }
-            val (dirs, files) = entries.partition { Files.isDirectory(it.toPath(), LinkOption.NOFOLLOW_LINKS) }
-            for (file in files) {
-                if (hasSkippedPrefix(file)) continue // the folders were decided when they were listed
-                val image = try {
-                    if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
-                    file.toImageRef()
+            // One stat per entry: it tells a folder from a file and gives the size and mtime.
+            val entries = listing.orEmpty().sortedBy { it.name }.mapNotNull { entry ->
+                try {
+                    entry to Files.readAttributes(entry.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
                 } catch (_: IOException) {
-                    continue // unreadable or vanished during the scan
+                    null // unreadable or vanished during the scan
                 }
+            }
+            val (dirs, files) = entries.partition { (_, attributes) -> attributes.isDirectory }
+            for ((file, attributes) in files) {
+                if (hasSkippedPrefix(file)) continue // the folders were decided when they were listed
+                if (!attributes.isRegularFile) continue
+                val image = file.toImageRef(attributes)
                 if (image !in known) {
                     val again = image in rememberedSet
                     val isImageFile = if (again) false else sniff(file) ?: continue
@@ -109,7 +113,7 @@ class FilesystemImageSource(
                 emit(image)
             }
             // Depth first, in name order, like the lab's Path.walk.
-            folders.addAll(0, dirs.filter { !isSkippedFolder(root, it) })
+            folders.addAll(0, dirs.map { it.first }.filter { !isSkippedFolder(root, it) })
         }
         if (notImages != null) {
             if (sniffed.isNotEmpty()) notImages.addNotImages(sniffed)
