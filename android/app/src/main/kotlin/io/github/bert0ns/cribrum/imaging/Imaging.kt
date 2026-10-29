@@ -115,28 +115,40 @@ internal fun orientation(file: File): Int = try {
 /** Pillow's exif_transpose: turns the pixels so the image is as displayed. */
 internal fun transpose(gray: Gray, orientation: Int): Gray = if (orientation !in 2..8) gray else turn(gray.width, gray.height, orientation) { gray.pixels[it] }
 
+/**
+ * Where a turned image takes its pixels from: its pixel (x, y) is the original's at
+ * `start + x * stepX + y * stepY`. [width] and [height] are the turned image's.
+ */
+private class Turn(val width: Int, val height: Int, val start: Int, val stepX: Int, val stepY: Int)
+
+/** An [orientation] outside 2..8 leaves the image as it is. */
+private fun turnOf(w: Int, h: Int, orientation: Int): Turn = when (orientation) {
+    2 -> Turn(w, h, w - 1, -1, w) // mirrored
+    3 -> Turn(w, h, w * h - 1, -1, -w) // rotated 180
+    4 -> Turn(w, h, (h - 1) * w, 1, -w) // flipped
+    5 -> Turn(h, w, 0, w, 1) // transposed
+    6 -> Turn(h, w, (h - 1) * w, -w, 1) // rotated 90 clockwise
+    7 -> Turn(h, w, w * h - 1, -w, -1) // transversed
+    8 -> Turn(h, w, w - 1, w, -1) // rotated 90 counterclockwise
+    else -> Turn(w, h, 0, 1, w)
+}
+
+/** The size of [image] once turned as [transpose] does. */
+internal fun turnedSize(image: Argb, orientation: Int): Pair<Int, Int> = turnOf(image.width, image.height, orientation).let { it.width to it.height }
+
 /** The turned image of [w] x [h] pixels, [pixel] giving the value at an index of the original. */
 private inline fun turn(w: Int, h: Int, orientation: Int, pixel: (Int) -> Float): Gray {
-    if (orientation !in 2..8) return Gray(w, h, FloatArray(w * h) { pixel(it) })
-    val swapped = orientation >= 5
-    val outW = if (swapped) h else w
-    val outH = if (swapped) w else h
+    val t = turnOf(w, h, orientation)
     val out = FloatArray(w * h)
-    for (y in 0 until outH) {
-        for (x in 0 until outW) {
-            val (sx, sy) = when (orientation) {
-                2 -> w - 1 - x to y // mirrored
-                3 -> w - 1 - x to h - 1 - y // rotated 180
-                4 -> x to h - 1 - y // flipped
-                5 -> y to x // transposed
-                6 -> y to h - 1 - x // rotated 90 clockwise
-                7 -> w - 1 - y to h - 1 - x // transversed
-                else -> w - 1 - y to x // 8: rotated 90 counterclockwise
-            }
-            out[y * outW + x] = pixel(sy * w + sx)
+    var dst = 0
+    for (y in 0 until t.height) {
+        var src = t.start + y * t.stepY
+        for (x in 0 until t.width) {
+            out[dst++] = pixel(src)
+            src += t.stepX
         }
     }
-    return Gray(outW, outH, out)
+    return Gray(t.width, t.height, out)
 }
 
 /** Pillow's thumbnail((maxSide, maxSide), LANCZOS) with its default reducing gap of 2. */
@@ -324,6 +336,46 @@ internal fun resample(
     }
     if (needVertical) image = Gray(image.width, outH, verticalPass(image.pixels, image.width, rowOffset, vertical, outH))
     return image
+}
+
+/**
+ * The red, green and blue planes of [image], turned as [transpose] does and resampled with the bilinear filter,
+ * in that order. The turn is read straight from the pixels and the three channels are summed together, so no
+ * full-size plane is built: one per channel took 4 bytes a pixel and a pass over the image each.
+ */
+internal fun resampleChannels(image: Argb, orientation: Int, outW: Int, outH: Int): Array<Gray> {
+    val t = turnOf(image.width, image.height, orientation)
+    val horizontal = coefficients(t.width, 0.0, t.width.toDouble(), outW, BILINEAR)
+    val vertical = coefficients(t.height, 0.0, t.height.toDouble(), outH, BILINEAR)
+    val firstRow = vertical.first[0]
+    val rows = vertical.first[outH - 1] + vertical.weights[outH - 1].size - firstRow
+    val red = FloatArray(outW * rows)
+    val green = FloatArray(outW * rows)
+    val blue = FloatArray(outW * rows)
+    for (row in 0 until rows) {
+        val rowStart = t.start + (firstRow + row) * t.stepY
+        var dst = row * outW
+        for (x in 0 until outW) {
+            val w = horizontal.weights[x]
+            var i = rowStart + horizontal.first[x] * t.stepX
+            var r = 0L
+            var g = 0L
+            var b = 0L
+            for (weight in w) {
+                val c = image.pixels[i]
+                r += (c shr 16 and 0xff).toLong() * weight
+                g += (c shr 8 and 0xff).toLong() * weight
+                b += (c and 0xff).toLong() * weight
+                i += t.stepX
+            }
+            red[dst] = clip8(r)
+            green[dst] = clip8(g)
+            blue[dst++] = clip8(b)
+        }
+    }
+    return arrayOf(red, green, blue).map { plane ->
+        Gray(outW, outH, if (outH == t.height) plane else verticalPass(plane, outW, firstRow, vertical, outH))
+    }.toTypedArray()
 }
 
 /** The vertical pass: each output row is the weighted sum of the rows of [src] it reads, a row at a time. */
