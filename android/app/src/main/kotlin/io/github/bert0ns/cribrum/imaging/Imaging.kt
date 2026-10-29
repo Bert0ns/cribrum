@@ -309,27 +309,37 @@ internal fun resample(
         val lastRow = vertical.first[outH - 1] + vertical.weights[outH - 1].size
         val out = FloatArray(outW * (lastRow - firstRow))
         for (y in firstRow until lastRow) {
+            var src = y * gray.width
+            var dst = (y - firstRow) * outW
             for (x in 0 until outW) {
                 val w = horizontal.weights[x]
+                var i = src + horizontal.first[x]
                 var sum = 0L
-                for (i in w.indices) sum += image[horizontal.first[x] + i, y].toLong() * w[i]
-                out[(y - firstRow) * outW + x] = clip8(sum)
+                for (weight in w) sum += gray.pixels[i++].toLong() * weight
+                out[dst++] = clip8(sum)
             }
         }
         image = Gray(outW, lastRow - firstRow, out)
         rowOffset = firstRow
     }
-    if (needVertical) {
-        val out = FloatArray(image.width * outH)
-        for (y in 0 until outH) {
-            for (x in 0 until image.width) {
-                val w = vertical.weights[y]
-                var sum = 0L
-                for (i in w.indices) sum += image[x, vertical.first[y] - rowOffset + i].toLong() * w[i]
-                out[y * image.width + x] = clip8(sum)
-            }
-        }
-        image = Gray(image.width, outH, out)
-    }
+    if (needVertical) image = Gray(image.width, outH, verticalPass(image.pixels, image.width, rowOffset, vertical, outH))
     return image
+}
+
+/** The vertical pass: each output row is the weighted sum of the rows of [src] it reads, a row at a time. */
+private fun verticalPass(src: FloatArray, width: Int, rowOffset: Int, vertical: Coefficients, outH: Int): FloatArray {
+    val out = FloatArray(width * outH)
+    val sums = LongArray(width)
+    for (y in 0 until outH) {
+        sums.fill(0L)
+        val w = vertical.weights[y]
+        for (i in w.indices) {
+            val weight = w[i].toLong()
+            var s = (vertical.first[y] - rowOffset + i) * width
+            for (x in 0 until width) sums[x] += src[s++].toLong() * weight
+        }
+        var dst = y * width
+        for (x in 0 until width) out[dst++] = clip8(sums[x])
+    }
+    return out
 }
