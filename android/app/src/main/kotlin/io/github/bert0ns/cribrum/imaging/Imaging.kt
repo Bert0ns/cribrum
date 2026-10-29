@@ -297,7 +297,9 @@ private fun floatCoefficients(inSize: Int, outSize: Int): FloatCoefficients {
     return FloatCoefficients(first, weights)
 }
 
-private fun clip8(sum: Long): Float = ((sum + (1L shl (PRECISION_BITS - 1))) shr PRECISION_BITS).coerceIn(0, 255).toFloat()
+private fun round8(sum: Long): Int = ((sum + (1L shl (PRECISION_BITS - 1))) shr PRECISION_BITS).coerceIn(0, 255).toInt()
+
+private fun clip8(sum: Long): Float = round8(sum).toFloat()
 
 /** Pillow's ImagingResample for 8-bit images: horizontal pass, then vertical, over the box. */
 internal fun resample(
@@ -375,9 +377,9 @@ internal fun resampleChannels(image: Argb, orientation: Int, outW: Int, outH: In
                 b += (c and 0xff).toLong() * weight
                 i += stepX
             }
-            red[dst] = clip8(r).toInt().toByte()
-            green[dst] = clip8(g).toInt().toByte()
-            blue[dst++] = clip8(b).toInt().toByte()
+            red[dst] = round8(r).toByte()
+            green[dst] = round8(g).toByte()
+            blue[dst++] = round8(b).toByte()
         }
     }
     return Array(3) { c ->

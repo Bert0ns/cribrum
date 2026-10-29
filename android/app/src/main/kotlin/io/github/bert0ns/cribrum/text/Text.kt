@@ -28,8 +28,8 @@ const val DETECTOR_RESOURCE = "/ppocr/ch_PP-OCRv4_det_infer.onnx"
 
 /**
  * RGB normalized with ImageNet mean and deviation, shape (1, 3, H, W), H and W multiples of 32
- * with the longest near [INPUT_SIDE]. Each channel goes through Pillow's steps on its own, as in
- * [io.github.bert0ns.cribrum.mobileclip.preprocess], though [resampleChannels] does the three together.
+ * with the longest near [INPUT_SIDE]. The channels go through Pillow's steps, the three at once, as in
+ * [io.github.bert0ns.cribrum.mobileclip.preprocess].
  */
 fun preprocess(file: File): Tensor = trace("Text.preprocess") {
     val decoded = decode(file, INPUT_SIDE)
