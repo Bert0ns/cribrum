@@ -68,9 +68,10 @@ internal object YuNet {
      * The image is scaled so its longest side is 640 px (Pillow's bilinear), then padded with black
      * at the bottom and right.
      */
-    fun letterbox(file: File): Letterbox {
-        val decoded = decode(file, INPUT_SIDE)
-        val orientation = orientation(file)
+    fun letterbox(file: File): Letterbox = letterbox(decode(file, INPUT_SIDE), orientation(file))
+
+    /** The letterbox of pixels already decoded, before their EXIF [orientation]. */
+    fun letterbox(decoded: Argb, orientation: Int): Letterbox {
         val canvas = FloatArray(3 * INPUT_SIDE * INPUT_SIDE)
         var size = 0 to 0
         for ((c, shift) in listOf(0, 8, 16).withIndex()) size = letterboxChannel(decoded, shift, orientation, canvas, c) // blue, green, red
