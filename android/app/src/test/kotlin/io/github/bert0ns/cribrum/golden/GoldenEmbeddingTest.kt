@@ -16,7 +16,7 @@ import java.io.File
 class GoldenEmbeddingTest {
     @Test
     fun `embeddings match the lab's`() {
-        val model = MobileClip { OnnxRuntime(File("build/generated/mobileclip", VISION_MODEL_ASSET).readBytes()) }
+        val model = MobileClip { OnnxRuntime(File("build/generated/mobileclip", VISION_MODEL_ASSET).readBytes(), gpu = true) }
         val embeddings = model.embedImages(Golden.images.map { File(it.image.path) })
 
         for ((expected, got) in Golden.images.zip(embeddings)) {

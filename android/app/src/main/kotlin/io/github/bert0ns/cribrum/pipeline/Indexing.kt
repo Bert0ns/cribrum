@@ -237,7 +237,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         }
     }
 
-    protected open fun loadVision(): ModelRuntime = OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() })
+    protected open fun loadVision(): ModelRuntime = OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }, gpu = true)
 
     protected open fun hasStorageAccess(): Boolean = Environment.isExternalStorageManager()
 

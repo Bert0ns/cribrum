@@ -4,6 +4,7 @@ package io.github.bert0ns.cribrum.runtime
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtException
 import ai.onnxruntime.OrtLoggingLevel
 import ai.onnxruntime.OrtSession
 import androidx.tracing.trace
@@ -19,12 +20,26 @@ interface ModelRuntime : AutoCloseable {
     override fun close() {}
 }
 
-/** ONNX Runtime on the CPU, on every core unless [threads] says otherwise. */
-class OnnxRuntime(model: ByteArray, threads: Int? = null) : ModelRuntime {
+/**
+ * ONNX Runtime on the CPU, with ONNX Runtime's default thread count unless [threads] says otherwise.
+ * With [gpu] it runs on the GPU through WebGPU, or on the CPU when the build or the phone has no WebGPU.
+ */
+class OnnxRuntime(model: ByteArray, threads: Int? = null, gpu: Boolean = false) : ModelRuntime {
     private val environment = OrtEnvironment.getEnvironment()
-    private val session = OrtSession.SessionOptions().use { options ->
+    private val session = if (gpu) {
+        try {
+            createSession(model, threads, gpu = true)
+        } catch (_: OrtException) {
+            createSession(model, threads, gpu = false)
+        }
+    } else {
+        createSession(model, threads, gpu = false)
+    }
+
+    private fun createSession(model: ByteArray, threads: Int?, gpu: Boolean) = OrtSession.SessionOptions().use { options ->
         options.setSessionLogLevel(OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR) // warnings about unused initializers are noise
         threads?.let(options::setIntraOpNumThreads)
+        if (gpu) options.addWebGPU(emptyMap())
         environment.createSession(model, options)
     }
 
