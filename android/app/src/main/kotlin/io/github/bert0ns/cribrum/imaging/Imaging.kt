@@ -98,12 +98,6 @@ private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
     return Gray(width, height, pixels)
 }
 
-/**
- * One 8-bit channel of [Argb], shifted by 16 for red, 8 for green, 0 for blue, already turned
- * as [transpose] does. It never builds the plane before the turn, which would double the memory.
- */
-internal fun channel(image: Argb, shift: Int, orientation: Int): Gray = turn(image.width, image.height, orientation) { (image.pixels[it] shr shift and 0xff).toFloat() }
-
 // shortcut: a HEIC with a container rotation (irot) and EXIF orientation may turn twice, in here and in readMetadata. Robolectric cannot
 // decode HEIC (decodeFile leaves the bounds at -1), so no unit test sees it. Check on a device (#220); if it turns twice, skip the EXIF turn for image/heif.
 internal fun orientation(file: File): Int = try {
