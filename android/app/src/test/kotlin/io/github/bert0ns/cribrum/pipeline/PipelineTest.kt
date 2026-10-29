@@ -2,6 +2,8 @@
 package io.github.bert0ns.cribrum.pipeline
 
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
+import io.github.bert0ns.cribrum.detectors.BlurDetector
+import io.github.bert0ns.cribrum.detectors.BurstDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
@@ -52,6 +54,7 @@ import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
+import java.time.LocalDateTime
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -577,6 +580,38 @@ class PipelineTest {
         assertEquals(listOf("exact_duplicate"), readable.ranGroupDetectors)
         assertTrue(Category.EXACT_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))
         assertEquals(emptyList<String>(), run().ranGroupDetectors)
+    }
+
+    /** Stores a BLURRY signal with the given peak variance for the files it names, and none for the others. */
+    private class StoredBlur(private val peaks: Map<String, String>, override val version: Int = 1) : Detector {
+        override val id = "blur"
+        override val category = Category.BLURRY
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> = peaks[File(image.path).name]?.let { listOf(Signal(id, version, Category.BLURRY, 0.5f, mapOf("peak_variance" to it))) }.orEmpty()
+    }
+
+    @Test
+    fun `burst reads the sharpness blur stored, and measures a shot blur left without one`() {
+        val shots = (1..3).map { save("DCIM/Camera/$it.png", seed = it) }
+        val start = LocalDateTime.of(2024, 5, 1, 10, 0, 0)
+        val reader = { file: File -> readMetadata(file).copy(cameraMake = "Google", cameraModel = "Pixel 8", capturedAt = start.plusSeconds(file.nameWithoutExtension.toLong())) }
+        val blur = StoredBlur(mapOf("1.png" to "12.3", "2.png" to "45.6"))
+
+        run(Pipeline(index, listOf(blur), listOf(BurstDetector()), metadataReader = reader))
+
+        val sharpness = shots.map { shot -> runBlocking { index.signals(shot.path) }.single { it.kind == Category.BURST }.evidence["sharpness"] }
+        val measured = runBlocking { BlurDetector().analyze(shots[2].toImageRef(), AnalysisContext()) }.single().evidence["peak_variance"]
+        assertEquals(listOf("12.3", "45.6", measured), sharpness)
+    }
+
+    @Test
+    fun `a new blur version reruns burst on an unchanged library`() {
+        photos()
+        fun withBlur(version: Int) = Pipeline(index, listOf(StoredBlur(emptyMap(), version)), listOf(BurstDetector()))
+        run(withBlur(1))
+
+        assertEquals(emptyList<String>(), run(withBlur(1)).ranGroupDetectors)
+        assertEquals(listOf("burst"), run(withBlur(2)).ranGroupDetectors)
     }
 
     private class Probe : Detector {

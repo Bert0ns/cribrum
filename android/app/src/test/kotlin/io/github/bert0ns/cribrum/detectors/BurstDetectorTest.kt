@@ -86,6 +86,24 @@ class BurstDetectorTest {
     }
 
     @Test
+    fun `the sharpness lookup picks the best shot, to one decimal as blur stores it`() = runBlocking {
+        val photos = List(3) { ImageRef("/fake/$it.jpg", 1000, 0) }
+        val sharpness = mapOf(photos[0] to 50.04, photos[1] to 50.01, photos[2] to 25.0)
+        val context = AnalysisContext(
+            metadata = { ImageMetadata(640, 480, "image/jpeg", "Google", "Pixel 8", start.plusSeconds(photos.indexOf(it).toLong())) },
+            sharpness = { sharpness.getValue(it) },
+        )
+
+        val signals = BurstDetector().analyze(photos, context)
+
+        // Both round to 50.0: a tie, which the earlier shot wins.
+        assertEquals(Role.BEST.value, role(signals, photos[0]))
+        assertEquals(0.5f, signals.getValue(photos[1]).single().score)
+        assertEquals("50.0", signals.getValue(photos[1]).single().evidence["sharpness"])
+        assertEquals(0.75f, signals.getValue(photos[2]).single().score)
+    }
+
+    @Test
     fun `a long pause splits bursts`() {
         val shots = Shots(folder.root, start)
         val first = listOf(shots.add("1", 0), shots.add("2", 2))

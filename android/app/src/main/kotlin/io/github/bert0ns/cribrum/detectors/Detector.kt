@@ -24,6 +24,8 @@ data class AnalysisContext(
     val embedding: suspend (ImageRef) -> FloatArray = { throw MissingEmbedding(it) },
     /** Throws [io.github.bert0ns.cribrum.metadata.UnreadableImage] when the header can't be decoded. */
     val metadata: suspend (ImageRef) -> ImageMetadata = { readMetadata(File(it.path)) },
+    /** The BLURRY measure of the image, the Laplacian variance of its sharpest region: 0 when it can't be decoded. */
+    val sharpness: suspend (ImageRef) -> Double = { BlurDetector.peakVariance(it) },
     /** Known screen resolutions as (short side, long side). */
     val screenSizes: Set<Pair<Int, Int>> = SCREEN_SIZES,
 )

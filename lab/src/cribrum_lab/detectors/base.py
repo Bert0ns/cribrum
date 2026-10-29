@@ -33,8 +33,17 @@ class AnalysisContext:
     """L2-normalized MobileCLIP embedding."""
     metadata: Callable[[ImageRef], ImageMetadata] = lambda image: read_metadata(image.path)
     """Raises `UnreadableImage` when the header can't be decoded."""
+    sharpness: Callable[[ImageRef], float] = lambda image: _peak_variance(image)
+    """The BLURRY measure of the image, the Laplacian variance of its sharpest region: 0 when it
+    can't be decoded."""
     screen_sizes: Collection[tuple[int, int]] = SCREEN_SIZES
     """Known screen resolutions as (short side, long side)."""
+
+
+def _peak_variance(image: ImageRef) -> float:
+    from cribrum_lab.detectors import blur  # blur imports this module
+
+    return blur.peak_variance(image)
 
 
 def _embed(image: ImageRef) -> np.ndarray:

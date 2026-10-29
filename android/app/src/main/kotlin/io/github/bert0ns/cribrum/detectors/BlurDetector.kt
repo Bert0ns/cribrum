@@ -20,7 +20,7 @@ class BlurDetector : Detector {
         val score = (HALF_SCORE_VARIANCE / (HALF_SCORE_VARIANCE + peakVariance)).toFloat()
         val evidence = mapOf(
             "global_variance" to "%.1f".format(Locale.ROOT, globalVariance),
-            "peak_variance" to "%.1f".format(Locale.ROOT, peakVariance),
+            PEAK_VARIANCE_KEY to "%.1f".format(Locale.ROOT, peakVariance),
         )
         return listOf(Signal(id, version, Category.BLURRY, score, evidence))
     }
@@ -33,6 +33,16 @@ class BlurDetector : Detector {
 
         /** Laplacian variance that scores 0.5. A starting point, to be tuned for recall in the lab. */
         const val HALF_SCORE_VARIANCE = 100.0
+
+        /** The evidence key of the sharpest region's variance, which BURST reads back as sharpness. */
+        const val PEAK_VARIANCE_KEY = "peak_variance"
+
+        /** The peak variance [measure] gives for [image], 0 when it can't be decoded or is under 3 px on a side. */
+        fun peakVariance(image: ImageRef): Double = try {
+            measure(loadGrayscale(File(image.path), MAX_SIDE))?.second ?: 0.0
+        } catch (_: Exception) { // undecodable pixels have no detail
+            0.0
+        }
 
         /**
          * Laplacian variance of the whole image and of its sharpest tile, which stands for the

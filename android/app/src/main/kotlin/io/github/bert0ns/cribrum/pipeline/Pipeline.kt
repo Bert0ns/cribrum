@@ -223,6 +223,7 @@ class Pipeline(
         // Read once: a query per image took seconds on a 10,000-image library.
         val perceptualHashes = index.perceptualHashes()
         val metadata = index.allMetadata()
+        val blur = detectors.firstOrNull { it.category == Category.BLURRY }
         val context = AnalysisContext(
             contentHash = {
                 try {
@@ -235,13 +236,17 @@ class Pipeline(
             perceptualHash = { perceptualHashes[it.path] ?: throw NoSuchElementException(it.path) },
             embedding = { embeddings[it.path] ?: throw MissingEmbedding(it) },
             metadata = { metadata[it.path] ?: throw UnreadableImage(File(it.path)) },
+            // Burst ranks its shots by the measure blur stored, and decodes a shot again only when blur left none.
+            sharpness = { storedSharpness(blur, it) ?: BlurDetector.peakVariance(it) },
         )
         // Embeddings change what group detectors can see: a run with them is a different run.
         val model = embedder?.let { "${it.id}:${it.version}:${embeddings.size}" }.orEmpty()
         // A hash that failed on an earlier run is a result a group detector lacked. An image whose metadata failed has none either (it gets no per-image
         // analysis), so when the next scan reads the metadata and the hash appears, this changes the fingerprint and is what puts the image back in its burst.
         val hashed = index.hashedPaths()
-        val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}")
+        // Burst reads blur's stored measure: a new blur version is new input, though no file changed.
+        val blurInput = blur?.let { "${it.id}:${it.version}" }.orEmpty()
+        val fingerprint = fingerprint(images, "$model:${images.count { it.path in hashed }}:$blurInput")
         phase("groupDetectors", stats) {
             for (detector in groupDetectors) {
                 if (upToDate(detector, fingerprint, images)) {
@@ -490,6 +495,11 @@ class Pipeline(
                 false
             }
         }
+    }
+
+    private suspend fun storedSharpness(blur: Detector?, image: ImageRef): Double? = blur?.let { detector ->
+        index.signals(image.path).firstOrNull { it.detectorId == detector.id && it.detectorVersion == detector.version }
+            ?.evidence?.get(BlurDetector.PEAK_VARIANCE_KEY)?.toDoubleOrNull()
     }
 
     private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHasher(image).also { index.setContentHash(image.path, it) }

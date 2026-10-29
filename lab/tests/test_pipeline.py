@@ -6,6 +6,8 @@ import pytest
 from PIL import Image
 
 from cribrum_lab import pipeline
+from cribrum_lab.detectors import blur
+from cribrum_lab.detectors.burst import BurstDetector
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.model import Category, Protection, ReviewState, Signal
 
@@ -266,6 +268,58 @@ def test_worker_processes_give_the_same_signals(photos, tmp_path, index):
         pipeline.run(photos, parallel, jobs=2)
 
         assert parallel.indexed_images() == index.indexed_images()
+
+
+class StoredBlur:
+    """Stores a BLURRY signal with the given peak variance for the files it names."""
+
+    id = "blur"
+    version = 1
+    category = Category.BLURRY
+
+    def __init__(self, peaks, version=1):
+        self.peaks = peaks
+        self.version = version
+
+    def analyze(self, image, context):
+        peak = self.peaks.get(image.path.name)
+        if peak is None:
+            return []
+        return [Signal(self.id, self.version, Category.BLURRY, 0.5, {"peak_variance": peak})]
+
+
+class SharpnessReader:
+    id = "sharpness_reader"
+    version = 1
+    category = None
+
+    def analyze(self, images, context):
+        self.seen = {image.path.name: context.sharpness(image) for image in images}
+        return {}
+
+
+def test_the_sharpness_lookup_reads_what_blur_stored_and_measures_an_image_without_it(
+    photos, index
+):
+    reader = SharpnessReader()
+    blur_detector = StoredBlur({"a.png": "12.3", "a-copy.png": "45.6"})
+
+    pipeline.run(photos, index, detectors=[blur_detector], group_detectors=[reader])
+
+    screenshot = photos / "Pictures/Screenshots/Screenshot_1.png"
+    measured = blur.measure(screenshot)[1]
+    assert reader.seen == {"a.png": 12.3, "a-copy.png": 45.6, "Screenshot_1.png": measured}
+
+
+def test_a_new_blur_version_reruns_burst_on_an_unchanged_library(photos, index):
+    def run(version):
+        detectors = [StoredBlur({}, version)]
+        return pipeline.run(photos, index, detectors=detectors, group_detectors=[BurstDetector()])
+
+    run(1)
+
+    assert run(1).detector_runs == 0
+    assert run(2).detector_runs == 3 + 1  # blur on each image, then burst
 
 
 class MeanColorEmbedder:
