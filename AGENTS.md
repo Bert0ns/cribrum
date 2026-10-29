@@ -100,4 +100,4 @@ Rebase and merge keep every commit, so every commit in a PR must follow the form
 ## Layout
 
 - `lab/`: Python 3.12+, `src/` layout, tests under `lab/tests/` (pytest).
-- `android/`: Kotlin + Jetpack Compose (not started).
+- `android/`: Kotlin + Jetpack Compose, with tests under `android/app/src/test/` (JUnit and Robolectric).
