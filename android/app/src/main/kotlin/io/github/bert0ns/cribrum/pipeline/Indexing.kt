@@ -230,16 +230,22 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
 
     private var title = 0
     private var reported = 0L
+    private var notified = 0L
 
-    /** Sends the progress out, at most once a second, but at once when the phase and so the title change. */
+    /**
+     * Sends the progress out, at most five times a second to the app and once a second to the
+     * notification, but at once when the phase and so the title change.
+     */
     protected suspend fun report(step: String, done: Int, total: Int) {
         val now = System.currentTimeMillis()
         val phaseTitle = Indexing.phaseTitle(step)
-        if (now - reported < PROGRESS_INTERVAL_MS && done != total && phaseTitle == title) return
+        val phaseChanged = phaseTitle != title
+        if (now - reported < PROGRESS_INTERVAL_MS && done != total && !phaseChanged) return
         reported = now
         title = phaseTitle
         setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total))
-        if (isForeground) {
+        if (isForeground && (phaseChanged || done == total || now - notified >= NOTIFICATION_INTERVAL_MS)) {
+            notified = now
             // A stop that came meanwhile has had the notification removed: posting now would bring it back.
             currentCoroutineContext().ensureActive()
             // The service is in the foreground since scan() began, so the notification is updated in place.
@@ -270,6 +276,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         val running = Mutex()
         const val CHANNEL = "scan"
         const val NOTIFICATION_ID = 1
-        const val PROGRESS_INTERVAL_MS = 1000L
+        const val PROGRESS_INTERVAL_MS = 200L
+        const val NOTIFICATION_INTERVAL_MS = 1000L
     }
 }
