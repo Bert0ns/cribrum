@@ -5,6 +5,7 @@ package io.github.bert0ns.cribrum.index
 import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -137,6 +138,10 @@ data class StoredMetadata(
     @ColumnInfo(name = "captured_at") val capturedAt: String?,
 )
 
+data class StoredPathMetadata(val path: String, @Embedded val metadata: StoredMetadata)
+
+data class StoredPerceptualHash(val path: String, @ColumnInfo(name = "perceptual_hash") val perceptualHash: String)
+
 data class StoredCapture(val path: String, @ColumnInfo(name = "captured_at") val capturedAt: String)
 
 data class StoredState(
@@ -203,6 +208,9 @@ interface IndexDao {
     )
     suspend fun metadata(path: String): StoredMetadata?
 
+    @Query("SELECT path, width, height, mime, camera_make, camera_model, captured_at FROM images WHERE width IS NOT NULL")
+    suspend fun allMetadata(): List<StoredPathMetadata>
+
     @Query("UPDATE images SET content_hash = :digest WHERE path = :path")
     suspend fun setContentHash(path: String, digest: String): Int
 
@@ -217,6 +225,9 @@ interface IndexDao {
 
     @Query("SELECT path FROM images WHERE perceptual_hash IS NOT NULL")
     suspend fun hashedPaths(): List<String>
+
+    @Query("SELECT path, perceptual_hash FROM images WHERE perceptual_hash IS NOT NULL")
+    suspend fun perceptualHashes(): List<StoredPerceptualHash>
 
     @Query("SELECT count(*) FROM images WHERE path = :path")
     suspend fun count(path: String): Int
