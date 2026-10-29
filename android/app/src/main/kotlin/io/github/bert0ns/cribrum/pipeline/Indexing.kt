@@ -6,7 +6,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.content.res.Resources
 import android.os.Environment
+import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.util.Log
 import androidx.annotation.StringRes
@@ -59,6 +61,9 @@ object Indexing {
     const val STEP = "step"
     const val DONE = "done"
     const val TOTAL = "total"
+
+    /** The time left for the whole scan in ms, absent while there is no estimate. */
+    const val LEFT_MS = "left_ms"
 
     /** Only on the nightly request: its worker skips the scan outside the night. */
     const val NIGHTLY_TAG = "index-nightly-scan"
@@ -133,10 +138,20 @@ object Indexing {
         else -> R.string.scan_phase_groups
     }
 
+    /** The time left, rounded to the minute: "About 12 min left", or "Less than a minute left". */
+    internal fun timeLeft(resources: Resources, ms: Long): String {
+        val minutes = (ms + 30_000) / 60_000
+        return when {
+            ms < 60_000 -> resources.getString(R.string.scan_left_under_a_minute)
+            minutes < 60 -> resources.getString(R.string.scan_left_minutes, minutes)
+            else -> resources.getString(R.string.scan_left_hours, minutes / 60, minutes % 60)
+        }
+    }
+
     /** The running scan's progress, from "Scan now" or the nightly request, or null when none runs. */
     fun progress(context: Context): Flow<ScanProgress?> = WorkManager.getInstance(context).getWorkInfosByTagFlow(TAG).map { infos ->
         infos.firstOrNull { it.state == WorkInfo.State.RUNNING }?.progress?.let {
-            ScanProgress(it.getString(STEP).orEmpty(), it.getInt(DONE, 0), it.getInt(TOTAL, 0))
+            ScanProgress(it.getString(STEP).orEmpty(), it.getInt(DONE, 0), it.getInt(TOTAL, 0), it.getLong(LEFT_MS, -1).takeIf { left -> left >= 0 })
         }
     }
 
@@ -147,7 +162,8 @@ object Indexing {
     }
 }
 
-data class ScanProgress(val step: String, val done: Int, val total: Int)
+/** [leftMs] is the time left for the whole scan, null until the estimate is stable (docs/design.md §4). */
+data class ScanProgress(val step: String, val done: Int, val total: Int, val leftMs: Long? = null)
 
 /**
  * Purges the expired trash, then runs the pipeline over the whole device. It runs in the
@@ -194,6 +210,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         } catch (e: IllegalStateException) {
             Log.w(Indexing.TAG, "Foreground service start refused, continuing in background", e)
         }
+        val estimate = ScanEstimate(SCAN_PHASES, app.scanCosts.costs, SystemClock::elapsedRealtime).also { this.estimate = it }
         try {
             val trashFailures = mutableListOf<Failure>()
             try {
@@ -214,6 +231,8 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             }
             return Result.success()
         } finally {
+            // A stopped scan keeps the costs of the phases it finished.
+            app.scanCosts.record(estimate.measured)
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
     }
@@ -232,24 +251,42 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     private var reported = 0L
     private var notified = 0L
 
+    private var estimate: ScanEstimate? = null
+
+    /** The images a group detector reads, its items for the estimate. Null until the walk ends. */
+    private var library: Int? = null
+
+    /** The walk has no total, so the counts of the later phases are read once, when it ends. */
+    private suspend fun track(estimate: ScanEstimate, step: String, done: Int, total: Int) {
+        if (step == "scan") return
+        val images = library ?: (applicationContext as CribrumApp).index.coverage().let { coverage ->
+            estimate.plan(scanPlan(coverage))
+            coverage.first { it.id in GROUP_DETECTOR_IDS }.needed.also { library = it }
+        }
+        if (step in GROUP_DETECTOR_IDS) estimate.update(step, done * images, total * images) else estimate.update(step, done, total)
+    }
+
     /**
      * Sends the progress out, at most five times a second to the app and once a second to the
      * notification, but at once when the phase and so the title change.
      */
     protected suspend fun report(step: String, done: Int, total: Int) {
+        estimate?.let { track(it, step, done, total) }
         val now = System.currentTimeMillis()
         val phaseTitle = Indexing.phaseTitle(step)
         val phaseChanged = phaseTitle != title
         if (now - reported < PROGRESS_INTERVAL_MS && done != total && !phaseChanged) return
         reported = now
         title = phaseTitle
-        setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total))
+        val left = estimate?.millisLeft()
+        setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total, Indexing.LEFT_MS to (left ?: -1L)))
         if (isForeground && (phaseChanged || done == total || now - notified >= NOTIFICATION_INTERVAL_MS)) {
             notified = now
             // A stop that came meanwhile has had the notification removed: posting now would bring it back.
             currentCoroutineContext().ensureActive()
             // The service is in the foreground since scan() began, so the notification is updated in place.
-            val text = if (total == 0) applicationContext.getString(R.string.scan_progress_open, done) else applicationContext.getString(R.string.scan_progress, done, total)
+            val count = if (total == 0) applicationContext.getString(R.string.scan_progress_open, done) else applicationContext.getString(R.string.scan_progress, done, total)
+            val text = left?.let { applicationContext.getString(R.string.scan_progress_left, count, Indexing.timeLeft(applicationContext.resources, it)) } ?: count
             val info = foregroundInfo(phaseTitle, text)
             applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
         }

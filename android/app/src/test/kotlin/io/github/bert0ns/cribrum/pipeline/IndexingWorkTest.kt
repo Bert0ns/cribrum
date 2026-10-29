@@ -56,7 +56,14 @@ import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Stands in for the scan itself: counts the scans that start, reports progress and waits for [gate]. */
-class FakeScan(context: Context, parameters: WorkerParameters, private val scans: AtomicInteger, private val gate: CompletableDeferred<Unit>, private val steps: List<Triple<String, Int, Int>> = emptyList()) : IndexWorker(context, parameters) {
+class FakeScan(
+    context: Context,
+    parameters: WorkerParameters,
+    private val scans: AtomicInteger,
+    private val gate: CompletableDeferred<Unit>,
+    private val steps: List<Triple<String, Int, Int>> = emptyList(),
+    private val leftMs: Long? = null,
+) : IndexWorker(context, parameters) {
     init {
         isForeground = true
     }
@@ -64,7 +71,7 @@ class FakeScan(context: Context, parameters: WorkerParameters, private val scans
     override suspend fun scan(): Result {
         scans.incrementAndGet()
         steps.forEach { (step, done, total) -> report(step, done, total) }
-        setProgress(workDataOf(Indexing.STEP to "detectors", Indexing.DONE to 1, Indexing.TOTAL to 2))
+        setProgress(workDataOf(Indexing.STEP to "detectors", Indexing.DONE to 1, Indexing.TOTAL to 2, Indexing.LEFT_MS to (leftMs ?: -1L)))
         gate.await()
         return Result.success()
     }
@@ -171,6 +178,16 @@ class IndexingWorkTest {
         val progress = runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
 
         assertEquals(ScanProgress("detectors", 1, 2), progress)
+    }
+
+    @Test
+    fun `the progress carries the time left`() {
+        workerFactory = { ctx, params -> FakeScan(ctx, params, scans, gate, leftMs = 720_000) }
+        Indexing.scanNow(app)
+
+        val progress = runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        assertEquals(ScanProgress("detectors", 1, 2, leftMs = 720_000), progress)
     }
 
     @Test
