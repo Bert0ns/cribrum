@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.model.Kind
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.SignalIdentity
+import io.github.bert0ns.cribrum.sources.NotImages
 import io.github.bert0ns.cribrum.tracing.traceSuspend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,7 +26,9 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicLong
 
 /** Methods taking a path throw [NoSuchElementException] for an image that was never recorded. */
-class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
+class ImageIndex(private val db: IndexDatabase) :
+    AutoCloseable,
+    NotImages {
     /** For tests that look at the schema itself. */
     internal val database: IndexDatabase get() = db
 
@@ -312,6 +315,14 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
         }
     }
 
+    // The walk's memory of non-images: no image changes with it, so it leaves [version] alone, and a scan
+    // that sniffed new files does not drop the review's ranking.
+    override suspend fun notImages(): List<ImageRef> = dao.notImages().map { ImageRef(it.path, it.size, it.mtimeNs) }
+
+    override suspend fun addNotImages(files: List<ImageRef>) = db.withTransaction { dao.putNotImages(files.map { NotImageRow(it.path, it.size, it.mtimeNs) }) }
+
+    override suspend fun forgetNotImages(paths: Collection<String>) = db.withTransaction { paths.chunked(SQL_VARIABLES).forEach { dao.forgetNotImages(it) } }
+
     override fun close() = db.close()
 
     /** Bumps the version after the block, even one that throws: a read that starts after the bump finds the write committed. */
@@ -330,7 +341,7 @@ class ImageIndex(private val db: IndexDatabase) : AutoCloseable {
     }
 
     companion object {
-        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build())
+        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build())
     }
 }
 

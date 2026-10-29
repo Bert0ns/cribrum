@@ -82,8 +82,14 @@ CREATE TABLE IF NOT EXISTS group_runs (
 CREATE TABLE IF NOT EXISTS excluded_folders (
     path TEXT PRIMARY KEY
 );
+-- Files the walk sniffed and found not to be images (docs/design.md, section 4).
+CREATE TABLE IF NOT EXISTS not_images (
+    path TEXT PRIMARY KEY,
+    size INTEGER NOT NULL,
+    mtime_ns INTEGER NOT NULL
+);
 """
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 """Bump on every schema change: an index from another version is refused, not misread."""
 
 
@@ -168,6 +174,24 @@ class ImageIndex:
         """Removes images from the index, with everything stored about them. Files are untouched."""
         with self._db:
             self._db.executemany("DELETE FROM images WHERE path = ?", [(str(p),) for p in paths])
+
+    def not_images(self) -> list[ImageRef]:
+        rows = self._db.execute("SELECT path, size, mtime_ns FROM not_images")
+        return [ImageRef(Path(path), size, mtime_ns) for path, size, mtime_ns in rows]
+
+    def add_not_images(self, files: Iterable[ImageRef]) -> None:
+        """Stores the files; one already stored with the same path is replaced."""
+        with self._db:
+            self._db.executemany(
+                "INSERT OR REPLACE INTO not_images (path, size, mtime_ns) VALUES (?, ?, ?)",
+                [(str(f.path), f.size, f.mtime_ns) for f in files],
+            )
+
+    def forget_not_images(self, paths: Iterable[Path]) -> None:
+        with self._db:
+            self._db.executemany(
+                "DELETE FROM not_images WHERE path = ?", [(str(p),) for p in paths]
+            )
 
     def without_metadata(self) -> list[ImageRef]:
         """Images whose metadata was never read, leaving out the unreadable ones."""

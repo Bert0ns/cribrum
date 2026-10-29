@@ -356,6 +356,30 @@ def test_a_group_fingerprint_keeps_the_paths_whose_content_hash_failed(index):
     assert index.group_hash_failed("exact_duplicate", 1) == []
 
 
+def test_not_images_are_stored_by_path_the_newest_size_and_mtime_winning(index):
+    photo = ImageRef(Path("/photos/a.jpg"), 100, 1)
+    other = ImageRef(Path("/photos/b.jpg"), 5, 5)
+    index.add_not_images([photo, other])
+    index.add_not_images([ImageRef(photo.path, 7, 1)])
+
+    assert set(index.not_images()) == {ImageRef(photo.path, 7, 1), other}
+
+    index.forget_not_images([other.path])
+
+    assert index.not_images() == [ImageRef(photo.path, 7, 1)]
+
+
+def test_not_images_are_no_images_and_forgetting_an_image_leaves_them_alone(index):
+    note = ImageRef(Path("/photos/notes.txt"), 5, 5)
+    index.add_not_images([note])
+    assert index.images() == []
+
+    index.record(ImageRef(Path("/photos/a.jpg"), 100, 1))
+    index.forget([Path("/photos/a.jpg")])
+
+    assert index.not_images() == [note]
+
+
 def test_index_from_another_schema_version_is_refused(tmp_path):
     db = tmp_path / "index.sqlite"
     ImageIndex(db).close()

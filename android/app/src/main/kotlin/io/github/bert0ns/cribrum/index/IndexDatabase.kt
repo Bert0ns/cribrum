@@ -118,6 +118,14 @@ data class GroupRunRow(
 @Entity(tableName = "excluded_folders")
 data class ExcludedFolderRow(@PrimaryKey val path: String)
 
+/** A file the walk sniffed and found not to be an image, with the size and mtime it had (docs/design.md §4). */
+@Entity(tableName = "not_images")
+data class NotImageRow(
+    @PrimaryKey val path: String,
+    val size: Long,
+    @ColumnInfo(name = "mtime_ns") val mtimeNs: Long,
+)
+
 data class StoredRef(val path: String, val size: Long, @ColumnInfo(name = "mtime_ns") val mtimeNs: Long)
 
 data class StoredMetadata(
@@ -320,6 +328,15 @@ interface IndexDao {
 
     @Query("SELECT path FROM excluded_folders ORDER BY path")
     suspend fun excludedFolders(): List<String>
+
+    @Query("SELECT path, size, mtime_ns FROM not_images")
+    suspend fun notImages(): List<StoredRef>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putNotImages(rows: List<NotImageRow>)
+
+    @Query("DELETE FROM not_images WHERE path IN (:paths)")
+    suspend fun forgetNotImages(paths: List<String>)
 }
 
 /**
@@ -329,9 +346,9 @@ interface IndexDao {
 @Database(
     entities = [
         ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, KeptDetectorRow::class, EmbeddingRow::class,
-        GroupRunRow::class, ExcludedFolderRow::class,
+        GroupRunRow::class, ExcludedFolderRow::class, NotImageRow::class,
     ],
-    version = 3,
+    version = 4,
 )
 abstract class IndexDatabase : RoomDatabase() {
     abstract fun dao(): IndexDao
@@ -357,5 +374,12 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         db.execSQL(
             "INSERT INTO kept_detectors SELECT a.path, a.detector_id FROM analyses a JOIN images i ON i.path = a.path WHERE i.review_state = 'kept'",
         )
+    }
+}
+
+/** Version 3 did not remember the files the walk found not to be images: the walk fills the table as it goes. */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `not_images` (`path` TEXT NOT NULL, `size` INTEGER NOT NULL, `mtime_ns` INTEGER NOT NULL, PRIMARY KEY(`path`))")
     }
 }

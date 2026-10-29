@@ -161,6 +161,23 @@ def test_changed_image_is_analyzed_again_and_groups_are_recomputed(photos, index
     assert Category.EXACT_DUPLICATE not in categories(index, copy)
 
 
+def test_a_run_remembers_the_files_that_are_not_images_and_forgets_the_ones_that_are_gone(
+    photos, index
+):
+    notes = photos.resolve() / "notes.txt"
+    notes.write_bytes(b"not an image")
+
+    pipeline.run(photos, index)
+
+    assert [ref.path for ref in index.not_images()] == [notes]
+    assert len(index.images()) == 3
+
+    notes.unlink()
+    pipeline.run(photos, index)
+
+    assert index.not_images() == []
+
+
 def test_removed_image_leaves_the_index(photos, index):
     pipeline.run(photos, index)
     (photos / "DCIM/Camera/a.png").unlink()

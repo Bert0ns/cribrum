@@ -72,4 +72,18 @@ class IndexMigrationTest {
             assertEquals(emptySet<String>(), runBlocking { it.keptDetectors("/photos/b.jpg") })
         }
     }
+
+    @Test
+    fun `version 3 opens with an empty memory of non-images`() {
+        createDatabase(context, 3).use {
+            it.execSQL("INSERT INTO images (path, size, mtime_ns) VALUES ('/photos/a.jpg', 100, 1)")
+        }
+
+        ImageIndex.open(context, NAME).use {
+            assertEquals(listOf(ImageRef("/photos/a.jpg", 100, 1)), runBlocking { it.images() })
+            assertEquals(emptyList<ImageRef>(), runBlocking { it.notImages() })
+            runBlocking { it.addNotImages(listOf(ImageRef("/photos/notes.txt", 5, 2))) }
+            assertEquals(listOf(ImageRef("/photos/notes.txt", 5, 2)), runBlocking { it.notImages() })
+        }
+    }
 }

@@ -28,6 +28,9 @@ import java.time.LocalDateTime
 
 private val PHOTO = ImageRef("/photos/a.jpg", 100, 1)
 private val OTHER = ImageRef("/photos/b.jpg", 5, 5)
+
+/** The walk's memory of non-images: it never reaches the review, so it is neither in `reads` nor in `writes`. */
+private val NOT_IMAGES_METHODS = setOf("notImages", "addNotImages", "forgetNotImages")
 private val META = ImageMetadata(4000, 3000, "image/jpeg", "Google", "Pixel 8", LocalDateTime.of(2024, 5, 1, 10, 20))
 private val BLUR = Signal("blur", 1, Category.BLURRY, 0.7f, mapOf("variance" to "12.5"))
 
@@ -558,6 +561,47 @@ class ImageIndexTest {
         assertEquals(listOf("/photos/a"), excludedFolders())
     }
 
+    @Test
+    fun `not images are stored by path, the newest size and mtime winning`() = test {
+        addNotImages(listOf(PHOTO, OTHER))
+        addNotImages(listOf(PHOTO.copy(size = 7)))
+
+        assertEquals(setOf(PHOTO.copy(size = 7), OTHER), notImages().toSet())
+
+        forgetNotImages(listOf(OTHER.path))
+
+        assertEquals(listOf(PHOTO.copy(size = 7)), notImages())
+    }
+
+    @Test
+    fun `not images are no images`() = test {
+        addNotImages(listOf(PHOTO))
+
+        assertEquals(emptyList<ImageRef>(), images())
+        assertEquals(0, imageCount())
+    }
+
+    @Test
+    fun `forgetting an image leaves the not images alone`() = test {
+        record(PHOTO)
+        addNotImages(listOf(OTHER))
+
+        forget(listOf(PHOTO.path))
+
+        assertEquals(listOf(OTHER), notImages())
+    }
+
+    @Test
+    fun `the not images do not touch the version, since the review shows none of them`() = test {
+        val before = version
+
+        addNotImages(listOf(PHOTO))
+        notImages()
+        forgetNotImages(listOf(PHOTO.path))
+
+        assertEquals(before, version)
+    }
+
     /** Every public write of the index, each run once on an index holding [PHOTO] with [BLUR]. */
     private val writes: Map<String, suspend ImageIndex.() -> Unit> = mapOf(
         "record" to { record(OTHER) },
@@ -622,7 +666,7 @@ class ImageIndexTest {
             .map { it.name.substringBefore('-') } // Kotlin mangles names that take inline classes like ULong
             .toSet()
         // A new write must bump the version, or the review shows a stale ranking: add it to [writes].
-        assertEquals(writes.keys + reads.keys + "close", methods)
+        assertEquals(writes.keys + reads.keys + "close" + NOT_IMAGES_METHODS, methods)
     }
 
     @Test
