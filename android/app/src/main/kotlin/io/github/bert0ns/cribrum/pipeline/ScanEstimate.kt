@@ -52,7 +52,8 @@ class ScanCosts(private val preferences: SharedPreferences) {
     val costs: Map<String, Double>
         get() {
             val stored = preferences.getString(KEY, null)?.let { runCatching { JSONObject(it) }.getOrNull() } ?: return DEFAULT_COSTS
-            return DEFAULT_COSTS.mapValues { (phase, cost) -> stored.optDouble(phase, cost) }
+            // A stored cost that is not a positive number would make the estimate infinite or NaN.
+            return DEFAULT_COSTS.mapValues { (phase, cost) -> stored.optDouble(phase, cost).takeIf { it.isFinite() && it > 0.0 } ?: cost }
         }
 
     fun record(measured: Map<String, Double>) {
@@ -119,7 +120,7 @@ class ScanEstimate(private val phases: List<String>, private val costs: Map<Stri
         val live = (last.time - first.time).toDouble() / (last.done - first.done)
         val speed = live / costs.getValue(phases[current])
         val later = phases.drop(current + 1).sumOf { (planned[it] ?: 0) * costs.getValue(it) }
-        return ((total - done) * live + later * speed).roundToLong()
+        return ((total - done).coerceAtLeast(0) * live + later * speed).roundToLong()
     }
 
     private companion object {

@@ -26,4 +26,11 @@ class ScanCostsTest {
 
         assertEquals(DEFAULT_COSTS + mapOf("embeddings" to 42.5, "metadata" to 1.5), ScanCosts(preferences).costs)
     }
+
+    @Test
+    fun `a stored cost that is not a positive number falls back to the default`() {
+        preferences.edit().putString("scan_costs", """{"embeddings": 0, "metadata": -3, "detectors": "x"}""").commit()
+
+        assertEquals(DEFAULT_COSTS, ScanCosts(preferences).costs)
+    }
 }
