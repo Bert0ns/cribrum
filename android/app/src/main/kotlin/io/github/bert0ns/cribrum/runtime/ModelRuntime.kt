@@ -21,6 +21,26 @@ interface ModelRuntime : AutoCloseable {
 }
 
 /**
+ * Runs [current] until one of its runs fails, then the runtime [fallback] builds, for that run and every
+ * later one. A GPU can fail after its session was created: shaders compile, buffers are allocated and a
+ * device can be lost during a run, and without this every later batch of the scan would fail the same way.
+ * Not thread-safe: the scan runs one batch at a time.
+ */
+class FallbackRuntime(private var current: ModelRuntime, private var fallback: (() -> ModelRuntime)?) : ModelRuntime {
+    override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = try {
+        current.run(inputs)
+    } catch (error: OrtException) {
+        val build = fallback ?: throw error
+        fallback = null
+        current.close()
+        current = build()
+        current.run(inputs)
+    }
+
+    override fun close() = current.close()
+}
+
+/**
  * ONNX Runtime on the CPU, with ONNX Runtime's default thread count unless [threads] says otherwise.
  * With [gpu] it runs on the GPU through WebGPU, or on the CPU when the build or the phone has no WebGPU.
  */
