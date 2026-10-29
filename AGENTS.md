@@ -23,6 +23,7 @@ The deterministic checks must pass before a PR is ready, and a red check means i
 
 - `lab/`: `uv run ruff check && uv run ruff format --check && uv run pytest`
 - `android/`: `./gradlew ktlintCheck testDebugUnitTest lintDebug assembleDebug`, and `./gradlew ktlintFormat` fixes the formatting
+- Gradle builds from several worktrees on one machine fight over the shared Gradle caches and the CPU, and fail on cache lock timeouts. Run Gradle through `flock`, so they wait in a queue: `flock /tmp/cribrum-gradle.lock ./gradlew ...`. The Android build and its Robolectric tests need JDK 21.
 - `python3 lab/scripts/check_parity.py` checks that lab and android agree on detector ids, versions and thresholds. When you change one side, change the other, and bump the detector version if its output changes.
 
 CI runs `lab`, `android`, `parity` and `commit-format` on every PR, and branch protection on `main` requires them to pass.
