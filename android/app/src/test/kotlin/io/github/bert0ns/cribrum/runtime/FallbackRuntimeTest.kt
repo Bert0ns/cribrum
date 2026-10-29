@@ -71,4 +71,32 @@ class FallbackRuntimeTest {
         assertThrows(OrtException::class.java) { runtime.run(input) }
         assertEquals(1, built)
     }
+
+    @Test
+    fun `an error that is not the runtime's own does not switch to the fallback`() {
+        var built = 0
+        val runtime = FallbackRuntime(
+            object : ModelRuntime {
+                override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = throw IllegalArgumentException("bad input")
+            },
+        ) {
+            built++
+            Fake("cpu")
+        }
+
+        assertThrows(IllegalArgumentException::class.java) { runtime.run(input) }
+        assertEquals(0, built)
+    }
+
+    @Test
+    fun `a fallback that cannot be built leaves the failed runtime open, to fail and be closed once`() {
+        val gpu = Fake("gpu", failing = true)
+        val runtime = FallbackRuntime(gpu) { throw OrtException("no cpu session") }
+
+        assertThrows(OrtException::class.java) { runtime.run(input) }
+        assertThrows(OrtException::class.java) { runtime.run(input) }
+        assertEquals(false, gpu.closed)
+        runtime.close()
+        assertTrue(gpu.closed)
+    }
 }
