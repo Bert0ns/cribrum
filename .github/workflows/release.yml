@@ -76,5 +76,8 @@ jobs:
           apk="cribrum-$VERSION.apk"
           cp app/build/outputs/apk/release/app-release.apk "$apk"
           sha256sum "$apk" > "$apk.sha256"
-          gh release create "v$VERSION" "$apk" "$apk.sha256" \
+          # R8 renames the classes, so a crash's stack trace needs this file to read.
+          mapping="cribrum-$VERSION-mapping.txt"
+          cp app/build/outputs/mapping/release/mapping.txt "$mapping"
+          gh release create "v$VERSION" "$apk" "$apk.sha256" "$mapping" \
             --target "$GITHUB_SHA" --title "Cribrum $VERSION" --generate-notes
