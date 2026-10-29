@@ -143,16 +143,16 @@ class ImagingTest {
     }
 
     @Test
-    fun `a channel is read already turned, with no plane of the other orientation in between`() {
+    fun `the channels are read already turned, with no plane of the other orientation in between`() {
         val argb = Argb(2, 3, IntArray(6) { (0xff shl 24) or ((10 + it) shl 16) or ((20 + it) shl 8) or (30 + it) })
 
-        for ((shift, first) in listOf(16 to 10, 8 to 20, 0 to 30)) {
+        for ((c, first) in listOf(10, 20, 30).withIndex()) {
             val plane = gray(2, 3, *IntArray(6) { first + it })
             for (orientation in 1..8) {
                 val expected = transpose(plane, orientation)
-                val got = channel(argb, shift, orientation)
-                assertEquals("shift $shift, orientation $orientation", listOf(expected.width, expected.height), listOf(got.width, got.height))
-                assertArrayEquals("shift $shift, orientation $orientation", expected.pixels, got.pixels, 0f)
+                val got = resampleChannels(argb, orientation, expected.width, expected.height)[c]
+                assertEquals("channel $c, orientation $orientation", listOf(expected.width, expected.height), listOf(got.width, got.height))
+                assertArrayEquals("channel $c, orientation $orientation", expected.pixels, got.pixels, 0f)
             }
         }
     }

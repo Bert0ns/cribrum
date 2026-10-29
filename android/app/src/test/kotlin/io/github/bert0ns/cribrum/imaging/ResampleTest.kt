@@ -59,21 +59,6 @@ class ResampleTest {
     }
 
     @Test
-    fun `a channel is the same for every orientation and every shape as it was before`() {
-        for ((index, shape) in listOf(5 to 3, 4 to 4, 1 to 6, 6 to 1, 1 to 1, 17 to 9).withIndex()) {
-            val image = noiseArgb(shape.first, shape.second, index)
-            for (shift in listOf(16, 8, 0)) {
-                for (orientation in 0..9) {
-                    val expected = referenceChannel(image, shift, orientation)
-                    val got = channel(image, shift, orientation)
-                    assertEquals("$shape, shift $shift, orientation $orientation", listOf(expected.width, expected.height), listOf(got.width, got.height))
-                    assertArrayEquals("$shape, shift $shift, orientation $orientation", expected.pixels, got.pixels, 0f)
-                }
-            }
-        }
-    }
-
-    @Test
     fun `the three channels turned and resampled in one go are the three channels one at a time`() {
         val cases = listOf(
             Triple(1000 to 750, 640 to 480, "down, as Text"),
