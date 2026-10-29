@@ -92,6 +92,15 @@ android {
     }
 }
 
+// -PcomposeReports writes the Compose compiler's stability reports and metrics under
+// app/build/compose_compiler, which android/README.md explains how to read.
+if (providers.gradleProperty("composeReports").isPresent) {
+    composeCompiler {
+        reportsDestination = layout.buildDirectory.dir("compose_compiler")
+        metricsDestination = layout.buildDirectory.dir("compose_compiler")
+    }
+}
+
 // Pinned, so a plugin update cannot change the rules.
 ktlint {
     version.set("1.5.0")

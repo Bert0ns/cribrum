@@ -42,6 +42,16 @@ adb install -r app/build/outputs/apk/benchmark/app-benchmark.apk
 
 It keeps the debug build's application id and signature, so it installs over a debug build and keeps its index. A release build has another signature: uninstall it first, which drops its index. CI does not build it.
 
+### Compose compiler reports
+
+`-PcomposeReports` makes the Kotlin compile write the Compose compiler's stability reports and metrics to `app/build/compose_compiler`: `app-composables.txt` (which composables skip, and the stability of each parameter), `app-classes.txt` (the stability of each class) and `<variant>/app-module.json` (the totals). It is off by default. Gradle's build cache restores a compile without running it, and then writes no reports, so rerun the compile task:
+
+```bash
+./gradlew -PcomposeReports compileBenchmarkKotlin --rerun
+```
+
+The compiler runs with strong skipping, so a parameter that the report does not mark `stable` is compared by identity and the composable still skips when the same instance comes back.
+
 ### Trace sections
 
 The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of the benchmark build shows them. The names are stable, because the measurement script looks them up. A step that suspends is an async section, and the others are plain ones.
