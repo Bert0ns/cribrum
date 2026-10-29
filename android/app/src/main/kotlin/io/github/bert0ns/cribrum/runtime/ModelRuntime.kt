@@ -32,8 +32,10 @@ class FallbackRuntime(private var current: ModelRuntime, private var fallback: (
     } catch (error: OrtException) {
         val build = fallback ?: throw error
         fallback = null
-        current.close()
-        current = build()
+        // Built before the failed runtime is closed, so a fallback that cannot be built leaves an open runtime to fail and close.
+        val next = build()
+        runCatching { current.close() } // a lost device may fail to close as well
+        current = next
         current.run(inputs)
     }
 
