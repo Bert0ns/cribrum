@@ -31,6 +31,7 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
+import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -47,8 +48,9 @@ import kotlin.random.Random
 
 /**
  * Renders the screens in the README (docs/screenshots) on the JVM, with the real composables and
- * theme. Every image is drawn here, so no photo is involved. It writes only when
- * `-PreadmeScreenshots` is set (android/README.md), so a normal test run leaves the files alone.
+ * theme, apart from the top bar, a copy of MainActivity's that needs no view model. Every image is
+ * drawn here, so no photo is involved. It runs only when `-PreadmeScreenshots` is set
+ * (android/README.md), so a normal test run neither writes the files nor pays for the sandbox.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -63,7 +65,7 @@ class ReadmeScreenshots {
     private val outputDir = System.getProperty("cribrum.screenshots.dir")?.let(::File)
 
     @Test
-    fun home() = screenshot("home", title = "Cribrum", settings = true) {
+    fun home() = screenshot("home", title = "Cribrum", actions = { IconButton({}) { Icon(Icons.Filled.Settings, "Settings") } }) {
         val categories = listOf(
             CategorySummary(Category.EXACT_DUPLICATE, 42, bytes = 188_000_000),
             CategorySummary(Category.NEAR_DUPLICATE, 217, bytes = 640_000_000),
@@ -82,7 +84,7 @@ class ReadmeScreenshots {
     }
 
     @Test
-    fun category() = screenshot("category", title = "Blurry", back = true) {
+    fun category() = screenshot("category", title = "Blurry", back = true, actions = { ReviewOrderMenu(ReviewOrder.OFF, ReviewOrder.optionsFor(Category.BLURRY)) {} }) {
         val images = (1..24).map { thumbnail("blurry", it, blurry = true) }
         val page = images.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
         val kept = setOf(images[2].path, images[7].path, images[12].path, images[17].path)
@@ -100,7 +102,7 @@ class ReadmeScreenshots {
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
-    private fun screenshot(name: String, title: String, back: Boolean = false, settings: Boolean = false, content: @Composable () -> Unit) {
+    private fun screenshot(name: String, title: String, back: Boolean = false, actions: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
         assumeTrue("set -PreadmeScreenshots to write the screenshots", outputDir != null)
         compose.setContent {
             MaterialTheme {
@@ -108,7 +110,7 @@ class ReadmeScreenshots {
                     TopAppBar(
                         title = { Text(title) },
                         navigationIcon = { if (back) IconButton({}) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                        actions = { if (settings) IconButton({}) { Icon(Icons.Filled.Settings, "Settings") } },
+                        actions = { actions() },
                     )
                 }) { padding -> Column(Modifier.fillMaxSize().padding(padding)) { content() } }
             }

@@ -78,6 +78,8 @@ android {
             if (providers.gradleProperty("readmeScreenshots").isPresent) {
                 it.systemProperty("cribrum.screenshots.dir", rootProject.file("../docs/screenshots").path)
                 it.outputs.upToDateWhen { false }
+            } else {
+                it.exclude("**/ReadmeScreenshots*")
             }
         }
     }

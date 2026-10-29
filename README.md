@@ -53,7 +53,7 @@ The detectors are tuned on one person's library, so expect some wrong suggestion
 
 ## Roadmap
 
-The next steps are in [`docs/design.md`](docs/design.md), section 11. The main ones are learning each category's threshold from your keep and trash decisions, a single recall setting in place of one slider per category, and offering to compress an image instead of deleting it.
+The next steps are in [`docs/design.md`](docs/design.md#11-future-work-and-open-questions), section 11. The main ones are learning each category's threshold from your keep and trash decisions, a single recall setting in place of one slider per category, and offering to compress an image instead of deleting it.
 
 ## Build and test
 
