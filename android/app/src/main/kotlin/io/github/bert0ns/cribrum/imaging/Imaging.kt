@@ -334,14 +334,18 @@ internal fun resample(
         image = Gray(outW, lastRow - firstRow, out)
         rowOffset = firstRow
     }
-    if (needVertical) image = Gray(image.width, outH, verticalPass(image.pixels, image.width, rowOffset, vertical, outH))
+    if (needVertical) {
+        val pixels = image.pixels
+        image = Gray(image.width, outH, verticalPass(image.width, rowOffset, vertical, outH) { pixels[it].toLong() })
+    }
     return image
 }
 
 /**
  * The red, green and blue planes of [image], turned as [transpose] does and resampled with the bilinear filter,
  * in that order. The turn is read straight from the pixels and the three channels are summed together, so no
- * full-size plane is built: one per channel took 4 bytes a pixel and a pass over the image each.
+ * full-size plane is built: one per channel took 4 bytes a pixel and a pass over the image each. What the
+ * horizontal pass leaves is a byte a value, since it is clipped to 0..255.
  */
 internal fun resampleChannels(image: Argb, orientation: Int, outW: Int, outH: Int): Array<Gray> {
     val t = turnOf(image.width, image.height, orientation)
@@ -349,37 +353,45 @@ internal fun resampleChannels(image: Argb, orientation: Int, outW: Int, outH: In
     val vertical = coefficients(t.height, 0.0, t.height.toDouble(), outH, BILINEAR)
     val firstRow = vertical.first[0]
     val rows = vertical.first[outH - 1] + vertical.weights[outH - 1].size - firstRow
-    val red = FloatArray(outW * rows)
-    val green = FloatArray(outW * rows)
-    val blue = FloatArray(outW * rows)
+    val pixels = image.pixels
+    val stepX = t.stepX
+    val weights = horizontal.weights
+    val first = horizontal.first
+    val planes = Array(3) { ByteArray(outW * rows) }
+    val (red, green, blue) = planes
     for (row in 0 until rows) {
         val rowStart = t.start + (firstRow + row) * t.stepY
         var dst = row * outW
         for (x in 0 until outW) {
-            val w = horizontal.weights[x]
-            var i = rowStart + horizontal.first[x] * t.stepX
+            val w = weights[x]
+            var i = rowStart + first[x] * stepX
             var r = 0L
             var g = 0L
             var b = 0L
             for (weight in w) {
-                val c = image.pixels[i]
+                val c = pixels[i]
                 r += (c shr 16 and 0xff).toLong() * weight
                 g += (c shr 8 and 0xff).toLong() * weight
                 b += (c and 0xff).toLong() * weight
-                i += t.stepX
+                i += stepX
             }
-            red[dst] = clip8(r)
-            green[dst] = clip8(g)
-            blue[dst++] = clip8(b)
+            red[dst] = clip8(r).toInt().toByte()
+            green[dst] = clip8(g).toInt().toByte()
+            blue[dst++] = clip8(b).toInt().toByte()
         }
     }
-    return arrayOf(red, green, blue).map { plane ->
-        Gray(outW, outH, if (outH == t.height) plane else verticalPass(plane, outW, firstRow, vertical, outH))
-    }.toTypedArray()
+    return Array(3) { c ->
+        val plane = planes[c]
+        if (outH == t.height) {
+            Gray(outW, outH, FloatArray(plane.size) { (plane[it].toInt() and 0xff).toFloat() })
+        } else {
+            Gray(outW, outH, verticalPass(outW, firstRow, vertical, outH) { (plane[it].toInt() and 0xff).toLong() })
+        }
+    }
 }
 
-/** The vertical pass: each output row is the weighted sum of the rows of [src] it reads, a row at a time. */
-private fun verticalPass(src: FloatArray, width: Int, rowOffset: Int, vertical: Coefficients, outH: Int): FloatArray {
+/** The vertical pass: each output row is the weighted sum of the rows [value] reads, a row at a time. */
+private inline fun verticalPass(width: Int, rowOffset: Int, vertical: Coefficients, outH: Int, value: (Int) -> Long): FloatArray {
     val out = FloatArray(width * outH)
     val sums = LongArray(width)
     for (y in 0 until outH) {
@@ -388,7 +400,7 @@ private fun verticalPass(src: FloatArray, width: Int, rowOffset: Int, vertical: 
         for (i in w.indices) {
             val weight = w[i].toLong()
             var s = (vertical.first[y] - rowOffset + i) * width
-            for (x in 0 until width) sums[x] += src[s++].toLong() * weight
+            for (x in 0 until width) sums[x] += value(s++) * weight
         }
         var dst = y * width
         for (x in 0 until width) out[dst++] = clip8(sums[x])
