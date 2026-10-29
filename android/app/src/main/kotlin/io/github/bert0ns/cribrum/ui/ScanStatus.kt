@@ -33,7 +33,8 @@ fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier =
             else -> {
                 Text(stringResource(R.string.scan_step, stringResource(Indexing.phaseTitle(progress.step)), progress.done, progress.total))
                 LinearProgressIndicator({ progress.done.toFloat() / progress.total }, Modifier.fillMaxWidth())
-                progress.leftMs?.let { Text(Indexing.timeLeft(LocalResources.current, it)) }
+                // An empty line while the estimate is hidden, so the list below does not jump at each phase change.
+                Text(progress.leftMs?.let { Indexing.timeLeft(LocalResources.current, it) }.orEmpty())
             }
         }
     }
