@@ -279,4 +279,24 @@ class NearDuplicateDetectorTest {
         assertEquals("true", signals[flat]!![0].evidence["flat"])
         assertFalse("flat" in signals[photo]!![0].evidence)
     }
+
+    @Test
+    fun `pairs anywhere in a large library link, and only they do`() {
+        val photos = List(300) { fake("$it", 1000L + it) }
+        // Flat hashes never link, so only the planted hash pairs can.
+        val hashes = photos.associateWith { 0uL }.toMutableMap()
+        hashes[photos[0]] = base
+        hashes[photos[299]] = base xor 0b111uL
+        hashes[photos[127]] = base.inv()
+        hashes[photos[128]] = base.inv() xor 1uL
+        // One axis per image, so every two embeddings are orthogonal unless planted equal.
+        val vectors = photos.withIndex().filter { it.index % 10 != 9 }.associate { (i, photo) -> photo to FloatArray(512).also { v -> v[i] = 1f } }.toMutableMap()
+        for ((a, b) in listOf(3 to 250, 63 to 64, 200 to 201, 200 to 202)) vectors[photos[b]] = vectors.getValue(photos[a])
+
+        val groups = runFakes(hashes, vectors).entries
+            .groupBy({ it.value.single().evidence.getValue(GROUP_KEY) }, { photos.indexOf(it.key) })
+            .values.map { it.toSet() }.toSet()
+
+        assertEquals(setOf(setOf(0, 299), setOf(127, 128), setOf(3, 250), setOf(63, 64), setOf(200, 201, 202)), groups)
+    }
 }

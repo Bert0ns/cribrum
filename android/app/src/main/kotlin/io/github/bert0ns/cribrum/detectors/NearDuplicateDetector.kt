@@ -13,7 +13,10 @@ import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import java.util.Locale
 
@@ -92,32 +95,37 @@ class NearDuplicateDetector : GroupDetector {
     }
 
     private suspend fun hashLinks(hashes: List<ULong>): List<Pair<Int, Int>> {
-        val links = mutableListOf<Pair<Int, Int>>()
-        for (i in hashes.indices) {
-            if (isFlatHash(hashes[i])) continue // flat images share a hash, whatever they show
-            currentCoroutineContext().ensureActive() // the pair loops run for a minute on a large library
-            for (j in (i + 1) until hashes.size) {
-                if (!isFlatHash(hashes[j]) && (hashes[i] xor hashes[j]).countOneBits() <= MAX_DISTANCE) {
-                    links += i to j
-                }
-            }
-        }
-        return links
+        // flat images share a hash, whatever they show
+        val linkable = hashes.indices.filter { !isFlatHash(hashes[it]) }
+        val values = LongArray(linkable.size) { hashes[linkable[it]].toLong() }
+        return pairs(values.size) { a, b -> (values[a] xor values[b]).countOneBits() <= MAX_DISTANCE }
+            .map { (a, b) -> linkable[a] to linkable[b] }
     }
 
     private suspend fun embeddingLinks(vectors: List<FloatArray?>): List<Pair<Int, Int>> {
-        val links = mutableListOf<Pair<Int, Int>>()
-        for (i in vectors.indices) {
-            val vi = vectors[i] ?: continue
-            currentCoroutineContext().ensureActive()
-            for (j in (i + 1) until vectors.size) {
-                val vj = vectors[j] ?: continue
-                if (dot(vi, vj) >= NEAR_DUPLICATE_MIN_COSINE) {
-                    links += i to j
+        val present = vectors.indices.filter { vectors[it] != null }
+        val values = present.map { vectors[it]!! }
+        return pairs(values.size) { a, b -> dot(values[a], values[b]) >= NEAR_DUPLICATE_MIN_COSINE }
+            .map { (a, b) -> present[a] to present[b] }
+    }
+
+    /**
+     * The pairs (i, j), i < j < [count], that are [linked], in the order a loop over i then j finds them.
+     * Blocks of rows run on every core: 50 million pairs took seconds on one.
+     */
+    private suspend inline fun pairs(count: Int, crossinline linked: (Int, Int) -> Boolean): List<Pair<Int, Int>> = coroutineScope {
+        (0 until count step ROWS_PER_TASK).map { start ->
+            async(Dispatchers.Default) {
+                val links = mutableListOf<Pair<Int, Int>>()
+                for (i in start until minOf(start + ROWS_PER_TASK, count)) {
+                    ensureActive() // the pair loops run for seconds on a large library
+                    for (j in (i + 1) until count) {
+                        if (linked(i, j)) links += i to j
+                    }
                 }
+                links
             }
-        }
-        return links
+        }.awaitAll().flatten()
     }
 
     private fun components(count: Int, links: List<Pair<Int, Int>>): List<List<Int>> {
@@ -179,6 +187,9 @@ class NearDuplicateDetector : GroupDetector {
     }
 
     private companion object {
+        /** Rows of the pair loops in one task: small, so the triangle's long first rows spread over the cores. */
+        const val ROWS_PER_TASK = 32
+
         val PREFERENCE_COMPARATOR = compareBy<CandidatePreference>(
             { -it.pixels },
             { -it.bytesPerPixel },
