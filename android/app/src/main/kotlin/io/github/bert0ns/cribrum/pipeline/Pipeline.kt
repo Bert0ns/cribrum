@@ -220,6 +220,9 @@ class Pipeline(
 
         // The exact detector skips an image whose content hash fails: the run stores those paths with its fingerprint.
         val hashFailed = mutableSetOf<String>()
+        // Read once: a query per image took seconds on a 10,000-image library.
+        val perceptualHashes = index.perceptualHashes()
+        val metadata = index.allMetadata()
         val context = AnalysisContext(
             contentHash = {
                 try {
@@ -229,9 +232,9 @@ class Pipeline(
                     throw error
                 }
             },
-            perceptualHash = ::storedPerceptualHash,
+            perceptualHash = { perceptualHashes[it.path] ?: throw NoSuchElementException(it.path) },
             embedding = { embeddings[it.path] ?: throw MissingEmbedding(it) },
-            metadata = ::storedMetadata,
+            metadata = { metadata[it.path] ?: throw UnreadableImage(File(it.path)) },
         )
         // Embeddings change what group detectors can see: a run with them is a different run.
         val model = embedder?.let { "${it.id}:${it.version}:${embeddings.size}" }.orEmpty()
@@ -490,10 +493,6 @@ class Pipeline(
     }
 
     private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHasher(image).also { index.setContentHash(image.path, it) }
-
-    private suspend fun storedPerceptualHash(image: ImageRef): ULong = index.perceptualHash(image.path) ?: throw NoSuchElementException(image.path)
-
-    private suspend fun storedMetadata(image: ImageRef): ImageMetadata = index.metadata(image.path) ?: throw UnreadableImage(File(image.path))
 
     /**
      * A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back.

@@ -113,16 +113,10 @@ class ImageIndex(private val db: IndexDatabase) :
         )
     }
 
-    suspend fun metadata(path: String): ImageMetadata? = dao.metadata(path)?.let {
-        ImageMetadata(
-            it.width,
-            it.height,
-            it.mime,
-            it.cameraMake,
-            it.cameraModel,
-            it.capturedAt?.let { text -> LocalDateTime.parse(text) },
-        )
-    }
+    suspend fun metadata(path: String): ImageMetadata? = dao.metadata(path)?.let(::metadata)
+
+    /** The metadata of every image that has it, by path: one query, where a group detector would make one per image. */
+    suspend fun allMetadata(): Map<String, ImageMetadata> = dao.allMetadata().associate { it.path to metadata(it.metadata) }
 
     suspend fun setContentHash(path: String, digest: String) = write { require(dao.setContentHash(path, digest), path) }
 
@@ -140,6 +134,9 @@ class ImageIndex(private val db: IndexDatabase) :
     }
 
     suspend fun hashedPaths(): Set<String> = dao.hashedPaths().toSet()
+
+    /** The perceptual hash of every image that has one, by path, as [allMetadata] does for metadata. */
+    suspend fun perceptualHashes(): Map<String, ULong> = dao.perceptualHashes().associate { it.path to it.perceptualHash.toULong(16) }
 
     /** The review state of every image by path, for a pass that must tell whether a review action changed one meanwhile. */
     suspend fun reviewStates(): Map<String, ReviewState> = dao.states().associate { row -> row.path to ReviewState.of(row.reviewState) }
@@ -350,6 +347,15 @@ private val ISO_SECONDS = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 
 /** Under SQLite's limit on bound parameters per statement. */
 private const val SQL_VARIABLES = 500
+
+private fun metadata(row: StoredMetadata) = ImageMetadata(
+    row.width,
+    row.height,
+    row.mime,
+    row.cameraMake,
+    row.cameraModel,
+    row.capturedAt?.let { LocalDateTime.parse(it) },
+)
 
 /** A fingerprint is hex, so a stored value that starts with "[" is the array [setGroupFingerprint] writes. */
 private fun groupRun(stored: String): List<String> = if (stored.startsWith("[")) JSONArray(stored).let { List(it.length(), it::getString) } else listOf(stored)

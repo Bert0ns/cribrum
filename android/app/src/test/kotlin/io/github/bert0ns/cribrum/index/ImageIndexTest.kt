@@ -172,6 +172,15 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `allMetadata holds the metadata of every image that has it`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setMetadata(PHOTO.path, META)
+
+        assertEquals(mapOf(PHOTO.path to META), allMetadata())
+    }
+
+    @Test
     fun `content hash round trip`() = test {
         record(PHOTO)
         assertNull(contentHash(PHOTO.path))
@@ -189,6 +198,15 @@ class ImageIndexTest {
         setPerceptualHash(PHOTO.path, ULong.MAX_VALUE)
 
         assertEquals(ULong.MAX_VALUE, perceptualHash(PHOTO.path))
+    }
+
+    @Test
+    fun `perceptualHashes holds the hash of every image that has one`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setPerceptualHash(PHOTO.path, ULong.MAX_VALUE)
+
+        assertEquals(mapOf(PHOTO.path to ULong.MAX_VALUE), perceptualHashes())
     }
 
     @Test
@@ -633,8 +651,10 @@ class ImageIndexTest {
         "withoutMetadata" to { withoutMetadata() },
         "unreadable" to { unreadable() },
         "metadata" to { metadata(PHOTO.path) },
+        "allMetadata" to { allMetadata() },
         "contentHash" to { contentHash(PHOTO.path) },
         "perceptualHash" to { perceptualHash(PHOTO.path) },
+        "perceptualHashes" to { perceptualHashes() },
         "hashedPaths" to { hashedPaths() },
         "reviewStates" to { reviewStates() },
         "embeddingCount" to { embeddingCount() },
