@@ -55,6 +55,8 @@ Each task goes to one of four models, picked by how hard it is and by which part
 
 The workers do most of the implementing. Gemini 3.8 Flash high is a little weaker than Sonnet 5.5 high, so it gets the simpler tasks of the two. Among the strong models, Opus 5.5 medium fits moderate logic changes, and Opus 5.5 high or Gemini 4 Argon the hardest ones.
 
+A task that works on the phone a lot, such as installing builds, driving the app or measuring on it, goes to a strong model, at least Opus 5.5 medium.
+
 Reviews follow the same tiers:
 
 - The reviewer is a different model from the author, from another provider when possible.
