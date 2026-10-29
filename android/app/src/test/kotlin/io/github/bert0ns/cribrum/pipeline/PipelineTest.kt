@@ -1021,6 +1021,38 @@ class PipelineTest {
     }
 
     @Test
+    fun `a decode retry after running out of memory runs alone, before any decode of the next batch`() {
+        repeat(EMBEDDING_BATCH + 1) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        val victim = java.util.concurrent.atomic.AtomicReference<String>() // the first image decoded, so one of the first batch
+        val started = AtomicInteger()
+        val inFlight = AtomicInteger()
+        var retry: Pair<Int, Int>? = null // decodes started, and decodes running, as the victim's retry ended
+        val decoder = { file: File ->
+            started.incrementAndGet()
+            inFlight.incrementAndGet()
+            try {
+                if (victim.compareAndSet(null, file.name)) throw OutOfMemoryError("Failed to allocate")
+                if (file.name == victim.get()) {
+                    // Long enough for a decode of the next batch to start, if one could run beside the retry.
+                    Thread.sleep(300)
+                    retry = started.get() to inFlight.get()
+                }
+                preprocess(file)
+            } finally {
+                inFlight.decrementAndGet()
+            }
+        }
+
+        val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), preprocessing = decoder))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        // The first batch's decodes, then the retry alone: the next batch's one image has not started yet.
+        assertEquals(EMBEDDING_BATCH + 1 to 1, retry)
+        assertEquals(EMBEDDING_BATCH + 2, started.get())
+        assertEquals(EMBEDDING_BATCH + 1, runBlocking { index.embeddings("mean_color", 1) }.size)
+    }
+
+    @Test
     fun `an image that always runs out of memory while decoding fails alone`() {
         photos()
         val decoder = { file: File -> if (file.name == "Screenshot_1.png") throw OutOfMemoryError("Failed to allocate") else preprocess(file) }
