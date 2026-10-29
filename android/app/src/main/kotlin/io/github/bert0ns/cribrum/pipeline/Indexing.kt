@@ -30,6 +30,7 @@ import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.mobileclip.VISION_MODEL_ASSET
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.runtime.FallbackRuntime
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
@@ -237,7 +238,10 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         }
     }
 
-    protected open fun loadVision(): ModelRuntime = OnnxRuntime(applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }, gpu = true)
+    // The CPU fallback reads the model again only if the GPU fails, so the bytes are not held through the scan.
+    protected open fun loadVision(): ModelRuntime = FallbackRuntime(OnnxRuntime(visionModel(), gpu = true)) { OnnxRuntime(visionModel()) }
+
+    private fun visionModel() = applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }
 
     protected open fun hasStorageAccess(): Boolean = Environment.isExternalStorageManager()
 
