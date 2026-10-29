@@ -44,6 +44,26 @@ Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` o
 
 They come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
 
+## Which model does the work
+
+Each task goes to one of four models, picked by how hard it is and by which parts of the code it touches.
+
+| Tier | Models | Use them for |
+|---|---|---|
+| Workers | Sonnet 5.5 high, Gemini 3.8 Flash high | Most features and fixes, UI changes, tests, docs, and the hygiene and dependency routines |
+| Strong | Opus 5.5 medium or high, Gemini 4 Argon | The ranker and its scoring, concurrency and the scan worker, database migrations, design decisions, performance work whose output must not change, and tasks a worker got wrong |
+
+The workers do most of the implementing. Gemini 3.8 Flash high is a little weaker than Sonnet 5.5 high, so it gets the simpler tasks of the two. Among the strong models, Opus 5.5 medium fits moderate logic changes, and Opus 5.5 high or Gemini 4 Argon the hardest ones.
+
+Reviews follow the same tiers:
+
+- The reviewer is a different model from the author, from another provider when possible.
+- The reviewer's tier follows how hard the change is, not who wrote it. A worker can review a small change, and a tricky one gets a strong model.
+- Editing `docs/design.md` alone does not call for a strong reviewer. A new design decision does.
+- A check that review findings were fixed takes a worker.
+
+Credits decide what is available on a given day. When one model runs out, use the other one in the same tier, and keep the reviewer different from the author.
+
 ## Routines
 
 Routines that keep the codebase healthy are issue templates in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/). Nothing runs on its own. The maintainer opens an issue from a template and says "prendi in mano l'issue numero X", and the issue body is the whole prompt. Each routine starts from the commit its previous run recorded in a `Covered commit:` comment on the last closed issue with the same label, and records its own when it finishes. No routine merges anything.
@@ -55,7 +75,7 @@ Routines that keep the codebase healthy are issue templates in [`.github/ISSUE_T
 | `routine-dependencies` | Gradle, uv and skills updates, in one PR | Sonnet 5.5 high |
 | `routine-audit` | A deep review of one area, chosen in rotation | Opus 5.5 xhigh or Gemini 4 Argon |
 
-The maintainer picks the model when opening the issue. Per-PR reviews stay with the `code-review` skill, run by a different model or subscription from the one that wrote the PR. Opus 5.5 high reviews PRs that change `docs/design.md` or the ranker.
+The maintainer picks the model when opening the issue. Per-PR reviews stay with the `code-review` skill, and [Which model does the work](#which-model-does-the-work) says which model runs them.
 
 ## Commits and pull requests
 
