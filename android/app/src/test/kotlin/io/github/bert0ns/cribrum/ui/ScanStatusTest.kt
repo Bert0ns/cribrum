@@ -43,4 +43,32 @@ class ScanStatusTest {
         compose.onNodeWithText("Analyzing the images: 12 of 100").assertExists()
         compose.onNodeWithText(empty).assertDoesNotExist()
     }
+
+    @Test
+    fun `the time left shows rounded to the minute`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100, leftMs = 12 * 60_000L + 29_000), onScan = {}) }
+
+        compose.onNodeWithText("About 12 min left").assertExists()
+    }
+
+    @Test
+    fun `a time left over an hour shows in hours and minutes`() {
+        compose.setContent { ScanStatus(ScanProgress("embeddings", 12, 100, leftMs = 95 * 60_000L), onScan = {}) }
+
+        compose.onNodeWithText("About 1 h 35 min left").assertExists()
+    }
+
+    @Test
+    fun `under a minute it says less than a minute`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 99, 100, leftMs = 59_000), onScan = {}) }
+
+        compose.onNodeWithText("Less than a minute left").assertExists()
+    }
+
+    @Test
+    fun `with no estimate yet no time left shows`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 1, 100), onScan = {}) }
+
+        compose.onNodeWithText("left", substring = true).assertDoesNotExist()
+    }
 }
