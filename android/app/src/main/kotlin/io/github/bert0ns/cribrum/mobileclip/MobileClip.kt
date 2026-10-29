@@ -3,12 +3,10 @@
 package io.github.bert0ns.cribrum.mobileclip
 
 import androidx.tracing.trace
-import io.github.bert0ns.cribrum.imaging.Argb
-import io.github.bert0ns.cribrum.imaging.BILINEAR
-import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
 import io.github.bert0ns.cribrum.imaging.orientation
-import io.github.bert0ns.cribrum.imaging.resample
+import io.github.bert0ns.cribrum.imaging.resampleChannels
+import io.github.bert0ns.cribrum.imaging.turnedSize
 import io.github.bert0ns.cribrum.pipeline.Embedder
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
@@ -52,26 +50,22 @@ fun zeroShot(imageEmbedding: FloatArray, promptEmbeddings: List<FloatArray>): Fl
 fun preprocess(file: File): FloatArray = trace("MobileClip.preprocess") {
     val decoded = decode(file, INPUT_SIDE)
     val orientation = orientation(file)
-    val out = FloatArray(PIXELS)
-    for ((c, shift) in listOf(16, 8, 0).withIndex()) cropChannel(decoded, shift, orientation, out, c * INPUT_SIDE * INPUT_SIDE)
-    out
-}
-
-/** Writes one channel's center crop into [out]. Its own function so the full-size plane is out of scope before the next channel's. */
-private fun cropChannel(decoded: Argb, shift: Int, orientation: Int, out: FloatArray, offset: Int) {
-    val plane = channel(decoded, shift, orientation)
-    val scale = INPUT_SIDE.toDouble() / min(plane.width, plane.height)
+    val (turnedWidth, turnedHeight) = turnedSize(decoded, orientation)
+    val scale = INPUT_SIDE.toDouble() / min(turnedWidth, turnedHeight)
     // Math.rint rounds halves to even, as Python's round does.
-    val width = max(INPUT_SIDE, Math.rint(plane.width * scale).toInt())
-    val height = max(INPUT_SIDE, Math.rint(plane.height * scale).toInt())
-    val resized = resample(plane, width, height, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
+    val width = max(INPUT_SIDE, Math.rint(turnedWidth * scale).toInt())
+    val height = max(INPUT_SIDE, Math.rint(turnedHeight * scale).toInt())
     val left = (width - INPUT_SIDE) / 2
     val top = (height - INPUT_SIDE) / 2
-    for (y in 0 until INPUT_SIDE) {
-        for (x in 0 until INPUT_SIDE) {
-            out[offset + y * INPUT_SIDE + x] = resized[left + x, top + y] / 255f
+    val out = FloatArray(PIXELS)
+    for ((c, resized) in resampleChannels(decoded, orientation, width, height).withIndex()) {
+        for (y in 0 until INPUT_SIDE) {
+            for (x in 0 until INPUT_SIDE) {
+                out[(c * INPUT_SIDE + y) * INPUT_SIDE + x] = resized[left + x, top + y] / 255f
+            }
         }
     }
+    out
 }
 
 /** Embeddings are L2-normalized, so a dot product is the cosine similarity. */

@@ -7,13 +7,10 @@
 package io.github.bert0ns.cribrum.text
 
 import androidx.tracing.trace
-import io.github.bert0ns.cribrum.imaging.Argb
-import io.github.bert0ns.cribrum.imaging.BILINEAR
-import io.github.bert0ns.cribrum.imaging.Gray
-import io.github.bert0ns.cribrum.imaging.channel
 import io.github.bert0ns.cribrum.imaging.decode
 import io.github.bert0ns.cribrum.imaging.orientation
-import io.github.bert0ns.cribrum.imaging.resample
+import io.github.bert0ns.cribrum.imaging.resampleChannels
+import io.github.bert0ns.cribrum.imaging.turnedSize
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
@@ -32,29 +29,22 @@ const val DETECTOR_RESOURCE = "/ppocr/ch_PP-OCRv4_det_infer.onnx"
 /**
  * RGB normalized with ImageNet mean and deviation, shape (1, 3, H, W), H and W multiples of 32
  * with the longest near [INPUT_SIDE]. Each channel goes through Pillow's steps on its own, as in
- * [io.github.bert0ns.cribrum.mobileclip.preprocess].
+ * [io.github.bert0ns.cribrum.mobileclip.preprocess], though [resampleChannels] does the three together.
  */
 fun preprocess(file: File): Tensor = trace("Text.preprocess") {
     val decoded = decode(file, INPUT_SIDE)
     val orientation = orientation(file)
-    val (width, height) = if (orientation in 5..8) decoded.height to decoded.width else decoded.width to decoded.height
+    val (width, height) = turnedSize(decoded, orientation)
     val scale = INPUT_SIDE.toDouble() / max(width, height)
 
     // Math.rint rounds halves to even, as Python's round does.
     fun side(pixels: Int) = max(32, Math.rint(pixels * scale / 32).toInt() * 32)
     val (outW, outH) = side(width) to side(height)
     val out = FloatArray(3 * outW * outH)
-    for ((c, shift) in listOf(16, 8, 0).withIndex()) {
-        val resized = resizedChannel(decoded, shift, orientation, outW, outH)
+    for ((c, resized) in resampleChannels(decoded, orientation, outW, outH).withIndex()) {
         for (i in 0 until outW * outH) out[c * outW * outH + i] = (resized.pixels[i] / 255f - MEAN[c]) / STD[c]
     }
     Tensor(longArrayOf(1, 3, outH.toLong(), outW.toLong()), out)
-}
-
-/** The channel turned and resized. Its own function so the full-size plane is out of scope before the next channel's. */
-private fun resizedChannel(decoded: Argb, shift: Int, orientation: Int, outW: Int, outH: Int): Gray {
-    val plane = channel(decoded, shift, orientation)
-    return resample(plane, outW, outH, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
 }
 
 fun textCoverage(file: File, runtime: ModelRuntime = defaultRuntime): Float {

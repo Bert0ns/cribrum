@@ -72,4 +72,35 @@ class ResampleTest {
             }
         }
     }
+
+    @Test
+    fun `the three channels turned and resampled in one go are the three channels one at a time`() {
+        val cases = listOf(
+            Triple(1000 to 750, 640 to 480, "down, as Text"),
+            Triple(300 to 500, 192 to 320, "down, tall"),
+            Triple(97 to 53, 200 to 120, "up"),
+            Triple(64 to 48, 64 to 48, "same size"),
+            Triple(64 to 48, 64 to 20, "same width"),
+            Triple(64 to 48, 30 to 48, "same height"),
+            Triple(1 to 40, 1 to 3, "one pixel wide"),
+            Triple(40 to 1, 7 to 1, "one pixel high"),
+            Triple(5 to 3, 4 to 2, "tiny"),
+        )
+        for ((index, case) in cases.withIndex()) {
+            val (from, to, name) = case
+            val image = noiseArgb(from.first, from.second, index)
+            for (orientation in 0..9) {
+                val (width, height) = turnedSize(image, orientation)
+                val outW = maxOf(1, width * to.first / from.first)
+                val outH = maxOf(1, height * to.second / from.second)
+                val got = resampleChannels(image, orientation, outW, outH)
+                for ((c, shift) in listOf(16, 8, 0).withIndex()) {
+                    val plane = referenceChannel(image, shift, orientation)
+                    val expected = referenceResample(plane, outW, outH, 0.0, 0.0, plane.width.toDouble(), plane.height.toDouble(), BILINEAR)
+                    assertEquals("$name, orientation $orientation, shift $shift", listOf(outW, outH), listOf(got[c].width, got[c].height))
+                    assertArrayEquals("$name, orientation $orientation, shift $shift", expected.pixels, got[c].pixels, 0f)
+                }
+            }
+        }
+    }
 }
