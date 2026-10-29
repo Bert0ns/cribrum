@@ -42,6 +42,14 @@ adb install -r app/build/outputs/apk/benchmark/app-benchmark.apk
 
 It keeps the debug build's application id and signature, so it installs over a debug build and keeps its index. A release build has another signature: uninstall it first, which drops its index. CI does not build it.
 
+### README screenshots
+
+`ReadmeScreenshots` renders the home, a category grid and the trash on the JVM, with the real composables and theme, and every image drawn in code. `-PreadmeScreenshots` makes it write `docs/screenshots/*.png`. Without the property Gradle leaves the test out, so a normal run leaves the files alone and CI does not depend on them:
+
+```bash
+./gradlew -PreadmeScreenshots testDebugUnitTest --tests '*ReadmeScreenshots'
+```
+
 ### Compose compiler reports
 
 `-PcomposeReports` makes the Kotlin compile write the Compose compiler's stability reports and metrics to `app/build/compose_compiler`: `app-composables.txt` (which composables skip, and the stability of each parameter), `app-classes.txt` (the stability of each class) and `<variant>/app-module.json` (the totals). It is off by default. Gradle's build cache restores a compile without running it, and then writes no reports, so rerun the compile task:
