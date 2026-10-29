@@ -375,4 +375,6 @@ private class LazyEvidence(private val json: String) : AbstractMap<String, Strin
     override val entries: Set<Map.Entry<String, String>> get() = parsed.entries
 
     override fun get(key: String): String? = parsed[key]
+
+    override fun containsKey(key: String): Boolean = parsed.containsKey(key)
 }
