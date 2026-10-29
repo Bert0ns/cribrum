@@ -360,8 +360,19 @@ private fun metadata(row: StoredMetadata) = ImageMetadata(
 /** A fingerprint is hex, so a stored value that starts with "[" is the array [setGroupFingerprint] writes. */
 private fun groupRun(stored: String): List<String> = if (stored.startsWith("[")) JSONArray(stored).let { List(it.length(), it::getString) } else listOf(stored)
 
-private fun signal(row: SignalRow): Signal {
-    val json = JSONObject(row.evidence)
-    val evidence = json.keys().asSequence().associateWith { json.getString(it) }
-    return Signal(row.detectorId, row.detectorVersion, Kind.of(row.category), row.score.toFloat(), evidence)
+private fun signal(row: SignalRow) = Signal(row.detectorId, row.detectorVersion, Kind.of(row.category), row.score.toFloat(), LazyEvidence(row.evidence))
+
+/**
+ * The evidence of a stored signal, parsed on first access. The ranker reads only the kind and the score of
+ * most signals, so most of the JSON objects of a large index are never parsed.
+ */
+private class LazyEvidence(private val json: String) : AbstractMap<String, String>() {
+    private val parsed: Map<String, String> by lazy {
+        val obj = JSONObject(json)
+        obj.keys().asSequence().associateWith { obj.getString(it) }
+    }
+
+    override val entries: Set<Map.Entry<String, String>> get() = parsed.entries
+
+    override fun get(key: String): String? = parsed[key]
 }
