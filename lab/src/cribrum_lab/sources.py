@@ -29,6 +29,23 @@ class ImageSource(Protocol):
         ...
 
 
+class NotImages(Protocol):
+    """What the walk remembers of the files it sniffed and found not to be images, so it does
+    not read their head again while their size and mtime stay the same."""
+
+    def not_images(self) -> Iterable[ImageRef]: ...
+
+    def add_not_images(self, files: list[ImageRef]) -> None:
+        """Stores the files; one already stored with the same path is replaced."""
+        ...
+
+    def forget_not_images(self, paths: list[Path]) -> None: ...
+
+
+NOT_IMAGES_BATCH = 300
+"""Files the walk hands to `add_not_images` at once."""
+
+
 class FilesystemImageSource:
     """Walks a folder tree and yields every image file, like the Android deep scan.
 
@@ -36,18 +53,27 @@ class FilesystemImageSource:
     messaging apps keep media the gallery never shows. Files are recognized by their
     content, not their extension, except a file that `indexed` returns with the same path,
     size and mtime: the index took it as an image, so its head is not read again. `indexed`
-    is called once per `scan`, before the walk. Symlinks are skipped so no file is yielded
-    twice, and so are FIFOs and other special files, which would block or fail on read. Left
-    out on purpose: files in the system trash or still being written (`.trashed-*`,
+    is called once per `scan`, before the walk. The same goes for a file `not_images` has: an
+    earlier walk found it not to be an image. The walk adds the non-images it sniffs, and drops
+    the ones it no longer finds when it listed the whole root. Symlinks are skipped so no file
+    is yielded twice, and so are FIFOs and other special files, which would block or fail on
+    read. Left out on purpose: files in the system trash or still being written (`.trashed-*`,
     `.pending-*`), and `Android/.Trash` at the root, which is Samsung Gallery's recycle bin.
     """
 
     SKIPPED_PREFIXES = (".trashed-", ".pending-")
     SKIPPED_FOLDERS = (Path("Android/.Trash"),)
 
-    def __init__(self, root: Path, indexed: Callable[[], Iterable[ImageRef]] = list) -> None:
+    def __init__(
+        self,
+        root: Path,
+        indexed: Callable[[], Iterable[ImageRef]] = list,
+        *,
+        not_images: NotImages | None = None,
+    ) -> None:
         self.root = root
         self._indexed = indexed
+        self._not_images = not_images
         self.walked_roots: list[Path] = []
         """The root once the walk listed every folder; a folder that cannot be listed, or a
         missing root, leaves it out."""
@@ -56,6 +82,10 @@ class FilesystemImageSource:
         self.walked_roots = []
         listed_all = True
         known = set(self._indexed())
+        remembered = list(self._not_images.not_images()) if self._not_images is not None else []
+        remembered_set = set(remembered)
+        met: set[Path] = set()  # non-images this walk met, remembered or newly sniffed
+        sniffed: list[ImageRef] = []
 
         def on_error(_: OSError) -> None:
             nonlocal listed_all
@@ -74,16 +104,39 @@ class FilesystemImageSource:
                     if not stat.S_ISREG(info.st_mode):
                         continue
                     image = ImageRef(path, info.st_size, info.st_mtime_ns)
-                    if image not in known and not _is_image(path):
-                        continue
+                    if image not in known:
+                        again = image in remembered_set
+                        if again or not _is_image(path):
+                            met.add(path)
+                            if self._not_images is not None and not again:
+                                sniffed.append(image)
+                                if len(sniffed) == NOT_IMAGES_BATCH:
+                                    self._not_images.add_not_images(sniffed)
+                                    sniffed = []  # the store may still hold the list it was given
+                            continue
                 except OSError:
                     continue  # unreadable or vanished during the scan
                 yield image
+        if self._not_images is not None:
+            if sniffed:
+                self._not_images.add_not_images(sniffed)
+            if listed_all:  # only a root listed in full can tell a gone file from an unseen one
+                self._not_images.forget_not_images(
+                    [
+                        r.path
+                        for r in remembered
+                        if r.path not in met and r.path.is_relative_to(self.root)
+                    ]
+                )
         if listed_all:
             self.walked_roots = [self.root]
 
 
 def _is_image(path: Path) -> bool:
+    # The walk remembers the files this refused, by size and mtime (docs/design.md, section 4).
+    # A change that lets the head accept more, such as a new format or HEIF brand, must empty
+    # `not_images` in the same change: bump SCHEMA_VERSION in index.py, which refuses older
+    # files. Otherwise those files are never sniffed again.
     with path.open("rb") as file:
         head = file.read(_HEAD_SIZE)
     return (

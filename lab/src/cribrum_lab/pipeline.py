@@ -109,7 +109,7 @@ def run(
     stats = Stats()
 
     found = set()
-    source = FilesystemImageSource(root, index.images)
+    source = FilesystemImageSource(root, index.images, not_images=index)
     batch: list[ImageRef] = []
     for image in source.scan():
         found.add(image.path)

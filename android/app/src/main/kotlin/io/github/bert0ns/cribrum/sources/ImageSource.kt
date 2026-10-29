@@ -26,12 +26,30 @@ interface ImageSource {
 }
 
 /**
+ * What the walk remembers of the files it sniffed and found not to be images, so it does not read
+ * their head again while their size and mtime stay the same.
+ */
+interface NotImages {
+    suspend fun notImages(): Collection<ImageRef>
+
+    /** Stores the files; one already stored with the same path is replaced. */
+    suspend fun addNotImages(files: List<ImageRef>)
+
+    suspend fun forgetNotImages(paths: Collection<String>)
+}
+
+/** Files the walk hands to [NotImages.addNotImages] at once. */
+private const val NOT_IMAGES_BATCH = 300
+
+/**
  * Walks a folder tree and yields every image file: the deep scan.
  *
  * Hidden folders and folders with a `.nomedia` file are included: that is where messaging apps
  * keep media the gallery never shows. Files are recognized by their content, not their
  * extension, except a file that [indexed] has with the same path, size and mtime: the index
- * took it as an image, from this walk or from MediaStore, so its head is not read again.
+ * took it as an image, from this walk or from MediaStore, so its head is not read again. The
+ * same goes for a file [notImages] has: an earlier walk found it not to be an image. The walk
+ * adds the non-images it sniffs, and drops the ones it no longer finds when it listed the whole root.
  * Symlinks are skipped so no file is yielded twice, and so are FIFOs and other special files,
  * which would block or fail on read. Left out on purpose: the app trash, files in the system
  * trash or still being written (`.trashed-*`, `.pending-*`), `Android/.Trash`, which is
@@ -41,6 +59,8 @@ interface ImageSource {
 class FilesystemImageSource(
     private val root: File,
     /** Read once per scan, before the walk. */
+    private val notImages: NotImages? = null,
+    /** Read once per scan, before the walk. Last, so a test can pass it as a trailing lambda. */
     private val indexed: suspend () -> Collection<ImageRef> = { emptyList() },
 ) : ImageSource {
     /** The root once the walk listed every folder; a folder that cannot be listed, or a missing root, leaves it out. */
@@ -52,6 +72,10 @@ class FilesystemImageSource(
         walkedRoots = emptyList()
         var listedAll = true
         val known = indexed().toHashSet()
+        val remembered = notImages?.notImages().orEmpty()
+        val rememberedSet = remembered.toHashSet()
+        val metNotImages = HashSet<String>() // paths of non-images this walk met, remembered or newly sniffed
+        var sniffed = ArrayList<ImageRef>(NOT_IMAGES_BATCH)
         val folders = ArrayDeque(listOf(root))
         while (folders.isNotEmpty()) {
             val folder = folders.removeFirst()
@@ -63,16 +87,34 @@ class FilesystemImageSource(
                 if (hasSkippedPrefix(file)) continue // the folders were decided when they were listed
                 val image = try {
                     if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
-                    val ref = file.toImageRef()
-                    if (ref !in known && !isImage(file)) continue
-                    ref
+                    file.toImageRef()
                 } catch (_: IOException) {
                     continue // unreadable or vanished during the scan
+                }
+                if (image !in known) {
+                    val again = image in rememberedSet
+                    val isImageFile = if (again) false else sniff(file) ?: continue
+                    if (!isImageFile) {
+                        metNotImages += image.path
+                        if (!again && notImages != null) {
+                            sniffed.add(image)
+                            if (sniffed.size == NOT_IMAGES_BATCH) {
+                                notImages.addNotImages(sniffed)
+                                sniffed = ArrayList(NOT_IMAGES_BATCH) // the store may still hold the list it was given
+                            }
+                        }
+                        continue
+                    }
                 }
                 emit(image)
             }
             // Depth first, in name order, like the lab's Path.walk.
             folders.addAll(0, dirs.filter { !isSkippedFolder(root, it) })
+        }
+        if (notImages != null) {
+            if (sniffed.isNotEmpty()) notImages.addNotImages(sniffed)
+            // Only a root listed in full can tell a file that is gone from one the walk could not see.
+            if (listedAll) notImages.forgetNotImages(remembered.map { it.path }.filter { it !in metNotImages && File(it).startsWith(root) })
         }
         if (listedAll) walkedRoots = listOf(root)
     }.flowOn(Dispatchers.IO)
@@ -142,7 +184,20 @@ private val HEIF_BRANDS = setOf(
 /** Enough for the magic bytes of every format and the brand list of a typical ftyp box. */
 private const val HEAD_SIZE = 64
 
-/** Videos (e.g. "isom", "mp42") share the ftyp box with HEIF and AVIF but declare no image brand. */
+/** [isImage], or null when the head cannot be read. */
+private fun sniff(file: File): Boolean? = try {
+    isImage(file)
+} catch (_: IOException) {
+    null
+}
+
+/**
+ * Videos (e.g. "isom", "mp42") share the ftyp box with HEIF and AVIF but declare no image brand.
+ *
+ * The walk remembers the files this refused, by size and mtime (docs/design.md §4). A change that lets
+ * the head accept more, such as a new format or HEIF brand, must empty `not_images` in the same change:
+ * a Room migration that runs `DELETE FROM not_images`. Otherwise those files are never sniffed again.
+ */
 internal fun isImage(file: File): Boolean {
     val head = file.inputStream().use { input ->
         val buffer = ByteArray(HEAD_SIZE)

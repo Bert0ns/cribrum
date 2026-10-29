@@ -173,6 +173,148 @@ def test_reads_the_known_files_once_per_scan_not_once_per_file(tmp_path):
     assert len(reads) == 1
 
 
+class MemoryNotImages:
+    def __init__(self, *initial: ImageRef) -> None:
+        self.stored = {ref.path: ref for ref in initial}
+        self.reads = 0
+        self.batches: list[int] = []
+
+    def not_images(self) -> list[ImageRef]:
+        self.reads += 1
+        return list(self.stored.values())
+
+    def add_not_images(self, files: list[ImageRef]) -> None:
+        self.batches.append(len(files))
+        self.stored |= {ref.path: ref for ref in files}
+
+    def forget_not_images(self, paths: list[Path]) -> None:
+        for path in paths:
+            self.stored.pop(path, None)
+
+
+def scanned_remembering(store: MemoryNotImages, root: Path) -> set[Path]:
+    return {ref.path for ref in FilesystemImageSource(root, not_images=store).scan()}
+
+
+def rewrite_quietly(path: Path, content: bytes) -> None:
+    """Overwrites the file with content of the same length and puts its mtime back."""
+    before = path.stat().st_mtime_ns
+    path.write_bytes(content)
+    os.utime(path, ns=(before, before))
+
+
+def test_remembers_a_file_that_is_not_an_image_and_does_not_sniff_it_on_the_next_scan(tmp_path):
+    store = MemoryNotImages()
+    text = write(tmp_path / "notes.txt", b"x" * len(JPEG))
+    a = write(tmp_path / "a.jpg", JPEG)
+
+    assert scanned_remembering(store, tmp_path) == {a}
+    assert list(store.stored.values()) == [ref_of(text)]
+
+    # The head would now say image, so a found file here proves the head was not read.
+    rewrite_quietly(text, JPEG)
+    assert scanned_remembering(store, tmp_path) == {a}
+
+
+def test_sniffs_a_remembered_file_again_when_its_size_or_mtime_changed(tmp_path):
+    store = MemoryNotImages()
+    sized = write(tmp_path / "sized.txt", b"not an image")
+    touched = write(tmp_path / "touched.txt", b"not an image")
+    scanned_remembering(store, tmp_path)
+
+    sized.write_bytes(JPEG)
+    mtime = touched.stat().st_mtime_ns
+    touched.write_bytes(b"\xff\xd8\xff\xe0" + b"\x00" * 8)  # as long as before
+    os.utime(touched, ns=(mtime, mtime + 5_000_000_000))
+
+    assert scanned_remembering(store, tmp_path) == {sized, touched}
+    assert store.stored == {}  # they are images now
+
+
+def test_a_file_that_is_not_an_image_after_a_change_is_remembered_with_its_new_size(tmp_path):
+    store = MemoryNotImages()
+    text = write(tmp_path / "notes.txt", b"not an image")
+    scanned_remembering(store, tmp_path)
+
+    text.write_bytes(b"not an image!")
+    scanned_remembering(store, tmp_path)
+
+    assert list(store.stored.values()) == [ref_of(text)]
+
+
+def test_forgets_a_remembered_file_the_walk_no_longer_finds(tmp_path):
+    store = MemoryNotImages()
+    keep = write(tmp_path / "keep.txt", b"not an image")
+    gone = write(tmp_path / "gone.txt", b"not an image")
+    scanned_remembering(store, tmp_path)
+
+    gone.unlink()
+    scanned_remembering(store, tmp_path)
+
+    assert list(store.stored) == [keep]
+
+
+def test_leaves_the_remembered_files_of_another_root_alone(tmp_path):
+    elsewhere = ImageRef(Path("/card/notes.txt"), 5, 5)
+    store = MemoryNotImages(elsewhere)
+    write(tmp_path / "a/notes.txt", b"not an image")
+
+    scanned_remembering(store, tmp_path / "a")
+
+    assert store.stored[elsewhere.path] == elsewhere
+
+
+def test_keeps_the_remembered_files_of_a_root_it_could_not_list_in_full(tmp_path):
+    notes = write(tmp_path / "a/notes.txt", b"not an image")
+    deep = write(tmp_path / "a/b/more.txt", b"not an image")
+    other = write(tmp_path / "c.txt", b"not an image")
+    store = MemoryNotImages()
+    scanned_remembering(store, tmp_path)
+    locked = tmp_path / "a"
+    locked.chmod(0)
+    try:
+        if os.access(locked, os.R_OK):
+            pytest.skip("the folder is still listable (running as root?)")
+
+        scanned_remembering(store, tmp_path)
+    finally:
+        locked.chmod(0o755)
+
+    assert set(store.stored) == {notes, deep, other}
+
+
+def test_reads_the_remembered_files_once_per_scan_not_once_per_file(tmp_path):
+    for name in ["a.txt", "b.txt", "c.txt"]:
+        write(tmp_path / name, b"not an image")
+    store = MemoryNotImages()
+
+    scanned_remembering(store, tmp_path)
+
+    assert store.reads == 1
+
+
+def test_writes_the_sniffed_non_images_in_batches_of_300_and_the_leftover_at_the_end(tmp_path):
+    store = MemoryNotImages()
+    for i in range(301):
+        write(tmp_path / f"n{i}.txt", b"not an image")
+
+    scanned_remembering(store, tmp_path)
+
+    assert store.batches == [300, 1]
+    assert len(store.stored) == 301
+
+
+def test_yields_a_file_that_is_both_indexed_and_remembered_and_drops_its_row(tmp_path):
+    fake = write(tmp_path / "fake.jpg", b"not an image")
+    ref = ref_of(fake)
+    store = MemoryNotImages(ref)
+
+    found = list(FilesystemImageSource(tmp_path, lambda: [ref], not_images=store).scan())
+
+    assert found == [ref]
+    assert store.stored == {}
+
+
 def test_reports_its_root_as_walked_once_the_whole_tree_is_listed(tmp_path):
     write(tmp_path / "a/b.jpg", JPEG)
     source = FilesystemImageSource(tmp_path)

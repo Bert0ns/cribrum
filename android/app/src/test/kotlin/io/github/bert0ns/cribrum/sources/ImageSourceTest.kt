@@ -218,6 +218,168 @@ class ImageSourceTest {
         assertEquals(1, reads)
     }
 
+    private class MemoryNotImages(vararg initial: ImageRef) : NotImages {
+        val stored = initial.associateByTo(linkedMapOf()) { it.path }
+        var reads = 0
+        val batches = mutableListOf<Int>()
+
+        override suspend fun notImages(): Collection<ImageRef> {
+            reads++
+            return stored.values.toList()
+        }
+
+        override suspend fun addNotImages(files: List<ImageRef>) {
+            batches += files.size
+            files.forEach { stored[it.path] = it }
+        }
+
+        override suspend fun forgetNotImages(paths: Collection<String>) {
+            paths.forEach(stored::remove)
+        }
+    }
+
+    private fun scannedRemembering(store: NotImages, folder: File = root): List<String> = runBlocking { FilesystemImageSource(folder, notImages = store).scan().toList() }.map { File(it.path).relativeTo(root).path }
+
+    /** Overwrites [file] with [content] of the same length, and puts its mtime back. */
+    private fun rewriteQuietly(file: File, content: ByteArray) {
+        val mtime = Files.getLastModifiedTime(file.toPath()) // File.lastModified would cut it to milliseconds
+        file.writeBytes(content)
+        Files.setLastModifiedTime(file.toPath(), mtime)
+    }
+
+    @Test
+    fun `remembers a file that is not an image and does not sniff it on the next scan`() {
+        val store = MemoryNotImages()
+        val text = write("notes.txt", ByteArray(JPEG.size) { 'x'.code.toByte() })
+        write("a.jpg", JPEG)
+
+        assertEquals(listOf("a.jpg"), scannedRemembering(store))
+        assertEquals(listOf(text.toImageRef()), store.stored.values.toList())
+
+        // The head would now say image, so a found file here proves the head was not read.
+        rewriteQuietly(text, JPEG)
+        assertEquals(listOf("a.jpg"), scannedRemembering(store))
+    }
+
+    @Test
+    fun `sniffs a remembered file again when its size or mtime changed`() {
+        val store = MemoryNotImages()
+        val sized = write("sized.txt", ascii("not an image"))
+        val touched = write("touched.txt", ascii("not an image"))
+        scannedRemembering(store)
+
+        sized.writeBytes(JPEG)
+        val mtime = touched.lastModified()
+        touched.writeBytes(bytes(0xff, 0xd8, 0xff, 0xe0) + ByteArray(8)) // as long as before
+        touched.setLastModified(mtime + 5_000)
+
+        assertEquals(listOf("sized.txt", "touched.txt"), scannedRemembering(store))
+        assertEquals(emptyMap<String, ImageRef>(), store.stored) // they are images now
+    }
+
+    @Test
+    fun `a file that is not an image after a change is remembered with its new size`() {
+        val store = MemoryNotImages()
+        val text = write("notes.txt", ascii("not an image"))
+        scannedRemembering(store)
+
+        text.appendText("!")
+        scannedRemembering(store)
+
+        assertEquals(listOf(text.toImageRef()), store.stored.values.toList())
+    }
+
+    @Test
+    fun `forgets a remembered file the walk no longer finds`() {
+        val store = MemoryNotImages()
+        write("keep.txt", ascii("not an image"))
+        val gone = write("gone.txt", ascii("not an image"))
+        scannedRemembering(store)
+
+        gone.delete()
+        scannedRemembering(store)
+
+        assertEquals(listOf(File(root, "keep.txt").path), store.stored.keys.toList())
+    }
+
+    @Test
+    fun `leaves the remembered files of another root alone`() {
+        val elsewhere = ImageRef("/card/notes.txt", 5, 5)
+        val store = MemoryNotImages(elsewhere)
+        write("a/notes.txt", ascii("not an image"))
+
+        scannedRemembering(store, File(root, "a"))
+
+        assertEquals(elsewhere, store.stored[elsewhere.path])
+    }
+
+    @Test
+    fun `keeps the remembered files of a root it could not list in full`() {
+        write("a/notes.txt", ascii("not an image"))
+        val deep = write("a/b/more.txt", ascii("not an image"))
+        write("c.txt", ascii("not an image"))
+        val store = MemoryNotImages()
+        scannedRemembering(store)
+        val locked = File(root, "a").apply { setReadable(false) }
+        assumeTrue("the folder is still listable (running as root?)", locked.listFiles() == null)
+
+        try {
+            scannedRemembering(store)
+        } finally {
+            locked.setReadable(true)
+        }
+
+        assertEquals(setOf(File(root, "a/notes.txt").path, deep.path, File(root, "c.txt").path), store.stored.keys)
+    }
+
+    @Test
+    fun `reads the remembered files once per scan, not once per file`() {
+        listOf("a.txt", "b.txt", "c.txt").forEach { write(it, ascii("not an image")) }
+        val store = MemoryNotImages()
+
+        scannedRemembering(store)
+
+        assertEquals(1, store.reads)
+    }
+
+    @Test
+    fun `writes the sniffed non-images in batches of 300 and the leftover at the end`() {
+        val store = MemoryNotImages()
+        repeat(301) { write("n$it.txt", ascii("not an image")) }
+
+        scannedRemembering(store)
+
+        assertEquals(listOf(300, 1), store.batches)
+        assertEquals(301, store.stored.size)
+    }
+
+    @Test
+    fun `yields a file that is both indexed and remembered, and drops its row`() {
+        val fake = write("fake.jpg", ascii("not an image"))
+        val ref = fake.toImageRef()
+        val store = MemoryNotImages(ref)
+
+        val found = runBlocking { FilesystemImageSource(root, notImages = store) { listOf(ref) }.scan().toList() }
+
+        assertEquals(listOf(ref), found)
+        assertEquals(emptyMap<String, ImageRef>(), store.stored)
+    }
+
+    @Test
+    fun `a merged source still yields a file MediaStore lists that the walk remembers as a non-image`() {
+        val text = write("notes.jpg", ascii("not an image")) // MediaStore trusts the extension
+        val store = MemoryNotImages()
+        scannedRemembering(store)
+        val mediaStore = object : ImageSource {
+            override val walkedRoots = emptyList<File>()
+            override fun scan(): Flow<ImageRef> = flowOf(text.toImageRef())
+        }
+
+        val merged = MergedImageSource(listOf(FilesystemImageSource(root, notImages = store), mediaStore))
+
+        assertEquals(listOf(text.toImageRef()), runBlocking { merged.scan().toList() })
+    }
+
     @Test
     fun `reports its root as walked once the whole tree is listed`() {
         write("a/b.jpg", JPEG)
