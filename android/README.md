@@ -124,7 +124,7 @@ The broadcast answers `result=1` when it wrote the profile and `result=2` when t
 
 ```bash
 ./gradlew :app:assembleNonMinifiedRelease :baselineprofile:assembleNonMinifiedRelease
-android/scripts/generate_profile.sh
+scripts/generate_profile.sh
 ```
 
 `ADB` overrides the adb command, and under WSL with the Windows adb the script runs from a folder Windows can reach, as `measure.sh` does. Check the new profile before committing it: it lists class and method names only.
