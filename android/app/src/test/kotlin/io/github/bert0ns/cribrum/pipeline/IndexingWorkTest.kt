@@ -144,6 +144,17 @@ class IndexingWorkTest {
     }
 
     @Test
+    fun `the stored scan costs of an older version are removed`() {
+        val settings = app.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        settings.edit().putString("scan_costs", "{}").putBoolean("other", true).commit()
+
+        Indexing.schedulePeriodic(app, now)
+
+        assertFalse(settings.contains("scan_costs"))
+        assertTrue(settings.getBoolean("other", false))
+    }
+
+    @Test
     fun `the old daily request is cancelled`() {
         val manager = WorkManager.getInstance(app)
         manager.enqueueUniquePeriodicWork("index-daily", ExistingPeriodicWorkPolicy.KEEP, Indexing.dailyRequest(now))
