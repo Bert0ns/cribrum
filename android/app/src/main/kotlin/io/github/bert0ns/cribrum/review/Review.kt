@@ -105,6 +105,8 @@ private class Ranking(
     val thresholds: Map<Category, Float>,
     /** The candidates the review offers: without those of a group it hides (see [GroupMembers.isHidden]). */
     val byCategory: Map<Category, List<Candidate>>,
+    /** The candidates with those of hidden groups: a hidden group can come back, so its copies stay undecided. */
+    val ranked: Map<Category, List<Candidate>>,
     val groups: Map<Category, GroupMembers>,
 )
 
@@ -114,13 +116,15 @@ private data class GroupMembers(
     val withExcludedCopy: Set<String>,
     val withTrashedBestCopy: Set<String>,
     val hasNonTrashedBest: Set<String>,
+    /** The best copy is a sticker, left out of the group's page but still there. */
+    val withStickerBestCopy: Set<String>,
 ) {
     /**
      * A group with no best copy to show and one listed copy or none: the best copy is in the trash or gone from
      * the index, and there is nothing to compare the copy with. Not offered, and not counted. Only the review
      * hides it: the index is untouched, so restoring the best copy brings the group back as it was.
      */
-    fun isHidden(group: String) = group !in hasNonTrashedBest && members[group].orEmpty().size <= 1
+    fun isHidden(group: String) = group !in hasNonTrashedBest && group !in withStickerBestCopy && members[group].orEmpty().size <= 1
 }
 
 class Review(
@@ -186,12 +190,13 @@ class Review(
         val excluded = cached?.excluded ?: index.excludedFolders()
         // A copy, so a caller that changes its map afterwards does not change the key.
         val key = thresholds.toMap()
-        val groups = GROUP_CATEGORIES.associateWith { groupMembers(it, images, excluded) }
-        val byCategory = Ranker.byCategory(rank(key, images, excluded)).mapValues { (category, candidates) ->
+        val groups = cached?.groups ?: GROUP_CATEGORIES.associateWith { groupMembers(it, images, excluded) }
+        val ranked = Ranker.byCategory(rank(key, images, excluded))
+        val byCategory = ranked.mapValues { (category, candidates) ->
             val members = groups[category] ?: return@mapValues candidates
             candidates.filterNot { candidate -> candidate.hiddenIn(category, members) }
         }
-        return Ranking(version, images, excluded, key, byCategory, groups).also(::store)
+        return Ranking(version, images, excluded, key, byCategory, ranked, groups).also(::store)
     }
 
     /** Whether every group the candidate is in under [category] is hidden. One in no group at all is never hidden. */
@@ -214,11 +219,10 @@ class Review(
     suspend fun page(category: Category, skipped: Set<String> = emptySet(), grouping: ReviewOrder = ReviewOrder.OFF): Page = withContext(Dispatchers.Default) {
         traceSuspend("Review.page") {
             val ranking = ranking(thresholds())
-            val byCategory = ranking.byCategory
-            val candidates = byCategory[category].orEmpty()
+            val candidates = ranking.byCategory[category].orEmpty()
             val (hidden, groups) = (
                 if (category in GROUP_CATEGORIES) {
-                    val otherCandidates = byCategory.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
+                    val otherCandidates = ranking.ranked.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
                     groups(category, candidates, ranking.groups.getValue(category), otherCandidates)
                 } else {
                     singles(category, candidates, grouping)
@@ -346,6 +350,7 @@ class Review(
         val withExcludedCopy = mutableSetOf<String>()
         val withTrashedBestCopy = mutableSetOf<String>()
         val hasNonTrashedBest = mutableSetOf<String>()
+        val withStickerBestCopy = mutableSetOf<String>()
         for (image in images) {
             val isExcluded = isExcluded(image.ref.path, excluded)
             for (signal in image.signals) {
@@ -363,6 +368,7 @@ class Review(
                 }
                 // Every scanned image has a sticker score, 0 outside sticker folders: only a passing one makes a sticker.
                 if (image.signals.any { it.kind == Category.STICKER && it.score >= THRESHOLDS.getValue(Category.STICKER) }) {
+                    if (role == Role.BEST) withStickerBestCopy += group
                     continue
                 }
                 if (role == Role.BEST) {
@@ -371,7 +377,7 @@ class Review(
                 members.getOrPut(group) { mutableListOf() } += image to role
             }
         }
-        return GroupMembers(members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest)
+        return GroupMembers(members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest, withStickerBestCopy)
     }
 
     private fun groups(
@@ -380,7 +386,7 @@ class Review(
         groupMembers: GroupMembers,
         otherCandidates: Set<String> = emptySet(),
     ): List<ReviewGroup> {
-        val (members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest) = groupMembers
+        val (members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest, _) = groupMembers
         val order = LinkedHashSet<String>()
         val candidateScores = mutableMapOf<String, Float>()
         val candidateReasons = mutableMapOf<String, List<Signal>>()

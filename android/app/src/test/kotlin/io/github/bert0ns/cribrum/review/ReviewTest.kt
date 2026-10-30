@@ -488,6 +488,7 @@ class ReviewTest {
         val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
         val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
         apply(listOf(best), emptyList())
+        assertLoneCopyHidden(Category.EXACT_DUPLICATE)
 
         restore(listOf(best))
 
@@ -495,6 +496,29 @@ class ReviewTest {
         assertFalse(group.hasTrashedBestCopy)
         assertEquals(listOf(best, copy), group.images.map { it.image })
         assertEquals(listOf(false, true), group.images.map { it.suggestTrash })
+        assertEquals(1, counts().getValue(Category.EXACT_DUPLICATE))
+    }
+
+    @Test
+    fun `a hidden copy is not marked kept from another category, so its group can come back`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR), burst("b", Role.BEST))
+        val shot = image("WhatsApp/b.jpg", burst("b", Role.INFERIOR))
+        apply(listOf(best), emptyList())
+
+        applyPage(page(Category.BURST), setOf(shot.path))
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
+
+        restore(listOf(best))
+        assertEquals(listOf(best, copy), page(Category.EXACT_DUPLICATE).groups.single().images.map { it.image })
+    }
+
+    @Test
+    fun `a copy stays offered when its best copy is a sticker that is still there`() = test {
+        image("WhatsApp/Stickers/a.webp", duplicate("g", Role.BEST), Signal("sticker", 1, Category.STICKER, 1f))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+
+        assertEquals(listOf(copy), page(Category.EXACT_DUPLICATE).groups.single().images.map { it.image })
         assertEquals(1, counts().getValue(Category.EXACT_DUPLICATE))
     }
 
