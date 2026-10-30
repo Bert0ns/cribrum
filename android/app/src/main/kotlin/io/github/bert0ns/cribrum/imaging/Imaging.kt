@@ -98,8 +98,8 @@ private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
     return Gray(width, height, pixels)
 }
 
-// On a HEIC or AVIF, BitmapFactory ignores the container rotation (irot) and ExifInterface reports it, so the image turns once, here (#220).
-// A file whose EXIF orientation differs from its irot, or that has no irot, follows the EXIF here, where ImageDecoder and the lab follow the irot.
+// On a HEIC or AVIF, BitmapFactory ignores the container rotation (irot) and ExifInterface reports it, so the image turns once, from this value (#220).
+// One whose EXIF orientation differs from its irot, or that has no irot, follows the EXIF here, where ImageDecoder and the lab follow the irot.
 internal fun orientation(file: File): Int = try {
     ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
 } catch (_: IOException) {
