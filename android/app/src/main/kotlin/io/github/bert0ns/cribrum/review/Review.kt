@@ -48,7 +48,10 @@ data class ReviewGroup(
     val images: List<ReviewItem>,
     /** A copy sits in an excluded folder. It is not listed, so the screen says it exists. */
     val hasExcludedCopy: Boolean = false,
-    /** The best copy is in the trash. Nothing is preselected to trash. */
+    /**
+     * The best copy is in the trash and two or more copies are left. Nothing is preselected to trash.
+     * With one copy left the group is not offered at all.
+     */
     val hasTrashedBestCopy: Boolean = false,
     /** The day, week or month the group is shown under when the review is grouped by date. */
     val date: LocalDate? = null,
@@ -100,8 +103,25 @@ private class Ranking(
     val images: List<IndexedImage>,
     val excluded: List<String>,
     val thresholds: Map<Category, Float>,
+    /** The candidates the review offers: without those of a group it hides (see [GroupMembers.isHidden]). */
     val byCategory: Map<Category, List<Candidate>>,
+    val groups: Map<Category, GroupMembers>,
 )
+
+/** What the index holds about the groups of one category, minus what the review never lists (see [Review.groups]). */
+private data class GroupMembers(
+    val members: Map<String, List<Pair<IndexedImage, Role>>>,
+    val withExcludedCopy: Set<String>,
+    val withTrashedBestCopy: Set<String>,
+    val hasNonTrashedBest: Set<String>,
+) {
+    /**
+     * A group with no best copy to show and one listed copy or none: the best copy is in the trash or gone from
+     * the index, and there is nothing to compare the copy with. Not offered, and not counted. Only the review
+     * hides it: the index is untouched, so restoring the best copy brings the group back as it was.
+     */
+    fun isHidden(group: String) = group !in hasNonTrashedBest && members[group].orEmpty().size <= 1
+}
 
 class Review(
     private val index: ImageIndex,
@@ -166,7 +186,18 @@ class Review(
         val excluded = cached?.excluded ?: index.excludedFolders()
         // A copy, so a caller that changes its map afterwards does not change the key.
         val key = thresholds.toMap()
-        return Ranking(version, images, excluded, key, Ranker.byCategory(rank(key, images, excluded))).also(::store)
+        val groups = GROUP_CATEGORIES.associateWith { groupMembers(it, images, excluded) }
+        val byCategory = Ranker.byCategory(rank(key, images, excluded)).mapValues { (category, candidates) ->
+            val members = groups[category] ?: return@mapValues candidates
+            candidates.filterNot { candidate -> candidate.hiddenIn(category, members) }
+        }
+        return Ranking(version, images, excluded, key, byCategory, groups).also(::store)
+    }
+
+    /** Whether every group the candidate is in under [category] is hidden. One in no group at all is never hidden. */
+    private fun Candidate.hiddenIn(category: Category, members: GroupMembers): Boolean {
+        val groups = reasons.filter { it.kind == category }.mapNotNull { it.evidence[GROUP_KEY] }
+        return groups.isNotEmpty() && groups.all(members::isHidden)
     }
 
     /** A slow read from before a write must not replace what a read after it stored. */
@@ -188,7 +219,7 @@ class Review(
             val (hidden, groups) = (
                 if (category in GROUP_CATEGORIES) {
                     val otherCandidates = byCategory.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
-                    groups(category, candidates, ranking.images, ranking.excluded, otherCandidates)
+                    groups(category, candidates, ranking.groups.getValue(category), otherCandidates)
                 } else {
                     singles(category, candidates, grouping)
                 }
@@ -310,13 +341,7 @@ class Review(
     }
 
     /** Members in an [excluded] folder or stickers are left out: the review never lists, trashes or keeps them here. */
-    private fun groups(
-        category: Category,
-        candidates: List<Candidate>,
-        images: List<IndexedImage>,
-        excluded: List<String>,
-        otherCandidates: Set<String> = emptySet(),
-    ): List<ReviewGroup> {
+    private fun groupMembers(category: Category, images: List<IndexedImage>, excluded: List<String>): GroupMembers {
         val members = mutableMapOf<String, MutableList<Pair<IndexedImage, Role>>>()
         val withExcludedCopy = mutableSetOf<String>()
         val withTrashedBestCopy = mutableSetOf<String>()
@@ -346,6 +371,16 @@ class Review(
                 members.getOrPut(group) { mutableListOf() } += image to role
             }
         }
+        return GroupMembers(members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest)
+    }
+
+    private fun groups(
+        category: Category,
+        candidates: List<Candidate>,
+        groupMembers: GroupMembers,
+        otherCandidates: Set<String> = emptySet(),
+    ): List<ReviewGroup> {
+        val (members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest) = groupMembers
         val order = LinkedHashSet<String>()
         val candidateScores = mutableMapOf<String, Float>()
         val candidateReasons = mutableMapOf<String, List<Signal>>()

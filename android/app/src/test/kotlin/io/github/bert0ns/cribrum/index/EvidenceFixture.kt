@@ -49,7 +49,7 @@ fun evidenceFixture(count: Int): List<FixtureImage> = List(count) { i ->
     put("document", Category.DOCUMENT, score(), mapOf("prompt" to "a scanned page", "probability" to number(3), "text_coverage" to number(4)))
     if (i % 3 == 0) put("faces", Protection.FACES, score(), mapOf("faces" to "2", "largest_face" to number(4)))
     if (i % 3 == 0) {
-        val group = i / 3
+        val group = i / 9 // three members each, so no group is a lone copy the review hides
         val role = if (group % 4 == 0 && i % 9 == 0) Role.BEST else Role.INFERIOR
         val roleScore = if (role == Role.BEST) 0f else score()
         val common = mapOf(GROUP_KEY to "g$group", ROLE_KEY to role.value)
