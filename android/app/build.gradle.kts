@@ -15,6 +15,8 @@ android {
 
     defaultConfig {
         applicationId = "io.github.bert0ns.cribrum"
+        // -PapplicationIdSuffix=.heiccheck installs beside the app on the phone, for the device tests run by hand.
+        applicationIdSuffix = providers.gradleProperty("applicationIdSuffix").orNull
         minSdk = 30 // Android 11: scoped storage rules and MANAGE_EXTERNAL_STORAGE (design §4, §9)
         targetSdk = 37
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -262,4 +264,5 @@ dependencies {
     androidTestImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.heifwriter)
 }

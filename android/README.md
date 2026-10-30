@@ -23,6 +23,8 @@ Instrumented tests run on a connected phone. The app trash tests move files on i
 ./gradlew connectedDebugAndroidTest
 ```
 
+That task installs the debug app over any installed Cribrum and uninstalls it when it ends. On a phone you use, build with `-PapplicationIdSuffix=.heiccheck`, which installs beside Cribrum, and run the test by hand: `HeicRotationDeviceTest` lists the commands.
+
 ## Install (sideload)
 
 Enable USB debugging on the phone (see the [lab README](../lab/README.md#data); from WSL, forward the phone with usbipd-win first), then:
