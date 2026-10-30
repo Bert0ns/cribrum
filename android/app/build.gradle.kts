@@ -3,6 +3,7 @@ import java.security.MessageDigest
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.baselineprofile)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
@@ -56,6 +57,9 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // ProfileSeedTest runs the seed on the JVM. Only debug has unit tests, and no build for users has this folder.
+    sourceSets.getByName("test").kotlin.directories += "src/nonMinifiedRelease/kotlin"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -117,6 +121,11 @@ ktlint {
 
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+// Generating needs a phone, so no build ever does it. The profile is committed (android/README.md).
+baselineProfile {
+    automaticGenerationDuringBuild = false
 }
 
 /** Downloads pinned files and checks their SHA-256, as lab/src/cribrum_lab/models.py does. */
@@ -219,6 +228,10 @@ val downloadPpocr = tasks.register<DownloadModel>("downloadPpocr") {
 
 androidComponents {
     onVariants { variant ->
+        // The baselineprofile plugin's build types go on a phone beside the real app, never over it.
+        if (variant.name !in setOf("debug", "release", "benchmark")) variant.applicationId.set("io.github.bert0ns.cribrum.profile")
+        // The plugin points the source set of its build type at release's manifest, so this one has to be added here.
+        if (variant.name == "nonMinifiedRelease") variant.sources.manifests.addStaticManifestFile("src/nonMinifiedRelease/AndroidManifest.xml")
         variant.sources.assets?.addGeneratedSourceDirectory(downloadMobileClip, DownloadModel::outputDirectory)
         variant.sources.resources?.addGeneratedSourceDirectory(downloadPpocr, DownloadModel::outputDirectory)
         variant.sources.resources?.addGeneratedSourceDirectory(copyPromptEmbeddings, CopyFiles::outputDirectory)
@@ -252,6 +265,8 @@ dependencies {
     implementation(libs.room.ktx)
     implementation(libs.onnxruntime.android)
     implementation(libs.tracing)
+    implementation(libs.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
     ksp(libs.room.compiler)
 
     testImplementation(libs.junit)

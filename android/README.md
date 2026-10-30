@@ -8,7 +8,7 @@ You need JDK 21 or newer (Robolectric needs it for the unit tests on SDK 37) and
 
 ```bash
 cd android
-./gradlew ktlintCheck assembleDebug testDebugUnitTest lintDebug
+./gradlew ktlintCheck assembleDebug testDebugUnitTest lintDebug :baselineprofile:compileNonMinifiedReleaseKotlin
 ```
 
 `./gradlew ktlintFormat` fixes the formatting that `ktlintCheck` reports (rules in `.editorconfig`).
@@ -106,6 +106,37 @@ ADB='cmd.exe /c C:\Users\<you>\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 
 The times grow with the library, so write down `indexed images` with every number.
 
+### Baseline Profile
+
+`app/src/main/baselineProfiles/baseline-prof.txt` lists the code of the cold start, the home, a category opening and its scroll, so ART compiles it ahead of time instead of running it interpreted the first times. It is committed, and every build reads it from `main`: R8 rewrites its names for the minified builds, and the APKs of `release` and `benchmark` carry the result in `assets/dexopt/baseline.prof`, next to the rules the libraries ship. No build generates it, so a build needs no phone.
+
+**On a sideloaded install.** Without Google Play nothing applies the profile at install time. `androidx.profileinstaller` does it from inside the app: about five seconds after the first frame of the first start after an install or update, it writes the profile to where ART looks for it. That changes nothing yet. Android compiles the app with it at its next background dexopt, which needs the phone idle and charging, so usually overnight. Until then the app runs as if it had no profile. A measurement can't wait for that, so force both steps after installing:
+
+```bash
+adb shell am broadcast -a androidx.profileinstaller.action.INSTALL_PROFILE io.github.bert0ns.cribrum/androidx.profileinstaller.ProfileInstallReceiver
+adb shell cmd package compile -f -m speed-profile io.github.bert0ns.cribrum
+adb shell cmd package dump io.github.bert0ns.cribrum | grep 'status='
+```
+
+The broadcast answers `result=1` when it wrote the profile, and the last line must say `status=speed-profile`. Do the same on the build you compare with, since that one has the libraries' rules and would otherwise start from a different state.
+
+**Regenerating.** Do it after a change that moves much code on these paths, such as a new home or a new grid. It holds the screen for a few minutes, and the phone must stay unlocked with its screen on:
+
+```bash
+./gradlew :app:assembleNonMinifiedRelease :baselineprofile:assembleNonMinifiedRelease
+android/scripts/generate_profile.sh
+```
+
+`ADB` overrides the adb command, and under WSL with the Windows adb the script runs from a folder Windows can reach, as `measure.sh` does. Check the new profile before committing it: it lists class and method names only.
+
+`:baselineprofile` holds the generator, `HomeAndCategoriesGenerator`, an instrumented test that starts the app, waits for the home, opens a plain and a grouped category and scrolls them. It never taps anything else. It runs against the plugin's `nonMinifiedRelease` build, which differs from a build for users in three ways, so it can run on a phone that has the real app with a real library:
+
+- Its application id is `io.github.bert0ns.cribrum.profile`, so it installs beside the real app and the script uninstalls it at the end.
+- Its manifest drops `MANAGE_EXTERNAL_STORAGE`, so it can't reach a real image or the real trash, and a scan stops at once. The script refuses a build that asks for it.
+- `app/src/nonMinifiedRelease` adds `ProfileSeed`, which only that build has. It lets the app past its permission screen through the `Permissions` hook, and fills the index with 300 flat-colored images in the package's private storage, with made-up signals. It runs before the collection starts, and the generator filters its classes out, so it stays out of the profile.
+
+Use the script and not the plugin's `generateBaselineProfile`. That task only reaches a phone on the local adb, and it writes to a folder that `release` reads and `benchmark` does not, since the plugin takes a build type named `benchmark` for one of its own.
+
 ## Release
 
 Releases are manual: on GitHub, Actions → release → Run workflow, on `main`, with the version as `MAJOR.MINOR.PATCH`. The workflow refuses a version that is not above the latest release, runs the unit tests and lint, and publishes `cribrum-X.Y.Z.apk` and its SHA-256 as the release `vX.Y.Z`. Install it with `adb install -r`, or open it on the phone.
@@ -134,3 +165,4 @@ A debug build is signed with another key, so it can't be installed over a releas
 | `io.github.bert0ns.cribrum.review` | `Review`: pages of candidates, and decisions applied to the trash and the index together | none |
 | `io.github.bert0ns.cribrum.pipeline` | `Pipeline`, and `IndexWorker` running it with WorkManager | `cribrum_lab.pipeline` |
 | `io.github.bert0ns.cribrum.tracing` | `traceSuspend`: a trace section around code that suspends | none |
+| `io.github.bert0ns.cribrum.baselineprofile` (`:baselineprofile`) | The generator of the Baseline Profile | none |
