@@ -38,7 +38,7 @@ jobs:
       - if: steps.changed.outputs.run
         uses: gradle/actions/setup-gradle@v5
       - if: steps.changed.outputs.run
-        run: ./gradlew ktlintCheck assembleDebug testDebugUnitTest lintDebug
+        run: ./gradlew ktlintCheck assembleDebug testDebugUnitTest lintDebug :baselineprofile:compileNonMinifiedReleaseKotlin
       - if: steps.changed.outputs.run
         uses: actions/upload-artifact@v5
         with:

@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "cribrum"
 include(":app")
+include(":baselineprofile")
