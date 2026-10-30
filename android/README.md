@@ -118,7 +118,7 @@ adb shell cmd package compile -f -m speed-profile io.github.bert0ns.cribrum
 adb shell cmd package dump io.github.bert0ns.cribrum | grep 'status='
 ```
 
-The broadcast answers `result=1` when it wrote the profile, and the last line must say `status=speed-profile`. Do the same on the build you compare with, since that one has the libraries' rules and would otherwise start from a different state.
+The broadcast answers `result=1` when it wrote the profile and `result=2` when the app had already done so, and the last line must say `status=speed-profile`. Do the same on the build you compare with, since that one has the libraries' rules and would otherwise start from a different state.
 
 **Regenerating.** Do it after a change that moves much code on these paths, such as a new home or a new grid. It holds the screen for a few minutes, and the phone must stay unlocked with its screen on:
 
