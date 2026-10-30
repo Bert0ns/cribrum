@@ -98,8 +98,8 @@ private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
     return Gray(width, height, pixels)
 }
 
-// shortcut: a HEIC with a container rotation (irot) and EXIF orientation may turn twice, in here and in readMetadata. Robolectric cannot
-// decode HEIC (decodeFile leaves the bounds at -1), so no unit test sees it. Check on a device (#220); if it turns twice, skip the EXIF turn for image/heif.
+// On a HEIC or AVIF, BitmapFactory ignores the container rotation (irot) and ExifInterface reports it, so the image turns once, from this value (#220).
+// One whose EXIF orientation differs from its irot, or that has no irot, follows the EXIF here, where ImageDecoder and the lab follow the irot.
 internal fun orientation(file: File): Int = try {
     ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
 } catch (_: IOException) {
