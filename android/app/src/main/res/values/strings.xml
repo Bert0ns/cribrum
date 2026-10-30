@@ -17,9 +17,9 @@
     <string name="scan_empty">No images indexed yet. Tap Scan now to start the first scan.</string>
     <string name="scan_step_scan">Finding images: %1$d so far</string>
     <string name="scan_step">%1$s: %2$d of %3$d</string>
-    <string name="scan_left_minutes">About %1$d min left</string>
-    <string name="scan_left_hours">About %1$d h %2$d min left</string>
-    <string name="scan_left_under_a_minute">Less than a minute left</string>
+    <string name="scan_left_minutes">About %1$d min left in this step</string>
+    <string name="scan_left_hours">About %1$d h %2$d min left in this step</string>
+    <string name="scan_left_under_a_minute">Less than a minute left in this step</string>
     <string name="scan_progress_left" translatable="false">%1$s · %2$s</string>
     <string name="category_exact_duplicate">Exact copies</string>
     <string name="category_near_duplicate">Similar copies</string>

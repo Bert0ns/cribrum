@@ -13,6 +13,7 @@ import android.os.storage.StorageManager
 import android.util.Log
 import androidx.annotation.StringRes
 import androidx.core.app.NotificationCompat
+import androidx.core.content.edit
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -59,11 +60,12 @@ object Indexing {
     const val TAG = "index-scan"
     private const val NIGHTLY_WORK = "index-nightly"
     private const val LEGACY_DAILY_WORK = "index-daily"
+    private const val LEGACY_COSTS_KEY = "scan_costs"
     const val STEP = "step"
     const val DONE = "done"
     const val TOTAL = "total"
 
-    /** The time left for the whole scan in ms, absent while there is no estimate. */
+    /** The time left of the current phase in ms, absent while there is no estimate. */
     const val LEFT_MS = "left_ms"
 
     /** Only on the nightly request: its worker skips the scan outside the night. */
@@ -96,6 +98,7 @@ object Indexing {
     fun schedulePeriodic(context: Context, now: ZonedDateTime = ZonedDateTime.now()) {
         val manager = WorkManager.getInstance(context)
         manager.cancelUniqueWork(LEGACY_DAILY_WORK)
+        context.getSharedPreferences("settings", Context.MODE_PRIVATE).edit { remove(LEGACY_COSTS_KEY) }
         manager.enqueueUniquePeriodicWork(NIGHTLY_WORK, ExistingPeriodicWorkPolicy.KEEP, dailyRequest(now))
     }
 
@@ -163,7 +166,7 @@ object Indexing {
     }
 }
 
-/** [leftMs] is the time left for the whole scan, null until the estimate is stable (docs/design.md §4). */
+/** [leftMs] is the time left of the current phase, null until the estimate is stable (docs/design.md §4). */
 data class ScanProgress(val step: String, val done: Int, val total: Int, val leftMs: Long? = null)
 
 /**
@@ -211,7 +214,6 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         } catch (e: IllegalStateException) {
             Log.w(Indexing.TAG, "Foreground service start refused, continuing in background", e)
         }
-        val estimate = ScanEstimate(SCAN_PHASES, app.scanCosts.costs, SystemClock::elapsedRealtime).also { this.estimate = it }
         try {
             val trashFailures = mutableListOf<Failure>()
             try {
@@ -232,8 +234,6 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             }
             return Result.success()
         } finally {
-            // A stopped scan keeps the costs of the phases it finished.
-            app.scanCosts.record(estimate.measured)
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
     }
@@ -255,34 +255,21 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     private var reported = 0L
     private var notified = 0L
 
-    private var estimate: ScanEstimate? = null
-
-    /** The images a group detector reads, its items for the estimate. Null until the walk ends. */
-    private var library: Int? = null
-
-    /** The walk has no total, so the counts of the later phases are read once, when it ends. */
-    private suspend fun track(estimate: ScanEstimate, step: String, done: Int, total: Int) {
-        if (step == "scan") return
-        val images = library ?: (applicationContext as CribrumApp).index.coverage().let { coverage ->
-            estimate.plan(scanPlan(coverage))
-            coverage.first { it.id in GROUP_DETECTOR_IDS }.needed.also { library = it }
-        }
-        if (step in GROUP_DETECTOR_IDS) estimate.update(step, done * images, total * images) else estimate.update(step, done, total)
-    }
+    private val estimate = ScanEstimate(SystemClock::elapsedRealtime)
 
     /**
      * Sends the progress out, at most five times a second to the app and once a second to the
      * notification, but at once when the phase and so the title change.
      */
     protected suspend fun report(step: String, done: Int, total: Int) {
-        estimate?.let { track(it, step, done, total) }
+        estimate.update(step, done, total)
         val now = System.currentTimeMillis()
         val phaseTitle = Indexing.phaseTitle(step)
         val phaseChanged = phaseTitle != title
         if (now - reported < PROGRESS_INTERVAL_MS && done != total && !phaseChanged) return
         reported = now
         title = phaseTitle
-        val left = estimate?.millisLeft()
+        val left = estimate.millisLeft()
         setProgress(workDataOf(Indexing.STEP to step, Indexing.DONE to done, Indexing.TOTAL to total, Indexing.LEFT_MS to (left ?: -1L)))
         if (isForeground && (phaseChanged || done == total || now - notified >= NOTIFICATION_INTERVAL_MS)) {
             notified = now

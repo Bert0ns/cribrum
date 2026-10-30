@@ -43,5 +43,5 @@ fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier =
 @Preview
 @Composable
 private fun ScanStatusPreview() {
-    ScanStatus(ScanProgress("detectors", 1200, 10220, leftMs = 12 * 60_000L), onScan = {})
+    ScanStatus(ScanProgress("detectors", 1200, 10220, leftMs = 3 * 60_000L), onScan = {})
 }
