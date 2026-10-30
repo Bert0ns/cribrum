@@ -6,7 +6,7 @@
   <title>Cribrum: On-device photo cleanup for Android</title>
   <meta name="description" content="A private, local photo sieve for Android. Finds duplicates, blurry shots, WhatsApp media clutter, and screenshots without uploading anything to the cloud.">
   <meta property="og:title" content="Cribrum: On-device photo cleanup for Android">
-  <meta property="og:description" content="Find photos you can delete without losing memories that matter. 100% on-device, suggestions only, and safe 30-day trash.">
+  <meta property="og:description" content="Find photos you can delete without losing memories that matter. On-device analysis, suggestions only, and safe trash (30 days by default).">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://cribrum.bertons.me">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Ccircle cx='24' cy='24' r='22' fill='%232E5E4E'/%3E%3Ccircle cx='24' cy='24' r='14' stroke='%23ffffff' stroke-width='2.5' fill='none'/%3E%3Ccircle cx='20' cy='20' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='28' cy='20' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='24' cy='24' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='20' cy='28' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='28' cy='28' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E">
@@ -30,6 +30,7 @@
 
       <div class="nav-links">
         <a href="#what-it-finds">What it finds</a>
+        <a href="#principles">Principles</a>
         <a href="#permissions">Permissions</a>
         <a href="#install">Install</a>
         <a href="https://github.com/Bert0ns/cribrum" target="_blank" rel="noopener noreferrer">Source</a>
@@ -52,7 +53,7 @@
     <header class="hero">
       <h1>A local photo sieve for Android</h1>
       <p class="hero-lead">
-        Cribrum scans storage for images you can safely delete, surfaces candidates for your review, and keeps deletions in a 30-day trash.
+        Cribrum scans storage for images you can safely delete, surfaces candidates for your review, and keeps deletions in a trash for 30 days by default.
       </p>
 
       <div class="cta-row">
@@ -64,53 +65,82 @@
         </a>
       </div>
       <p class="meta-text">Requires Android 11 or newer. Free software under GPL-3.0.</p>
+
+      <div class="screenshots" aria-label="App screenshots">
+        <figure class="screenshot-figure">
+          <img src="screenshots/home.png" alt="The home screen, with the categories and the space each can free" class="screenshot-img" width="411" height="891">
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/category.png" alt="A category grid with the likely deletable images marked" class="screenshot-img" width="411" height="891">
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/trash.png" alt="The trash, with the days left on each image" class="screenshot-img" width="411" height="891">
+        </figure>
+      </div>
+      <p class="screenshots-note">The images in the screenshots are drawn in code, and the counts are made up.</p>
     </header>
 
     <main>
-      <section id="principles">
-        <h2>Design principles</h2>
-        <div class="feature-list">
-          <div class="feature-row">
-            <div class="feature-term">Private by design</div>
-            <div class="feature-desc">All scanning and analysis run on your device. No photos, hashes, or metadata ever leave your phone. Cribrum declares zero network permissions.</div>
-          </div>
-          <div class="feature-row">
-            <div class="feature-term">Suggestions only</div>
-            <div class="feature-desc">The app surfaces candidates for review. You confirm every deletion batch. Nothing is removed without your explicit confirmation.</div>
-          </div>
-          <div class="feature-row">
-            <div class="feature-term">30-day trash</div>
-            <div class="feature-desc">Approved deletions move to an app-managed folder on storage instead of disappearing immediately. You have 30 days to restore any photo deleted by mistake.</div>
-          </div>
-          <div class="feature-row">
-            <div class="feature-term">Recall over precision</div>
-            <div class="feature-desc">Showing an image you choose to keep is acceptable. Missing clutter that could free storage is not.</div>
-          </div>
-        </div>
-      </section>
-
       <section id="what-it-finds">
         <h2>What it finds</h2>
         <div class="feature-list">
           <div class="feature-row">
-            <div class="feature-term">Exact duplicates</div>
-            <div class="feature-desc">Matches identical files byte-for-byte using xxHash. Fast and free of false positives.</div>
+            <div class="feature-term">Exact copies</div>
+            <div class="feature-desc">Matches identical files byte-for-byte using xxHash, marking the best copy to keep.</div>
           </div>
           <div class="feature-row">
             <div class="feature-term">Similar copies</div>
-            <div class="feature-desc">Identifies recompressed copies from messaging apps with perceptual hashes and MobileCLIP embeddings, keeping the original.</div>
+            <div class="feature-desc">Finds recompressed and resized copies with perceptual hashes and MobileCLIP embeddings, suggesting the highest-quality version to keep.</div>
           </div>
           <div class="feature-row">
-            <div class="feature-term">Blurry photos</div>
+            <div class="feature-term">Bursts</div>
+            <div class="feature-desc">Clusters photos taken in quick succession and suggests keeping the sharpest shot with open eyes.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Blurry</div>
             <div class="feature-desc">Measures sharpness with Laplacian variance on subject areas, preserving intentional portrait blur.</div>
           </div>
           <div class="feature-row">
-            <div class="feature-term">Chat clutter</div>
-            <div class="feature-desc">Cleans up hidden sent folders, reaction stickers, and forwarded media that messaging apps store across storage.</div>
+            <div class="feature-term">Too dark or too bright</div>
+            <div class="feature-desc">Identifies underexposed pocket shots, black frames, and blown-out frames using luminance histograms.</div>
           </div>
           <div class="feature-row">
-            <div class="feature-term">Screenshots and notes</div>
-            <div class="feature-desc">Detects temporary whiteboard captures, receipts, slides, and old screenshots.</div>
+            <div class="feature-term">Screenshots</div>
+            <div class="feature-desc">Detects screen captures by path, screen-matching dimensions, and absent camera metadata.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Documents and notes</div>
+            <div class="feature-desc">Detects slides, whiteboards, handwritten notes, receipts, and printed pages using text coverage and MobileCLIP classification.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Forwarded</div>
+            <div class="feature-desc">Flags memes and greeting images in messaging folders lacking camera metadata using zero-shot classification.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">WhatsApp stickers</div>
+            <div class="feature-desc">Finds reaction stickers saved in WhatsApp sticker folders across storage.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="principles">
+        <h2>Design principles</h2>
+        <div class="feature-list">
+          <div class="feature-row">
+            <div class="feature-term">Practical over pretty</div>
+            <div class="feature-desc">A clean, minimal UI whose features actually work.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Recall over precision</div>
+            <div class="feature-desc">Surfacing an image that turns out to be worth keeping is fine. Missing clutter that could have been deleted is not.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Private by design</div>
+            <div class="feature-desc">All scanning and analysis run on your device. No photos, hashes, or metadata ever leave your phone. Cribrum explicitly removes network permissions.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Nothing is lost by accident</div>
+            <div class="feature-desc">Every deletion is confirmed and reversible for 30 days by default (7 to 90 days in settings). Files move to Cribrum's trash folder on shared storage and can be restored to their original paths.</div>
           </div>
         </div>
       </section>
@@ -121,10 +151,10 @@
           Standard gallery applications use Android MediaStore, which only indexes public media folders. MediaStore ignores folders with <code>.nomedia</code> markers, such as <code>WhatsApp Images/Sent</code>, where silent storage waste accumulates.
         </p>
         <p>
-          Cribrum asks for <code>MANAGE_EXTERNAL_STORAGE</code> (all files access) to scan hidden directories directly. Because Google Play restricts this permission to file managers, Cribrum is distributed as a direct APK download on GitHub.
+          Cribrum asks for <code>MANAGE_EXTERNAL_STORAGE</code> (All files access) to scan hidden directories directly and manage its trash folder on shared storage. Because Google Play restricts this permission to file managers, Cribrum is distributed as a direct APK download on GitHub.
         </p>
         <p>
-          Cribrum does not declare <code>android.permission.INTERNET</code> in its manifest. The app cannot open network connections or send data anywhere.
+          Cribrum explicitly removes the <code>android.permission.INTERNET</code> permission in its manifest, stripping even telemetry from bundled libraries. The app cannot open network connections or send data anywhere.
         </p>
       </section>
 
@@ -135,7 +165,11 @@
             <span class="step-num">1</span>
             <div class="step-body">
               <h3>Download the APK</h3>
-              <p>Get the latest release from the <a href="https://github.com/Bert0ns/cribrum/releases/latest" style="color: var(--brand); font-weight: 600;">GitHub releases page</a>.</p>
+              <p>Get the latest release from the <a href="https://github.com/Bert0ns/cribrum/releases/latest" style="color: var(--brand); font-weight: 600;">GitHub releases page</a>. You can optionally verify package integrity with the SHA-256 digest:</p>
+              <div class="code-box">
+                <code>sha256sum -c cribrum-*.apk.sha256</code>
+                <button class="copy-btn" id="copy-btn">Copy</button>
+              </div>
             </div>
           </li>
           <li class="step-item">
@@ -148,12 +182,15 @@
           <li class="step-item">
             <span class="step-num">3</span>
             <div class="step-body">
-              <h3>Verify the checksum (optional)</h3>
-              <p>Verify package integrity before installing with the SHA-256 digest:</p>
-              <div class="code-box">
-                <code>sha256sum -c cribrum-*.apk.sha256</code>
-                <button class="copy-btn" id="copy-btn">Copy</button>
-              </div>
+              <h3>Grant storage access</h3>
+              <p>On first launch, grant All files access when Android prompts in system settings, so Cribrum can explore hidden folders across storage.</p>
+            </div>
+          </li>
+          <li class="step-item">
+            <span class="step-num">4</span>
+            <div class="step-body">
+              <h3>Scan and review</h3>
+              <p>Tap Scan now to run the initial scan, or leave it to run automatically overnight while charging. Candidates will appear grouped by category for your review.</p>
             </div>
           </li>
         </ol>
@@ -173,7 +210,7 @@
       <div>Cribrum &bull; GNU GPLv3</div>
       <div class="footer-nav">
         <a href="https://github.com/Bert0ns/cribrum" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a href="https://github.com/Bert0ns/cribrum/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+        <a href="https://github.com/Bert0ns/cribrum/releases/latest" target="_blank" rel="noopener noreferrer">Releases</a>
         <a href="https://github.com/Bert0ns/cribrum/blob/main/docs/design.md" target="_blank" rel="noopener noreferrer">Design</a>
       </div>
     </footer>
