@@ -75,6 +75,14 @@ class ReviewTest {
         mapOf(GROUP_KEY to group, ROLE_KEY to role.value, "distance" to "4"),
     )
 
+    private fun burst(group: String, role: Role) = Signal(
+        "burst",
+        1,
+        Category.BURST,
+        if (role == Role.BEST) 0f else 0.8f,
+        mapOf(GROUP_KEY to group, ROLE_KEY to role.value),
+    )
+
     private fun test(block: suspend Review.() -> Unit) = runBlocking { review.block() }
 
     private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
@@ -431,18 +439,151 @@ class ReviewTest {
     }
 
     @Test
-    fun `a group with a trashed best copy has no suggestTrash member`() = test {
+    fun `a group with a trashed best copy and two copies left has no suggestTrash member`() = test {
         val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
         val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+        val other = image("Download/a.jpg", duplicate("g", Role.INFERIOR))
 
         apply(listOf(best), emptyList())
 
         val group = page(Category.EXACT_DUPLICATE).groups.single()
         assertTrue(group.hasTrashedBestCopy)
         assertEquals(
-            listOf(ReviewItem(copy, suggestTrash = false, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR)))),
-            group.images,
+            listOf(
+                ReviewItem(other, suggestTrash = false, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR))),
+                ReviewItem(copy, suggestTrash = false, score = 1f, reasons = listOf(duplicate("g", Role.INFERIOR))),
+            ),
+            group.images.sortedBy { it.image.path },
         )
+        assertEquals(2, page(Category.EXACT_DUPLICATE).remaining)
+        assertEquals(2, counts().getValue(Category.EXACT_DUPLICATE))
+    }
+
+    @Test
+    fun `a group with a trashed best copy and one copy left is not offered, and no figure counts it`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+
+        apply(listOf(best), emptyList())
+
+        assertLoneCopyHidden(Category.EXACT_DUPLICATE)
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
+    }
+
+    @Test
+    fun `a near-duplicate and a burst group with a trashed best copy and one copy left are not offered either`() = test {
+        val nearBest = image("DCIM/Camera/n1.jpg", nearDuplicate("n", Role.BEST))
+        image("WhatsApp/n2.jpg", nearDuplicate("n", Role.INFERIOR))
+        val burstBest = image("DCIM/Camera/b1.jpg", burst("b", Role.BEST))
+        image("DCIM/Camera/b2.jpg", burst("b", Role.INFERIOR))
+
+        apply(listOf(nearBest, burstBest), emptyList())
+
+        assertLoneCopyHidden(Category.NEAR_DUPLICATE)
+        assertLoneCopyHidden(Category.BURST)
+    }
+
+    @Test
+    fun `a lone copy comes back as a normal group when its best copy is restored`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+        apply(listOf(best), emptyList())
+        assertLoneCopyHidden(Category.EXACT_DUPLICATE)
+
+        restore(listOf(best))
+
+        val group = page(Category.EXACT_DUPLICATE).groups.single()
+        assertFalse(group.hasTrashedBestCopy)
+        assertEquals(listOf(best, copy), group.images.map { it.image })
+        assertEquals(listOf(false, true), group.images.map { it.suggestTrash })
+        assertEquals(1, counts().getValue(Category.EXACT_DUPLICATE))
+    }
+
+    @Test
+    fun `a hidden copy is not marked kept from another category, so its group can come back`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR), burst("b", Role.BEST))
+        val shot = image("WhatsApp/b.jpg", burst("b", Role.INFERIOR))
+        apply(listOf(best), emptyList())
+
+        applyPage(page(Category.BURST), setOf(shot.path))
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
+
+        restore(listOf(best))
+        assertEquals(listOf(best, copy), page(Category.EXACT_DUPLICATE).groups.single().images.map { it.image })
+    }
+
+    @Test
+    fun `a copy stays offered when its best copy is a sticker that is still there`() = test {
+        image("WhatsApp/Stickers/a.webp", duplicate("g", Role.BEST), Signal("sticker", 1, Category.STICKER, 1f))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+
+        assertEquals(listOf(copy), page(Category.EXACT_DUPLICATE).groups.single().images.map { it.image })
+        assertEquals(1, counts().getValue(Category.EXACT_DUPLICATE))
+    }
+
+    @Test
+    fun `a lone copy next to a copy in an excluded folder is not offered when the best copy is in the trash`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        val copy = image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+        val excludedCopy = image("Family/a.jpg", duplicate("g", Role.INFERIOR))
+        apply(listOf(best), emptyList())
+
+        excludeFolderOf(excludedCopy)
+
+        assertLoneCopyHidden(Category.EXACT_DUPLICATE)
+        assertEquals(ReviewState.UNREVIEWED, index.reviewState(copy.path))
+    }
+
+    @Test
+    fun `a lone copy whose best copy is gone from the index is not offered`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR))
+        apply(listOf(best), emptyList())
+
+        purge(trashed().map { it.original })
+
+        assertLoneCopyHidden(Category.EXACT_DUPLICATE)
+    }
+
+    @Test
+    fun `a lone copy that is a candidate in another category stays there, and only there`() = test {
+        val best = image("DCIM/Camera/a.jpg", duplicate("g", Role.BEST))
+        image("WhatsApp/a.jpg", duplicate("g", Role.INFERIOR), blurry(0.9f)) // 5 + 5 + 1 bytes: the file holds its path
+        apply(listOf(best), emptyList())
+
+        assertEquals(emptyList<ReviewGroup>(), page(Category.EXACT_DUPLICATE).groups)
+        assertEquals(1, page(Category.BLURRY).groups.size)
+        assertEquals(1, counts().getValue(Category.BLURRY))
+        assertEquals(0, counts().getValue(Category.EXACT_DUPLICATE))
+        assertEquals(File(volume, "WhatsApp/a.jpg").length(), overview().freeableBytes)
+    }
+
+    @Test
+    fun `hidden groups do not keep the other groups off the page, and skip still works`() = test {
+        repeat(PAGE_SIZE) { i ->
+            val best = image("DCIM/Camera/h$i.jpg", duplicate("h$i", Role.BEST))
+            image("WhatsApp/h$i.jpg", duplicate("h$i", Role.INFERIOR))
+            apply(listOf(best), emptyList())
+        }
+        val visibleBest = image("DCIM/Camera/v.jpg", duplicate("v", Role.BEST))
+        val visibleCopy = image("WhatsApp/v.jpg", duplicate("v", Role.INFERIOR))
+
+        val first = page(Category.EXACT_DUPLICATE)
+
+        assertEquals(listOf(visibleBest, visibleCopy), shown(first))
+        assertEquals(1, first.remaining)
+        assertEquals(Page(emptyList(), 0), page(Category.EXACT_DUPLICATE, skipped = setOf("v")))
+        assertEquals(1, overview().categories.first { it.category == Category.EXACT_DUPLICATE }.count)
+    }
+
+    private suspend fun Review.assertLoneCopyHidden(category: Category) {
+        assertEquals(Page(emptyList(), 0), page(category))
+        assertEquals(0, counts().getValue(category))
+        val summary = overview().categories.first { it.category == category }
+        assertEquals(0, summary.count)
+        assertEquals(0L, summary.bytes)
+        assertEquals(0L, overview().freeableBytes)
     }
 
     @Test
@@ -629,9 +770,10 @@ class ReviewTest {
         index.setSignals(image.path, "near_duplicate", 2, listOf(nearDuplicate("g", Role.BEST)))
         assertEquals(emptyList<ReviewGroup>(), page(Category.NEAR_DUPLICATE).groups)
 
+        val best = image("DCIM/best.jpg", nearDuplicate("g", Role.BEST))
         index.setSignals(image.path, "near_duplicate", 2, listOf(nearDuplicate("g", Role.INFERIOR)))
 
-        assertEquals(listOf(image), shown(page(Category.NEAR_DUPLICATE)))
+        assertEquals(listOf(best, image), shown(page(Category.NEAR_DUPLICATE)))
     }
 
     @Test
