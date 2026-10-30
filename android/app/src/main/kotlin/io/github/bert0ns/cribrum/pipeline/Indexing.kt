@@ -142,7 +142,7 @@ object Indexing {
         else -> R.string.scan_phase_groups
     }
 
-    /** The time left, rounded to the minute: "About 12 min left", or "Less than a minute left". */
+    /** The time left, rounded to the minute: "About 12 min left in this step", or "Less than a minute left in this step". */
     internal fun timeLeft(resources: Resources, ms: Long): String {
         val minutes = (ms + 30_000) / 60_000
         return when {
