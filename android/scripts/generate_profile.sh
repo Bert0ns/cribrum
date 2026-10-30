@@ -3,7 +3,7 @@
 # (android/README.md). It holds the screen for a few minutes. Everything it installs is a separate
 # package that it uninstalls at the end, and the app already on the phone is left alone.
 #
-# Usage: android/scripts/generate_profile.sh, after
+# Usage: scripts/generate_profile.sh from android/, after
 #   ./gradlew :app:assembleNonMinifiedRelease :baselineprofile:assembleNonMinifiedRelease
 # ADB overrides the adb command, e.g. a Windows adb.exe under WSL. The files it installs and pulls
 # go through a temporary folder under the current directory, so such an adb can reach them.
@@ -48,8 +48,12 @@ resumed=$(shell dumpsys activity activities | grep 'ResumedActivity' || true)
 "${adb[@]}" install -r "$local_dir/app.apk"
 "${adb[@]}" install -r -t "$local_dir/generator.apk"
 # All files access is what would put real images and the real trash in reach.
-[[ $(shell dumpsys package "$target") != *MANAGE_EXTERNAL_STORAGE* ]] || die "$target asks for all files access"
+package=$(shell dumpsys package "$target")
+[[ $package == *"Package [$target]"* ]] || die "$target is not installed"
+[[ $package != *MANAGE_EXTERNAL_STORAGE* ]] || die "$target asks for all files access"
 
+# A profile left by an earlier run must not pass for this one.
+shell rm -rf "$output"
 report=$(shell am instrument -w -e class "$generator" "$runner/androidx.test.runner.AndroidJUnitRunner")
 [[ $report == *"OK (1 test)"* ]] || die "the generator failed: $report"
 # The name holds the time of the run.
