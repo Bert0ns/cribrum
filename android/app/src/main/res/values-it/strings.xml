@@ -43,6 +43,12 @@
     <string name="scan_phase_classification">Classificazione delle immagini</string>
     <string name="scan_phase_groups">Ricerca di duplicati e raffiche</string>
     <string name="scan_phase_number">Fase %1$d di %2$d</string>
+    <string name="scan_heat">Calore: %1$s</string>
+    <string name="scan_heat_headroom">Calore: %1$s · margine %2$d%%</string>
+    <string name="scan_heat_normal">normale</string>
+    <string name="scan_heat_light">lieve</string>
+    <string name="scan_heat_moderate">moderato</string>
+    <string name="scan_heat_severe">elevato</string>
     <string name="scan_starting">Avvio…</string>
     <string name="scan_progress">%1$d di %2$d</string>
     <string name="scan_progress_open">finora %1$d</string>

@@ -71,6 +71,7 @@ import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.WithHaptics
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
+import io.github.bert0ns.cribrum.ui.rememberHeat
 import io.github.bert0ns.cribrum.ui.trailHue
 import java.io.File
 
@@ -306,7 +307,7 @@ private fun AppContent(
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             when (screen) {
                 Screen.Home -> {
-                    ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty)
+                    ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty, heat = rememberHeat(running = progress != null))
                     if (!notificationsGranted) {
                         NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
                     }
