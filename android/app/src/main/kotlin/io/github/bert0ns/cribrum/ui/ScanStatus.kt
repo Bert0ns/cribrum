@@ -27,16 +27,16 @@ fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier =
                 OutlinedButton(onClick = onScan) { Text(stringResource(R.string.scan_now)) }
             }
             progress.total == 0 -> {
+                Text(Indexing.phaseText(LocalResources.current, progress.step))
                 Text(stringResource(R.string.scan_step_scan, progress.done))
                 LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(Indexing.phaseText(LocalResources.current, progress.step))
             }
             else -> {
+                Text(Indexing.phaseText(LocalResources.current, progress.step))
                 Text(stringResource(R.string.scan_step, stringResource(Indexing.phaseTitle(progress.step)), progress.done, progress.total))
                 LinearProgressIndicator({ progress.done.toFloat() / progress.total }, Modifier.fillMaxWidth())
-                // The phase alone while the estimate is hidden, so the list below does not jump at each phase change.
-                val phase = Indexing.phaseText(LocalResources.current, progress.step)
-                Text(progress.leftMs?.let { stringResource(R.string.scan_joined, phase, Indexing.timeLeft(LocalResources.current, it)) } ?: phase)
+                // An empty line while the estimate is hidden, so the list below does not jump at each phase change.
+                Text(progress.leftMs?.let { Indexing.timeLeft(LocalResources.current, it) }.orEmpty())
             }
         }
     }

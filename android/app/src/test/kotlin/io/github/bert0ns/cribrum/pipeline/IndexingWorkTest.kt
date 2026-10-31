@@ -276,6 +276,12 @@ class IndexingWorkTest {
     }
 
     @Test
+    fun `a scan with no step yet is in the first phase`() {
+        assertEquals(1, Indexing.phaseNumber(""))
+        assertEquals(R.string.scan_phase_scan, Indexing.phaseTitle(""))
+    }
+
+    @Test
     fun `the notification title follows the phase, even right after the last update`() {
         steps += Triple("scan", 100, 0)
         steps += Triple("embeddings", 1, 10)

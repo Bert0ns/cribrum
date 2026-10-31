@@ -134,9 +134,12 @@ object Indexing {
     /** How many phases a scan has. A rescan may skip one, so the number a user sees can jump. */
     internal const val PHASES = 6
 
-    /** The number and the title of a [Pipeline] step. The step of a group detector is named after the detector. */
+    /**
+     * The number and the title of a [Pipeline] step. The step of a group detector is named after
+     * the detector, and the step is empty until the walk sends its first progress.
+     */
     private fun phase(step: String) = when (step) {
-        "scan" -> 1 to R.string.scan_phase_scan
+        "", "scan" -> 1 to R.string.scan_phase_scan
         "metadata" -> 2 to R.string.scan_phase_metadata
         "detectors" -> 3 to R.string.scan_phase_analysis
         "embeddings" -> 4 to R.string.scan_phase_embeddings
@@ -219,7 +222,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             return Result.failure()
         }
         try {
-            setForegroundInfo(foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting)))
+            setForegroundInfo(foregroundInfo("scan", applicationContext.getString(R.string.scan_starting)))
             isForeground = true
         } catch (e: IllegalStateException) {
             Log.w(Indexing.TAG, "Foreground service start refused, continuing in background", e)
@@ -288,17 +291,17 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             // The service is in the foreground since scan() began, so the notification is updated in place.
             val count = if (total == 0) applicationContext.getString(R.string.scan_progress_open, done) else applicationContext.getString(R.string.scan_progress, done, total)
             val text = left?.let { applicationContext.getString(R.string.scan_joined, count, Indexing.timeLeft(applicationContext.resources, it)) } ?: count
-            val info = foregroundInfo(phaseTitle, text, Indexing.phaseText(applicationContext.resources, step))
+            val info = foregroundInfo(step, text)
             applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
         }
     }
 
-    override suspend fun getForegroundInfo() = foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting))
+    override suspend fun getForegroundInfo() = foregroundInfo("scan", applicationContext.getString(R.string.scan_starting))
 
-    private fun foregroundInfo(@StringRes titleRes: Int, text: String, phaseText: String = Indexing.phaseText(applicationContext.resources, "scan")): ForegroundInfo {
+    private fun foregroundInfo(step: String, text: String): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, applicationContext.getString(R.string.scan_channel), NotificationManager.IMPORTANCE_LOW))
-        val title = applicationContext.getString(R.string.scan_joined, phaseText, applicationContext.getString(titleRes))
+        val title = applicationContext.getString(R.string.scan_joined, Indexing.phaseText(applicationContext.resources, step), applicationContext.getString(Indexing.phaseTitle(step)))
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
