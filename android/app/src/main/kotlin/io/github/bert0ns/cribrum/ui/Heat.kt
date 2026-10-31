@@ -55,7 +55,8 @@ private const val HEADROOM_EVERY_MS = 10_000L
  *
  * The headroom is saved and has no key on [running]: unfolding or rotating recreates the activity, the
  * progress starts null there, and the read right after returns NaN, so a key would lose the last good
- * value for 10 seconds. A value from an earlier scan is replaced by the first read, which is at once.
+ * value for 10 seconds. It is forgotten 10 seconds after a scan ends, so the next scan cannot open on an
+ * old reading, and not at once, since after a recreate running is false for a frame.
  */
 @Composable
 fun rememberHeat(running: Boolean): Heat? {
@@ -70,8 +71,12 @@ fun rememberHeat(running: Boolean): Heat? {
         onStopOrDispose { power.removeThermalStatusListener(listener) }
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    LaunchedEffect(running) {
-        if (!running) return@LaunchedEffect
+    LaunchedEffect(running, lifecycle) {
+        if (!running) {
+            delay(HEADROOM_EVERY_MS)
+            headroom = Float.NaN
+            return@LaunchedEffect
+        }
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (true) {
                 val read = withContext(Dispatchers.Default) { power.getThermalHeadroom(0) }
