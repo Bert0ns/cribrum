@@ -131,16 +131,26 @@ object Indexing {
         WorkManager.getInstance(context).updateWork(nightlyBuilder().setId(id).setNextScheduleTimeOverride(next).build())
     }
 
-    /** The notification title for a [Pipeline] step. The step of a group detector is named after the detector. */
-    @StringRes
-    internal fun phaseTitle(step: String) = when (step) {
-        "scan" -> R.string.scan_phase_scan
-        "metadata" -> R.string.scan_phase_metadata
-        "embeddings" -> R.string.scan_phase_embeddings
-        "detectors" -> R.string.scan_phase_analysis
-        "embedded_detectors" -> R.string.scan_phase_classification
-        else -> R.string.scan_phase_groups
+    /** How many phases a scan has. A rescan may skip one, so the number a user sees can jump. */
+    internal const val PHASES = 6
+
+    /** The number and the title of a [Pipeline] step. The step of a group detector is named after the detector. */
+    private fun phase(step: String) = when (step) {
+        "scan" -> 1 to R.string.scan_phase_scan
+        "metadata" -> 2 to R.string.scan_phase_metadata
+        "detectors" -> 3 to R.string.scan_phase_analysis
+        "embeddings" -> 4 to R.string.scan_phase_embeddings
+        "embedded_detectors" -> 5 to R.string.scan_phase_classification
+        else -> 6 to R.string.scan_phase_groups
     }
+
+    @StringRes
+    internal fun phaseTitle(step: String) = phase(step).second
+
+    internal fun phaseNumber(step: String) = phase(step).first
+
+    /** "Phase 3 of 6". */
+    internal fun phaseText(resources: Resources, step: String) = resources.getString(R.string.scan_phase_number, phaseNumber(step), PHASES)
 
     /** The time left, rounded to the minute: "About 12 min left in this step", or "Less than a minute left in this step". */
     internal fun timeLeft(resources: Resources, ms: Long): String {
@@ -277,18 +287,18 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             currentCoroutineContext().ensureActive()
             // The service is in the foreground since scan() began, so the notification is updated in place.
             val count = if (total == 0) applicationContext.getString(R.string.scan_progress_open, done) else applicationContext.getString(R.string.scan_progress, done, total)
-            val text = left?.let { applicationContext.getString(R.string.scan_progress_left, count, Indexing.timeLeft(applicationContext.resources, it)) } ?: count
-            val info = foregroundInfo(phaseTitle, text)
+            val text = left?.let { applicationContext.getString(R.string.scan_joined, count, Indexing.timeLeft(applicationContext.resources, it)) } ?: count
+            val info = foregroundInfo(phaseTitle, text, Indexing.phaseText(applicationContext.resources, step))
             applicationContext.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, info.notification)
         }
     }
 
     override suspend fun getForegroundInfo() = foregroundInfo(R.string.scan_phase_scan, applicationContext.getString(R.string.scan_starting))
 
-    private fun foregroundInfo(@StringRes titleRes: Int, text: String): ForegroundInfo {
+    private fun foregroundInfo(@StringRes titleRes: Int, text: String, phaseText: String = Indexing.phaseText(applicationContext.resources, "scan")): ForegroundInfo {
         val manager = applicationContext.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, applicationContext.getString(R.string.scan_channel), NotificationManager.IMPORTANCE_LOW))
-        val title = applicationContext.getString(titleRes)
+        val title = applicationContext.getString(R.string.scan_joined, phaseText, applicationContext.getString(titleRes))
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
