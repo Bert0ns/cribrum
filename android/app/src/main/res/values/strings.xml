@@ -10,6 +10,7 @@
     <string name="scan_phase_analysis">Analyzing the images</string>
     <string name="scan_phase_classification">Classifying the images</string>
     <string name="scan_phase_groups">Finding duplicates and bursts</string>
+    <string name="scan_phase_number">Phase %1$d of %2$d</string>
     <string name="scan_starting">Starting…</string>
     <string name="scan_progress">%1$d of %2$d</string>
     <string name="scan_progress_open">%1$d so far</string>
@@ -20,7 +21,7 @@
     <string name="scan_left_minutes">About %1$d min left in this step</string>
     <string name="scan_left_hours">About %1$d h %2$d min left in this step</string>
     <string name="scan_left_under_a_minute">Less than a minute left in this step</string>
-    <string name="scan_progress_left" translatable="false">%1$s · %2$s</string>
+    <string name="scan_joined" translatable="false">%1$s · %2$s</string>
     <string name="category_exact_duplicate">Exact copies</string>
     <string name="category_near_duplicate">Similar copies</string>
     <string name="category_burst">Bursts</string>
