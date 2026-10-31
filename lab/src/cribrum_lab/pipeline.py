@@ -130,7 +130,7 @@ def run(
     stats.forgotten = len(gone)
     stats.images = len(found)
 
-    pending = index.without_metadata()
+    pending = _stickers_last(index.without_metadata())
     for done, image in enumerate(pending, 1):
         try:
             index.set_metadata(image.path, read_metadata(image.path))
@@ -145,7 +145,15 @@ def run(
     # The home screen lists candidates as soon as these are stored; the embeddings come after.
     fast = [d for d in detectors if not getattr(d, "uses_embeddings", False)]
     _analyze_each(
-        readable, fast, {}, "detectors", index, jobs, stats, progress, before_embeddings=True
+        _stickers_last(readable),
+        fast,
+        {},
+        "detectors",
+        index,
+        jobs,
+        stats,
+        progress,
+        before_embeddings=True,
     )
     # A sticker is listed under STICKER only (docs/design.md, 8), so neither MobileCLIP nor
     # text coverage runs on it.
@@ -228,6 +236,12 @@ def run(
         stats.detector_runs += 1
         progress(detector.id, 1, 1)
     return stats
+
+
+def _stickers_last(images: list[ImageRef]) -> list[ImageRef]:
+    """The real images first: a sticker only delays them, since the home screen lists
+    candidates as they are stored."""
+    return sorted(images, key=lambda i: is_sticker_folder(i.path))
 
 
 def _analyze_each(

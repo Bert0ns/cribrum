@@ -627,6 +627,95 @@ def test_an_embedding_a_sticker_got_from_an_earlier_scan_is_not_used(tmp_path, i
     assert seen == [False]
 
 
+def stickers_among_photos(root):
+    """In index order the stickers fall between the real images, so an order by path alone
+    fails the tests below."""
+    save(root / "DCIM/Camera/a.png")
+    save(root / STICKERS / "s1.png", seed=3)
+    save(root / STICKERS / "s2.png", seed=4)
+    save(root / "WhatsApp/Media/x.png", seed=5)
+    save(root / "Zoo/z.png", seed=6)
+    return root
+
+
+REAL_IMAGES_THEN_STICKERS = ["a.png", "x.png", "z.png", "s1.png", "s2.png"]
+
+
+def test_the_metadata_step_reads_every_real_image_before_the_stickers(tmp_path, index, monkeypatch):
+    root = stickers_among_photos(tmp_path / "device")
+    read = []
+    real = pipeline.read_metadata
+
+    def recording(path):
+        read.append(path.name)
+        return real(path)
+
+    monkeypatch.setattr(pipeline, "read_metadata", recording)
+
+    pipeline.run(root, index, detectors=[], group_detectors=[])
+
+    assert read == REAL_IMAGES_THEN_STICKERS
+
+
+def test_the_detectors_step_analyzes_every_real_image_before_the_stickers(tmp_path, index):
+    root = stickers_among_photos(tmp_path / "device")
+    seen = []
+
+    class Probe:
+        id = "probe"
+        version = 1
+
+        def analyze(self, image, context):
+            seen.append(image.path.name)
+            return []
+
+    pipeline.run(root, index, detectors=[Probe()], group_detectors=[])
+
+    assert seen == REAL_IMAGES_THEN_STICKERS
+
+
+def test_the_group_detectors_still_get_the_images_in_index_order(tmp_path, index):
+    root = stickers_among_photos(tmp_path / "device")
+    seen = []
+
+    class Probe:
+        id = "probe"
+        version = 1
+
+        def analyze(self, images, context):
+            seen.extend(image.path.name for image in images)
+            return {}
+
+    pipeline.run(root, index, detectors=[], group_detectors=[Probe()])
+
+    assert seen == ["a.png", "s1.png", "s2.png", "x.png", "z.png"]
+
+
+def stored_results(index):
+    return (
+        {i.path: index.signals(i.path) for i in index.images()},
+        {i.path: index.metadata(i.path) for i in index.images()},
+        {i.path: index.perceptual_hash(i.path) for i in index.images()},
+        {p: v.tolist() for p, v in index.embeddings("mean_color", 1).items()},
+    )
+
+
+def test_stickers_analyzed_before_the_real_images_leave_the_same_stored_results(tmp_path, index):
+    root = stickers_among_photos(tmp_path / "device")
+    shutil.copy(root / STICKERS / "s1.png", root / "WhatsApp/Media/s1-copy.png")  # a group across
+
+    # Two scans: the first takes the stickers through every step, so the second reaches the
+    # real images after them.
+    with ImageIndex(tmp_path / "other.sqlite") as other:
+        pipeline.run(root / STICKERS, other, embedder=MeanColorEmbedder())
+        pipeline.run(root, other, embedder=MeanColorEmbedder())
+        stats = pipeline.run(root, index, embedder=MeanColorEmbedder())
+
+        assert stats.images == 6
+        assert stats.failures == []
+        assert stored_results(other) == stored_results(index)
+
+
 def test_only_the_document_and_forwarded_detectors_read_embeddings():
     users = [d.id for d in pipeline.DETECTORS if getattr(d, "uses_embeddings", False)]
 

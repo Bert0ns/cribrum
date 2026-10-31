@@ -185,7 +185,7 @@ class Pipeline(
         stats.forgotten = gone.size
         stats.images = found.size
 
-        val pending = index.withoutMetadata()
+        val pending = stickersLast(index.withoutMetadata())
         phase("metadata", stats) {
             for ((done, image) in pending.withIndex()) {
                 storeMetadata(image.path, stats)
@@ -200,7 +200,7 @@ class Pipeline(
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
         // The home screen lists candidates as soon as these are stored; the embeddings come after.
         phase("detectors", stats) {
-            analyzeEach(readable, detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
+            analyzeEach(stickersLast(readable), detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
         }
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
@@ -273,6 +273,9 @@ class Pipeline(
         stats.failures.removeAll { it.path.isNotEmpty() && (!File(it.path).isFile || statesNow[it.path].let { state -> state == null || state == ReviewState.TRASHED }) }
         stats
     }
+
+    /** The real images first: a sticker only delays them, since the home screen lists candidates as they are stored. */
+    private fun stickersLast(images: List<ImageRef>): List<ImageRef> = images.partition { !isStickerFolder(it.path) }.let { (real, stickers) -> real + stickers }
 
     /** Runs one phase of [run] in a trace section, and keeps how long it took. */
     private suspend fun <T> phase(name: String, stats: Stats, block: suspend () -> T): T {

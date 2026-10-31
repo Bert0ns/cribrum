@@ -7,9 +7,11 @@ import io.github.bert0ns.cribrum.detectors.BurstDetector
 import io.github.bert0ns.cribrum.detectors.Detector
 import io.github.bert0ns.cribrum.detectors.GroupDetector
 import io.github.bert0ns.cribrum.detectors.MissingEmbedding
+import io.github.bert0ns.cribrum.folders.isStickerFolder
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.imaging.TestImage
+import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.index.memoryIndex
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
 import io.github.bert0ns.cribrum.metadata.readMetadata
@@ -954,6 +956,89 @@ class PipelineTest {
         run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(probe), embedder = MeanColorEmbedder()))
 
         assertFalse(seen)
+    }
+
+    /** In index order the stickers fall between the real images, so an order by path alone fails the tests below. */
+    private fun stickersAmongPhotos() {
+        save("DCIM/Camera/a.png")
+        save("$stickerFolder/s1.png", seed = 3)
+        save("$stickerFolder/s2.png", seed = 4)
+        save("WhatsApp/Media/x.png", seed = 5)
+        save("Zoo/z.png", seed = 6)
+    }
+
+    private val realImagesThenStickers = listOf("a.png", "x.png", "z.png", "s1.png", "s2.png")
+
+    @Test
+    fun `the metadata step reads every real image before the stickers, and reads every sticker`() {
+        stickersAmongPhotos()
+        val read = mutableListOf<String>()
+
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), metadataReader = { file -> readMetadata(file).also { read += file.name } }))
+
+        assertEquals(realImagesThenStickers, read)
+    }
+
+    @Test
+    fun `the detectors step analyzes every real image before the stickers, and analyzes every sticker`() {
+        stickersAmongPhotos()
+        val probe = Probe()
+
+        run(Pipeline(index, listOf(probe), emptyList(), parallelism = 1)) // one worker: with more, the two ends of the queue overlap
+
+        assertEquals(realImagesThenStickers, probe.seen.map { File(it).name })
+    }
+
+    @Test
+    fun `the group detectors still get the images in index order`() {
+        stickersAmongPhotos()
+        var seen = emptyList<String>()
+        val probe = object : GroupDetector {
+            override val id = "probe"
+            override val version = 1
+
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
+                seen = images.map { File(it.path).name }
+                return emptyMap()
+            }
+        }
+
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(probe)))
+
+        assertEquals(listOf("a.png", "s1.png", "s2.png", "x.png", "z.png"), seen)
+    }
+
+    private fun storedResults(index: ImageIndex) = runBlocking {
+        listOf(
+            index.indexedImages().associate { it.ref.path to it.signals.toSet() },
+            index.allMetadata(),
+            index.perceptualHashes(),
+            index.embeddings("mean_color", 1).mapValues { it.value.toList() },
+        )
+    }
+
+    @Test
+    fun `stickers analyzed before the real images leave the same stored results as stickers analyzed after them`() {
+        stickersAmongPhotos()
+        File(root, "$stickerFolder/s1.png").copyTo(File(root, "WhatsApp/Media/s1-copy.png")) // a group across the two
+        val onlyStickers = object : ImageSource {
+            override val walkedRoots get() = source.walkedRoots
+
+            override fun scan() = source.scan().filter { isStickerFolder(it.path) }
+        }
+        val other = memoryIndex()
+
+        // Two scans: the first takes the stickers through every step, so the second reaches the real images after them.
+        val stickersFirst = runBlocking {
+            Pipeline(other, embedder = MeanColorEmbedder()).run(onlyStickers).failures + Pipeline(other, embedder = MeanColorEmbedder()).run(source).failures
+        }
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        assertEquals(emptyList<Failure>(), stickersFirst)
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(6, stats.images)
+        assertEquals(storedResults(other), storedResults(index))
+        other.close()
     }
 
     /** Runs out of memory whenever the image at [poison] is in the batch, as a very large decode would. */
