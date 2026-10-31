@@ -11,6 +11,12 @@
     <string name="scan_phase_classification">Classifying the images</string>
     <string name="scan_phase_groups">Finding duplicates and bursts</string>
     <string name="scan_phase_number">Phase %1$d of %2$d</string>
+    <string name="scan_heat">Heat: %1$s</string>
+    <string name="scan_heat_headroom">Heat: %1$s · %2$d%% headroom</string>
+    <string name="scan_heat_normal">normal</string>
+    <string name="scan_heat_light">light</string>
+    <string name="scan_heat_moderate">moderate</string>
+    <string name="scan_heat_severe">severe</string>
     <string name="scan_starting">Starting…</string>
     <string name="scan_progress">%1$d of %2$d</string>
     <string name="scan_progress_open">%1$d so far</string>

@@ -99,4 +99,34 @@ class ScanStatusTest {
 
         compose.onNodeWithText("left", substring = true).assertDoesNotExist()
     }
+
+    @Test
+    fun `the heat shows at the end of the phase line while the scan walks`() {
+        compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
+
+        compose.onNodeWithText("Heat: moderate · 12% headroom").assertExists()
+        compose.onNodeWithText("Phase 1 of 6").assertExists()
+    }
+
+    @Test
+    fun `the heat shows at the end of the phase line in a normal scan`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.LIGHT, 20)) }
+
+        compose.onNodeWithText("Heat: light · 20% headroom").assertExists()
+        compose.onNodeWithText("Phase 3 of 6").assertExists()
+    }
+
+    @Test
+    fun `with no headroom the heat shows the level alone`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.SEVERE, null)) }
+
+        compose.onNodeWithText("Heat: severe").assertExists()
+    }
+
+    @Test
+    fun `with no reading no heat shows`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = null) }
+
+        compose.onNodeWithText("Heat", substring = true).assertDoesNotExist()
+    }
 }
