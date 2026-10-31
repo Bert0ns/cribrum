@@ -1,7 +1,7 @@
 # Cribrum — Design Document
 
 - **Status:** Draft
-- **Last updated:** 2026-10-29
+- **Last updated:** 2026-10-31
 
 ## 1. Problem
 
@@ -72,6 +72,8 @@ Each detector looks at an image (or at the image index) and emits **signals**. N
 ### Order and stickers
 
 The detectors that read no embedding run first (`BLURRY`, `BAD_EXPOSURE`, `SCREENSHOT`, `FACES`, `STICKER`), with the perceptual hash. Then the embeddings are computed, then `DOCUMENT` and `FORWARDED`, which read them, and last the group detectors (§7). On the first phone's index (11,308 images) the sticker folders held 6,056 of them, and `STICKER` and `SCREENSHOT` made 6,847 of the 8,132 candidates, so most candidates are there before the first embedding.
+
+**Real images go before stickers.** The metadata step and the detectors that read no embedding take the real images first and the stickers after them, in both the lab and the app, so the candidates a user is looking for reach the home screen before the thousands of stickers. Only the order inside these two steps changes. Every sticker still goes through both, no result depends on the order, and the group detectors still get the images in index order. Stickers stay in the same steps instead of a phase of their own, which would change the phases the scan screen names. Two limits. Workers overlap at the switch, so the last real images and the first stickers run at once. An image that ran out of memory runs again after the queue is empty (§7), so a real image can come back after the stickers. The time left of the phase (§4) follows the images of the last 30 seconds, so it reads the real images' cost while the stickers are still ahead, and moves when they start.
 
 **Neither MobileCLIP nor text coverage runs on a sticker.** An image in a messaging app's sticker folder is not embedded and `DOCUMENT` and `FORWARDED` do not run on it. The detectors that read no embedding, `FACES` (YuNet) included, still run on it. It would only have been listed under `STICKER` anyway (§8), so skipping these two models changes which other categories a sticker appears under, which the review already hides, not whether it is a candidate (D4). `STICKER` is still 1 for every sticker, so it keeps its place in the review order. The pipeline recognises a sticker with `isStickerFolder`, the rule the `STICKER` detector uses, so the two cannot disagree. This takes 6,056 of the 11,308 images off the embedding phase, 54%. A sticker embedding from an earlier scan stays in the index, but the pipeline does not read it, and the `DOCUMENT` and `FORWARDED` results an earlier scan stored for a sticker are dropped at the next scan, so a library gives the same result, reasons included, whether or not it was scanned before this rule.
 
@@ -177,7 +179,7 @@ interface ModelRuntime                   // ONNX Runtime behind one interface
 ```
 
 - Signals are stored with the version of the detector that produced them. When a detector improves, only its signals are recomputed.
-- The pipeline runs in this order: scan, metadata, the per-image detectors that read no embedding (with the perceptual hash), the embeddings, the per-image detectors that read one, then the group detectors. Each step stores its results as it goes, so the home screen lists candidates from the first detectors on, and an interrupted pass resumes. Images in a sticker folder skip the embedding and the detectors that read it (§5).
+- The pipeline runs in this order: scan, metadata, the per-image detectors that read no embedding (with the perceptual hash), the embeddings, the per-image detectors that read one, then the group detectors. Each step stores its results as it goes, so the home screen lists candidates from the first detectors on, and an interrupted pass resumes. Images in a sticker folder come after the real images in the metadata step and the first detectors, and skip the embedding and the detectors that read it (§5).
 - A detector that reads embeddings says so (`usesEmbeddings`). That flag also puts it after the embeddings in the order above, so a detector that reads one without saying so runs before any exists. Its embedding lookup then throws something other than `MissingEmbedding`, so it lands in the run's failures on every pass instead of waiting for an embedding that its pass never gets. A result belongs to the embedding it read, so when the pipeline computes an embedding for an image it forgets that image's results from those detectors.
 - A failed embedding is a failure of that image, not of the scan. The image gets no embedding, its failure goes into the run's failures, and the next run tries it again. An image that ran out of memory while decoding gets one more try alone, after its batch, since other decodes may have taken its memory. The scan always goes on to the detectors, so one bad file cannot keep DOCUMENT and FORWARDED from running on the others. The failures of the last finished run are kept for the settings screen (§8). A detector or a perceptual hash that runs out of memory while several images are analyzed at once runs again alone, after the others, and fails only if it fails then too.
 - Detectors get per-image data they don't compute themselves (content hash, metadata, embeddings) through lookups in `AnalysisContext`. The pipeline backs them with the index, so each value is computed once and shared by every detector.
