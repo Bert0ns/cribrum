@@ -32,7 +32,8 @@ class HeatTest {
         assertEquals(HeatLevel.LIGHT, heatOf(THERMAL_STATUS_NONE, 0.85f)?.level)
         assertEquals(HeatLevel.LIGHT, heatOf(THERMAL_STATUS_NONE, 0.94f)?.level)
         assertEquals(HeatLevel.MODERATE, heatOf(THERMAL_STATUS_NONE, 0.95f)?.level)
-        assertEquals(HeatLevel.MODERATE, heatOf(THERMAL_STATUS_NONE, 1.0f)?.level)
+        assertEquals(HeatLevel.MODERATE, heatOf(THERMAL_STATUS_NONE, 0.99f)?.level)
+        assertEquals(HeatLevel.SEVERE, heatOf(THERMAL_STATUS_NONE, 1.0f)?.level)
         assertEquals(HeatLevel.SEVERE, heatOf(THERMAL_STATUS_NONE, 1.01f)?.level)
     }
 
