@@ -989,6 +989,25 @@ class PipelineTest {
         assertEquals(realImagesThenStickers, probe.seen.map { File(it).name })
     }
 
+    @Test
+    fun `the group detectors still get the images in index order`() {
+        stickersAmongPhotos()
+        var seen = emptyList<String>()
+        val probe = object : GroupDetector {
+            override val id = "probe"
+            override val version = 1
+
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> {
+                seen = images.map { File(it.path).name }
+                return emptyMap()
+            }
+        }
+
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = listOf(probe)))
+
+        assertEquals(listOf("a.png", "s1.png", "s2.png", "x.png", "z.png"), seen)
+    }
+
     private fun storedResults(index: ImageIndex) = runBlocking {
         listOf(
             index.indexedImages().associate { it.ref.path to it.signals.toSet() },

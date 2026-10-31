@@ -674,6 +674,23 @@ def test_the_detectors_step_analyzes_every_real_image_before_the_stickers(tmp_pa
     assert seen == REAL_IMAGES_THEN_STICKERS
 
 
+def test_the_group_detectors_still_get_the_images_in_index_order(tmp_path, index):
+    root = stickers_among_photos(tmp_path / "device")
+    seen = []
+
+    class Probe:
+        id = "probe"
+        version = 1
+
+        def analyze(self, images, context):
+            seen.extend(image.path.name for image in images)
+            return {}
+
+    pipeline.run(root, index, detectors=[], group_detectors=[Probe()])
+
+    assert seen == ["a.png", "s1.png", "s2.png", "x.png", "z.png"]
+
+
 def stored_results(index):
     return (
         {i.path: index.signals(i.path) for i in index.images()},
