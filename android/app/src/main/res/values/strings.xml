@@ -259,6 +259,10 @@
     <string name="excluded_copy">Another copy is in an excluded folder</string>
     <string name="trashed_best_copy">The best copy is in the trash</string>
     <string name="remove">Remove</string>
+    <string name="nav_clean">Clean</string>
+    <string name="nav_compress">Compress</string>
+    <string name="nav_map">Map</string>
+    <string name="compress_coming_soon">Compressing large photos is coming soon.</string>
     <string name="storage_map">Storage map</string>
     <string name="storage_map_card_details">%1$s \u2022 image sizes</string>
     <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s \u2022 image sizes</string>

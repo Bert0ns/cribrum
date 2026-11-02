@@ -214,12 +214,6 @@ fun SettingsScreen(
             )
         }
         item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.storage_map)) },
-                modifier = Modifier.clickable { onOpenStorageMap() },
-            )
-        }
-        item {
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
         }
         item {
