@@ -382,11 +382,14 @@ class ReviewViewModel @JvmOverloads constructor(
     /** The one way to read a page, so none forgets the skipped groups or the review order of the open category. */
     private suspend fun pageFor(category: Category, state: ReviewState, skipped: Set<String> = state.skipped, grouping: ReviewOrder = state.reviewOrder) = review.page(category, skipped, grouping)
 
-    /** Candidates start marked. With [keepMarksOf], images that were already on its page keep the user's marks. */
+    /**
+     * Candidates start marked, except gallery favourites, which start kept. With [keepMarksOf], images that were
+     * already on its page keep the user's marks.
+     */
     private fun ReviewState.showing(page: Page, keepMarksOf: ReviewState? = null): ReviewState {
         val before = keepMarksOf?.page.orEmpty().flatMap { group -> group.images.map { it.image.path } }.toSet()
         val marked = page.groups.flatMap { it.images }
-            .filter { if (keepMarksOf != null && it.image.path in before) it.image.path in keepMarksOf.marked else it.suggestTrash }
+            .filter { if (keepMarksOf != null && it.image.path in before) it.image.path in keepMarksOf.marked else it.suggestTrash && !it.isFavorite }
             .map { it.image.path }.toSet()
         return copy(page = page.groups, remaining = page.remaining, marked = marked)
     }

@@ -816,16 +816,15 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `a favourite that was not marked for the trash needs no confirmation`() {
+    fun `a favourite starts kept, so trashing the rest of the page needs no confirmation`() {
         blurry("/sdcard/a.jpg", 0.9f)
         blurry("/sdcard/b.jpg", 0.8f)
         val trash = RecordingTrash()
         val model = ReviewViewModel(app, Review(app.index, trash, favorites = { setOf("/sdcard/a.jpg") }))
         model.open(Category.BLURRY)
         settle(model) { paths(it).size == 2 }
-        model.toggle(ImageRef("/sdcard/a.jpg", 1_000, 1L)) // the user kept the favourite
-        settle(model) { "/sdcard/a.jpg" !in it.state.value.marked }
 
+        assertEquals(setOf("/sdcard/b.jpg"), model.state.value.marked)
         applyShown(model)
         settle(model) { it.state.value.lastDecision != null }
 
