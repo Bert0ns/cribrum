@@ -1,6 +1,9 @@
 package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -8,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Density
 import io.github.bert0ns.cribrum.pipeline.ScanProgress
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -110,7 +114,7 @@ class ScanStatusTest {
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
 
         compose.onNodeWithText("moderate · 12%").assertExists()
-        compose.onNodeWithContentDescription("Heat").assertExists()
+        compose.onNodeWithContentDescription("Heat: moderate · 12%").assertExists()
         compose.onNodeWithText("Phase 1 of 6").assertExists()
     }
 
@@ -119,7 +123,7 @@ class ScanStatusTest {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.LIGHT, 20)) }
 
         compose.onNodeWithText("light · 20%").assertExists()
-        compose.onNodeWithContentDescription("Heat").assertExists()
+        compose.onNodeWithContentDescription("Heat: light · 20%").assertExists()
         compose.onNodeWithText("Phase 3 of 6").assertExists()
     }
 
@@ -128,14 +132,14 @@ class ScanStatusTest {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.SEVERE, null)) }
 
         compose.onNodeWithText("severe").assertExists()
-        compose.onNodeWithContentDescription("Heat").assertExists()
+        compose.onNodeWithContentDescription("Heat: severe").assertExists()
     }
 
     @Test
     fun `with no reading no heat shows`() {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = null) }
 
-        compose.onNodeWithContentDescription("Heat").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Heat", substring = true).assertDoesNotExist()
         compose.onNodeWithText("moderate", substring = true).assertDoesNotExist()
     }
 
@@ -180,12 +184,27 @@ class ScanStatusTest {
     }
 
     @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w240dp-h640dp")
+    fun `on a narrow screen the first heat reading does not push the rest down`() {
+        var heat by mutableStateOf<Heat?>(null)
+        compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = heat) }
+        val before = compose.onNodeWithText("Finding images", substring = true).fetchSemanticsNode().boundsInRoot.top
+
+        heat = Heat(HeatLevel.MODERATE, 12)
+        compose.waitForIdle()
+
+        compose.onNodeWithText("moderate · 12%").assertExists()
+        assertEquals(before, compose.onNodeWithText("Finding images", substring = true).fetchSemanticsNode().boundsInRoot.top)
+    }
+
+    @Test
     @Config(qualifiers = "it")
     fun `the heat shows in Italian with thermometer icon`() {
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
 
         compose.onNodeWithText("moderato · 12%").assertExists()
-        compose.onNodeWithContentDescription("Calore").assertExists()
+        compose.onNodeWithContentDescription("Calore: moderato · 12%").assertExists()
         compose.onNodeWithText("Fase 1 di 6").assertExists()
     }
 }

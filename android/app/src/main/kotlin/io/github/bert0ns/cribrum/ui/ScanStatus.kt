@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.tooling.preview.Preview
@@ -64,7 +65,7 @@ private fun PhaseLine(step: String, heat: Heat?) {
         val textMeasurer = rememberTextMeasurer()
         val textStyle = LocalTextStyle.current
         val density = LocalDensity.current
-        val wraps = remember(maxWidth, density, textStyle, resources) {
+        val wraps = remember(constraints.maxWidth, density, textStyle, resources) {
             val worstPhase = resources.getString(R.string.scan_phase_number, Indexing.PHASES, Indexing.PHASES)
             val worstHeat = resources.getString(
                 R.string.scan_heat_headroom,
@@ -73,19 +74,14 @@ private fun PhaseLine(step: String, heat: Heat?) {
             )
             val phaseWidth = textMeasurer.measure(worstPhase, textStyle).size.width
             val heatWidth = textMeasurer.measure(worstHeat, textStyle).size.width
-            val iconWidthPx = with(density) { 16.dp.roundToPx() }
-            val iconSpacingPx = with(density) { 4.dp.roundToPx() }
-            val gapPx = with(density) { 8.dp.roundToPx() }
-            val maxWidthPx = with(density) { maxWidth.roundToPx() }
-            val needed = phaseWidth + heatWidth + iconWidthPx + iconSpacingPx + gapPx
-            needed > maxWidthPx
+            val extra = with(density) { (HEAT_ICON + HEAT_ICON_SPACING + HEAT_GAP).roundToPx() }
+            phaseWidth + heatWidth + extra > constraints.maxWidth
         }
         if (wraps) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(Indexing.phaseText(resources, step))
-                if (heat != null) {
-                    HeatIndicator(heat)
-                }
+                // An empty line until the first reading, so the list below does not jump when the heat shows.
+                if (heat != null) HeatIndicator(heat) else Text("")
             }
         } else {
             Row(
@@ -116,68 +112,74 @@ private fun HeatIndicator(heat: Heat) {
         stringResource(R.string.scan_heat_headroom, level, it)
     } ?: level
 
+    // One description for the icon and the text, so a screen reader says "Heat: moderate · 12%".
+    val description = stringResource(R.string.scan_heat, text)
     Row(
-        modifier = Modifier.semantics(mergeDescendants = true) {},
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(HEAT_ICON_SPACING),
     ) {
         Icon(
             imageVector = Icons.Outlined.Thermostat,
-            contentDescription = stringResource(R.string.scan_heat),
-            modifier = Modifier.size(16.dp),
+            contentDescription = null,
+            modifier = Modifier.size(HEAT_ICON),
         )
         Text(text)
     }
 }
 
-private val Icons.Outlined.Thermostat: ImageVector
-    get() {
-        if (thermostatVector != null) return thermostatVector!!
-        thermostatVector = materialIcon(name = "Outlined.Thermostat") {
-            materialPath {
-                moveTo(15.0f, 13.0f)
-                verticalLineTo(5.0f)
-                curveToRelative(0.0f, -1.66f, -1.34f, -3.0f, -3.0f, -3.0f)
-                reflectiveCurveTo(9.0f, 3.34f, 9.0f, 5.0f)
-                verticalLineToRelative(8.0f)
-                curveToRelative(-1.21f, 0.91f, -2.0f, 2.36f, -2.0f, 4.0f)
-                curveToRelative(0.0f, 2.76f, 2.24f, 5.0f, 5.0f, 5.0f)
-                reflectiveCurveToRelative(5.0f, -2.24f, 5.0f, -5.0f)
-                curveToRelative(0.0f, -1.64f, -0.79f, -3.09f, -2.0f, -4.0f)
-                close()
-                moveTo(12.0f, 4.0f)
-                curveToRelative(0.55f, 0.0f, 1.0f, 0.45f, 1.0f, 1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(-1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineToRelative(2.0f)
-                horizontalLineToRelative(-1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(-1.0f)
-                verticalLineToRelative(1.0f)
-                horizontalLineToRelative(1.0f)
-                curveToRelative(0.0f, 0.42f, 0.13f, 0.81f, 0.35f, 1.15f)
-                lineToRelative(0.42f, 0.63f)
-                lineToRelative(0.67f, 0.35f)
-                curveTo(14.28f, 14.6f, 15.0f, 15.75f, 15.0f, 17.0f)
-                curveToRelative(0.0f, 1.65f, -1.35f, 3.0f, -3.0f, 3.0f)
-                reflectiveCurveToRelative(-3.0f, -1.35f, -3.0f, -3.0f)
-                curveToRelative(0.0f, -1.25f, 0.72f, -2.4f, 1.56f, -2.87f)
-                lineToRelative(0.67f, -0.35f)
-                lineToRelative(0.42f, -0.63f)
-                curveToRelative(0.22f, -0.34f, 0.35f, -0.73f, 0.35f, -1.15f)
-                verticalLineTo(5.0f)
-                curveToRelative(0.0f, -0.55f, 0.45f, -1.0f, 1.0f, -1.0f)
-                close()
-            }
-        }
-        return thermostatVector!!
-    }
+private val HEAT_ICON = 16.dp
+private val HEAT_ICON_SPACING = 4.dp
 
-private var thermostatVector: ImageVector? = null
+/** The least room the measurement leaves between the phase and the heat on one line. */
+private val HEAT_GAP = 8.dp
+
+private val Icons.Outlined.Thermostat: ImageVector
+    get() = thermostatVector
+
+private val thermostatVector: ImageVector by lazy {
+    materialIcon(name = "Outlined.Thermostat") {
+        materialPath {
+            moveTo(15.0f, 13.0f)
+            verticalLineTo(5.0f)
+            curveToRelative(0.0f, -1.66f, -1.34f, -3.0f, -3.0f, -3.0f)
+            reflectiveCurveTo(9.0f, 3.34f, 9.0f, 5.0f)
+            verticalLineToRelative(8.0f)
+            curveToRelative(-1.21f, 0.91f, -2.0f, 2.36f, -2.0f, 4.0f)
+            curveToRelative(0.0f, 2.76f, 2.24f, 5.0f, 5.0f, 5.0f)
+            reflectiveCurveToRelative(5.0f, -2.24f, 5.0f, -5.0f)
+            curveToRelative(0.0f, -1.64f, -0.79f, -3.09f, -2.0f, -4.0f)
+            close()
+            moveTo(12.0f, 4.0f)
+            curveToRelative(0.55f, 0.0f, 1.0f, 0.45f, 1.0f, 1.0f)
+            verticalLineToRelative(1.0f)
+            horizontalLineToRelative(-1.0f)
+            verticalLineToRelative(1.0f)
+            horizontalLineToRelative(1.0f)
+            verticalLineToRelative(2.0f)
+            horizontalLineToRelative(-1.0f)
+            verticalLineToRelative(1.0f)
+            horizontalLineToRelative(1.0f)
+            verticalLineToRelative(1.0f)
+            horizontalLineToRelative(-1.0f)
+            verticalLineToRelative(1.0f)
+            horizontalLineToRelative(1.0f)
+            curveToRelative(0.0f, 0.42f, 0.13f, 0.81f, 0.35f, 1.15f)
+            lineToRelative(0.42f, 0.63f)
+            lineToRelative(0.67f, 0.35f)
+            curveTo(14.28f, 14.6f, 15.0f, 15.75f, 15.0f, 17.0f)
+            curveToRelative(0.0f, 1.65f, -1.35f, 3.0f, -3.0f, 3.0f)
+            reflectiveCurveToRelative(-3.0f, -1.35f, -3.0f, -3.0f)
+            curveToRelative(0.0f, -1.25f, 0.72f, -2.4f, 1.56f, -2.87f)
+            lineToRelative(0.67f, -0.35f)
+            lineToRelative(0.42f, -0.63f)
+            curveToRelative(0.22f, -0.34f, 0.35f, -0.73f, 0.35f, -1.15f)
+            verticalLineTo(5.0f)
+            curveToRelative(0.0f, -0.55f, 0.45f, -1.0f, 1.0f, -1.0f)
+            close()
+        }
+    }
+}
 
 @Preview(name = "Default")
 @Preview(name = "Narrow (280 dp)", widthDp = 280)
