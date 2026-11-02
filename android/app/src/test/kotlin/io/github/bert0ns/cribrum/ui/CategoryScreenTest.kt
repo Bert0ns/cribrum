@@ -471,6 +471,15 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `a screen reader hears that a tile is a favourite`() {
+        compose.setContent { CategoryScreen(favoritePage, 3, setOf(images[1].path), false, {}, { _, _ -> }, {}) }
+
+        compose.onNodeWithContentDescription("${File(images[0].path).name}. Kept. Favourite").assertExists()
+        compose.onNodeWithContentDescription("${File(images[1].path).name}. Marked for the trash. Favourite").assertExists()
+        compose.onNodeWithContentDescription("${File(images[2].path).name}. Kept").assertExists()
+    }
+
+    @Test
     fun `trashing a favourite asks in one dialog how many of the images are favourites, and cancelling trashes nothing`() {
         var applied = 0
         compose.setContent { CategoryScreen(favoritePage, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}) }

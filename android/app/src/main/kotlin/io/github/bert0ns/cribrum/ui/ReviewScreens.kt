@@ -197,7 +197,9 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
         },
     )
     val why = item.reasons.firstNotNullOfOrNull(::reasonOf)?.text() ?: File(item.image.path).name
-    val description = stringResource(R.string.tile_description, why, state)
+    val described = stringResource(R.string.tile_description, why, state)
+    // The tile's own description hides the heart's from a screen reader, so it says it too.
+    val description = if (item.isFavorite) stringResource(R.string.tile_description, described, stringResource(R.string.favorite)) else described
     val toggle = stringResource(if (marked) R.string.action_keep else R.string.action_trash)
     val open = stringResource(R.string.action_open_full_size)
     Box(
