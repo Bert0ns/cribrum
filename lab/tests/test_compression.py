@@ -134,6 +134,7 @@ def test_aggregate_level_results():
             saved_share=i * 0.05,
             ssim=0.90 + i * 0.01,
             psnr=30.0 + i,
+            compressed_size=(100, 100),
         )
         for i in range(10)
     ]
@@ -188,6 +189,7 @@ def test_compress_and_measure_downscaled(tmp_path):
 
     m = compress_and_measure(img_path, custom_level, temp_dir=scratch_dir)
     assert m.compressed_bytes > 0
+    assert m.compressed_size == (target_w, target_h)
     assert 0.80 <= m.ssim <= 1.0
     assert list(scratch_dir.iterdir()) == []
 
