@@ -18,6 +18,7 @@ import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewOrder
+import io.github.bert0ns.cribrum.sources.favoritePaths
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CancellationException
@@ -103,6 +104,7 @@ class ReviewViewModel @JvmOverloads constructor(
             it.index,
             it.trash,
             thresholds = { it.thresholds.values },
+            favorites = { favoritePaths(it.contentResolver) },
             // The locale the screen formats its date labels with (LocalConfiguration), so a week and its label agree.
             firstDayOfWeek = { WeekFields.of(it.resources.configuration.locales[0]).firstDayOfWeek },
         )
@@ -322,6 +324,13 @@ class ReviewViewModel @JvmOverloads constructor(
         val category = (state.screen as? Screen.Category)?.category ?: return@load state
         val shown = state.page.flatMap { group -> group.images.map { it.image.path } }.toSet()
         if (toTrash != state.marked || toTrash + toKeep != shown) return@load state
+        // The dialog asked about the favourites the page showed. One the gallery marked since is a favourite
+        // nobody confirmed: show the page again, with its hearts and marks, and trash nothing.
+        val items = state.page.flatMap { group -> group.images }
+        val confirmed = items.filter { it.isFavorite }.map { it.image.path }
+        if (!confirmed.containsAll(review.favoritesAmong(items.filter { it.image.path in toTrash }.map { it.image }))) {
+            return@load state.showing(pageFor(category, state), keepMarksOf = state)
+        }
         val decision = review.applyPage(state.page, toTrash)
         state.showing(pageFor(category, state)).copy(lastDecision = decision)
     }
@@ -373,11 +382,14 @@ class ReviewViewModel @JvmOverloads constructor(
     /** The one way to read a page, so none forgets the skipped groups or the review order of the open category. */
     private suspend fun pageFor(category: Category, state: ReviewState, skipped: Set<String> = state.skipped, grouping: ReviewOrder = state.reviewOrder) = review.page(category, skipped, grouping)
 
-    /** Candidates start marked. With [keepMarksOf], images that were already on its page keep the user's marks. */
+    /**
+     * Candidates start marked, except gallery favourites, which start kept. With [keepMarksOf], images that were
+     * already on its page keep the user's marks.
+     */
     private fun ReviewState.showing(page: Page, keepMarksOf: ReviewState? = null): ReviewState {
         val before = keepMarksOf?.page.orEmpty().flatMap { group -> group.images.map { it.image.path } }.toSet()
         val marked = page.groups.flatMap { it.images }
-            .filter { if (keepMarksOf != null && it.image.path in before) it.image.path in keepMarksOf.marked else it.suggestTrash }
+            .filter { if (keepMarksOf != null && it.image.path in before) it.image.path in keepMarksOf.marked else it.suggestTrash && !it.isFavorite }
             .map { it.image.path }.toSet()
         return copy(page = page.groups, remaining = page.remaining, marked = marked)
     }

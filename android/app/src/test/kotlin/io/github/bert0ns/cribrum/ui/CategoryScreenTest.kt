@@ -47,6 +47,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -449,6 +450,59 @@ class CategoryScreenTest {
         compose.onNodeWithText("Cancel").performClick()
 
         assertEquals(0, applied)
+    }
+
+    private val favoritePage = images.mapIndexed { i, image -> ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true, isFavorite = i < 2))) }
+
+    @Test
+    fun `a favourite wears a heart, bottom right when kept and top right when marked, and others wear none`() {
+        compose.setContent { CategoryScreen(favoritePage, 3, setOf(images[1].path), false, {}, { _, _ -> }, {}) }
+        compose.waitForIdle()
+
+        val hearts = compose.onAllNodesWithContentDescription("Favourite", useUnmergedTree = true)
+        hearts.assertCountEquals(2)
+        val tiles = images.map { image -> compose.onNodeWithContentDescription(File(image.path).name, substring = true, useUnmergedTree = false) }
+        val kept = hearts[0].fetchSemanticsNode().boundsInRoot
+        val marked = hearts[1].fetchSemanticsNode().boundsInRoot
+        val keptTile = tiles[0].fetchSemanticsNode().boundsInRoot
+        val markedTile = tiles[1].fetchSemanticsNode().boundsInRoot
+        assertTrue(kept.center.y > keptTile.center.y && kept.center.x > keptTile.center.x)
+        assertTrue(marked.center.y < markedTile.center.y && marked.center.x > markedTile.center.x)
+    }
+
+    @Test
+    fun `a screen reader hears that a tile is a favourite`() {
+        compose.setContent { CategoryScreen(favoritePage, 3, setOf(images[1].path), false, {}, { _, _ -> }, {}) }
+
+        compose.onNodeWithContentDescription("${File(images[0].path).name}. Kept. Favourite").assertExists()
+        compose.onNodeWithContentDescription("${File(images[1].path).name}. Marked for the trash. Favourite").assertExists()
+        compose.onNodeWithContentDescription("${File(images[2].path).name}. Kept").assertExists()
+    }
+
+    @Test
+    fun `trashing a favourite asks in one dialog how many of the images are favourites, and cancelling trashes nothing`() {
+        var applied = 0
+        compose.setContent { CategoryScreen(favoritePage, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}) }
+
+        compose.onNodeWithText("Trash 3, keep 0").performClick()
+
+        compose.onNodeWithText("2 of them are favourites in your gallery.", substring = true).assertExists()
+        compose.onNodeWithText("Cancel").performClick()
+        assertEquals(0, applied)
+
+        compose.onNodeWithText("Trash 3, keep 0").performClick()
+        compose.onNodeWithText("Move to trash anyway").performClick()
+        assertEquals(1, applied)
+    }
+
+    @Test
+    fun `a favourite kept on the page asks nothing`() {
+        compose.setContent { CategoryScreen(favoritePage, 3, setOf(images[2].path), false, {}, { _, _ -> }, {}) }
+
+        compose.onNodeWithText("Trash 1, keep 2").performClick()
+
+        compose.onAllNodesWithText("favourites in your gallery", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Move to trash").assertExists()
     }
 
     @Test

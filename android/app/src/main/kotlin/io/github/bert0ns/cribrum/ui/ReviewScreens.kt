@@ -36,10 +36,12 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -82,6 +84,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -194,7 +197,9 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
         },
     )
     val why = item.reasons.firstNotNullOfOrNull(::reasonOf)?.text() ?: File(item.image.path).name
-    val description = stringResource(R.string.tile_description, why, state)
+    val described = stringResource(R.string.tile_description, why, state)
+    // The tile's own description hides the heart's from a screen reader, so it says it too.
+    val description = if (item.isFavorite) stringResource(R.string.tile_description, described, stringResource(R.string.favorite)) else described
     val toggle = stringResource(if (marked) R.string.action_keep else R.string.action_trash)
     val open = stringResource(R.string.action_open_full_size)
     Box(
@@ -221,13 +226,17 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize().alpha(if (marked) 0.6f else 1f),
         )
-        Icon(
-            if (marked) Icons.Default.Delete else Icons.Default.Check,
-            contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
-                .background(if (marked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-        )
+        // A favourite's heart takes the top right corner when the image is marked, so the status badge moves left of it.
+        Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(
+                if (marked) Icons.Default.Delete else Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.background(if (marked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
+            )
+            if (item.isFavorite && marked) FavoriteHeart()
+        }
+        if (item.isFavorite && !marked) FavoriteHeart(Modifier.align(Alignment.BottomEnd).padding(4.dp))
         if (item.isBest) {
             Text(
                 stringResource(R.string.best_copy),
@@ -238,6 +247,17 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
             )
         }
     }
+}
+
+/** Tells the image is a favourite in the gallery. The dark disc keeps the heart legible on a light photo, and the pink on a dark one. */
+@Composable
+private fun FavoriteHeart(modifier: Modifier = Modifier) {
+    Icon(
+        Icons.Filled.Favorite,
+        contentDescription = stringResource(R.string.favorite),
+        tint = Color(0xFFFF6B81),
+        modifier = modifier.background(Color.Black.copy(alpha = 0.55f), CircleShape).padding(3.dp).size(18.dp),
+    )
 }
 
 @Composable
@@ -332,17 +352,25 @@ fun CategoryScreen(
     }
     if (showSummary) {
         val size = Formatter.formatShortFileSize(LocalContext.current, toTrash.sumOf { it.image.size })
+        // The one dialog also asks about the favourites, so trashing one is never a surprise.
+        val favorites = toTrash.count { it.isFavorite }
         AlertDialog(
             onDismissRequest = { showSummary = false },
+            icon = if (favorites > 0) ({ Icon(Icons.Filled.Favorite, contentDescription = null) }) else null,
             title = { Text(pluralStringResource(R.plurals.summary_title, toTrash.size, toTrash.size)) },
-            text = { Text(pluralStringResource(R.plurals.summary_body, retentionDays, size, retentionDays)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(pluralStringResource(R.plurals.summary_body, retentionDays, size, retentionDays))
+                    if (favorites > 0) Text(pluralStringResource(R.plurals.summary_favorites, favorites, favorites), fontWeight = FontWeight.Bold)
+                }
+            },
             confirmButton = {
                 TextButton({
                     showSummary = false
                     haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
                     val trashPaths = toTrash.map { it.image.path }.toSet()
                     onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
-                }, enabled = !loading) { Text(stringResource(R.string.summary_confirm)) }
+                }, enabled = !loading) { Text(stringResource(if (favorites > 0) R.string.summary_confirm_favorites else R.string.summary_confirm)) }
             },
             dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
         )
@@ -384,6 +412,7 @@ private fun FullSize(
                 ZoomableImage(items[page].image, onClose)
             }
             val isMarked = current.image.path in marked
+            if (current.isFavorite && isMarked) FavoriteHeart(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp))
             val toggle = {
                 haptics.performHapticFeedback(Haptic.TICK.type)
                 onToggle(current.image)
@@ -429,11 +458,15 @@ private fun FullSize(
                     Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
                 }
                 Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
-                OutlinedButton(
-                    onClick = { onExcludeFolder(current.image) },
-                    border = BorderStroke(1.dp, Color.White),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                ) { Text(stringResource(R.string.exclude_folder)) }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                    OutlinedButton(
+                        onClick = { onExcludeFolder(current.image) },
+                        border = BorderStroke(1.dp, Color.White),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                    ) { Text(stringResource(R.string.exclude_folder)) }
+                    Spacer(Modifier.weight(1f))
+                    if (current.isFavorite && !isMarked) FavoriteHeart()
+                }
             }
         }
     }

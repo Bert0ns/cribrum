@@ -9,6 +9,7 @@ import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.IndexedImage
+import io.github.bert0ns.cribrum.model.Protection
 import io.github.bert0ns.cribrum.model.ROLE_KEY
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Role
@@ -34,6 +35,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.WeekFields
 import java.util.Locale
+
+/** What the gallery's favourites add to an image. Protects it in the ranking (docs/design.md §6.2). */
+private val FAVORITE_SIGNAL = Signal("favorite", 1, Protection.FAVORITE, 1f)
 
 /** Images shown at once: a few screens of thumbnails, reviewed and applied together. */
 const val PAGE_SIZE = 48
@@ -76,6 +80,8 @@ data class ReviewItem(
      * marked in the page where it is listed.
      */
     val keepable: Boolean = true,
+    /** The gallery marks the image as a favourite: the screen shows a heart, and trashing it asks first. */
+    val isFavorite: Boolean = false,
 )
 
 data class CategorySummary(val category: Category, val count: Int, val hasDetector: Boolean = true, val bytes: Long = 0)
@@ -108,6 +114,8 @@ private class Ranking(
     /** The candidates with those of hidden groups: a hidden group can come back, so its copies stay undecided. */
     val ranked: Map<Category, List<Candidate>>,
     val groups: Map<Category, GroupMembers>,
+    /** The favourites the ranking was built with; a different set builds it again. */
+    val favorites: Set<String>,
 )
 
 /** What the index holds about the groups of one category, minus what the review never lists (see [Review.groups]). */
@@ -135,6 +143,8 @@ class Review(
     private val detectorCategories: Set<Category> = DETECTOR_CATEGORIES,
     private val zone: () -> ZoneId = ZoneId::systemDefault,
     private val firstDayOfWeek: () -> DayOfWeek = { WeekFields.of(Locale.getDefault()).firstDayOfWeek },
+    /** The paths the gallery marks as favourites, asked on every ranking and again before an apply: it changes without a scan. */
+    private val favorites: suspend () -> Set<String> = { emptySet() },
 ) {
     /**
      * The last ranking, reused until the index or the thresholds change, so the home and a category opened from it
@@ -184,19 +194,22 @@ class Review(
      */
     private suspend fun ranking(thresholds: Map<Category, Float>): Ranking {
         val version = index.version
+        val favorites = favorites()
         val cached = last.get()?.takeIf { it.version == version }
-        if (cached != null && cached.thresholds == thresholds) return cached
+        if (cached != null && cached.thresholds == thresholds && cached.favorites == favorites) return cached
         val images = cached?.images ?: readImages()
         val excluded = cached?.excluded ?: index.excludedFolders()
         // A copy, so a caller that changes its map afterwards does not change the key.
         val key = thresholds.toMap()
         val groups = cached?.groups ?: GROUP_CATEGORIES.associateWith { groupMembers(it, images, excluded) }
-        val ranked = Ranker.byCategory(rank(key, images, excluded))
+        // The favourite signal is not stored: the gallery can change it any time, and a scan is no reason to wait.
+        val protected = if (favorites.isEmpty()) images else images.map { if (it.ref.path in favorites) it.copy(signals = it.signals + FAVORITE_SIGNAL) else it }
+        val ranked = Ranker.byCategory(rank(key, protected, excluded))
         val byCategory = ranked.mapValues { (category, candidates) ->
             val members = groups[category] ?: return@mapValues candidates
             candidates.filterNot { candidate -> candidate.hiddenIn(category, members) }
         }
-        return Ranking(version, images, excluded, key, byCategory, ranked, groups).also(::store)
+        return Ranking(version, images, excluded, key, byCategory, ranked, groups, favorites).also(::store)
     }
 
     /** Whether every group the candidate is in under [category] is hidden. One in no group at all is never hidden. */
@@ -223,9 +236,9 @@ class Review(
             val (hidden, groups) = (
                 if (category in GROUP_CATEGORIES) {
                     val otherCandidates = ranking.ranked.filterKeys { it != category }.values.flatten().map { it.image.ref.path }.toSet()
-                    groups(category, candidates, ranking.groups.getValue(category), otherCandidates)
+                    groups(category, candidates, ranking.groups.getValue(category), ranking.favorites, otherCandidates)
                 } else {
-                    singles(category, candidates, grouping)
+                    singles(category, candidates, grouping, ranking.favorites)
                 }
                 )
                 .let { all -> if (grouping == ReviewOrder.SIZE) all.sortedByDescending { group -> group.images.filter { it.suggestTrash }.sumOf { it.image.size } } else all }
@@ -290,6 +303,9 @@ class Review(
         decision.trashed - restored.toSet()
     }
 
+    /** Which of [images] the gallery marks as favourites right now, not when the page was read. */
+    suspend fun favoritesAmong(images: Collection<ImageRef>): Set<String> = favorites().let { favorites -> images.map { it.path }.filterTo(HashSet()) { it in favorites } }
+
     suspend fun trashed(): List<TrashedImage> = trash.trashed()
 
     /** How many trashed images are older than [retention] at [now]: what the next scan would delete for good. */
@@ -331,9 +347,9 @@ class Review(
         return index.notTrashed().filterNot { isExcluded(it.path, excluded) }
     }
 
-    private suspend fun singles(category: Category, candidates: List<Candidate>, grouping: ReviewOrder): List<ReviewGroup> {
+    private suspend fun singles(category: Category, candidates: List<Candidate>, grouping: ReviewOrder, favorites: Set<String>): List<ReviewGroup> {
         val groups = candidates.map {
-            ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category), reasons = it.reasons)))
+            ReviewGroup(it.image.ref.path, listOf(ReviewItem(it.image.ref, suggestTrash = true, score = score(it, category), reasons = it.reasons, isFavorite = it.image.ref.path in favorites)))
         }
         if (!grouping.byDate) return groups
         val capturedAt = index.capturedAt()
@@ -384,6 +400,7 @@ class Review(
         category: Category,
         candidates: List<Candidate>,
         groupMembers: GroupMembers,
+        favorites: Set<String>,
         otherCandidates: Set<String> = emptySet(),
     ): List<ReviewGroup> {
         val (members, withExcludedCopy, withTrashedBestCopy, hasNonTrashedBest, _) = groupMembers
@@ -408,6 +425,7 @@ class Review(
                     score = candidateScores[image.ref.path] ?: 0f,
                     reasons = candidateReasons[image.ref.path] ?: image.signals.filter { it.kind == category },
                     keepable = image.ref.path !in otherCandidates,
+                    isFavorite = image.ref.path in favorites,
                 )
             }
             ReviewGroup(
