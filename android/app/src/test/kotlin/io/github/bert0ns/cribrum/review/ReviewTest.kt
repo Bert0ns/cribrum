@@ -41,7 +41,8 @@ class ReviewTest {
     private val index = memoryIndex()
     private val volume by lazy { folder.newFolder("storage") }
     private var thresholds: Map<Category, Float> = THRESHOLDS
-    private val review by lazy { Review(index, AppTrash({ listOf(volume) }), thresholds = { thresholds }) }
+    private var favorites: Set<String> = emptySet()
+    private val review by lazy { Review(index, AppTrash({ listOf(volume) }), thresholds = { thresholds }, favorites = { favorites }) }
 
     @After
     fun close() = index.close()
@@ -86,6 +87,57 @@ class ReviewTest {
     private fun test(block: suspend Review.() -> Unit) = runBlocking { review.block() }
 
     private fun shown(page: Page) = page.groups.flatMap { g -> g.images.map { it.image } }
+
+    @Test
+    fun `a favourite stays a candidate, is flagged and comes after the same image that is not`() = test {
+        val favourite = image("a.jpg", blurry(0.9f))
+        val other = image("b.jpg", blurry(0.9f))
+        favorites = setOf(favourite.path)
+
+        val items = page(Category.BLURRY).groups.flatMap { it.images }
+
+        assertEquals(listOf(other, favourite), items.map { it.image })
+        assertEquals(listOf(false, true), items.map { it.isFavorite })
+        assertTrue(items.all { it.suggestTrash }) // recall over precision: it is still offered
+        assertEquals(2, overview().categories.single { it.category == Category.BLURRY }.count)
+    }
+
+    @Test
+    fun `a favourite copy of a group is flagged too`() = test {
+        image("DCIM/d.jpg", duplicate("g", Role.BEST))
+        val copy = image("Download/d.jpg", duplicate("g", Role.INFERIOR))
+        favorites = setOf(copy.path)
+
+        val items = page(Category.EXACT_DUPLICATE).groups.single().images
+
+        assertEquals(listOf(false, true), items.map { it.isFavorite })
+    }
+
+    @Test
+    fun `a change of favourites in the gallery applies on the next read, with no scan`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        image("b.jpg", blurry(0.9f))
+        suspend fun flagged() = page(Category.BLURRY).groups.flatMap { it.images }.filter { it.isFavorite }.map { it.image }
+
+        assertEquals(emptyList<ImageRef>(), flagged())
+
+        favorites = setOf(a.path)
+        assertEquals(listOf(a), flagged())
+
+        favorites = emptySet()
+        assertEquals(emptyList<ImageRef>(), flagged())
+    }
+
+    @Test
+    fun `asks the gallery now which of the images are favourites`() = test {
+        val a = image("a.jpg", blurry(0.9f))
+        val b = image("b.jpg", blurry(0.9f))
+        val c = image("c.jpg", blurry(0.9f))
+        favorites = setOf(a.path, c.path)
+
+        assertEquals(setOf(a.path), favoritesAmong(listOf(a, b)))
+        assertEquals(emptySet<String>(), favoritesAmong(listOf(b)))
+    }
 
     @Test
     fun `every category is listed in fixed order with its count and detector flag`() = test {

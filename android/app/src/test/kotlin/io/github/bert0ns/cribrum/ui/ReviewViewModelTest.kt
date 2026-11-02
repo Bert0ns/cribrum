@@ -790,6 +790,49 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `a favourite the gallery marked after the page loaded is not trashed until the user has seen and confirmed it`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        blurry("/sdcard/b.jpg", 0.8f)
+        var favorites = emptySet<String>()
+        val trash = RecordingTrash()
+        val model = ReviewViewModel(app, Review(app.index, trash, favorites = { favorites }))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 2 }
+        favorites = setOf("/sdcard/a.jpg") // the user hearted it in the gallery meanwhile
+        val (toTrash, toKeep) = confirm(model)
+
+        model.applyPage(toTrash, toKeep) // the dialog on screen did not mention a favourite
+        settle(model) { true }
+
+        assertEquals(emptyList<List<ImageRef>>(), trash.moves)
+        assertNull(model.state.value.lastDecision)
+        assertEquals(setOf("/sdcard/a.jpg"), model.state.value.page.flatMap { it.images }.filter { it.isFavorite }.map { it.image.path }.toSet())
+        assertEquals(toTrash, model.state.value.marked) // the page is back as it was, with its marks
+
+        model.applyPage(toTrash, toKeep) // now the page, and so the dialog, shows the heart
+        settle(model) { it.state.value.lastDecision != null }
+
+        assertEquals(setOf("/sdcard/a.jpg", "/sdcard/b.jpg"), trash.moves.single().map { it.path }.toSet())
+    }
+
+    @Test
+    fun `a favourite that was not marked for the trash needs no confirmation`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        blurry("/sdcard/b.jpg", 0.8f)
+        val trash = RecordingTrash()
+        val model = ReviewViewModel(app, Review(app.index, trash, favorites = { setOf("/sdcard/a.jpg") }))
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == 2 }
+        model.toggle(ImageRef("/sdcard/a.jpg", 1_000, 1L)) // the user kept the favourite
+        settle(model) { "/sdcard/a.jpg" !in it.state.value.marked }
+
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != null }
+
+        assertEquals(listOf("/sdcard/b.jpg"), trash.moves.single().map { it.path })
+    }
+
+    @Test
     fun `an apply for a page that is no longer shown does nothing`() {
         twoPages()
         val trash = RecordingTrash()

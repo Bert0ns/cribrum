@@ -110,6 +110,13 @@
         <item quantity="many">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per %2$d di giorni.</item>
     </plurals>
     <string name="summary_confirm">Sposta nel cestino</string>
+    <plurals name="summary_favorites">
+        <item quantity="one">%d di queste è tra i preferiti della galleria. Spostarla comunque nel cestino?</item>
+        <item quantity="other">%d di queste sono tra i preferiti della galleria. Spostarle comunque nel cestino?</item>
+        <item quantity="many">%d di queste sono tra i preferiti della galleria. Spostarle comunque nel cestino?</item>
+    </plurals>
+    <string name="summary_confirm_favorites">Sposta comunque nel cestino</string>
+    <string name="favorite">Preferita</string>
     <string name="cancel">Annulla</string>
     <plurals name="trashed_snackbar">
         <item quantity="one">%d immagine spostata nel cestino</item>
