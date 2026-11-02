@@ -25,6 +25,7 @@ import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -474,10 +475,82 @@ class ReviewViewModelTest {
         model.excludeFolder("/sdcard/Family")
         settle(model) { it.state.value.lastExclusion != null }
 
-        model.back()
+        model.selectDestination(Destination.Settings)
         settle(model) { it.state.value.screen == Screen.Settings }
 
         assertEquals(listOf("/sdcard/Family"), model.state.value.excludedFolders)
+    }
+
+    @Test
+    fun `Back from compress, the map and settings goes to clean`() {
+        val model = ReviewViewModel(app)
+        for (destination in listOf(Destination.Compress, Destination.Map, Destination.Settings)) {
+            model.selectDestination(destination)
+            settle(model) { it.state.value.screen.destination == destination }
+
+            model.back()
+            settle(model) { it.state.value.screen == Screen.Home }
+        }
+    }
+
+    @Test
+    fun `the bar switches between destinations`() {
+        val model = ReviewViewModel(app)
+        for (destination in Destination.entries) {
+            model.selectDestination(destination)
+            settle(model) { it.state.value.screen.destination == destination }
+        }
+        assertEquals(Screen.Settings, model.state.value.screen)
+    }
+
+    @Test
+    fun `full screen views cover the bar and Back returns to the destination they were opened from`() {
+        blurry("/sdcard/a.jpg", 0.9f)
+        val model = ReviewViewModel(app)
+
+        model.open(Category.BLURRY)
+        settle(model) { it.state.value.screen == Screen.Category(Category.BLURRY) }
+        assertEquals(Destination.Clean, model.state.value.screen.destination)
+        assertTrue(model.state.value.screen.coversNavigation)
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home }
+
+        model.openTrash()
+        settle(model) { it.state.value.screen == Screen.Trash }
+        assertEquals(Destination.Clean, model.state.value.screen.destination)
+        assertTrue(model.state.value.screen.coversNavigation)
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home }
+
+        model.selectDestination(Destination.Settings)
+        settle(model) { it.state.value.screen == Screen.Settings }
+        model.openThresholds()
+        settle(model) { it.state.value.screen == Screen.Thresholds }
+        assertEquals(Destination.Settings, model.state.value.screen.destination)
+        assertTrue(model.state.value.screen.coversNavigation)
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Settings }
+        assertFalse(model.state.value.screen.coversNavigation)
+    }
+
+    @Test
+    fun `the map keeps its zoom while the user is on another destination`() {
+        blurry("/sdcard/Family/a.jpg", 0.9f)
+        blurry("/sdcard/Other/c.jpg", 0.8f)
+        val model = ReviewViewModel(app)
+        model.openStorageMap()
+        settle(model) { it.state.value.storageMap.size == 1 }
+        val family = model.state.value.storageMap.single().children.single { it.path == "/sdcard/Family" }
+        model.zoomStorageMap(family)
+        settle(model) { it.state.value.storageMap.size == 2 }
+
+        model.selectDestination(Destination.Clean)
+        settle(model) { it.state.value.screen == Screen.Home }
+        model.selectDestination(Destination.Map)
+        settle(model) { it.state.value.screen == Screen.StorageMap }
+
+        assertEquals(2, model.state.value.storageMap.size)
+        assertEquals("/sdcard/Family", model.state.value.storageMap.last().path)
     }
 
     @Test

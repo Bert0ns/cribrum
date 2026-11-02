@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,11 +36,16 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +62,8 @@ import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
+import io.github.bert0ns.cribrum.ui.CompressScreen
+import io.github.bert0ns.cribrum.ui.Destination
 import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.Haptic
 import io.github.bert0ns.cribrum.ui.ReviewOrderMenu
@@ -71,6 +77,10 @@ import io.github.bert0ns.cribrum.ui.TrashScreen
 import io.github.bert0ns.cribrum.ui.WithHaptics
 import io.github.bert0ns.cribrum.ui.allFilesAccessSettings
 import io.github.bert0ns.cribrum.ui.categoryName
+import io.github.bert0ns.cribrum.ui.coversNavigation
+import io.github.bert0ns.cribrum.ui.destination
+import io.github.bert0ns.cribrum.ui.icon
+import io.github.bert0ns.cribrum.ui.label
 import io.github.bert0ns.cribrum.ui.rememberHeat
 import io.github.bert0ns.cribrum.ui.trailHue
 import java.io.File
@@ -268,108 +278,130 @@ private fun AppContent(
     }
     BackHandler(state.screen != Screen.Home) { model.back() }
     val screen = state.screen
-    Scaffold(
-        // The category screen has its own host, above the trash button.
-        snackbarHost = { if (screen !is Screen.Category) SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        when (screen) {
-                            Screen.Home -> stringResource(R.string.app_name)
-                            is Screen.Category -> categoryName(screen.category)
-                            Screen.Trash -> stringResource(R.string.trash)
-                            Screen.Settings -> stringResource(R.string.settings)
-                            Screen.StorageMap -> stringResource(R.string.storage_map)
-                            Screen.Thresholds -> stringResource(R.string.settings_thresholds)
-                        },
-                    )
-                },
-                navigationIcon = {
-                    if (screen != Screen.Home) {
-                        IconButton(model::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
-                    }
-                },
-                actions = {
-                    if (screen == Screen.Home) {
-                        IconButton(model::openSettings) {
-                            Icon(Icons.Filled.Settings, stringResource(R.string.settings))
-                        }
-                    }
-                    if (screen is Screen.Category) {
-                        ReviewOrderMenu(state.reviewOrder, ReviewOrder.optionsFor(screen.category), model::setReviewOrder)
-                    }
-                },
-            )
+    val saveable = rememberSaveableStateHolder()
+    NavigationSuiteScaffold(
+        navigationSuiteItems = {
+            Destination.entries.forEach { destination ->
+                item(
+                    selected = destination == screen.destination,
+                    onClick = { model.selectDestination(destination) },
+                    icon = { Icon(destination.icon, contentDescription = null) },
+                    label = { Text(destination.label()) },
+                )
+            }
         },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            when (screen) {
-                Screen.Home -> {
-                    ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty, heat = rememberHeat(running = progress != null))
-                    if (!notificationsGranted) {
-                        NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
+        // Full screen views cover the bar. Hiding it keeps the bar's own choice of a bar or a rail otherwise.
+        layoutType = if (screen.coversNavigation) {
+            NavigationSuiteType.None
+        } else {
+            NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo())
+        },
+    ) {
+        Scaffold(
+            // The category screen has its own host, above the trash button.
+            snackbarHost = { if (screen !is Screen.Category) SnackbarHost(snackbar) },
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            when (screen) {
+                                Screen.Home -> stringResource(R.string.app_name)
+                                Screen.Compress -> stringResource(R.string.nav_compress)
+                                is Screen.Category -> categoryName(screen.category)
+                                Screen.Trash -> stringResource(R.string.trash)
+                                Screen.Settings -> stringResource(R.string.settings)
+                                Screen.StorageMap -> stringResource(R.string.storage_map)
+                                Screen.Thresholds -> stringResource(R.string.settings_thresholds)
+                            },
+                        )
+                    },
+                    navigationIcon = {
+                        // The bar leads between destinations, so Back shows only where it goes one step up.
+                        if (screen.coversNavigation || (screen == Screen.StorageMap && state.storageMap.size > 1)) {
+                            IconButton(model::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                        }
+                    },
+                    actions = {
+                        if (screen is Screen.Category) {
+                            ReviewOrderMenu(state.reviewOrder, ReviewOrder.optionsFor(screen.category), model::setReviewOrder)
+                        }
+                    },
+                )
+            },
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                val body: @Composable () -> Unit = {
+                    when (screen) {
+                        Screen.Home -> {
+                            ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty, heat = rememberHeat(running = progress != null))
+                            if (!notificationsGranted) {
+                                NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
+                            }
+                            CategoryList(state.categories, state.freeableBytes, model::open, model::openTrash)
+                        }
+                        is Screen.Category -> CategoryScreen(
+                            state.page,
+                            state.remaining,
+                            state.marked,
+                            screen.category in GROUP_CATEGORIES,
+                            model::toggle,
+                            model::applyPage,
+                            model::skip,
+                            snackbar = snackbar,
+                            onExcludeFolder = model::excludeFolder,
+                            reviewOrder = state.reviewOrder,
+                            retentionDays = state.retentionDays,
+                            loading = state.loading,
+                        )
+                        Screen.Trash -> TrashScreen(
+                            state.trashed,
+                            state.selected,
+                            model::select,
+                            model::selectAll,
+                            model::restoreSelected,
+                            model::emptyTrash,
+                            retentionDays = state.retentionDays,
+                        )
+                        Screen.Settings -> SettingsScreen(
+                            onOpenStorageMap = { model.selectDestination(Destination.Map) },
+                            onOpenThresholds = model::openThresholds,
+                            retentionDays = state.retentionDays,
+                            onRetentionChange = model::chooseRetention,
+                            pendingRetention = state.pendingRetention,
+                            onConfirmRetention = model::confirmRetention,
+                            onCancelRetention = model::cancelRetention,
+                            excludedFolders = state.excludedFolders,
+                            onRemoveExcludedFolder = model::removeExcludedFolder,
+                            embeddingCount = state.embeddingCount,
+                            storage = state.storage,
+                            scanning = progress != null,
+                            onDeleteEmbeddings = model::deleteEmbeddings,
+                            hapticsEnabled = state.hapticsEnabled,
+                            onHapticsChange = model::setHaptics,
+                            coverage = state.coverage,
+                            lastScan = state.lastScan,
+                            lastScanFailed = state.lastScanFailed,
+                        )
+                        Screen.Thresholds -> ThresholdsScreen(
+                            state.thresholds,
+                            state.thresholdCounts,
+                            state.defaultCounts,
+                            model::setThreshold,
+                            model::resetThresholds,
+                        )
+                        Screen.StorageMap -> StorageMapScreen(
+                            currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
+                            baseHue = trailHue(state.storageMap),
+                            onZoomIn = model::zoomStorageMap,
+                            onExclude = { model.excludeFolder(it.path) },
+                            atRoot = state.storageMap.size <= 1,
+                        )
+                        Screen.Compress -> CompressScreen()
                     }
-                    CategoryList(state.categories, state.freeableBytes, model::open, model::openTrash)
                 }
-                is Screen.Category -> CategoryScreen(
-                    state.page,
-                    state.remaining,
-                    state.marked,
-                    screen.category in GROUP_CATEGORIES,
-                    model::toggle,
-                    model::applyPage,
-                    model::skip,
-                    snackbar = snackbar,
-                    onExcludeFolder = model::excludeFolder,
-                    reviewOrder = state.reviewOrder,
-                    retentionDays = state.retentionDays,
-                    loading = state.loading,
-                )
-                Screen.Trash -> TrashScreen(
-                    state.trashed,
-                    state.selected,
-                    model::select,
-                    model::selectAll,
-                    model::restoreSelected,
-                    model::emptyTrash,
-                    retentionDays = state.retentionDays,
-                )
-                Screen.Settings -> SettingsScreen(
-                    onOpenStorageMap = model::openStorageMap,
-                    onOpenThresholds = model::openThresholds,
-                    retentionDays = state.retentionDays,
-                    onRetentionChange = model::chooseRetention,
-                    pendingRetention = state.pendingRetention,
-                    onConfirmRetention = model::confirmRetention,
-                    onCancelRetention = model::cancelRetention,
-                    excludedFolders = state.excludedFolders,
-                    onRemoveExcludedFolder = model::removeExcludedFolder,
-                    embeddingCount = state.embeddingCount,
-                    storage = state.storage,
-                    scanning = progress != null,
-                    onDeleteEmbeddings = model::deleteEmbeddings,
-                    hapticsEnabled = state.hapticsEnabled,
-                    onHapticsChange = model::setHaptics,
-                    coverage = state.coverage,
-                    lastScan = state.lastScan,
-                    lastScanFailed = state.lastScanFailed,
-                )
-                Screen.Thresholds -> ThresholdsScreen(
-                    state.thresholds,
-                    state.thresholdCounts,
-                    state.defaultCounts,
-                    model::setThreshold,
-                    model::resetThresholds,
-                )
-                Screen.StorageMap -> StorageMapScreen(
-                    currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,
-                    baseHue = trailHue(state.storageMap),
-                    onZoomIn = model::zoomStorageMap,
-                    onExclude = { model.excludeFolder(it.path) },
-                    atRoot = state.storageMap.size <= 1,
-                )
+                // Each destination keeps its scroll positions while the user is elsewhere.
+                if (screen.coversNavigation) body() else saveable.SaveableStateProvider(screen.destination.name, body)
             }
         }
     }

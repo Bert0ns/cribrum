@@ -310,6 +310,10 @@
     <string name="excluded_copy">Un\'altra copia è in una cartella esclusa</string>
     <string name="trashed_best_copy">La copia migliore è nel cestino</string>
     <string name="remove">Rimuovi</string>
+    <string name="nav_clean">Pulisci</string>
+    <string name="nav_compress">Comprimi</string>
+    <string name="nav_map">Mappa</string>
+    <string name="compress_coming_soon">La compressione delle foto grandi arriverà presto.</string>
     <string name="storage_map">Mappa dell\'archiviazione</string>
     <string name="storage_map_card_details">%1$s \u2022 dimensioni delle immagini</string>
     <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>

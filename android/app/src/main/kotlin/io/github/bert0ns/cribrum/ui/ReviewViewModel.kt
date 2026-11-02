@@ -37,14 +37,30 @@ import java.time.temporal.WeekFields
 
 private const val TAG = "review"
 
+/** The top-level places of the navigation bar, in the order it shows them. */
+enum class Destination { Clean, Compress, Map, Settings }
+
 sealed interface Screen {
     data object Home : Screen
+    data object Compress : Screen
     data class Category(val category: io.github.bert0ns.cribrum.model.Category) : Screen
     data object Trash : Screen
     data object Settings : Screen
     data object StorageMap : Screen
     data object Thresholds : Screen
 }
+
+/** The destination of the bar that this screen belongs to, and the one it goes back to. */
+val Screen.destination: Destination
+    get() = when (this) {
+        Screen.Home, is Screen.Category, Screen.Trash -> Destination.Clean
+        Screen.Compress -> Destination.Compress
+        Screen.StorageMap -> Destination.Map
+        Screen.Settings, Screen.Thresholds -> Destination.Settings
+    }
+
+/** A full screen view covers the navigation bar. */
+val Screen.coversNavigation: Boolean get() = this is Screen.Category || this == Screen.Trash || this == Screen.Thresholds
 
 /** A lower retention that would purge [expiring] trashed images at the next scan, waiting for the user's confirmation. */
 data class RetentionChange(val days: Int, val expiring: Int)
@@ -287,8 +303,23 @@ class ReviewViewModel @JvmOverloads constructor(
 
     private suspend fun ReviewState.withThresholds(thresholds: Map<Category, Float>) = copy(thresholds = thresholds, thresholdCounts = review.counts(thresholds))
 
+    /** Opens the destination of the navigation bar, keeping what the user left in it. */
+    fun selectDestination(destination: Destination) {
+        when (destination) {
+            Destination.Clean -> showHome()
+            Destination.Compress -> load { it.copy(screen = Screen.Compress) }
+            Destination.Map -> openStorageMap()
+            Destination.Settings -> openSettings()
+        }
+    }
+
+    /** The map is read again, as the index changes elsewhere, and keeps the folder the user had zoomed into when it is still there. */
     fun openStorageMap() = load { state ->
-        state.copy(screen = Screen.StorageMap, storageMap = storageMapRoot())
+        val trail = storageMapRoot().toMutableList()
+        for (folder in state.storageMap.drop(1)) {
+            trail += trail.last().children.firstOrNull { it.path == folder.path } ?: break
+        }
+        state.copy(screen = Screen.StorageMap, storageMap = trail)
     }
 
     private suspend fun storageMapRoot() = listOf(buildFolderTree(review.notTrashed()))
@@ -301,14 +332,15 @@ class ReviewViewModel @JvmOverloads constructor(
         when {
             state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
                 state.copy(storageMap = state.storageMap.dropLast(1))
-            state.screen == Screen.StorageMap ->
-                state.copy(screen = Screen.Settings, storageMap = emptyList(), excludedFolders = app.index.excludedFolders())
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
-            else ->
-                state.copy(screen = Screen.Home, page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet()).withOverview(review.overview())
+            else -> state.home()
         }
     }
+
+    private fun showHome() = load { it.home() }
+
+    private suspend fun ReviewState.home() = copy(screen = Screen.Home, page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet()).withOverview(review.overview())
 
     /** An image that left the page while the tap waited for a change has no mark to flip. */
     fun toggle(image: ImageRef) = queue {

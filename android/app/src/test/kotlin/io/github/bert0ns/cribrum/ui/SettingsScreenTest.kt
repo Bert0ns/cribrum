@@ -19,7 +19,6 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -49,16 +48,16 @@ class SettingsScreenTest {
     }
 
     @Test
+    @Config(sdk = [36], qualifiers = "w411dp-h891dp") // the bar takes room from the list
     fun `settings screen opens from home and shows version and uninstall warning`() {
         compose.setContent {
             App()
         }
 
-        compose.onNodeWithContentDescription("Settings").performClick()
+        compose.onNodeWithText("Settings").performClick()
 
         // The view model changes screen on its own scope, after it has read the retention.
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Version", substring = true).fetchSemanticsNodes().isNotEmpty() }
-        compose.onNodeWithText("Settings").assertIsDisplayed()
         // The release workflow sets the version, so it can't be a literal here.
         val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
         compose.onNodeWithText("Version $version").assertIsDisplayed()
@@ -67,11 +66,11 @@ class SettingsScreenTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen."))
         compose.onNodeWithText("Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.").assertIsDisplayed()
 
-        compose.onNodeWithContentDescription("Back").performClick()
-        // Going back reloads the home screen on the view model's own scope.
+        compose.onNodeWithText("Clean").performClick()
+        // Leaving settings reloads the home screen on the view model's own scope.
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Cribrum").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Cribrum").assertIsDisplayed()
-        compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
+        compose.onNodeWithText("Settings").assertIsDisplayed()
     }
 
     @Test

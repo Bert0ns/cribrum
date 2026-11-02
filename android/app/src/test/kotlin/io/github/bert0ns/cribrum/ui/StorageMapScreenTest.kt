@@ -3,15 +3,12 @@ package io.github.bert0ns.cribrum.ui
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
-import androidx.compose.ui.test.hasScrollAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -29,7 +26,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
+// A tall screen: the bar takes room from the folder list, which the tests read.
+@Config(sdk = [36], qualifiers = "w411dp-h891dp")
 class StorageMapScreenTest {
     @get:Rule
     val compose = createComposeRule()
@@ -123,7 +121,7 @@ class StorageMapScreenTest {
         app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
         val model = ReviewViewModel(app)
         compose.setContent { App(model) }
-        openStorageMapFromSettings()
+        openStorageMapFromTheBar()
 
         compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
         compose.onNodeWithText("Exclude this folder").performClick()
@@ -155,33 +153,18 @@ class StorageMapScreenTest {
         compose.onNodeWithText("No images indexed").assertIsDisplayed()
     }
 
-    @Test
-    fun `settings screen provides entry to storage map`() {
-        var opened = false
-        compose.setContent {
-            SettingsScreen(onOpenStorageMap = { opened = true })
-        }
-
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
-        compose.onNodeWithText("Storage map").assertIsDisplayed().performClick()
-        assertEquals(true, opened)
-    }
-
     /** Navigation runs on the view model scope, so the screen changes after the click returns. */
     private fun awaitText(text: String) = compose.waitUntil(5_000) {
         compose.onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
 
-    private fun openStorageMapFromSettings() {
-        compose.onNodeWithContentDescription("Settings").performClick()
-        awaitText("About") // the screen changes on the view model scope: scrolling before it would scroll the home list
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
-        compose.onNodeWithText("Storage map").assertIsDisplayed().performClick()
+    private fun openStorageMapFromTheBar() {
+        compose.onNodeWithText("Map").performClick()
         awaitText("DCIM")
     }
 
     @Test
-    fun `storage map opens from settings and displays indexed folders`() = runBlocking<Unit> {
+    fun `storage map opens from the bar and displays indexed folders`() = runBlocking<Unit> {
         app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
         app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
         app.index.record(ImageRef("/storage/emulated/0/Old/gone.jpg", 5_000_000L, 1L))
@@ -193,7 +176,7 @@ class StorageMapScreenTest {
             App(model)
         }
 
-        openStorageMapFromSettings()
+        openStorageMapFromTheBar()
 
         compose.onNodeWithText("DCIM").assertIsDisplayed()
         compose.onNodeWithText("Pictures").assertIsDisplayed()
@@ -212,7 +195,7 @@ class StorageMapScreenTest {
             App(model)
         }
 
-        openStorageMapFromSettings()
+        openStorageMapFromTheBar()
 
         // Zoom into DCIM
         compose.onNodeWithText("DCIM").performClick()
@@ -225,11 +208,7 @@ class StorageMapScreenTest {
         compose.onNodeWithText("DCIM").assertIsDisplayed()
         compose.onNodeWithText("Pictures").assertIsDisplayed()
 
-        // Second back leaves storage map to settings
-        compose.onNodeWithContentDescription("Back").performClick()
-        awaitText("Settings")
-        compose.onNodeWithText("Settings").assertIsDisplayed()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
-        compose.onNodeWithText("Storage map").assertIsDisplayed()
+        // At the root the bar leads away, so there is no Back arrow
+        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
     }
 }
