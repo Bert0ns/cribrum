@@ -4,6 +4,16 @@ Evaluates the three compression presets:
 - High quality: JPEG quality 90, full resolution.
 - Balanced: JPEG quality 85, downscaled to at most 50 MP.
 - Smallest: JPEG quality 80, downscaled to at most 12 MP.
+
+Differences from the app:
+- Baseline JPEG encoding via Pillow with default Huffman tables (no optimize=True).
+- Subsampling is 4:2:0 at every quality level in Pillow (Skia/Android platform encoders
+  may switch subsampling, e.g. to 4:4:4 at high qualities, unverified).
+- Downscaling uses Pillow's PIL.Image.Resampling.LANCZOS filter here, vs whatever Android/
+  Skia uses in #285 (typically bilinear or Mitchell/Catmull-Rom in platform decoders).
+- Embedded ICC color profiles are dropped during re-encoding here.
+- Quality metrics (SSIM, PSNR) are calculated on luminance (Y) only, so chroma sub-sampling
+  loss is not reflected in these scores.
 """
 
 import math
@@ -14,8 +24,6 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-
-Image.MAX_IMAGE_PIXELS = None
 
 BALANCED_MAX_PIXELS = 50_000_000
 SMALLEST_MAX_PIXELS = 12_000_000
@@ -57,6 +65,8 @@ class LevelReport:
     psnr_worst_decile: float
     total_saved_bytes: int
     total_original_bytes: int
+    refused_share: float = 0.0
+    skipped_count: int = 0
 
 
 def target_size(width: int, height: int, max_pixels: int | None) -> tuple[int, int]:
@@ -151,7 +161,9 @@ def compute_psnr(img1: Image.Image, img2: Image.Image) -> float:
 
 
 def aggregate_level_results(
-    level: CompressionLevel, measurements: Sequence[ImageMeasurement]
+    level: CompressionLevel,
+    measurements: Sequence[ImageMeasurement],
+    skipped_count: int = 0,
 ) -> LevelReport:
     """Aggregate per-image measurements for a given compression level."""
     if not measurements:
@@ -161,6 +173,8 @@ def aggregate_level_results(
     psnrs = np.array([m.psnr for m in measurements], dtype=float)
     total_saved = sum(m.saved_bytes for m in measurements)
     total_orig = sum(m.original_bytes for m in measurements)
+    refused_count = sum(1 for m in measurements if m.saved_bytes <= 0)
+    refused_share = refused_count / len(measurements) if measurements else 0.0
 
     return LevelReport(
         level=level,
@@ -173,6 +187,8 @@ def aggregate_level_results(
         psnr_worst_decile=float(np.percentile(psnrs, 10)),
         total_saved_bytes=total_saved,
         total_original_bytes=total_orig,
+        refused_share=refused_share,
+        skipped_count=skipped_count,
     )
 
 
@@ -192,20 +208,19 @@ def compress_and_measure(
     try:
         with Image.open(image_path) as orig_img:
             exif = orig_img.info.get("exif")
-            target_w, target_h = target_size(orig_img.width, orig_img.height, level.max_pixels)
-            needs_downscale = (target_w, target_h) != (orig_img.width, orig_img.height)
+            img = orig_img
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+
+            target_w, target_h = target_size(img.width, img.height, level.max_pixels)
+            needs_downscale = (target_w, target_h) != (img.width, img.height)
 
             if needs_downscale:
-                to_save = orig_img.resize((target_w, target_h), Image.Resampling.LANCZOS)
+                to_save = img.resize((target_w, target_h), Image.Resampling.LANCZOS)
                 ref_img = to_save
             else:
-                to_save = orig_img
-                ref_img = orig_img
-
-            if to_save.mode not in ("RGB", "L"):
-                to_save = to_save.convert("RGB")
-                if ref_img is orig_img:
-                    ref_img = to_save
+                to_save = img
+                ref_img = img
 
             save_kwargs: dict[str, object] = {"quality": level.quality}
             if exif is not None:
@@ -237,13 +252,15 @@ def compress_and_measure(
 def format_report(reports: Sequence[LevelReport]) -> str:
     """Format reports into a readable table with medians, worst deciles, and byte totals."""
     header = (
-        f"{'Level':<15} {'Count':>5} {'SSIM (med)':>10} {'SSIM (p10)':>10} "
+        f"{'Level':<15} {'Count':>5} {'Skipped':>7} {'SSIM (med)':>10} {'SSIM (p10)':>10} "
         f"{'PSNR (med)':>10} {'PSNR (p10)':>10} {'Saved (med)':>12} {'Saved (p10)':>12} "
-        f"{'Total saved':>14}"
+        f"{'Refused':>8} {'Total saved':>14}"
     )
     separator = "-" * len(header)
     lines = [
         "Compression level quality and byte savings evaluation:",
+        "Note: for downscaled levels (Balanced, Smallest), SSIM/PSNR isolate the JPEG",
+        "re-encode step at target size and do not reflect resolution loss from downscaling.",
         "",
         header,
         separator,
@@ -258,10 +275,11 @@ def format_report(reports: Sequence[LevelReport]) -> str:
         )
 
         lines.append(
-            f"{r.level.name:<15} {r.sample_count:>5} "
+            f"{r.level.name:<15} {r.sample_count:>5} {r.skipped_count:>7} "
             f"{r.ssim_median:>10.4f} {r.ssim_worst_decile:>10.4f} "
             f"{psnr_med_str:>10} {psnr_p10_str:>10} "
             f"{r.saved_share_median * 100:>11.1f}% {r.saved_share_worst_decile * 100:>11.1f}% "
+            f"{r.refused_share * 100:>7.1f}% "
             f"{total_saved_mb:>7.1f} / {total_orig_mb:.1f} MB"
         )
     return "\n".join(lines)
