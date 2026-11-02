@@ -51,6 +51,7 @@ class ImageMeasurement:
     saved_share: float
     ssim: float
     psnr: float
+    compressed_size: tuple[int, int]
 
 
 @dataclass(frozen=True)
@@ -230,6 +231,7 @@ def compress_and_measure(
             compressed_bytes = temp_file.stat().st_size
 
             with Image.open(temp_file) as comp_img:
+                compressed_size = comp_img.size
                 ssim, psnr = compute_quality_metrics(ref_img, comp_img)
 
         saved_bytes = original_bytes - compressed_bytes
@@ -243,6 +245,7 @@ def compress_and_measure(
             saved_share=saved_share,
             ssim=ssim,
             psnr=psnr,
+            compressed_size=compressed_size,
         )
     finally:
         if temp_file.exists():
