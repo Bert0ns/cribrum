@@ -183,6 +183,21 @@ private val NOT_COPIED = setOf(
     ExifInterface.TAG_ORF_PREVIEW_IMAGE_LENGTH,
     ExifInterface.TAG_RW2_JPG_FROM_RAW,
     ExifInterface.TAG_XMP,
+    // How the original's pixels were encoded, which the new encode decides again.
+    ExifInterface.TAG_Y_CB_CR_SUB_SAMPLING,
+    ExifInterface.TAG_BITS_PER_SAMPLE,
+    ExifInterface.TAG_PHOTOMETRIC_INTERPRETATION,
+    ExifInterface.TAG_SAMPLES_PER_PIXEL,
+    ExifInterface.TAG_PLANAR_CONFIGURATION,
+    // Raw formats only.
+    ExifInterface.TAG_DNG_VERSION,
+    ExifInterface.TAG_DEFAULT_CROP_SIZE,
+    ExifInterface.TAG_ORF_ASPECT_FRAME,
+    ExifInterface.TAG_RW2_SENSOR_BOTTOM_BORDER,
+    ExifInterface.TAG_RW2_SENSOR_LEFT_BORDER,
+    ExifInterface.TAG_RW2_SENSOR_RIGHT_BORDER,
+    ExifInterface.TAG_RW2_SENSOR_TOP_BORDER,
+    ExifInterface.TAG_RW2_ISO,
 )
 
 private val COPIED_TAGS: List<String> = ExifInterface::class.java.fields
