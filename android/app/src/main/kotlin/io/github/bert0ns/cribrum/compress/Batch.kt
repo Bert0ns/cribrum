@@ -275,7 +275,7 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(CHANNEL, context.getString(R.string.compress_channel), NotificationManager.IMPORTANCE_LOW))
         val builder = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setSilent(true)
             .addAction(0, context.getString(R.string.compress_cancel), WorkManager.getInstance(context).createCancelPendingIntent(id))
