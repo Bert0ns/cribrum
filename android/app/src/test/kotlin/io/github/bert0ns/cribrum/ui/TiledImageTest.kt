@@ -92,6 +92,21 @@ class TiledImageTest {
         assertEquals(listOf(Tile(1, IntRect(0, 0, 512, 512)), Tile(1, IntRect(512, 0, 1024, 512))), tiles)
     }
 
+    /** [visibleRegion] as shares of the file's width and height. */
+    private fun share(raw: IntSize, orientation: Int, view: IntSize, scale: Float, offset: Offset) = visibleRegion(raw, orientation, view, scale, offset).let { listOf(it.left / raw.width, it.top / raw.height, it.right / raw.width, it.bottom / raw.height) }
+
+    private fun assertSame(expected: List<Float>, actual: List<Float>) = expected.zip(actual).forEach { (e, a) -> assertEquals(e, a, 1e-4f) }
+
+    @Test
+    fun `an original and its copy at half the size show the same part of the photo`() {
+        val zoom = 12f
+        val offset = Offset(-3000f, -2000f)
+
+        assertSame(share(photo200, 1, panel, zoom, offset), share(IntSize(8160, 6120), 1, panel, zoom, offset))
+        // Turned by EXIF, in a portrait panel.
+        assertSame(share(photo200, 6, IntSize(405, 540), zoom, offset), share(IntSize(8160, 6120), 6, IntSize(405, 540), zoom, offset))
+    }
+
     @Test
     fun `the zoom reads as a share of the original's full resolution`() {
         val zoom = Zoom(photo200).apply { size = panel }

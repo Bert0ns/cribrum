@@ -331,6 +331,15 @@ private fun toRaw(rect: Rect, raw: IntSize, orientation: Int): Rect {
     return Rect(min(p.x, q.x), min(p.y, q.y), max(p.x, q.x), max(p.y, q.y))
 }
 
+/** The part of a file of [raw] pixels that a [view] shows, in the file's own pixels, fitted and zoomed as [TiledImage] draws it. */
+internal fun visibleRegion(raw: IntSize, orientation: Int, view: IntSize, scale: Float, offset: Offset): Rect {
+    val turned = turnedSize(raw, orientation)
+    val fit = fitScale(turned, view)
+    val origin = Offset((view.width - turned.width * fit) / 2, (view.height - turned.height * fit) / 2)
+    val shown = Rect((-offset / scale - origin) / fit, ((Offset(view.width.toFloat(), view.height.toFloat()) - offset) / scale - origin) / fit)
+    return toRaw(shown, raw, orientation).intersect(Rect(0f, 0f, raw.width.toFloat(), raw.height.toFloat()))
+}
+
 /**
  * The tiles that cover what a [view] shows of a file of [raw] pixels, fitted and zoomed by [scale] and
  * [offset] as [TiledImage] draws it. The sample is the largest power of two that still gives a screen
@@ -339,12 +348,9 @@ private fun toRaw(rect: Rect, raw: IntSize, orientation: Int): Rect {
  */
 internal fun visibleTiles(raw: IntSize, orientation: Int, view: IntSize, scale: Float, offset: Offset): List<Tile> {
     if (scale <= 1f || view.width == 0 || view.height == 0) return emptyList()
-    val turned = turnedSize(raw, orientation)
-    val fit = fitScale(turned, view)
-    val origin = Offset((view.width - turned.width * fit) / 2, (view.height - turned.height * fit) / 2)
-    val shown = Rect((-offset / scale - origin) / fit, ((Offset(view.width.toFloat(), view.height.toFloat()) - offset) / scale - origin) / fit)
-    val region = toRaw(shown, raw, orientation).intersect(Rect(0f, 0f, raw.width.toFloat(), raw.height.toFloat()))
+    val region = visibleRegion(raw, orientation, view, scale, offset)
     if (region.isEmpty) return emptyList()
+    val fit = fitScale(turnedSize(raw, orientation), view)
     val sample = Integer.highestOneBit(max(1, (1 / (fit * scale)).toInt()))
     if (sample.toLong() * BASE_PIXELS >= max(raw.width, raw.height)) return emptyList()
     val step = TILE * sample
