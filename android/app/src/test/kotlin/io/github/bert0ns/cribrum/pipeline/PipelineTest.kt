@@ -416,6 +416,38 @@ class PipelineTest {
     }
 
     @Test
+    fun `a compressed copy deleted outside the app is forgotten, though its original is in the trash`() {
+        photos()
+        run()
+        val image = refOf("DCIM/Camera/a.png")
+        val copy = copyFileFor(File(image.path)).apply { writeText("small") }
+        val swapped = (runBlocking { trash.replaceWithCopy(image, copy) } as Swap.Swapped).copy
+        runBlocking { index.record(swapped) }
+        File(image.path).delete() // by another gallery app
+
+        val stats = run(Pipeline(index, trash = trash))
+
+        assertEquals(1, stats.forgotten)
+        assertFalse(image.path in runBlocking { index.images() }.map { it.path })
+    }
+
+    @Test
+    fun `a trash that cannot be listed forgets no row, since any could be a compression left halfway`() {
+        photos()
+        run()
+        val gone = refOf("WhatsApp/Media/a-copy.png")
+        File(gone.path).delete()
+        val unlistable = object : Trash by trash {
+            override suspend fun trashed(): List<TrashedImage> = throw IOException("volume gone")
+        }
+
+        val stats = run(Pipeline(index, trash = unlistable))
+
+        assertEquals(0, stats.forgotten)
+        assertTrue(gone.path in runBlocking { index.images() }.map { it.path })
+    }
+
+    @Test
     fun `an image restored after the walk passed its folder keeps the KEPT row the restore wrote`() {
         photos()
         run()
