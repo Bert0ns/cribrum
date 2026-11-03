@@ -602,6 +602,16 @@ class AppTrashTest {
     }
 
     @Test
+    fun `a purged path that another trash item still holds is not one to forget`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
+        val other = photo("DCIM/Camera/b.jpg")
+        moveToTrash(listOf(swapped, other))
+
+        assertEquals(listOf(other.path), unheldPaths(purge(listOf(image, other))))
+    }
+
+    @Test
     fun `discarding refuses anything but a compressed copy outside the trash`() = test {
         val image = photo("DCIM/Camera/a.jpg")
         val lookalike = File(File(image.path).parentFile, ".pending-cribrum-x.jpg").apply { writeText("not ours") }

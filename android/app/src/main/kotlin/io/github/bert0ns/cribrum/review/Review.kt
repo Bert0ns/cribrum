@@ -23,6 +23,7 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import io.github.bert0ns.cribrum.trash.unheldPaths
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -333,7 +334,7 @@ class Review(
 
     /** Deletes images from the trash for good, and from the index with them. An image the trash could not delete keeps its row, and so does a new file now at its path. */
     suspend fun purge(images: List<ImageRef>) {
-        index.forgetTrashed(trash.purge(images).map { it.path })
+        index.forgetTrashed(trash.unheldPaths(trash.purge(images)))
     }
 
     /**

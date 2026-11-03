@@ -741,6 +741,20 @@ class ReviewTest {
     }
 
     @Test
+    fun `purging a compressed original keeps the row of its copy waiting in the trash`() = test {
+        val image = image("a.jpg", blurry(0.9f))
+        val copy = copyFileFor(File(image.path)).apply { writeText("small") }
+        val swapped = (AppTrash({ listOf(volume) }).replaceWithCopy(image, copy) as Swap.Swapped).copy
+        index.record(swapped)
+        apply(listOf(swapped), emptyList())
+
+        purge(listOf(image))
+
+        assertEquals(listOf(swapped), index.images())
+        assertEquals(ReviewState.TRASHED, index.reviewState(image.path))
+    }
+
+    @Test
     fun `undo into an empty index puts the trashed file back with a row, and adds none for a kept one`() = test {
         val bad = image("bad.jpg", blurry(0.9f))
         val good = image("good.jpg", blurry(0.8f))
