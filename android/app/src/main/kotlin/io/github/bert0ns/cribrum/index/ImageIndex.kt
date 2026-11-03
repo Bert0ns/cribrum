@@ -5,6 +5,13 @@ package io.github.bert0ns.cribrum.index
 import android.content.Context
 import androidx.room.Room
 import androidx.room.withTransaction
+import io.github.bert0ns.cribrum.compress.CompressibleImage
+import io.github.bert0ns.cribrum.compress.JPEG_RULES_VERSION
+import io.github.bert0ns.cribrum.compress.JpegInfo
+import io.github.bert0ns.cribrum.compress.JpegStatus
+import io.github.bert0ns.cribrum.compress.Losses
+import io.github.bert0ns.cribrum.compress.Marker
+import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.IndexedImage
@@ -70,6 +77,7 @@ class ImageIndex(private val db: IndexDatabase) :
                 dao.resetImage(image.path, image.size, image.mtimeNs)
                 dao.deleteAnalyses(image.path)
                 dao.deleteEmbeddings(image.path)
+                dao.deleteJpeg(image.path)
             }
         }
         return true
@@ -312,6 +320,38 @@ class ImageIndex(private val db: IndexDatabase) :
         }
     }
 
+    /** JPEGs, by the mime their header gave, whose headers were not read with the current rules (docs/design.md §9). */
+    suspend fun jpegsToRead(): List<ImageRef> = dao.jpegsToRead(JPEG_RULES_VERSION).map { ImageRef(it.path, it.size, it.mtimeNs) }
+
+    /** Stores what the scan read from a JPEG. Leaves [version] alone, as for `not_images`: it changes no ranking. */
+    suspend fun setJpeg(path: String, info: JpegInfo) = db.withTransaction {
+        requireRecorded(path)
+        dao.putJpeg(
+            JpegRow(
+                path, JPEG_RULES_VERSION, info.status.id, info.gainMap, info.quality, info.marker != null,
+                info.marker?.version, info.marker?.level, info.marker?.compressedAt,
+                info.losses.reEdit, info.losses.depthMap, info.losses.xmp, info.losses.c2pa,
+            ),
+        )
+    }
+
+    /**
+     * The photos the compress page lists (docs/design.md §9): compressible on [sdk], not trashed and in no excluded
+     * folder, largest first. Those with the marker are among them, for the page to show apart.
+     */
+    suspend fun compressible(sdk: Int): List<CompressibleImage> {
+        val excluded = dao.excludedFolders()
+        return dao.eligibleJpegs(JPEG_RULES_VERSION).map { row ->
+            val j = row.jpeg
+            val marker = if (j.compressed) Marker(j.markerVersion, j.markerLevel, j.markerCompressedAt) else null
+            val info = JpegInfo(JpegStatus.of(j.status), j.gainMap, j.quality, marker, Losses(j.reEdit, j.depthMap, j.xmp, j.c2pa))
+            CompressibleImage(j.path, row.size, row.width, row.height, info)
+        }.filter { it.info.compressible(sdk) && !isExcluded(it.path, excluded) }
+    }
+
+    /** How many JPEGs each status has, with and without a gain map, for the log a scan writes. */
+    suspend fun jpegCounts(): List<StoredJpegCount> = dao.jpegCounts()
+
     // The walk's memory of non-images: no image changes with it, so it leaves [version] alone, and a scan
     // that sniffed new files does not drop the review's ranking.
     override suspend fun notImages(): List<ImageRef> = dao.notImages().map { ImageRef(it.path, it.size, it.mtimeNs) }
@@ -338,7 +378,7 @@ class ImageIndex(private val db: IndexDatabase) :
     }
 
     companion object {
-        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build())
+        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build())
     }
 }
 

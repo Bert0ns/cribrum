@@ -66,6 +66,8 @@ class IndexSchemaTest {
             val room = index.database.openHelper.writableDatabase
             val actual = describe(room.query()).toMutableMap()
             actual["signals"] = actual.getValue("signals").sortedBy { it[1] != "id" }
+            // Android only: compression has no lab counterpart (docs/design.md §9).
+            actual.remove("jpegs")
 
             assertEquals(expected, actual)
         }

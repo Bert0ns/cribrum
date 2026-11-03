@@ -3,6 +3,8 @@ package io.github.bert0ns.cribrum.index
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import io.github.bert0ns.cribrum.compress.JpegInfo
+import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.GROUP_KEY
@@ -31,6 +33,9 @@ private val OTHER = ImageRef("/photos/b.jpg", 5, 5)
 
 /** The walk's memory of non-images: it never reaches the review, so it is neither in `reads` nor in `writes`. */
 private val NOT_IMAGES_METHODS = setOf("notImages", "addNotImages", "forgetNotImages")
+
+/** What the scan read from JPEG headers for the compress page: it never reaches the review either. */
+private val JPEG_METHODS = setOf("jpegsToRead", "setJpeg", "compressible", "jpegCounts")
 private val META = ImageMetadata(4000, 3000, "image/jpeg", "Google", "Pixel 8", LocalDateTime.of(2024, 5, 1, 10, 20))
 private val BLUR = Signal("blur", 1, Category.BLURRY, 0.7f, mapOf("variance" to "12.5"))
 
@@ -620,6 +625,33 @@ class ImageIndexTest {
         assertEquals(before, version)
     }
 
+    @Test
+    fun `the JPEG rows do not touch the version, since the review shows none of them`() = test {
+        record(PHOTO)
+        setMetadata(PHOTO.path, META)
+        val before = version
+
+        jpegsToRead()
+        setJpeg(PHOTO.path, JpegInfo(JpegStatus.ELIGIBLE))
+        compressible(34)
+        jpegCounts()
+
+        assertEquals(before, version)
+    }
+
+    @Test
+    fun `forgetting an image forgets its JPEG row`() = test {
+        record(PHOTO)
+        setMetadata(PHOTO.path, META)
+        setJpeg(PHOTO.path, JpegInfo(JpegStatus.ELIGIBLE))
+
+        forget(listOf(PHOTO.path))
+        record(PHOTO)
+        setMetadata(PHOTO.path, META)
+
+        assertEquals(listOf(PHOTO), jpegsToRead())
+    }
+
     /** Every public write of the index, each run once on an index holding [PHOTO] with [BLUR]. */
     private val writes: Map<String, suspend ImageIndex.() -> Unit> = mapOf(
         "record" to { record(OTHER) },
@@ -686,7 +718,7 @@ class ImageIndexTest {
             .map { it.name.substringBefore('-') } // Kotlin mangles names that take inline classes like ULong
             .toSet()
         // A new write must bump the version, or the review shows a stale ranking: add it to [writes].
-        assertEquals(writes.keys + reads.keys + "close" + NOT_IMAGES_METHODS, methods)
+        assertEquals(writes.keys + reads.keys + "close" + NOT_IMAGES_METHODS + JPEG_METHODS, methods)
     }
 
     @Test

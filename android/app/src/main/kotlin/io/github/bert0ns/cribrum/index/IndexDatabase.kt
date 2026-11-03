@@ -127,6 +127,40 @@ data class NotImageRow(
     @ColumnInfo(name = "mtime_ns") val mtimeNs: Long,
 )
 
+/**
+ * What the scan read from a JPEG's headers for the compress page (docs/design.md §9), at the rules' [version].
+ * Android only: compression has no lab counterpart, so the lab's schema has no such table.
+ */
+@Entity(
+    tableName = "jpegs",
+    foreignKeys = [ForeignKey(ImageRow::class, ["path"], ["path"], onDelete = ForeignKey.CASCADE)],
+)
+data class JpegRow(
+    @PrimaryKey val path: String,
+    val version: Int,
+    val status: String,
+    @ColumnInfo(name = "gain_map") val gainMap: Boolean,
+    val quality: Int?,
+    /** The file has the Cribrum marker; the three columns after it hold its keys, null when the marker lacks one. */
+    val compressed: Boolean,
+    @ColumnInfo(name = "marker_version") val markerVersion: Int?,
+    @ColumnInfo(name = "marker_level") val markerLevel: String?,
+    @ColumnInfo(name = "marker_compressed_at") val markerCompressedAt: String?,
+    @ColumnInfo(name = "re_edit") val reEdit: Boolean,
+    @ColumnInfo(name = "depth_map") val depthMap: Boolean,
+    val xmp: Boolean,
+    val c2pa: Boolean,
+)
+
+data class StoredJpeg(
+    val size: Long,
+    val width: Int,
+    val height: Int,
+    @Embedded val jpeg: JpegRow,
+)
+
+data class StoredJpegCount(val status: String, @ColumnInfo(name = "gain_map") val gainMap: Boolean, val count: Int)
+
 data class StoredRef(val path: String, val size: Long, @ColumnInfo(name = "mtime_ns") val mtimeNs: Long)
 
 data class StoredMetadata(
@@ -340,6 +374,30 @@ interface IndexDao {
     @Query("SELECT path FROM excluded_folders ORDER BY path")
     suspend fun excludedFolders(): List<String>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putJpeg(row: JpegRow)
+
+    @Query("DELETE FROM jpegs WHERE path = :path")
+    suspend fun deleteJpeg(path: String)
+
+    @Query(
+        """SELECT i.path, i.size, i.mtime_ns FROM images i LEFT JOIN jpegs j ON j.path = i.path
+           WHERE i.mime = 'image/jpeg' AND NOT i.unreadable AND i.review_state != 'trashed'
+           AND (j.path IS NULL OR j.version != :version) ORDER BY i.path""",
+    )
+    suspend fun jpegsToRead(version: Int): List<StoredRef>
+
+    /** The images a JPEG read at [version] found eligible, not trashed, largest first. */
+    @Query(
+        """SELECT i.size, i.width, i.height, j.* FROM images i JOIN jpegs j ON j.path = i.path
+           WHERE i.review_state != 'trashed' AND i.width IS NOT NULL AND j.version = :version AND j.status = 'eligible'
+           ORDER BY i.size DESC, i.path""",
+    )
+    suspend fun eligibleJpegs(version: Int): List<StoredJpeg>
+
+    @Query("SELECT status, gain_map, count(*) AS count FROM jpegs GROUP BY status, gain_map ORDER BY status, gain_map")
+    suspend fun jpegCounts(): List<StoredJpegCount>
+
     @Query("SELECT path, size, mtime_ns FROM not_images")
     suspend fun notImages(): List<StoredRef>
 
@@ -357,9 +415,9 @@ interface IndexDao {
 @Database(
     entities = [
         ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, KeptDetectorRow::class, EmbeddingRow::class,
-        GroupRunRow::class, ExcludedFolderRow::class, NotImageRow::class,
+        GroupRunRow::class, ExcludedFolderRow::class, NotImageRow::class, JpegRow::class,
     ],
-    version = 4,
+    version = 5,
 )
 abstract class IndexDatabase : RoomDatabase() {
     abstract fun dao(): IndexDao
@@ -392,5 +450,18 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `not_images` (`path` TEXT NOT NULL, `size` INTEGER NOT NULL, `mtime_ns` INTEGER NOT NULL, PRIMARY KEY(`path`))")
+    }
+}
+
+/** Version 4 had not read the JPEG headers for the compress page: the next scan reads every JPEG (docs/design.md §9). */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS `jpegs` (`path` TEXT NOT NULL, `version` INTEGER NOT NULL, `status` TEXT NOT NULL, " +
+                "`gain_map` INTEGER NOT NULL, `quality` INTEGER, `compressed` INTEGER NOT NULL, `marker_version` INTEGER, " +
+                "`marker_level` TEXT, `marker_compressed_at` TEXT, `re_edit` INTEGER NOT NULL, `depth_map` INTEGER NOT NULL, " +
+                "`xmp` INTEGER NOT NULL, `c2pa` INTEGER NOT NULL, PRIMARY KEY(`path`), " +
+                "FOREIGN KEY(`path`) REFERENCES `images`(`path`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
     }
 }

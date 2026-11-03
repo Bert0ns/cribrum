@@ -3,6 +3,8 @@ package io.github.bert0ns.cribrum.index
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
+import io.github.bert0ns.cribrum.compress.JpegInfo
+import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.model.ImageRef
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -84,6 +86,22 @@ class IndexMigrationTest {
             assertEquals(emptyList<ImageRef>(), runBlocking { it.notImages() })
             runBlocking { it.addNotImages(listOf(ImageRef("/photos/notes.txt", 5, 2))) }
             assertEquals(listOf(ImageRef("/photos/notes.txt", 5, 2)), runBlocking { it.notImages() })
+        }
+    }
+
+    @Test
+    fun `version 4 opens with no JPEG read, so the next scan reads every JPEG`() {
+        createDatabase(context, 4).use {
+            it.execSQL("INSERT INTO images (path, size, mtime_ns, width, height, mime) VALUES ('/photos/a.jpg', 100, 1, 4000, 3000, 'image/jpeg')")
+            it.execSQL("INSERT INTO images (path, size, mtime_ns, width, height, mime) VALUES ('/photos/b.png', 100, 1, 40, 30, 'image/png')")
+        }
+
+        ImageIndex.open(context, NAME).use {
+            assertEquals(listOf(ImageRef("/photos/a.jpg", 100, 1)), runBlocking { it.jpegsToRead() })
+            runBlocking { it.setJpeg("/photos/a.jpg", JpegInfo(JpegStatus.ELIGIBLE, quality = 95)) }
+            assertEquals(listOf("/photos/a.jpg"), runBlocking { it.compressible(34) }.map { image -> image.path })
+            runBlocking { it.forget(listOf("/photos/a.jpg")) }
+            assertEquals(emptyList<String>(), runBlocking { it.compressible(34) }.map { image -> image.path })
         }
     }
 }
