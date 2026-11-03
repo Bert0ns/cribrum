@@ -20,4 +20,18 @@ class LauncherIconTest {
         assertNotNull(icon.background)
         assertNotNull(icon.monochrome)
     }
+
+    @Test
+    @Config(sdk = [30])
+    fun `launcher icon inflates on the oldest supported Android, which has no monochrome layer`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val icon = context.getDrawable(R.mipmap.ic_launcher) as AdaptiveIconDrawable
+        assertNotNull(icon.foreground)
+        assertNotNull(icon.background)
+    }
+
+    @Test
+    fun `the notification icon inflates`() {
+        assertNotNull(ApplicationProvider.getApplicationContext<Context>().getDrawable(R.drawable.ic_notification))
+    }
 }

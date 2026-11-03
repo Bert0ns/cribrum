@@ -306,7 +306,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         manager.createNotificationChannel(NotificationChannel(CHANNEL, applicationContext.getString(R.string.scan_channel), NotificationManager.IMPORTANCE_LOW))
         val title = applicationContext.getString(R.string.scan_joined, Indexing.phaseText(applicationContext.resources, step), applicationContext.getString(Indexing.phaseTitle(step)))
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
