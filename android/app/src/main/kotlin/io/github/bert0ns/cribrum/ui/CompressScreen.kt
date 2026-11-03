@@ -280,7 +280,6 @@ private fun Picker(
             }
         }
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (selection.isEmpty()) Text(stringResource(R.string.compress_hint_select), style = MaterialTheme.typography.bodySmall)
             Button(onOpenSummary, Modifier.fillMaxWidth(), enabled = selection.isNotEmpty()) {
                 Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
             }
