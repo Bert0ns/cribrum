@@ -8,11 +8,13 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.compress.BatchResult
+import io.github.bert0ns.cribrum.compress.BatchState
 import io.github.bert0ns.cribrum.compress.CompressibleImage
 import io.github.bert0ns.cribrum.compress.CompressionLevel
 import io.github.bert0ns.cribrum.compress.Compressor
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.sources.favoritePaths
+import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -60,7 +62,8 @@ data class CompressState(
     val stayedInTrash: Int = 0,
     val retentionDays: Int = 30,
 ) {
-    val selectedPhotos: List<CompressibleImage> get() = (photos + compressed).filter { it.path in selected }
+    /** Largest first, as the batch runs them, whichever section a photo is in. */
+    val selectedPhotos: List<CompressibleImage> get() = (photos + compressed).filter { it.path in selected }.sortedWith(compareByDescending<CompressibleImage> { it.size }.thenBy { it.path })
 
     fun estimatedSaving(level: CompressionLevel): Long = selectedPhotos.sumOf { it.saving(level) }
 
@@ -78,7 +81,10 @@ class CompressViewModel @JvmOverloads constructor(
     private val retentionDays: () -> Int = { (application as CribrumApp).trashRetention.days },
     /** Compresses the first file at the level into the third, like a real compression, and says why it could not. */
     preview: (suspend (File, CompressionLevel, File) -> Refusal?)? = null,
-    private val previewFile: File = File(application.cacheDir, "compress-preview.jpg"),
+    /** Named like a compressed copy, so only the trash may delete it. */
+    private val previewFile: File = copyFileFor(File(application.cacheDir, "preview")),
+    /** Deletes the preview file, through the trash. */
+    private val discard: (File) -> Unit = { (application as CribrumApp).trash.discardCopy(it) },
 ) : AndroidViewModel(application) {
     private val mutableState = MutableStateFlow(CompressState())
     val state: StateFlow<CompressState> = mutableState.asStateFlow()
@@ -130,6 +136,8 @@ class CompressViewModel @JvmOverloads constructor(
         val state = mutableState.value
         val level = state.level ?: return
         val sample = state.selectedPhotos.firstOrNull() ?: return
+        // A preview is a second full decode: it never runs next to a batch's.
+        if (batches.state.value.let { it is BatchState.WaitingForScan || it is BatchState.Running }) return
         previewJob?.cancel()
         mutableState.update { it.copy(summary = Summary(sample, level, SampleResult.Loading)) }
         previewJob = viewModelScope.launch {
@@ -141,9 +149,16 @@ class CompressViewModel @JvmOverloads constructor(
     }
 
     fun closeSummary() {
-        previewJob?.cancel()
+        dropPreview()
         mutableState.update { it.copy(summary = null) }
     }
+
+    private fun dropPreview() {
+        previewJob?.cancel()
+        runCatching { discard(previewFile) }.onFailure { Log.w(TAG, "Could not delete the preview", it) }
+    }
+
+    override fun onCleared() = dropPreview()
 
     /** Starts the batch with the selection, largest first. */
     fun confirm() {
@@ -151,7 +166,7 @@ class CompressViewModel @JvmOverloads constructor(
         val level = state.level ?: return
         val paths = state.selectedPhotos.map { it.path }
         if (paths.isEmpty()) return
-        previewJob?.cancel()
+        dropPreview()
         // False when a batch is already on: the page shows it, and the selection stays.
         val started = batches.start(paths, level)
         mutableState.update { if (started) it.copy(selected = emptySet(), level = null, summary = null, dismissed = null, stayedInTrash = 0) else it.copy(summary = null) }

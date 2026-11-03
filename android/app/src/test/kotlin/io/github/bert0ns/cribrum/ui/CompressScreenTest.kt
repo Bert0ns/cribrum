@@ -319,6 +319,7 @@ class CompressScreenTest {
         show(model(big))
 
         awaitText("Compressing 4 of 12")
+        compose.onAllNodesWithText("Continue", substring = true).assertCountEquals(0)
         compose.onNodeWithText("${size(412_000_000)} saved so far").assertExists()
         compose.onNodeWithText("Paused while the phone cools down.").assertExists()
         compose.onNodeWithText("Stop compressing").performClick()
