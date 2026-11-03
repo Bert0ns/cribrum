@@ -487,6 +487,11 @@
         <item quantity="other">%d foto non sono state raggiunte e restano com\'erano</item>
         <item quantity="many">%d di foto non sono state raggiunte e restano com\'erano</item>
     </plurals>
+    <plurals name="compress_favorites_lost">
+        <item quantity="one">%d foto ha perso il segno dei preferiti, perché la richiesta di rimetterlo è stata rifiutata</item>
+        <item quantity="other">%d foto hanno perso il segno dei preferiti, perché la richiesta di rimetterlo è stata rifiutata</item>
+        <item quantity="many">%d di foto hanno perso il segno dei preferiti, perché la richiesta di rimetterlo è stata rifiutata</item>
+    </plurals>
     <plurals name="compress_undo_stayed">
         <item quantity="one">%d originale è rimasto nel cestino, perché un altro file ha preso il suo posto. Ripristinalo dal cestino.</item>
         <item quantity="other">%d originali sono rimasti nel cestino, perché altri file hanno preso il loro posto. Ripristinali dal cestino.</item>

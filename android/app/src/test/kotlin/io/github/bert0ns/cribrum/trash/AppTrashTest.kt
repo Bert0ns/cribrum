@@ -35,7 +35,11 @@ class AppTrashTest {
     private val clock = MovableClock(Instant.parse("2026-10-19T12:00:00Z"))
     private val changed = mutableListOf<String>()
     private var retention = Duration.ofDays(30)
-    private val trash by lazy { AppTrash({ listOf(volume) }, clock, { retention }) { changed += it } }
+    private var favorites: () -> Set<String> = { emptySet() }
+
+    /** The paths of the restored images that were favourites, one entry for each restore that had any. */
+    private val favoritesRestored = mutableListOf<List<String>>()
+    private val trash by lazy { AppTrash({ listOf(volume) }, clock, { retention }, { favorites() }, { favoritesRestored += it }) { changed += it } }
 
     private fun photo(path: String, bytes: String = "jpeg bytes"): ImageRef {
         val file = File(volume, path)
@@ -373,7 +377,7 @@ class AppTrashTest {
     @Test
     fun `a move whose record write fails cleans up the trash folder and leaves the file in place`() = test {
         val image = photo("DCIM/write_fail.jpg")
-        recordWriter = { _, _, _, _, _ -> throw IOException("simulated disk full") }
+        recordWriter = { _, _, _, _, _, _ -> throw IOException("simulated disk full") }
 
         assertEquals(emptyList<ImageRef>(), moveToTrash(listOf(image)))
 
@@ -466,6 +470,84 @@ class AppTrashTest {
     }
 
     @Test
+    fun `an image the gallery marked as a favourite is trashed with that written down, and the others without`() = test {
+        val heart = photo("DCIM/Camera/heart.jpg")
+        val plain = photo("DCIM/Camera/plain.jpg")
+        favorites = { setOf(heart.path) }
+
+        moveToTrash(listOf(heart, plain))
+
+        assertEquals(mapOf(heart to true, plain to false), trashed().associate { it.original to it.favorite })
+    }
+
+    @Test
+    fun `a favourite swapped for its copy is reported and its trash item says it was one`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        favorites = { setOf(image.path) }
+
+        val swap = replaceWithCopy(image, copyOf(image)) as Swap.Swapped
+
+        assertTrue(swap.favorite)
+        assertTrue(trashed().single().favorite)
+    }
+
+    @Test
+    fun `a photo that is not a favourite is swapped without the flag`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+
+        val swap = replaceWithCopy(image, copyOf(image)) as Swap.Swapped
+
+        assertFalse(swap.favorite)
+        assertFalse(trashed().single().favorite)
+    }
+
+    @Test
+    fun `a favourites query that fails does not stop the move`() = test {
+        val image = photo("DCIM/Camera/a.jpg")
+        favorites = { throw SecurityException("simulated") }
+
+        assertEquals(listOf(image), moveToTrash(listOf(image)))
+        assertFalse(trashed().single().favorite)
+    }
+
+    @Test
+    fun `restoring tells who was a favourite, and only those that came back`() = test {
+        val heart = photo("DCIM/Camera/heart.jpg")
+        val taken = photo("DCIM/Camera/taken.jpg")
+        val plain = photo("DCIM/Camera/plain.jpg")
+        favorites = { setOf(heart.path, taken.path) }
+        moveToTrash(listOf(heart, taken, plain))
+        File(taken.path).writeText("another file took the path")
+
+        assertEquals(setOf(heart, plain), restore(listOf(heart, taken, plain)).toSet())
+
+        assertEquals(listOf(listOf(heart.path)), favoritesRestored)
+    }
+
+    @Test
+    fun `a restore of images that were no favourites asks for nothing`() = test {
+        val image = photo("DCIM/Camera/a.jpg")
+        moveToTrash(listOf(image))
+
+        restore(listOf(image))
+
+        assertEquals(emptyList<List<String>>(), favoritesRestored)
+    }
+
+    @Test
+    fun `restoring a compressed original over a copy the gallery marked leaves that copy's flag written in its own item`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        favorites = { setOf(image.path) }
+        replaceWithCopy(image, copyOf(image))
+
+        restore(listOf(image))
+
+        // The copy went to the trash while it was a favourite, and the original came back as one.
+        assertEquals(listOf(image.path), favoritesRestored.single())
+        assertTrue(trashed().single().favorite)
+    }
+
+    @Test
     fun `restoring a compressed original puts its copy in the trash`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
         val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
@@ -525,7 +607,7 @@ class AppTrashTest {
     @Test
     fun `a swap whose record write fails leaves the original and discards the copy`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
-        recordWriter = { _, _, _, _, _ -> throw IOException("simulated disk full") }
+        recordWriter = { _, _, _, _, _, _ -> throw IOException("simulated disk full") }
 
         assertEquals(Swap.Untouched, replaceWithCopy(image, copyOf(image)))
 

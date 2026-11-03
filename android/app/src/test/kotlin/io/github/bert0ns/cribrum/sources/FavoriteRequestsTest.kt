@@ -1,0 +1,202 @@
+package io.github.bert0ns.cribrum.sources
+
+import android.app.PendingIntent
+import android.content.ClipData
+import android.content.ContentProvider
+import android.content.ContentUris
+import android.content.ContentValues
+import android.content.Context
+import android.content.Intent
+import android.database.Cursor
+import android.database.MatrixCursor
+import android.net.Uri
+import android.os.Bundle
+import android.provider.MediaStore
+import androidx.test.core.app.ApplicationProvider
+import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.trash.AppTrash
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.Robolectric
+import org.robolectric.RobolectricTestRunner
+import java.io.File
+
+/** A MediaStore with a few image rows, that records the system requests it is asked to build. */
+class FakeMediaStore : ContentProvider() {
+    class Row(val id: Long, val path: String, val favorite: Boolean)
+
+    class Request(val method: String, val uris: List<Uri>, val value: Boolean?)
+
+    companion object {
+        var rows: List<Row> = emptyList()
+        val requests = mutableListOf<Request>()
+        val queries = mutableListOf<Int>()
+
+        fun uri(id: Long): Uri = ContentUris.withAppendedId(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL), id)
+    }
+
+    override fun onCreate() = true
+
+    override fun query(uri: Uri, projection: Array<String>?, selection: String?, args: Array<String>?, order: String?): Cursor {
+        queries += args?.size ?: 0
+        val wanted = args.orEmpty().toSet()
+        return MatrixCursor(projection!!).apply {
+            for (row in rows.filter { it.path in wanted }) {
+                addRow(
+                    projection.map<String, Any> {
+                        if (it == MediaStore.Images.Media._ID) {
+                            row.id
+                        } else if (it == MediaStore.MediaColumns.IS_FAVORITE) {
+                            (if (row.favorite) 1 else 0)
+                        } else {
+                            row.path
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    override fun call(method: String, arg: String?, extras: Bundle?): Bundle {
+        val clip = extras!!.keySet().firstNotNullOf { extras.get(it) as? ClipData }
+        val uris = (0 until clip.itemCount).map { clip.getItemAt(it).uri }
+        val values = extras.keySet().firstNotNullOf { extras.get(it) as? ContentValues }
+        requests += Request(method, uris, values.getAsInteger(MediaStore.MediaColumns.IS_FAVORITE) == 1)
+        val context = context!!
+        return Bundle().apply { putParcelable("result", PendingIntent.getActivity(context, 0, Intent("request"), PendingIntent.FLAG_IMMUTABLE)) }
+    }
+
+    override fun getType(uri: Uri): String? = null
+    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
+    override fun delete(uri: Uri, selection: String?, args: Array<String>?) = 0
+    override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<String>?) = 0
+}
+
+@RunWith(RobolectricTestRunner::class)
+class FavoriteRequestsTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val asked = mutableListOf<Int>()
+    private val noScan: suspend (Context, Collection<String>) -> Unit = { _, _ -> }
+
+    @Before
+    fun setUp() {
+        FakeMediaStore.rows = emptyList()
+        FakeMediaStore.requests.clear()
+        FakeMediaStore.queries.clear()
+        Robolectric.setupContentProvider(FakeMediaStore::class.java, MediaStore.AUTHORITY)
+    }
+
+    @After
+    fun tearDown() = FavoriteRequests.answered(true)
+
+    private fun ask(vararg paths: String) = runBlocking { FavoriteRequests.ask(context, paths.toList(), { asked += it }, noScan) }
+
+    private fun next() = runBlocking { FavoriteRequests.asks.first() }
+
+    @Test
+    fun `the photos without the mark go into one request, and those that have it are left out`() {
+        FakeMediaStore.rows = listOf(
+            FakeMediaStore.Row(1, "/p/a.jpg", favorite = false),
+            FakeMediaStore.Row(2, "/p/b.jpg", favorite = true),
+            FakeMediaStore.Row(3, "/p/c.jpg", favorite = false),
+        )
+
+        ask("/p/a.jpg", "/p/b.jpg", "/p/c.jpg", "/p/not-indexed.jpg")
+        val request = next()
+
+        assertEquals(listOf(FakeMediaStore.uri(1), FakeMediaStore.uri(3)), request.uris)
+        request.intentSender(context.contentResolver)
+        val built = FakeMediaStore.requests.single()
+        assertEquals(request.uris, built.uris)
+        assertEquals(true, built.value)
+        assertTrue(built.method.contains("favorite"))
+    }
+
+    @Test
+    fun `nothing is asked when every photo has the mark or has no row, and the caller hears 0 lost`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(2, "/p/b.jpg", favorite = true))
+
+        ask("/p/b.jpg", "/p/not-indexed.jpg")
+
+        assertEquals(listOf(0), asked)
+    }
+
+    @Test
+    fun `a granted request loses nothing, and a declined one loses every photo of it`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", false), FakeMediaStore.Row(3, "/p/c.jpg", false))
+        ask("/p/a.jpg", "/p/c.jpg")
+        FavoriteRequests.launched(next())
+
+        FavoriteRequests.answered(granted = false)
+        ask("/p/a.jpg", "/p/c.jpg")
+        FavoriteRequests.launched(next())
+        FavoriteRequests.answered(granted = true)
+
+        assertEquals(listOf(2, 0), asked)
+    }
+
+    @Test
+    fun `an answer is told once`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", false))
+        ask("/p/a.jpg")
+        FavoriteRequests.launched(next())
+
+        FavoriteRequests.answered(granted = false)
+        FavoriteRequests.answered(granted = false)
+
+        assertEquals(listOf(1), asked)
+    }
+
+    @Test
+    fun `a long list is looked up in chunks`() {
+        val paths = (1..1200).map { "/p/$it.jpg" }
+        FakeMediaStore.rows = paths.mapIndexed { i, path -> FakeMediaStore.Row(i + 1L, path, false) }
+
+        runBlocking { FavoriteRequests.ask(context, paths, { asked += it }, noScan) }
+
+        assertEquals(1200, next().uris.size)
+        assertEquals(listOf(500, 500, 200), FakeMediaStore.queries)
+    }
+
+    /** A trash that trashed [name] while the gallery had it marked, and asks the way the app does when it is restored. */
+    private fun trashedFavorite(name: String): Pair<AppTrash, ImageRef> {
+        val volume = folder.newFolder("storage")
+        val image = File(volume, name).apply { writeText("photo") }.toImageRef()
+        val trash = AppTrash({ listOf(volume) }, favorites = { setOf(image.path) }, restoredFavorites = { FavoriteRequests.ask(context, it, { lost -> asked += lost }, noScan) })
+        runBlocking { trash.moveToTrash(listOf(image)) }
+        return trash to image
+    }
+
+    @Test
+    fun `restoring a favourite whose row lost the mark asks for it, in one request`() {
+        val (trash, image) = trashedFavorite("a.jpg")
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(7, image.path, favorite = false))
+
+        runBlocking { trash.restore(listOf(image)) }
+
+        assertEquals(listOf(FakeMediaStore.uri(7)), next().uris)
+    }
+
+    @Test
+    fun `restoring a favourite whose old row kept the mark asks for nothing`() {
+        val (trash, image) = trashedFavorite("a.jpg")
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(7, image.path, favorite = true))
+
+        runBlocking { trash.restore(listOf(image)) }
+
+        assertEquals(listOf(0), asked)
+    }
+}

@@ -4,8 +4,12 @@ package io.github.bert0ns.cribrum.trash
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.storage.StorageManager
+import android.util.Log
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.sources.FavoriteRequests
+import io.github.bert0ns.cribrum.sources.queryFavoritePaths
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -28,8 +32,8 @@ private val COPY_NAME = Regex("""^\.pending-cribrum-[0-9a-f-]{36}\.jpg$""")
 
 /** What [AppTrash.replaceWithCopy] did. The copy is discarded unless it is [Swapped]. */
 sealed interface Swap {
-    /** The copy, as it now is at the original's path. The original is in the trash. */
-    data class Swapped(val copy: ImageRef) : Swap
+    /** The copy, as it now is at the original's path. The original is in the trash. [favorite]: the gallery had it marked, and the copy is a new MediaStore row without the mark. */
+    data class Swapped(val copy: ImageRef, val favorite: Boolean = false) : Swap
 
     /** Nothing changed: the original is where it was. */
     data object Untouched : Swap
@@ -49,6 +53,8 @@ data class TrashedImage(
     val seenAt: Instant = trashedAt,
     /** The compressed copy that took the original's path, as it was when it did. Null for an ordinary item. */
     val compressedCopy: ImageRef? = null,
+    /** The gallery had it marked as a favourite when it went to the trash, so a restore asks for the mark again (docs/design.md §9). */
+    val favorite: Boolean = false,
 )
 
 interface Trash {
@@ -88,17 +94,22 @@ class AppTrash(
     private val clock: Clock = Clock.systemUTC(),
     /** Read on every call, so a change applies to the images already in the trash. */
     private val retention: () -> Duration = { TrashRetention.DEFAULT },
+    /** The paths MediaStore flags as favourites now, read on the IO dispatcher. A throw counts as none. */
+    private val favorites: () -> Set<String> = { emptySet() },
+    /** Told the paths of the restored images that were favourites, so the mark can be asked for again. */
+    private val restoredFavorites: suspend (List<String>) -> Unit = {},
     /** Told about every path that appeared or disappeared, so MediaStore can catch up. */
     private val changed: (List<String>) -> Unit = {},
 ) : Trash {
 
-    internal var recordWriter: (File, ImageRef, Instant, Instant, ImageRef?) -> Unit = ::writeOrigin
+    internal var recordWriter: (File, ImageRef, Instant, Instant, ImageRef?, Boolean) -> Unit = ::writeOrigin
 
     /** Moves a file without replacing one already there. Tests swap it to fail a step. */
     internal var mover: (File, File) -> Unit = { from, to -> Files.move(from.toPath(), to.toPath()) }
 
     override suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef> = io {
-        val moved = images.filter { move(it) != null }
+        val flagged = flagged()
+        val moved = images.filter { move(it, favorite = it.path in flagged) != null }
         changed(moved.map { it.path })
         moved
     }
@@ -107,13 +118,21 @@ class AppTrash(
      * Restoring an original whose path holds its compressed copy moves the copy to the trash first, so nothing is
      * deleted. A file at the path that is not that copy is never moved or overwritten, and the original stays.
      */
-    override suspend fun restore(images: List<ImageRef>): List<ImageRef> = io {
+    override suspend fun restore(images: List<ImageRef>): List<ImageRef> {
+        val (restored, favorites) = io { restoreFiles(images) }
+        if (favorites.isNotEmpty()) restoredFavorites(favorites)
+        return restored
+    }
+
+    /** The images put back, and the paths among them that were favourites. */
+    private fun restoreFiles(images: List<ImageRef>): Pair<List<ImageRef>, List<String>> {
         val byOriginal = items().associateBy { it.original }
+        val flagged = flagged()
         val restored = images.filter { image ->
             val item = byOriginal[image] ?: return@filter false
             val target = File(image.path)
             val copy = item.compressedCopy
-            val copyFolder = if (copy != null && target.exists()) move(copy) ?: return@filter false else null
+            val copyFolder = if (copy != null && target.exists()) move(copy, favorite = copy.path in flagged) ?: return@filter false else null
             target.parentFile?.mkdirs()
             val moved = runCatching { mover(item.file, target) }.isSuccess
             if (moved) {
@@ -124,7 +143,7 @@ class AppTrash(
             moved
         }
         changed(restored.map { it.path })
-        restored
+        return restored to restored.filter { byOriginal.getValue(it).favorite }.map { it.path }
     }
 
     /**
@@ -134,7 +153,8 @@ class AppTrash(
     suspend fun replaceWithCopy(original: ImageRef, copy: File): Swap = io {
         val target = File(original.path)
         val copyRef = runCatching { copy.toImageRef() }.getOrNull()?.let { ImageRef(original.path, it.size, it.mtimeNs) }
-        val folder = copyRef?.let { runCatching { move(original, it) }.getOrNull() }
+        val favorite = original.path in flagged()
+        val folder = copyRef?.let { runCatching { move(original, it, favorite) }.getOrNull() }
         if (folder == null || runCatching { mover(copy, target) }.isFailure) {
             discardCopy(copy)
             if (folder == null) return@io Swap.Untouched
@@ -143,7 +163,7 @@ class AppTrash(
             return@io Swap.Untouched
         }
         changed(listOf(original.path))
-        Swap.Swapped(runCatching { target.toImageRef() }.getOrDefault(copyRef))
+        Swap.Swapped(runCatching { target.toImageRef() }.getOrDefault(copyRef), favorite)
     }
 
     /**
@@ -186,7 +206,7 @@ class AppTrash(
     }
 
     /** Returns the item folder the file went to, or null if it stayed where it was. */
-    private fun move(image: ImageRef, compressedCopy: ImageRef? = null): File? {
+    private fun move(image: ImageRef, compressedCopy: ImageRef? = null, favorite: Boolean = false): File? {
         val file = File(image.path)
         if (file.name == ORIGIN) return null
         if (!file.isFile || runCatching { file.toImageRef() }.getOrNull() != image) return null
@@ -196,7 +216,7 @@ class AppTrash(
             if (!folder.mkdirs()) return null
             File(root, ".nomedia").createNewFile()
             val now = clock.instant()
-            recordWriter(folder, image, now, now, compressedCopy)
+            recordWriter(folder, image, now, now, compressedCopy, favorite)
             if (file.renameTo(File(folder, file.name))) return folder
         } catch (_: IOException) {
         }
@@ -214,7 +234,9 @@ class AppTrash(
         return File(volume, TRASH_FOLDER)
     }
 
-    private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant, seenAt: Instant, compressedCopy: ImageRef?) {
+    private fun flagged(): Set<String> = runCatching(favorites).getOrDefault(emptySet())
+
+    private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant, seenAt: Instant, compressedCopy: ImageRef?, favorite: Boolean) {
         val origin = Properties()
         origin["path"] = image.path
         origin["size"] = image.size.toString()
@@ -225,6 +247,7 @@ class AppTrash(
             origin["compressed_size"] = compressedCopy.size.toString()
             origin["compressed_mtime_ns"] = compressedCopy.mtimeNs.toString()
         }
+        if (favorite) origin["favorite"] = "true"
         File(folder, ORIGIN).outputStream().use { origin.store(it, "Cribrum trash: where this file came from") }
     }
 
@@ -262,6 +285,7 @@ class AppTrash(
             purgeAt,
             seenAt,
             if (compressedSize != null && compressedMtimeNs != null) ImageRef(path, compressedSize, compressedMtimeNs) else null,
+            origin.getProperty("favorite") == "true",
         )
     }.getOrNull()
 
@@ -285,6 +309,17 @@ class AppTrash(
                 volumes = { storage.storageVolumes.mapNotNull { it.directory } },
                 clock = clock,
                 retention = retention,
+                favorites = { queryFavoritePaths(context.contentResolver) },
+                restoredFavorites = { paths ->
+                    try {
+                        FavoriteRequests.ask(context, paths)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // The restore itself worked: only the mark stays missing.
+                        Log.w("trash", "Could not ask for the favourites of a restore", e)
+                    }
+                },
                 changed = { paths ->
                     if (paths.isNotEmpty()) MediaScannerConnection.scanFile(context, paths.toTypedArray(), null, null)
                 },
