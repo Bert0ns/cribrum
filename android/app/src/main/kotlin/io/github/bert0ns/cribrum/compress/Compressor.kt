@@ -32,7 +32,7 @@ enum class Refusal {
     /** The phone has too little free memory for this photo at this level. */
     LOW_MEMORY,
 
-    /** The photo has a gain map the decoded or scaled bitmap lost, so it would come out as SDR. */
+    /** The photo has a gain map the decoded or scaled bitmap or the written copy lost, so it would come out as SDR. */
     GAIN_MAP_LOST,
 
     /** Anything else: the file could not be read, written or swapped, or it changed since its scan. */
@@ -56,6 +56,9 @@ class Compressor(
     private val freeMemory: () -> Long,
     private val clock: Clock = Clock.systemUTC(),
 ) {
+    /** Robolectric decodes no gain map, so a test swaps this to reach the check on the written copy. */
+    internal var bitmapKeepsGainMap: (Bitmap) -> Boolean = { it.keepsGainMap() }
+
     /**
      * Writes a compressed copy of [image] next to it, then moves the original to the trash and the copy to its path.
      * The copy is a new [ImageRef] at the same path: the index keeps the row's review state and drops its signals, so
@@ -104,12 +107,12 @@ class Compressor(
         val width: Int
         val height: Int
         try {
-            if (gainMap && !bitmap.keepsGainMap()) return Refusal.GAIN_MAP_LOST
+            if (gainMap && !bitmapKeepsGainMap(bitmap)) return Refusal.GAIN_MAP_LOST
             if (bitmap.width != target.width || bitmap.height != target.height) {
                 val scaled = bitmap.scale(target.width, target.height)
                 bitmap.recycle()
                 bitmap = scaled
-                if (gainMap && !bitmap.keepsGainMap()) return Refusal.GAIN_MAP_LOST
+                if (gainMap && !bitmapKeepsGainMap(bitmap)) return Refusal.GAIN_MAP_LOST
             }
             width = bitmap.width
             height = bitmap.height
@@ -117,6 +120,7 @@ class Compressor(
         } finally {
             bitmap.recycle()
         }
+        if (gainMap && !readJpeg(copy).gainMap) return Refusal.GAIN_MAP_LOST
 
         copyExif(original, copy, width, height)
         copy.writeBytes(withMarker(copy.readBytes(), markerSegment(level, clock.instant())))

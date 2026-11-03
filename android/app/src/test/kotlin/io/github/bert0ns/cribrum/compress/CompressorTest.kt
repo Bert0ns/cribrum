@@ -234,6 +234,18 @@ class CompressorTest {
     }
 
     @Test
+    fun `a copy written without the gain map is refused`() {
+        // As if the decoder kept the gain map: Robolectric's encoder then writes none, as an encoder that drops it would.
+        val image = photo("hdr.jpg", decodableUltraHdr(800, 600), emptyMap())
+        val bytes = File(image.path).readBytes()
+        compressor.bitmapKeepsGainMap = { true }
+
+        assertEquals(Compression.Refused(Refusal.GAIN_MAP_LOST), compress(image, CompressionLevel.HIGH))
+
+        assertUntouched(image, bytes)
+    }
+
+    @Test
     fun `the Ultra HDR markers survive the EXIF save and the marker`() {
         // Robolectric neither decodes nor writes a gain map, so this starts from what Bitmap.compress writes on
         // the phone and checks the bytes. That the gain map still decodes is left to the phone.
