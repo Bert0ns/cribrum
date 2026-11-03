@@ -28,6 +28,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.compress.CompressBatch
 import io.github.bert0ns.cribrum.mobileclip.MobileClip
 import io.github.bert0ns.cribrum.mobileclip.VISION_MODEL_ASSET
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -198,7 +199,8 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
                 // A scan from "Scan now" is already running: two would share the index and the model.
                 !running.tryLock() -> Result.success()
                 else -> try {
-                    scan()
+                    // A compression batch asked for or running goes first, and the scan after it reads its copies (docs/design.md §9).
+                    if (CompressBatch.busy) Result.success() else scan()
                 } finally {
                     running.unlock()
                 }
@@ -314,7 +316,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     }
 
     internal companion object {
-        /** One scan at a time in the process, whichever request started it. */
+        /** One scan at a time in the process, whichever request started it, and no compression batch with it (docs/design.md §9). */
         val running = Mutex()
         const val CHANNEL = "scan"
         const val NOTIFICATION_ID = 1
