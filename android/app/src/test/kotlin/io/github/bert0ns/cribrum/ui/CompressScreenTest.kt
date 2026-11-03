@@ -49,6 +49,7 @@ import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.pipeline.ScanProgress
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -98,7 +99,7 @@ private const val COMPARE = "Original on the left, compressed at the chosen leve
 private const val SLIDER = "Comparison line. The original is on its left, the compressed copy on its right."
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36], qualifiers = "w360dp-h740dp")
+@Config(sdk = [36], qualifiers = "w360dp-h840dp")
 class CompressScreenTest {
     @get:Rule
     val compose = createComposeRule()
@@ -128,8 +129,11 @@ class CompressScreenTest {
         previewFiles = List(MAX_COMPARED) { File(folder.root, "out$it.jpg") },
     )
 
+    private var progress by mutableStateOf<ScanProgress?>(null)
+    private var scans = 0
+
     private fun show(model: CompressViewModel) {
-        compose.setContent { CompositionLocalProvider(LocalHapticFeedback provides haptics) { CompressScreen(model, scanning = false) } }
+        compose.setContent { CompositionLocalProvider(LocalHapticFeedback provides haptics) { CompressScreen(model, progress, onScan = { scans++ }, heat = null) } }
     }
 
     private fun awaitText(text: String, substring: Boolean = false) = compose.waitUntil(5_000) {
@@ -645,6 +649,57 @@ class CompressScreenTest {
 
         assertEquals(1, batches.cancels)
         assertEquals(listOf(HapticFeedbackType.Confirm), haptics.types)
+    }
+
+    @Test
+    fun `Scan now sits on the page and starts a scan`() {
+        show(model(big))
+        awaitText("1 photo, largest first")
+
+        compose.onNodeWithText("Scan now").performClick()
+
+        assertEquals(1, scans)
+    }
+
+    @Test
+    fun `a running scan shows its status on the page in place of the button`() {
+        show(model(big))
+        awaitText("1 photo, largest first")
+
+        progress = ScanProgress("detectors", 12, 100)
+
+        compose.onNodeWithText("Analyzing the images: 12 of 100").assertExists()
+        compose.onNodeWithText("Scan now").assertDoesNotExist()
+        tile("IMG_1.jpg").assertExists()
+    }
+
+    @Test
+    fun `a batch that waits or runs replaces Scan now with the line that says a compression is running`() {
+        batches.mutableState.value = BatchState.WaitingForScan(2)
+        show(model(big))
+        val line = "A compression is running. Scan now comes back when it ends."
+        awaitText(line)
+        compose.onNodeWithText("Scan now").assertDoesNotExist()
+
+        batches.mutableState.value = BatchState.Running(1, 2, 1_000_000, paused = false)
+
+        compose.onNodeWithText(line).assertExists()
+        compose.onNodeWithText("Scan now").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the list reads the index again when the scan ends`() {
+        var found = listOf(big)
+        show(CompressViewModel(app, batches, photos = { found }, favorites = { emptySet() }, retentionDays = { 30 }, preview = { _, _, _ -> null }, previewFiles = emptyList()))
+        awaitText("1 photo, largest first")
+        progress = ScanProgress("scan", 0, 0)
+        compose.waitForIdle()
+        found = listOf(big, middle)
+
+        progress = null
+
+        awaitText("2 photos, largest first")
+        tile("IMG_2.jpg").assertExists()
     }
 
     @Test

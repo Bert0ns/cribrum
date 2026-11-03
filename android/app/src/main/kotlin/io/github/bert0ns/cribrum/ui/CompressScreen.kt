@@ -104,6 +104,7 @@ import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.compress.target
+import io.github.bert0ns.cribrum.pipeline.ScanProgress
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.roundToInt
@@ -129,11 +130,11 @@ private fun fileSize(bytes: Long) = Formatter.formatShortFileSize(LocalContext.c
 
 /** The stateful page: reads the list when it opens, after a scan and when a batch ends. */
 @Composable
-fun CompressScreen(model: CompressViewModel, scanning: Boolean, modifier: Modifier = Modifier) {
+fun CompressScreen(model: CompressViewModel, progress: ScanProgress?, onScan: () -> Unit, heat: Heat?, modifier: Modifier = Modifier) {
     val state by model.state.collectAsStateWithLifecycle()
     val batch by model.batches.state.collectAsStateWithLifecycle()
     val busy = batch is BatchState.Running || batch is BatchState.WaitingForScan
-    LaunchedEffect(scanning, busy) { model.refresh() }
+    LaunchedEffect(progress != null, busy) { model.refresh() }
     CompressContent(
         state,
         batch,
@@ -150,6 +151,9 @@ fun CompressScreen(model: CompressViewModel, scanning: Boolean, modifier: Modifi
         onCancelBatch = model.batches::cancel,
         onUndo = model::undo,
         onDismissResult = model::dismissResult,
+        progress = progress,
+        onScan = onScan,
+        heat = heat,
         modifier = modifier,
     )
 }
@@ -172,14 +176,23 @@ fun CompressContent(
     onUndo: (BatchResult) -> Unit,
     onDismissResult: (BatchResult) -> Unit,
     modifier: Modifier = Modifier,
+    progress: ScanProgress? = null,
+    onScan: () -> Unit = {},
+    heat: Heat? = null,
 ) {
-    when {
-        batch is BatchState.WaitingForScan || batch is BatchState.Running -> BatchProgress(batch, onCancelBatch, modifier)
-        batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, batch.favoritesLost, state.retentionDays, state.undoing, { onUndo(batch.result) }, { onDismissResult(batch.result) }, modifier)
-        else -> Picker(state, hdrSupported, onToggle, onSelectAll, onPage, onCompressedPage, onLevel, onToggleCompressed, onOpenSummary, modifier)
+    val busy = batch is BatchState.WaitingForScan || batch is BatchState.Running
+    Column(modifier) {
+        // The list only changes after a scan, so the control sits above every state of the page; a batch swaps the button for its line.
+        ScanStatus(progress, onScan, heat = heat, compressing = busy)
+        val body = Modifier.weight(1f)
+        when {
+            busy -> BatchProgress(batch, onCancelBatch, body)
+            batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, batch.favoritesLost, state.retentionDays, state.undoing, { onUndo(batch.result) }, { onDismissResult(batch.result) }, body)
+            else -> Picker(state, hdrSupported, onToggle, onSelectAll, onPage, onCompressedPage, onLevel, onToggleCompressed, onOpenSummary, body)
+        }
     }
     // A summary is never over a batch: its preview is a second full decode next to the batch's.
-    if (batch !is BatchState.WaitingForScan && batch !is BatchState.Running) state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
+    if (!busy) state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
 }
 
 @Composable
@@ -707,6 +720,13 @@ private fun CompressPreview() {
         compressedExpanded = true,
     )
     CompressContent(state, BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+}
+
+@Preview(name = "Scanning, narrow Italian large font", widthDp = 280, locale = "it", fontScale = 1.5f, showBackground = true)
+@Composable
+private fun ScanningPreview() {
+    val state = CompressState(loaded = true, photos = previewPhotos.take(2), selected = setOf(previewPhotos[0].path), level = CompressionLevel.BALANCED)
+    CompressContent(state, BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, progress = ScanProgress("detectors", 1200, 10220, leftMs = 3 * 60_000L), heat = Heat(HeatLevel.MODERATE, 12))
 }
 
 @Preview(name = "Second page", showBackground = true)
