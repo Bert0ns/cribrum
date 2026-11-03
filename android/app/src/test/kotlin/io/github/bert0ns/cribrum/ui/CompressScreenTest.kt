@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -93,6 +94,9 @@ class RecordingBatches(initial: BatchState = BatchState.Idle) : CompressBatches 
 
 private fun jpeg(path: String, size: Long, width: Int = 4000, height: Int = 3000, info: JpegInfo = JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) = CompressibleImage(path, size, width, height, info)
 
+private const val COMPARE = "Original on the left, compressed at the chosen level on the right"
+private const val SLIDER = "Comparison line. The original is on its left, the compressed copy on its right."
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36], qualifiers = "w360dp-h740dp")
 class CompressScreenTest {
@@ -109,7 +113,7 @@ class CompressScreenTest {
     private val batches = RecordingBatches()
     private val haptics = RecordingHaptics()
     private val previewFile by lazy { File(folder.root, "preview.jpg").apply { writeBytes(ByteArray(1500)) } }
-    private var previewRefusal: Refusal? = null
+    private val refusals = mutableMapOf<String, Refusal>()
 
     private fun model(vararg photos: CompressibleImage, favorites: Set<String> = emptySet()) = CompressViewModel(
         app,
@@ -117,11 +121,11 @@ class CompressScreenTest {
         photos = { photos.toList() },
         favorites = { favorites },
         retentionDays = { 30 },
-        preview = { _, _, out ->
+        preview = { original, _, out ->
             previewFile.copyTo(out, overwrite = true)
-            previewRefusal
+            refusals[original.name]
         },
-        previewFile = File(folder.root, "out.jpg"),
+        previewFiles = List(MAX_COMPARED) { File(folder.root, "out$it.jpg") },
     )
 
     private fun show(model: CompressViewModel) {
@@ -251,7 +255,7 @@ class CompressScreenTest {
 
     @Test
     fun `a photo that cannot be compressed has no preview but the summary stays`() {
-        previewRefusal = Refusal.NOT_SMALLER
+        refusals["IMG_1.jpg"] = Refusal.NOT_SMALLER
         show(model(big))
         awaitText("1 photo, largest first")
         tile("IMG_1.jpg").performClick()
@@ -264,22 +268,192 @@ class CompressScreenTest {
     }
 
     @Test
-    fun `the preview zooms both sides together`() {
+    fun `the preview is one image under a line, and a pinch zooms both layers`() {
         show(model(big))
         awaitText("1 photo, largest first")
         tile("IMG_1.jpg").performClick()
         compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 1 photo").performClick()
         awaitText("Compressed •", substring = true)
-        fun zoom(description: String) = compose.onNodeWithContentDescription(description).fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
-        assertEquals("Zoom: 1% of full resolution", zoom("Original"))
+        compose.onAllNodesWithContentDescription(COMPARE).assertCountEquals(1)
+        fun zoom() = compose.onNodeWithContentDescription(COMPARE).fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
+        assertEquals("Zoom: 2% of full resolution", zoom())
 
-        compose.onNodeWithContentDescription("Original").performTouchInput {
+        compose.onNodeWithContentDescription(COMPARE).performTouchInput {
             pinch(Offset(center.x - 10, center.y), Offset(center.x + 10, center.y), Offset(center.x - 60, center.y), Offset(center.x + 60, center.y))
         }
 
-        assertNotEquals("Zoom: 1% of full resolution", zoom("Original"))
-        assertEquals(zoom("Original"), zoom("Compressed at the chosen level"))
+        assertNotEquals("Zoom: 2% of full resolution", zoom())
+    }
+
+    private fun tab(description: String) = compose.onNodeWithContentDescription(description)
+
+    @Test
+    fun `up to three photos get a tab each, with their sizes read out, and the first shows while the others come`() {
+        val third = jpeg("/sdcard/DCIM/IMG_4.jpg", 4_100_000)
+        show(model(big, middle, third))
+        awaitText("3 photos, largest first")
+        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Balanced").performClick()
+        compose.onNodeWithText("Continue with 3 photos").performClick()
+
+        awaitText("Compressed • ${size(1500)} • 8160 × 6120")
+        compose.onNodeWithText("Original • ${size(24_000_000)} • 16320 × 12240").assertExists()
+        compose.onNodeWithText("Before and after").assertExists()
+        for ((index, bytes) in listOf(24_000_000L, 6_200_000L, 4_100_000L).withIndex()) {
+            compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo ${index + 1} of 3: ${size(bytes)} before, ${size(1500)} after").fetchSemanticsNodes().isNotEmpty() }
+        }
+
+        tab("Photo 2 of 3: ${size(6_200_000)} before, ${size(1500)} after").performClick()
+
+        compose.onNodeWithText("Original • ${size(6_200_000)} • 4000 × 3000").assertExists()
+        compose.onAllNodesWithText("Original • ${size(24_000_000)}", substring = true).assertCountEquals(0)
+        // The photo on screen is the only one with layers, so the others hold no tiles.
+        compose.onAllNodesWithContentDescription(COMPARE).assertCountEquals(1)
+    }
+
+    @Test
+    fun `a single photo has no tabs`() {
+        show(model(big))
+        awaitText("1 photo, largest first")
+        tile("IMG_1.jpg").performClick()
+        compose.onNodeWithText("Balanced").performClick()
+        compose.onNodeWithText("Continue with 1 photo").performClick()
+        awaitText("Compressed •", substring = true)
+
+        compose.onAllNodesWithText("Photo 1").assertCountEquals(0)
+        compose.onAllNodesWithContentDescription("Photo 1 of 1", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun `more than three photos compare the largest, the middle one and the smallest, and say so`() {
+        val photos = many(5)
+        show(model(*photos.toTypedArray()))
+        awaitText("5 photos, largest first")
+        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Balanced").performClick()
+        compose.onNodeWithText("Continue with 5 photos").performClick()
+
+        awaitText("Before and after, on the largest, the middle one and the smallest selected photo")
+        for (index in 1..3) compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo $index of 3", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        compose.onAllNodesWithContentDescription("Photo 4", substring = true).assertCountEquals(0)
+        tab("Photo 3 of 3: ${size(photos[4].size)} before, ${size(1500)} after").performClick()
+        compose.onNodeWithText("Original • ${size(photos[4].size)} • 4000 × 3000").assertExists()
+    }
+
+    @Test
+    fun `a tab says when its photo is refused, and the others keep their preview`() {
+        refusals["IMG_2.jpg"] = Refusal.NOT_SMALLER
+        show(model(big, middle))
+        awaitText("2 photos, largest first")
+        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Smallest").performClick()
+        compose.onNodeWithText("Continue with 2 photos").performClick()
+
+        compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo 2 of 2: ${size(6_200_000)} before, cannot be compressed at this level").fetchSemanticsNodes().isNotEmpty() }
+        tab("Photo 1 of 2: ${size(24_000_000)} before, ${size(1500)} after").assertExists()
+        tab("Photo 2 of 2: ${size(6_200_000)} before, cannot be compressed at this level").performClick()
+        awaitText("This photo cannot be compressed at this level, so there is no preview. It would be left as it is.")
+        compose.onNodeWithText("Compress 2 photos").assertIsEnabled()
+    }
+
+    private val line = mutableFloatStateOf(0.5f)
+
+    private fun zoomPanel(zoom: Zoom) = compose.setContent {
+        CompositionLocalProvider(LocalHapticFeedback provides haptics) {
+            Box(Modifier.size(200.dp)) { CompareSlider(File(folder.root, "none.jpg"), File(folder.root, "none2.jpg"), zoom, line, 1f, true) }
+        }
+    }
+
+    private fun handle() = compose.onNodeWithContentDescription(SLIDER)
+
+    private fun pinchOut() = compose.onNodeWithContentDescription(COMPARE).performTouchInput {
+        pinch(Offset(center.x - 10, center.y), Offset(center.x + 10, center.y), Offset(center.x - 40, center.y), Offset(center.x + 40, center.y))
+    }
+
+    @Test
+    fun `the zoom and its position stay after the fingers lift`() {
+        val zoom = Zoom(IntSize(4000, 3000))
+        zoomPanel(zoom)
+
+        pinchOut()
+
+        assertTrue(zoom.scale > 1f)
+        assertTrue("the offset is ${zoom.offset}", zoom.offset.x.isFinite() && zoom.offset.y.isFinite())
+        assertTrue(zoom.offset.x < 0f)
+    }
+
+    @Test
+    fun `one finger pans while zoomed, and a double tap goes back to the whole photo`() {
+        val zoom = Zoom(IntSize(4000, 3000))
+        zoomPanel(zoom)
+        pinchOut()
+        val zoomed = zoom.offset
+
+        compose.onNodeWithContentDescription(COMPARE).performTouchInput { swipe(Offset(150f, 50f), Offset(110f, 50f)) }
+
+        assertTrue("panned from $zoomed to ${zoom.offset}", zoom.offset.x < zoomed.x)
+        assertEquals(0.5f, line.floatValue)
+        compose.onNodeWithContentDescription(COMPARE).performTouchInput { doubleClick(Offset(150f, 50f)) }
+        assertEquals(1f, zoom.scale)
+        assertEquals(Offset.Zero, zoom.offset)
+    }
+
+    @Test
+    fun `the handle moves the line, and a zoomed photo behind it does not pan`() {
+        val zoom = Zoom(IntSize(4000, 3000))
+        zoomPanel(zoom)
+        pinchOut()
+        val zoomed = zoom.offset
+
+        val width = compose.onNodeWithContentDescription(COMPARE).fetchSemanticsNode().size.width
+        handle().performTouchInput { swipe(center, Offset(center.x + 0.3f * width, center.y)) }
+
+        assertEquals(0.8f, line.floatValue, 0.01f)
+        assertEquals(zoomed, zoom.offset)
+        assertTrue(zoom.scale > 1f)
+    }
+
+    @Test
+    fun `the line gives a light tick on reaching either edge, once`() {
+        zoomPanel(Zoom(IntSize(4000, 3000)))
+
+        handle().performTouchInput { swipe(center, Offset(center.x + 150, center.y)) }
+        assertEquals(1f, line.floatValue)
+        assertEquals(listOf(HapticFeedbackType.SegmentTick), haptics.types)
+
+        handle().performTouchInput { swipe(center, Offset(center.x + 50, center.y)) }
+        assertEquals(1, haptics.types.size)
+
+        handle().performTouchInput { swipe(center, Offset(center.x - 300, center.y)) }
+        assertEquals(0f, line.floatValue)
+        assertEquals(2, haptics.types.size)
+    }
+
+    @Test
+    fun `a screen reader hears which side is which and moves the line with increment and decrement`() {
+        zoomPanel(Zoom(IntSize(4000, 3000)))
+        val config = handle().fetchSemanticsNode().config
+
+        assertEquals("Comparison line. The original is on its left, the compressed copy on its right.", config.getOrNull(SemanticsProperties.ContentDescription)?.single())
+        assertEquals(0.5f, config[SemanticsProperties.ProgressBarRangeInfo].current)
+        assertEquals(0f..1f, config[SemanticsProperties.ProgressBarRangeInfo].range)
+        val set = config[SemanticsActions.SetProgress].action!!
+        compose.runOnUiThread { set(0.6f) }
+        assertEquals(0.6f, line.floatValue)
+        assertEquals(0.6f, handle().fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo].current)
+        assertTrue(haptics.types.isEmpty())
+        compose.runOnUiThread { set(2f) }
+        assertEquals(1f, line.floatValue)
+        assertEquals(listOf(HapticFeedbackType.SegmentTick), haptics.types)
+    }
+
+    @Test
+    fun `the handle is a target of 48 dp`() {
+        zoomPanel(Zoom(IntSize(4000, 3000)))
+
+        val bounds = handle().fetchSemanticsNode().boundsInRoot
+        assertTrue("${bounds.width} x ${bounds.height}", bounds.width >= 47.5f && bounds.height >= 47.5f)
     }
 
     private fun many(count: Int, prefix: String = "IMG", info: JpegInfo = JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) = List(count) { jpeg("/sdcard/DCIM/${prefix}_${"%03d".format(it)}.jpg", 100_000_000L - it, info = info) }
@@ -377,39 +551,6 @@ class CompressScreenTest {
         tile("OLD_050.jpg").assertExists()
     }
 
-    private fun zoomPanel(zoom: Zoom) = compose.setContent { Box(Modifier.size(200.dp)) { ZoomPanel(File(folder.root, "none.jpg"), zoom, "Panel", 1f) } }
-
-    private fun pinchOut() = compose.onNodeWithContentDescription("Panel").performTouchInput {
-        pinch(Offset(center.x - 10, center.y), Offset(center.x + 10, center.y), Offset(center.x - 40, center.y), Offset(center.x + 40, center.y))
-    }
-
-    @Test
-    fun `the zoom and its position stay after the fingers lift`() {
-        val zoom = Zoom(IntSize(4000, 3000))
-        zoomPanel(zoom)
-
-        pinchOut()
-
-        assertTrue(zoom.scale > 1f)
-        assertTrue("the offset is ${zoom.offset}", zoom.offset.x.isFinite() && zoom.offset.y.isFinite())
-        assertTrue(zoom.offset.x < 0f)
-    }
-
-    @Test
-    fun `one finger pans while zoomed, and a double tap goes back to the whole photo`() {
-        val zoom = Zoom(IntSize(4000, 3000))
-        zoomPanel(zoom)
-        pinchOut()
-        val zoomed = zoom.offset
-
-        compose.onNodeWithContentDescription("Panel").performTouchInput { swipe(Offset(150f, 100f), Offset(110f, 100f)) }
-
-        assertTrue("panned from $zoomed to ${zoom.offset}", zoom.offset.x < zoomed.x)
-        compose.onNodeWithContentDescription("Panel").performTouchInput { doubleClick() }
-        assertEquals(1f, zoom.scale)
-        assertEquals(Offset.Zero, zoom.offset)
-    }
-
     @Test
     fun `a held image opens no decoder until it is let go`() {
         var tiled by mutableStateOf(false)
@@ -434,7 +575,7 @@ class CompressScreenTest {
         val zoom = Zoom(IntSize(4000, 3000))
         zoomPanel(zoom)
 
-        compose.onNodeWithContentDescription("Panel").performTouchInput { swipe(Offset(150f, 100f), Offset(110f, 100f)) }
+        compose.onNodeWithContentDescription(COMPARE).performTouchInput { swipe(Offset(150f, 50f), Offset(110f, 50f)) }
 
         assertEquals(1f, zoom.scale)
         assertEquals(Offset.Zero, zoom.offset)

@@ -376,14 +376,20 @@
         <item quantity="one">Compress %d photo</item>
         <item quantity="other">Compress %d photos</item>
     </plurals>
-    <string name="compress_preview_heading">Before and after, on the largest selected photo</string>
+    <string name="compress_preview_heading">Before and after</string>
+    <string name="compress_preview_heading_some">Before and after, on the largest, the middle one and the smallest selected photo</string>
     <string name="compress_preview_before">Original \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_after">Compressed \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_loading">Compressing this photo for the preview\u2026</string>
     <string name="compress_preview_failed">This photo cannot be compressed at this level, so there is no preview. It would be left as it is.</string>
-    <string name="compress_preview_hint">Pinch to zoom both photos at the same position. Drag to move them, double tap to see the whole photo.</string>
+    <string name="compress_preview_hint">Drag the handle to move the line. Pinch to zoom, drag to move the photo, double tap to see the whole photo.</string>
     <string name="compress_preview_before_description">Original</string>
-    <string name="compress_preview_after_description">Compressed at the chosen level</string>
+    <string name="compress_compare_image">Original on the left, compressed at the chosen level on the right</string>
+    <string name="compress_compare_slider">Comparison line. The original is on its left, the compressed copy on its right.</string>
+    <string name="compress_compare_tab">Photo %1$d</string>
+    <string name="compress_compare_tab_ready">Photo %1$d of %2$d: %3$s before, %4$s after</string>
+    <string name="compress_compare_tab_loading">Photo %1$d of %2$d: %3$s before, compressing for the preview</string>
+    <string name="compress_compare_tab_failed">Photo %1$d of %2$d: %3$s before, cannot be compressed at this level</string>
     <string name="compress_zoom">Zoom: %1$d%% of full resolution</string>
     <string name="compress_loss_title">What you lose</string>
     <string name="compress_loss_kept">The date, the place and the camera details are kept. The compressed copy loses:</string>

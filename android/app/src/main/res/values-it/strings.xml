@@ -439,14 +439,20 @@
         <item quantity="other">Comprimi %d foto</item>
         <item quantity="many">Comprimi %d di foto</item>
     </plurals>
-    <string name="compress_preview_heading">Prima e dopo, sulla foto selezionata più grande</string>
+    <string name="compress_preview_heading">Prima e dopo</string>
+    <string name="compress_preview_heading_some">Prima e dopo, sulla foto selezionata più grande, su quella di mezzo e sulla più piccola</string>
     <string name="compress_preview_before">Originale \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_after">Compressa \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_loading">Compressione della foto per l\'anteprima\u2026</string>
     <string name="compress_preview_failed">Questa foto non si può comprimere con questo livello, quindi non c\'è un\'anteprima. Resterebbe com\'è.</string>
-    <string name="compress_preview_hint">Pizzica per ingrandire entrambe le foto nello stesso punto. Trascina per spostarle, tocca due volte per vedere tutta la foto.</string>
+    <string name="compress_preview_hint">Trascina la maniglia per spostare la linea. Pizzica per ingrandire, trascina per spostare la foto, tocca due volte per vedere tutta la foto.</string>
     <string name="compress_preview_before_description">Originale</string>
-    <string name="compress_preview_after_description">Compressa con il livello scelto</string>
+    <string name="compress_compare_image">Originale a sinistra, compressa con il livello scelto a destra</string>
+    <string name="compress_compare_slider">Linea di confronto. L\'originale è alla sua sinistra, la copia compressa alla sua destra.</string>
+    <string name="compress_compare_tab">Foto %1$d</string>
+    <string name="compress_compare_tab_ready">Foto %1$d di %2$d: %3$s prima, %4$s dopo</string>
+    <string name="compress_compare_tab_loading">Foto %1$d di %2$d: %3$s prima, compressione per l\'anteprima in corso</string>
+    <string name="compress_compare_tab_failed">Foto %1$d di %2$d: %3$s prima, non si può comprimere con questo livello</string>
     <string name="compress_zoom">Zoom: %1$d%% della risoluzione piena</string>
     <string name="compress_loss_title">Cosa perdi</string>
     <string name="compress_loss_kept">La data, il luogo e i dati della fotocamera restano. La copia compressa perde:</string>
