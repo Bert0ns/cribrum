@@ -356,6 +356,9 @@
     <string name="compress_level_detail_full">JPEG %1$d, risoluzione piena</string>
     <string name="compress_level_detail_limit">JPEG %1$d, fino a %2$d MP</string>
     <string name="compress_level_saving">Risparmia circa %1$s</string>
+    <string name="compress_level_better">Qualità migliore</string>
+    <string name="compress_level_smaller">File più piccoli</string>
+    <string name="compress_level_state">%1$s, %2$s</string>
     <plurals name="compress_photos_heading">
         <item quantity="one">%d foto, dalla più grande</item>
         <item quantity="other">%d foto, dalla più grande</item>
@@ -376,7 +379,6 @@
     <string name="compress_expand">Mostra le foto già compresse</string>
     <string name="compress_collapse">Nascondi le foto già compresse</string>
     <string name="compress_hint_select">Seleziona le foto da comprimere.</string>
-    <string name="compress_hint_level">Scegli un livello.</string>
     <plurals name="compress_continue">
         <item quantity="one">Continua con %d foto</item>
         <item quantity="other">Continua con %d foto</item>

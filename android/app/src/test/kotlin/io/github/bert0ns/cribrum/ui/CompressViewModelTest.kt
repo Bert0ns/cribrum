@@ -86,7 +86,7 @@ class CompressViewModelTest {
         assertEquals(listOf(done), model.state.value.compressed)
         assertEquals(7, model.state.value.retentionDays)
         assertEquals(emptySet<String>(), model.state.value.selected)
-        assertEquals(null, model.state.value.level)
+        assertEquals(CompressionLevel.BALANCED, model.state.value.level)
     }
 
     @Test
@@ -264,14 +264,19 @@ class CompressViewModelTest {
     }
 
     @Test
-    fun `the summary needs a selection and a level`() {
+    fun `the summary needs a selection, and compresses at Balanced when no level was chosen`() {
         val model = loaded()
-        model.openSummary()
-        model.toggle(a.path)
         model.openSummary()
 
         assertEquals(null, model.state.value.summary)
         assertEquals(emptyList<Any>(), previewed)
+
+        model.toggle(a.path)
+        model.openSummary()
+        settle(model, ::ready)
+
+        assertEquals(CompressionLevel.BALANCED, model.state.value.summary?.level)
+        assertEquals(listOf(File(a.path) to CompressionLevel.BALANCED), previewed)
     }
 
     @Test
@@ -286,6 +291,8 @@ class CompressViewModelTest {
 
         assertEquals(listOf(listOf(a.path) to CompressionLevel.HIGH), batches.started)
         assertEquals(null, model.state.value.dismissed)
+        // The selection is spent, the level stays for the next batch.
+        assertEquals(CompressionLevel.HIGH, model.state.value.level)
     }
 
     @Test

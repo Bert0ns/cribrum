@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -53,6 +55,7 @@ import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
+import io.github.bert0ns.cribrum.compress.estimatedSaving
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.pipeline.ScanProgress
 import kotlinx.coroutines.CompletableDeferred
@@ -157,13 +160,12 @@ class CompressScreenTest {
     private fun tile(name: String) = compose.onNodeWithContentDescription(name, substring = true)
 
     @Test
-    fun `nothing is preselected, and the photos come largest first with their size and resolution`() {
+    fun `no photo is preselected, and the photos come largest first with their size and resolution`() {
         show(model(big, middle))
         awaitText("2 photos, largest first")
 
         tile("IMG_1.jpg").assertIsNotSelected()
         tile("IMG_2.jpg").assertIsNotSelected()
-        for (level in listOf("High quality", "Balanced", "Smallest")) compose.onNodeWithText(level).assertIsNotSelected()
         compose.onNodeWithText("Continue with 0 photos").assertIsNotEnabled()
         compose.onNodeWithText("Select the photos to compress.").assertExists()
         // The index gives them largest first, and the page keeps that order.
@@ -172,30 +174,109 @@ class CompressScreenTest {
         compose.onNodeWithContentDescription("IMG_2.jpg, 4000 × 3000 pixels, ${size(6_200_000)}. Not selected").assertExists()
     }
 
+    private fun slider() = compose.onNodeWithContentDescription("Level")
+
+    private fun stop(index: Int) = compose.runOnUiThread { slider().fetchSemanticsNode().config[SemanticsActions.SetProgress].action!!(index.toFloat()) }
+
+    private fun stateDescription() = slider().fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
+
     @Test
-    fun `the levels say their exact numbers`() {
+    fun `the level starts on Balanced, with the ends labelled and the numbers of the stop shown`() {
         show(model(big))
         awaitText("1 photo, largest first")
 
-        compose.onNodeWithText("JPEG 90, full resolution").assertExists()
+        assertEquals("Balanced, JPEG 85, up to 50 MP", stateDescription())
         compose.onNodeWithText("JPEG 85, up to 50 MP").assertExists()
-        compose.onNodeWithText("JPEG 80, up to 12 MP").assertExists()
+        compose.onNodeWithText("Better quality").assertExists()
+        compose.onNodeWithText("Smaller files").assertExists()
+        assertTrue(compose.onNodeWithText("Better quality").fetchSemanticsNode().boundsInRoot.left < compose.onNodeWithText("Smaller files").fetchSemanticsNode().boundsInRoot.left)
     }
 
     @Test
-    fun `continuing needs photos and a level, and the levels show their saving once photos are selected`() {
+    fun `each stop says its exact numbers, and a screen reader hears them with the level name`() {
+        val model = model(big)
+        show(model)
+        awaitText("1 photo, largest first")
+        val info = slider().fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo]
+        assertEquals(0f..2f, info.range)
+        assertEquals(1, info.steps)
+        assertEquals(1f, info.current)
+
+        stop(0)
+        compose.waitForIdle()
+        assertEquals("High quality, JPEG 90, full resolution", stateDescription())
+        compose.onNodeWithText("JPEG 90, full resolution").assertExists()
+        assertEquals(CompressionLevel.HIGH, model.state.value.level)
+        stop(2)
+        compose.waitForIdle()
+        assertEquals("Smallest, JPEG 80, up to 12 MP", stateDescription())
+        compose.onNodeWithText("JPEG 80, up to 12 MP").assertExists()
+        assertEquals(CompressionLevel.SMALLEST, model.state.value.level)
+    }
+
+    @Test
+    fun `a screen reader moves one stop at a time, and each new stop ticks once`() {
+        show(model(big))
+        awaitText("1 photo, largest first")
+        haptics.types.clear()
+
+        // What increment and decrement send: the value one step on each side of the current one.
+        stop(2)
+        stop(2)
+        compose.waitForIdle()
+        assertEquals(listOf(HapticFeedbackType.SegmentTick), haptics.types)
+        stop(1)
+        stop(0)
+        compose.waitForIdle()
+        assertEquals(List(3) { HapticFeedbackType.SegmentTick }, haptics.types)
+        assertEquals(0f, slider().fetchSemanticsNode().config[SemanticsProperties.ProgressBarRangeInfo].current)
+    }
+
+    @Test
+    fun `a value between two stops snaps to the nearest one`() {
+        val model = model(big)
+        show(model)
+        awaitText("1 photo, largest first")
+
+        stop(0)
+        compose.runOnUiThread { slider().fetchSemanticsNode().config[SemanticsActions.SetProgress].action!!(1.4f) }
+        compose.waitForIdle()
+
+        assertEquals(CompressionLevel.BALANCED, model.state.value.level)
+    }
+
+    @Test
+    fun `the chosen level survives a rotation`() {
+        val model = model(big)
+        var generation by mutableIntStateOf(0)
+        compose.setContent {
+            CompositionLocalProvider(LocalHapticFeedback provides haptics) { key(generation) { CompressScreen(model, progress, onScan = { scans++ }, heat = null) } }
+        }
+        awaitText("1 photo, largest first")
+        stop(2)
+        compose.waitForIdle()
+
+        // The view model outlives the activity: a new composition reads the level from it.
+        generation++
+        awaitText("1 photo, largest first")
+
+        assertEquals("Smallest, JPEG 80, up to 12 MP", stateDescription())
+    }
+
+    @Test
+    fun `continuing needs photos, and the saving of the chosen level shows once photos are selected`() {
         show(model(big, middle))
         awaitText("2 photos, largest first")
         compose.onAllNodesWithText("Saves about", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("Continue with 0 photos").assertIsNotEnabled()
 
         tile("IMG_1.jpg").performClick()
-        compose.onNodeWithText("Choose a level.").assertExists()
-        compose.onNodeWithText("Continue with 1 photo").assertIsNotEnabled()
-        compose.onAllNodesWithText("Saves about", substring = true).assertCountEquals(3)
-        compose.onNodeWithText("Balanced").performClick()
-
-        compose.onNodeWithText("Balanced").assertIsSelected()
         compose.onNodeWithText("Continue with 1 photo").assertIsEnabled()
+        compose.onAllNodesWithText("Saves about", substring = true).assertCountEquals(1)
+        compose.onNodeWithText("Saves about ${size(estimatedSaving(big.size, big.width, big.height, 94, CompressionLevel.BALANCED))}").assertExists()
+        stop(2)
+        compose.onNodeWithText("Saves about ${size(estimatedSaving(big.size, big.width, big.height, 94, CompressionLevel.SMALLEST))}").assertExists()
+        compose.onAllNodesWithText("Saves about", substring = true).assertCountEquals(1)
     }
 
     @Test
@@ -253,7 +334,7 @@ class CompressScreenTest {
         show(model(big, middle))
         awaitText("2 photos, largest first")
         compose.onNodeWithText("Select all on this page").performClick()
-        compose.onNodeWithText("Smallest").performClick()
+        stop(2)
 
         compose.onNodeWithText("Continue with 2 photos").performClick()
 
@@ -278,7 +359,7 @@ class CompressScreenTest {
         show(model(big))
         awaitText("1 photo, largest first")
         tile("IMG_1.jpg").performClick()
-        compose.onNodeWithText("High quality").performClick()
+        stop(0)
 
         compose.onNodeWithText("Continue with 1 photo").performClick()
 
@@ -291,7 +372,6 @@ class CompressScreenTest {
         show(model(big))
         awaitText("1 photo, largest first")
         tile("IMG_1.jpg").performClick()
-        compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 1 photo").performClick()
         awaitText("Compressed •", substring = true)
         compose.onAllNodesWithContentDescription(COMPARE).assertCountEquals(1)
@@ -313,7 +393,6 @@ class CompressScreenTest {
         show(model(big, middle, third))
         awaitText("3 photos, largest first")
         compose.onNodeWithText("Select all on this page").performClick()
-        compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 3 photos").performClick()
 
         awaitText("Compressed • ${size(1500)} • 8160 × 6120")
@@ -336,7 +415,6 @@ class CompressScreenTest {
         show(model(big))
         awaitText("1 photo, largest first")
         tile("IMG_1.jpg").performClick()
-        compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 1 photo").performClick()
         awaitText("Compressed •", substring = true)
 
@@ -350,7 +428,6 @@ class CompressScreenTest {
         show(model(*photos.toTypedArray()))
         awaitText("5 photos, largest first")
         compose.onNodeWithText("Select all on this page").performClick()
-        compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 5 photos").performClick()
 
         awaitText("Before and after, on the largest, the middle one and the smallest selected photo")
@@ -366,7 +443,7 @@ class CompressScreenTest {
         show(model(big, middle))
         awaitText("2 photos, largest first")
         compose.onNodeWithText("Select all on this page").performClick()
-        compose.onNodeWithText("Smallest").performClick()
+        stop(2)
         compose.onNodeWithText("Continue with 2 photos").performClick()
 
         compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo 2 of 2: ${size(6_200_000)} before, cannot be compressed at this level").fetchSemanticsNodes().isNotEmpty() }
@@ -606,7 +683,6 @@ class CompressScreenTest {
         show(model)
         awaitText("2 photos, largest first")
         compose.onNodeWithText("Select all on this page").performClick()
-        compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 2 photos").performClick()
         awaitText("Compress 2 photos?")
         haptics.types.clear()
@@ -616,7 +692,6 @@ class CompressScreenTest {
         assertEquals(listOf(listOf(big.path, middle.path) to CompressionLevel.BALANCED), batches.started)
         assertEquals(listOf(HapticFeedbackType.Reject), haptics.types)
         assertEquals(emptySet<String>(), model.state.value.selected)
-        assertEquals(null, model.state.value.level)
     }
 
     @Test
@@ -624,7 +699,6 @@ class CompressScreenTest {
         show(model(big))
         awaitText("1 photo, largest first")
         tile("IMG_1.jpg").performClick()
-        compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 1 photo").performClick()
         awaitText("Compress 1 photo?")
 
