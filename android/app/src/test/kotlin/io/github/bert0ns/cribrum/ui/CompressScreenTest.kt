@@ -1,7 +1,10 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.text.format.Formatter
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -13,14 +16,21 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
+import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.CribrumApp
 import io.github.bert0ns.cribrum.compress.BatchResult
@@ -168,11 +178,11 @@ class CompressScreenTest {
         show(model(big, middle, before))
         awaitText("2 photos, largest first")
 
-        compose.onNodeWithText("Select all").performClick()
+        compose.onNodeWithText("Select all on this page").performClick()
 
         tile("IMG_1.jpg").assertIsSelected()
         tile("IMG_2.jpg").assertIsSelected()
-        compose.onNodeWithText("Deselect all").assertExists()
+        compose.onNodeWithText("Deselect all on this page").assertExists()
         compose.onNodeWithText("Already compressed (1)").performClick()
         tile("IMG_3.jpg").assertIsNotSelected()
     }
@@ -193,7 +203,7 @@ class CompressScreenTest {
 
     @Test
     fun `the supported formats line opens a sheet that says what is not supported and why`() {
-        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
         compose.onNodeWithText("Supported formats: JPEG. Motion Photos are not compressed.").assertExists()
         compose.onAllNodesWithText("HDR photos are not compressed.", substring = true).assertCountEquals(0)
 
@@ -205,7 +215,7 @@ class CompressScreenTest {
 
     @Test
     fun `below Android 14 the line also says HDR photos are not compressed`() {
-        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
 
         compose.onNodeWithText("Supported formats: JPEG. Motion Photos are not compressed. HDR photos are not compressed.").assertExists()
     }
@@ -214,7 +224,7 @@ class CompressScreenTest {
     fun `the summary names the loss, counts the photos that have it, and shows a real before and after`() {
         show(model(big, middle))
         awaitText("2 photos, largest first")
-        compose.onNodeWithText("Select all").performClick()
+        compose.onNodeWithText("Select all on this page").performClick()
         compose.onNodeWithText("Smallest").performClick()
 
         compose.onNodeWithText("Continue with 2 photos").performClick()
@@ -267,12 +277,150 @@ class CompressScreenTest {
         assertEquals(zoom("Original"), zoom("Compressed at the chosen level"))
     }
 
+    private fun many(count: Int, prefix: String = "IMG", info: JpegInfo = JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) = List(count) { jpeg("/sdcard/DCIM/${prefix}_${"%03d".format(it)}.jpg", 100_000_000L - it, info = info) }
+
+    private fun actionsOf(name: String) = tile(name).fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions).orEmpty().map { it.label }
+
+    @Test
+    fun `a long press opens the photo full screen, where a button selects it and a swipe pages`() {
+        show(model(big, middle))
+        awaitText("2 photos, largest first")
+        assertTrue("Open full size" in actionsOf("IMG_1.jpg"))
+
+        tile("IMG_1.jpg").performTouchInput { longClick() }
+
+        compose.onNodeWithTag("fullSize").assertExists()
+        compose.onNodeWithText(big.path).assertExists()
+        compose.onNodeWithText("Not selected").performClick()
+        compose.onNodeWithText("Selected").assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
+        compose.onNodeWithText(middle.path).assertExists()
+        compose.onNodeWithTag("fullSize").performTouchInput { click() }
+        compose.onNodeWithTag("fullSize").assertDoesNotExist()
+        tile("IMG_1.jpg").assertIsSelected()
+        tile("IMG_2.jpg").assertIsNotSelected()
+    }
+
+    @Test
+    fun `a screen reader opens the photo full screen with an action`() {
+        show(model(big))
+        awaitText("1 photo, largest first")
+
+        tile("IMG_1.jpg").fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions)!!.first { it.label == "Open full size" }.action()
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("fullSize").assertExists()
+    }
+
+    @Test
+    fun `the list shows 50 photos at a time with its position, and Select all takes the current page only`() {
+        val all = many(120)
+        show(model(*all.toTypedArray()))
+        awaitText("120 photos, largest first")
+
+        compose.onNodeWithText("1 to 50 of 120").assertExists()
+        tile("IMG_000.jpg").assertExists()
+        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Continue with 50 photos").assertExists()
+
+        compose.onAllNodesWithContentDescription("Next page")[0].performClick()
+        compose.onNodeWithText("51 to 100 of 120").assertExists()
+        tile("IMG_050.jpg").assertIsNotSelected()
+        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Continue with 100 photos").assertExists()
+
+        compose.onAllNodesWithContentDescription("Previous page")[0].performClick()
+        tile("IMG_000.jpg").assertIsSelected()
+        compose.onNodeWithText("Deselect all on this page").performClick()
+        compose.onNodeWithText("Continue with 50 photos").assertExists()
+    }
+
+    @Test
+    fun `the first page has no previous, the last has no next, and one page has no controls`() {
+        show(model(*many(120).toTypedArray()))
+        awaitText("120 photos, largest first")
+        compose.onAllNodesWithContentDescription("Previous page")[0].assertIsNotEnabled()
+        compose.onAllNodesWithContentDescription("Next page")[0].assertIsEnabled()
+
+        compose.onAllNodesWithContentDescription("Next page")[0].performClick()
+        compose.onAllNodesWithContentDescription("Next page")[0].performClick()
+
+        compose.onNodeWithText("101 to 120 of 120").assertExists()
+        compose.onAllNodesWithContentDescription("Next page")[0].assertIsNotEnabled()
+    }
+
+    @Test
+    fun `fewer than 51 photos show no page controls`() {
+        show(model(big, middle))
+        awaitText("2 photos, largest first")
+
+        compose.onAllNodesWithContentDescription("Next page").assertCountEquals(0)
+    }
+
+    @Test
+    fun `the already compressed photos page too`() {
+        val done = many(70, "OLD", before.info)
+        show(model(big, *done.toTypedArray()))
+        awaitText("Already compressed (70)")
+        compose.onNodeWithText("Already compressed (70)").performClick()
+
+        compose.onNodeWithText("1 to 50 of 70").assertExists()
+        compose.onAllNodesWithContentDescription("Next page")[0].performClick()
+
+        compose.onNodeWithText("51 to 70 of 70").assertExists()
+        tile("OLD_050.jpg").assertExists()
+    }
+
+    private fun zoomPanel(zoom: Zoom) = compose.setContent { Box(Modifier.size(200.dp)) { ZoomPanel(File(folder.root, "none.jpg"), zoom, "Panel", 1f) } }
+
+    private fun pinchOut() = compose.onNodeWithContentDescription("Panel").performTouchInput {
+        pinch(Offset(center.x - 10, center.y), Offset(center.x + 10, center.y), Offset(center.x - 40, center.y), Offset(center.x + 40, center.y))
+    }
+
+    @Test
+    fun `the zoom and its position stay after the fingers lift`() {
+        val zoom = Zoom()
+        zoomPanel(zoom)
+
+        pinchOut()
+
+        assertTrue(zoom.scale > 1f)
+        assertTrue("the offset is ${zoom.offset}", zoom.offset.x.isFinite() && zoom.offset.y.isFinite())
+        assertTrue(zoom.offset.x < 0f)
+    }
+
+    @Test
+    fun `one finger pans while zoomed, and a double tap goes back to the whole photo`() {
+        val zoom = Zoom()
+        zoomPanel(zoom)
+        pinchOut()
+        val zoomed = zoom.offset
+
+        compose.onNodeWithContentDescription("Panel").performTouchInput { swipe(Offset(150f, 100f), Offset(110f, 100f)) }
+
+        assertTrue("panned from $zoomed to ${zoom.offset}", zoom.offset.x < zoomed.x)
+        compose.onNodeWithContentDescription("Panel").performTouchInput { doubleClick() }
+        assertEquals(1f, zoom.scale)
+        assertEquals(Offset.Zero, zoom.offset)
+    }
+
+    @Test
+    fun `one finger on a photo that is not zoomed leaves the drag to the page`() {
+        val zoom = Zoom()
+        zoomPanel(zoom)
+
+        compose.onNodeWithContentDescription("Panel").performTouchInput { swipe(Offset(150f, 100f), Offset(110f, 100f)) }
+
+        assertEquals(1f, zoom.scale)
+        assertEquals(Offset.Zero, zoom.offset)
+    }
+
     @Test
     fun `confirming starts the batch, largest first, with a strong haptic and an empty selection`() {
         val model = model(big, middle)
         show(model)
         awaitText("2 photos, largest first")
-        compose.onNodeWithText("Select all").performClick()
+        compose.onNodeWithText("Select all on this page").performClick()
         compose.onNodeWithText("Balanced").performClick()
         compose.onNodeWithText("Continue with 2 photos").performClick()
         awaitText("Compress 2 photos?")
@@ -305,15 +453,15 @@ class CompressScreenTest {
     fun `selecting gives a tick, and a screen reader gets select and deselect as actions`() {
         show(model(big, favorites = setOf(big.path)))
         awaitText("1 photo, largest first")
-        fun actions() = tile("IMG_1.jpg").fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions).orEmpty().map { it.label }
-        assertEquals(listOf("Select"), actions())
+        fun actions() = actionsOf("IMG_1.jpg")
+        assertEquals(listOf("Select", "Open full size"), actions())
         tile("IMG_1.jpg").assertExists()
         compose.onNodeWithContentDescription("Favourite", substring = true).assertExists()
 
         tile("IMG_1.jpg").performClick()
 
         assertEquals(listOf(HapticFeedbackType.SegmentTick), haptics.types)
-        assertEquals(listOf("Deselect"), actions())
+        assertEquals(listOf("Deselect", "Open full size"), actions())
         tile("IMG_1.jpg").assertIsSelected()
         assertTrue(tile("IMG_1.jpg").fetchSemanticsNode().config.getOrNull(SemanticsProperties.ContentDescription)!!.single().endsWith("Selected. Favourite"))
     }

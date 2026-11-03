@@ -314,6 +314,11 @@
         <item quantity="other">Already compressed (%d)</item>
     </plurals>
     <string name="compress_already_hint">You already compressed these images once. If you want, you can compress them again.</string>
+    <string name="compress_select_page">Select all on this page</string>
+    <string name="compress_deselect_page">Deselect all on this page</string>
+    <string name="compress_page_position">%1$,d to %2$,d of %3$,d</string>
+    <string name="compress_page_previous">Previous page</string>
+    <string name="compress_page_next">Next page</string>
     <string name="compress_expand">Show the photos already compressed</string>
     <string name="compress_collapse">Hide the photos already compressed</string>
     <string name="compress_hint_select">Select the photos to compress.</string>
@@ -376,7 +381,7 @@
     <string name="compress_preview_after">Compressed \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_loading">Compressing this photo for the preview\u2026</string>
     <string name="compress_preview_failed">This photo cannot be compressed at this level, so there is no preview. It would be left as it is.</string>
-    <string name="compress_preview_hint">Pinch to zoom both photos at the same position.</string>
+    <string name="compress_preview_hint">Pinch to zoom both photos at the same position. Drag to move them, double tap to see the whole photo.</string>
     <string name="compress_preview_before_description">Original</string>
     <string name="compress_preview_after_description">Compressed at the chosen level</string>
     <string name="compress_zoom">Zoom %1$d%%</string>

@@ -201,6 +201,70 @@ class CompressViewModelTest {
         assertEquals(listOf(twin, a), model.state.value.selectedPhotos)
     }
 
+    /** [count] photos, largest first like the index gives them. */
+    private fun many(count: Int, prefix: String = "p", marker: Marker? = null) = List(count) { CompressibleImage("/m/$prefix${"%03d".format(it)}.jpg", 100_000L - it, 4000, 3000, JpegInfo(JpegStatus.ELIGIBLE, quality = 92, marker = marker)) }
+
+    private fun loaded(photos: List<CompressibleImage>) = run {
+        listed = photos
+        loaded()
+    }
+
+    @Test
+    fun `the photos show in pages of 50, and a page number out of range is kept inside the list`() {
+        val all = many(120)
+        val model = loaded(all)
+
+        assertEquals(all.take(50), model.state.value.pagePhotos)
+        model.goToPage(1)
+        assertEquals(all.subList(50, 100), model.state.value.pagePhotos)
+        model.goToPage(9)
+        assertEquals(all.drop(100), model.state.value.pagePhotos)
+        model.goToPage(-3)
+        assertEquals(all.take(50), model.state.value.pagePhotos)
+    }
+
+    @Test
+    fun `select all picks the current page only, and the selection on other pages stays`() {
+        val all = many(120)
+        val model = loaded(all)
+
+        model.selectAll(true)
+        model.goToPage(2)
+        model.toggle(all[110].path)
+        model.selectAll(true)
+        assertEquals((all.take(50) + all.drop(100)).map { it.path }.toSet(), model.state.value.selected)
+
+        model.goToPage(0)
+        model.selectAll(false)
+        assertEquals(all.drop(100).map { it.path }.toSet(), model.state.value.selected)
+        assertEquals(20, model.state.value.selectedPhotos.size)
+    }
+
+    @Test
+    fun `the list shrinking under the page brings the page back to the last one`() {
+        val all = many(120)
+        val model = loaded(all)
+        model.goToPage(2)
+
+        listed = all.take(60)
+        model.refresh()
+        settle(model) { it.photos.size == 60 }
+
+        assertEquals(all.subList(50, 60), model.state.value.pagePhotos)
+    }
+
+    @Test
+    fun `the compressed photos page on their own`() {
+        val done = many(70, "d", Marker(1, "balanced", null))
+        val model = loaded(many(60) + done)
+
+        assertEquals(done.take(50), model.state.value.pageCompressed)
+        model.goToCompressedPage(1)
+        assertEquals(done.drop(50), model.state.value.pageCompressed)
+        assertEquals(50, model.state.value.pagePhotos.size)
+        assertEquals(0, model.state.value.page)
+    }
+
     @Test
     fun `the preview file goes when the summary closes, when the batch starts and when the model is cleared`() {
         val store = ViewModelStore()

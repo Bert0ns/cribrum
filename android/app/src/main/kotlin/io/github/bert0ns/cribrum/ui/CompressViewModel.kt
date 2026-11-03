@@ -29,6 +29,15 @@ import java.io.File
 
 private const val TAG = "compress"
 
+/** How many photos a page of the list shows. */
+const val COMPRESS_PAGE_SIZE = 50
+
+/** The photos of page [page], counted from 0. */
+private fun List<CompressibleImage>.pageOf(page: Int) = drop(page * COMPRESS_PAGE_SIZE).take(COMPRESS_PAGE_SIZE)
+
+/** How many pages [size] photos take, at least one. */
+fun compressPageCount(size: Int) = maxOf(1, (size + COMPRESS_PAGE_SIZE - 1) / COMPRESS_PAGE_SIZE)
+
 /** How many of the selected photos lose each thing the copy loses (§9). */
 data class LossCounts(val reEdit: Int = 0, val depthMap: Int = 0, val xmp: Int = 0, val c2pa: Int = 0)
 
@@ -56,6 +65,9 @@ data class CompressState(
     /** Not preselected: the user picks it. */
     val level: CompressionLevel? = null,
     val compressedExpanded: Boolean = false,
+    /** The page of [photos] and of [compressed] on screen, counted from 0. */
+    val page: Int = 0,
+    val compressedPage: Int = 0,
     val summary: Summary? = null,
     /** The result of a batch the user has read and closed. */
     val dismissed: BatchResult? = null,
@@ -65,6 +77,9 @@ data class CompressState(
     val undoing: Boolean = false,
     val retentionDays: Int = 30,
 ) {
+    val pagePhotos: List<CompressibleImage> get() = photos.pageOf(page)
+    val pageCompressed: List<CompressibleImage> get() = compressed.pageOf(compressedPage)
+
     /** Largest first, as the batch runs them, whichever section a photo is in. */
     val selectedPhotos: List<CompressibleImage> get() = (photos + compressed).filter { it.path in selected }.sortedWith(compareByDescending<CompressibleImage> { it.size }.thenBy { it.path })
 
@@ -108,6 +123,8 @@ class CompressViewModel @JvmOverloads constructor(
                         loaded = true,
                         photos = todo,
                         compressed = done,
+                        page = state.page.coerceAtMost(compressPageCount(todo.size) - 1),
+                        compressedPage = state.compressedPage.coerceAtMost(compressPageCount(done.size) - 1),
                         favorites = favorite,
                         selected = selected,
                         retentionDays = days,
@@ -124,11 +141,15 @@ class CompressViewModel @JvmOverloads constructor(
 
     fun toggle(path: String) = mutableState.update { it.copy(selected = if (path in it.selected) it.selected - path else it.selected + path) }
 
-    /** Selects or clears the photos not compressed yet. The already compressed ones are only picked one by one. */
+    /** Selects or clears the photos of the current page. The other pages keep their selection, and the already compressed ones are only picked one by one. */
     fun selectAll(select: Boolean) = mutableState.update {
-        val others = it.selected - it.photos.mapTo(HashSet()) { photo -> photo.path }
-        it.copy(selected = if (select) others + it.photos.map { photo -> photo.path } else others)
+        val shown = it.pagePhotos.map { photo -> photo.path }
+        it.copy(selected = if (select) it.selected + shown else it.selected - shown.toSet())
     }
+
+    fun goToPage(page: Int) = mutableState.update { it.copy(page = page.coerceIn(0, compressPageCount(it.photos.size) - 1)) }
+
+    fun goToCompressedPage(page: Int) = mutableState.update { it.copy(compressedPage = page.coerceIn(0, compressPageCount(it.compressed.size) - 1)) }
 
     fun chooseLevel(level: CompressionLevel) = mutableState.update { it.copy(level = level) }
 

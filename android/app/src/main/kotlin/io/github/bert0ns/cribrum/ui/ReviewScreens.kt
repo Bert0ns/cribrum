@@ -14,7 +14,9 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -70,6 +72,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -403,83 +406,101 @@ private fun FullSize(
     onExcludeFolder: (ImageRef) -> Unit,
     onClose: () -> Unit,
 ) {
-    val pager = rememberPagerState(items.indexOfFirst { it.image == start }.coerceAtLeast(0)) { items.size }
-    val current = items.getOrNull(pager.currentPage) ?: return // the page emptied under the dialog; CategoryScreen closes it next
     val haptics = LocalHapticFeedback.current
-    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
-            HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { items[it].image.path }) { page ->
-                ZoomableImage(items[page].image, onClose)
+    FullSizeViewer(items.map { it.image.path }, start.path, onClose) { page ->
+        val current = items.getOrNull(page) ?: return@FullSizeViewer // the page emptied under the dialog; CategoryScreen closes it next
+        val isMarked = current.image.path in marked
+        if (current.isFavorite && isMarked) FavoriteHeart(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp))
+        FullSizeMark(
+            if (isMarked) Icons.Default.Delete else Icons.Default.Check,
+            if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            if (isMarked) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+            stringResource(
+                if (isMarked) {
+                    R.string.selected_for_trash
+                } else if (current.isBest) {
+                    R.string.kept_best_copy
+                } else {
+                    R.string.kept
+                },
+            ),
+            stringResource(if (isMarked) R.string.action_keep else R.string.action_trash),
+        ) {
+            haptics.performHapticFeedback(Haptic.TICK.type)
+            onToggle(current.image)
+        }
+        FullSizeBar {
+            for (reason in current.reasons.mapNotNull(::reasonOf)) {
+                Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
-            val isMarked = current.image.path in marked
-            if (current.isFavorite && isMarked) FavoriteHeart(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp))
-            val toggle = {
-                haptics.performHapticFeedback(Haptic.TICK.type)
-                onToggle(current.image)
-            }
-            val toggleLabel = stringResource(if (isMarked) R.string.action_keep else R.string.action_trash)
-            Button(
-                onClick = toggle,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    contentColor = if (isMarked) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
-                ),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                // The text says the mark; the label says what a tap does to it, as on a tile.
-                modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
-                    .semantics {
-                        onClick(label = toggleLabel) {
-                            toggle()
-                            true
-                        }
-                    },
-            ) {
-                Icon(
-                    if (isMarked) Icons.Default.Delete else Icons.Default.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    stringResource(
-                        if (isMarked) {
-                            R.string.selected_for_trash
-                        } else if (current.isBest) {
-                            R.string.kept_best_copy
-                        } else {
-                            R.string.kept
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-            Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)) {
-                for (reason in current.reasons.mapNotNull(::reasonOf)) {
-                    Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                    OutlinedButton(
-                        onClick = { onExcludeFolder(current.image) },
-                        border = BorderStroke(1.dp, Color.White),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                    ) { Text(stringResource(R.string.exclude_folder)) }
-                    Spacer(Modifier.weight(1f))
-                    if (current.isFavorite && !isMarked) FavoriteHeart()
-                }
+            Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                OutlinedButton(
+                    onClick = { onExcludeFolder(current.image) },
+                    border = BorderStroke(1.dp, Color.White),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                ) { Text(stringResource(R.string.exclude_folder)) }
+                Spacer(Modifier.weight(1f))
+                if (current.isFavorite && !isMarked) FavoriteHeart()
             }
         }
     }
 }
 
+/**
+ * The full size view both the review and the Compress page open: a black dialog that pages through
+ * [paths] from [start], with the zoomable image in each page. [overlay] draws over it what is
+ * specific to the screen, for the page the pager is on.
+ */
+@Composable
+internal fun FullSizeViewer(paths: List<String>, start: String, onClose: () -> Unit, overlay: @Composable BoxScope.(page: Int) -> Unit) {
+    val pager = rememberPagerState(paths.indexOf(start).coerceAtLeast(0)) { paths.size }
+    Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxSize().background(Color.Black)) {
+            HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { paths[it] }) { page ->
+                ZoomableImage(paths[page], onClose)
+            }
+            overlay(pager.currentPage)
+        }
+    }
+}
+
+/** The button at the top left of the full size view: its text says how the grid marks the image, a tap toggles that mark as on a tile. */
+@Composable
+internal fun BoxScope.FullSizeMark(icon: ImageVector, container: Color, content: Color, text: String, toggleLabel: String, onToggle: () -> Unit) {
+    Button(
+        onClick = onToggle,
+        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+        // The text says the mark; the label says what a tap does to it, as on a tile.
+        modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
+            .semantics {
+                onClick(label = toggleLabel) {
+                    onToggle()
+                    true
+                }
+            },
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/** The dark translucent bar at the bottom of the full size view, readable on a white image. */
+@Composable
+internal fun BoxScope.FullSizeBar(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp), content = content)
+}
+
 /** Pinch zooms. A drag pans only while zoomed, so at scale 1 it is left to the pager to change page. */
 @Composable
-private fun ZoomableImage(image: ImageRef, onClose: () -> Unit) {
+private fun ZoomableImage(path: String, onClose: () -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     AsyncImage(
-        model = File(image.path),
-        contentDescription = File(image.path).name,
+        model = File(path),
+        contentDescription = File(path).name,
         contentScale = ContentScale.Fit,
         modifier = Modifier.fillMaxSize()
             .pointerInput(Unit) {
