@@ -30,6 +30,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import java.time.Clock
@@ -251,6 +253,49 @@ class CompressorTest {
         val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
 
         assertEquals("0", ExifInterface(copy.path).getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF))
+    }
+
+    /** [jpeg] with an Exif whose GPS IFD holds only the altitude reference, stored in the TIFF [format] the camera chose. */
+    private fun withAltitudeRef(jpeg: ByteArray, format: Int, value: Int, bigEndian: Boolean = false): ByteArray {
+        val tiff = ByteBuffer.allocate(8 + 2 + 12 + 4 + 2 + 12 + 4).order(if (bigEndian) ByteOrder.BIG_ENDIAN else ByteOrder.LITTLE_ENDIAN)
+        tiff.put((if (bigEndian) "MM" else "II").toByteArray()).putShort(42).putInt(8)
+        tiff.putShort(1).putShort(0x8825.toShort()).putShort(4).putInt(1).putInt(26).putInt(0) // IFD0: the GPS IFD is at 26
+        tiff.putShort(1).putShort(5).putShort(format.toShort()).putInt(if (format == 2) 2 else 1)
+        when (format) {
+            3 -> tiff.putShort(value.toShort()).putShort(0)
+            4 -> tiff.putInt(value)
+            2 -> tiff.put(('0' + value).code.toByte()).put(0).putShort(0)
+            else -> tiff.put(value.toByte()).put(0).putShort(0)
+        }
+        tiff.putInt(0)
+        val app1 = "Exif\u0000\u0000".toByteArray(Charsets.ISO_8859_1) + tiff.array()
+        return jpeg.copyOfRange(0, 2) + byteArrayOf(0xFF.toByte(), 0xE1.toByte(), ((app1.size + 2) shr 8).toByte(), (app1.size + 2).toByte()) + app1 + jpeg.copyOfRange(2, jpeg.size)
+    }
+
+    @Test
+    fun `an altitude reference that ExifInterface cannot read is read from the Exif and kept, so a depth does not become a height`() {
+        // ExifInterface drops a tag stored in a format other than the one it expects, and the phone stored this one as one of them.
+        for ((format, bigEndian) in listOf(3 to false, 4 to false, 2 to false, 3 to true)) {
+            val name = "alt-$format-$bigEndian.jpg"
+            val image = photo(name, withAltitudeRef(encodedJpeg(800, 600, 100), format, 1, bigEndian), emptyMap())
+            assertEquals(name, null, ExifInterface(image.path).getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF))
+
+            val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
+
+            assertEquals(name, "1", ExifInterface(copy.path).getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF))
+        }
+    }
+
+    @Test
+    fun `an unreadable altitude reference of 0 is kept as 0, and a file without one gets none`() {
+        val above = photo("above.jpg", withAltitudeRef(encodedJpeg(800, 600, 100), 3, 0), emptyMap())
+        val none = photo("none.jpg", encodedJpeg(800, 600, 100), emptyMap())
+
+        val copy = (compress(above, CompressionLevel.HIGH) as Compression.Done).copy
+        val bare = (compress(none, CompressionLevel.HIGH) as Compression.Done).copy
+
+        assertEquals("0", ExifInterface(copy.path).getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF))
+        assertEquals(null, ExifInterface(bare.path).getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF))
     }
 
     @Test
