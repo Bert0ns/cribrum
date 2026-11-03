@@ -8,6 +8,9 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.pipeline.Pipeline
+import io.github.bert0ns.cribrum.review.Review
+import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
@@ -131,6 +134,28 @@ class CompressorTest {
 
         assertEquals(copy, File(image.path).toImageRef())
         assertEquals(listOf(image), runBlocking { trash.trashed() }.map { it.original })
+    }
+
+    /** A scan of the volume with no detectors: the walk, the metadata and the JPEG headers. */
+    private fun scan() = runBlocking { Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), trash = trash).run(FilesystemImageSource(volume)) }
+
+    private fun listed() = runBlocking { index.compressible(36) }.map { it.size to it.info.marker?.level }
+
+    @Test
+    fun `the next scan shows the copy as compressed, and a restore drops the copy's jpegs row`() {
+        val image = photo("a.jpg", encodedJpeg(800, 600, 100))
+        scan()
+        assertEquals(listOf(image.size to null), listed())
+
+        val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
+        assertEquals(emptyList<Pair<Long, String?>>(), listed())
+        scan()
+        assertEquals(listOf(copy.size to "high"), listed())
+
+        assertEquals(listOf(image), runBlocking { Review(index, trash).restore(listOf(image)) })
+        assertEquals(emptyList<Pair<Long, String?>>(), listed())
+        scan()
+        assertEquals(listOf(image.size to null), listed())
     }
 
     @Test
