@@ -25,7 +25,11 @@ import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.copyFileFor
 import io.github.bert0ns.cribrum.ui.HeatLevel
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -361,5 +365,25 @@ class CompressBatchTest {
         finished()
 
         assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC, foregrounds.single().foregroundServiceType)
+    }
+
+    @Test
+    fun `undo waits for a running scan`() {
+        val image = photo("a.jpg")
+        val bytes = File(image.path).readBytes()
+        start(image)
+        val result = finished()
+        waitFor { !running() }
+        Indexing.scanNow(app)
+        waitFor { scans.get() == 1 }
+
+        val undo = CoroutineScope(Dispatchers.Default).async { CompressBatch.undo(Review(index, trash), result) }
+        runBlocking { delay(300) }
+
+        assertFalse(undo.isCompleted)
+        assertFalse(bytes.contentEquals(File(image.path).readBytes()))
+        scanGate.complete(Unit)
+        assertEquals(emptyList<ImageRef>(), runBlocking { withTimeout(10_000) { undo.await() } })
+        assertArrayEquals(bytes, File(image.path).readBytes())
     }
 }
