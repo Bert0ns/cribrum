@@ -626,8 +626,10 @@ private fun BeforeAfter(summary: Summary, selected: Int) {
                     Tab(
                         index == current,
                         {
-                            haptics.performHapticFeedback(Haptic.TICK.type)
-                            tab = index
+                            if (index != current) {
+                                haptics.performHapticFeedback(Haptic.TICK.type)
+                                tab = index
+                            }
                         },
                         Modifier.semantics { contentDescription = description },
                         text = { Text(stringResource(R.string.compress_compare_tab, index + 1), Modifier.clearAndSetSemantics {}) },
