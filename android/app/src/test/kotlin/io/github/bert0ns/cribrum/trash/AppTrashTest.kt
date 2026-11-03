@@ -602,11 +602,30 @@ class AppTrashTest {
     }
 
     @Test
-    fun `discarding refuses a file that is not a compressed copy`() = test {
+    fun `discarding refuses anything but a compressed copy outside the trash`() = test {
         val image = photo("DCIM/Camera/a.jpg")
+        val lookalike = File(File(image.path).parentFile, ".pending-cribrum-x.jpg").apply { writeText("not ours") }
+        val folderNamedLikeACopy = copyFileFor(File(image.path)).apply { mkdirs() }
+        val inTrash = copyFileFor(File(volume, "$TRASH_FOLDER/item/a.jpg")).apply {
+            parentFile!!.mkdirs()
+            writeText("in the trash")
+        }
 
-        assertThrows(IllegalStateException::class.java) { discardCopy(File(image.path)) }
+        for (file in listOf(File(image.path), lookalike, folderNamedLikeACopy, inTrash)) {
+            assertThrows(file.name, IllegalStateException::class.java) { discardCopy(file) }
+            assertTrue(file.name, file.exists())
+        }
+    }
 
-        assertTrue(File(image.path).exists())
+    @Test
+    fun `discarding deletes a copy, and does nothing for one never written`() = test {
+        val image = photo("DCIM/Camera/a.jpg")
+        val copy = copyOf(image)
+
+        discardCopy(copy)
+        discardCopy(copyFileFor(File(image.path)))
+
+        assertFalse(copy.exists())
+        assertEquals(listOf("a.jpg"), filesIn(image))
     }
 }
