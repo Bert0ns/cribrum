@@ -40,6 +40,7 @@ class FakeMediaStore : ContentProvider() {
         var rows: List<Row> = emptyList()
         val requests = mutableListOf<Request>()
         val queries = mutableListOf<Int>()
+        val selections = mutableListOf<String?>()
 
         fun uri(id: Long): Uri = ContentUris.withAppendedId(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL), id)
     }
@@ -49,8 +50,9 @@ class FakeMediaStore : ContentProvider() {
     override fun query(uri: Uri, projection: Array<String>?, selection: String?, args: Array<String>?, order: String?): Cursor {
         queries += args?.size ?: 0
         val wanted = args.orEmpty().toSet()
+        selections += selection
         return MatrixCursor(projection!!).apply {
-            for (row in rows.filter { it.path in wanted }) {
+            for (row in rows.filter { it.path in wanted && (it.favorite || selection?.contains("${MediaStore.MediaColumns.IS_FAVORITE} = 1") != true) }) {
                 addRow(
                     projection.map<String, Any> {
                         if (it == MediaStore.Images.Media._ID) {
@@ -96,6 +98,7 @@ class FavoriteRequestsTest {
         FakeMediaStore.rows = emptyList()
         FakeMediaStore.requests.clear()
         FakeMediaStore.queries.clear()
+        FakeMediaStore.selections.clear()
         Robolectric.setupContentProvider(FakeMediaStore::class.java, MediaStore.AUTHORITY)
     }
 
@@ -123,6 +126,21 @@ class FavoriteRequestsTest {
         assertEquals(request.uris, built.uris)
         assertEquals(true, built.value)
         assertTrue(built.method.contains("favorite"))
+    }
+
+    @Test
+    fun `the favourites among some paths come from a query for those paths and no others`() {
+        FakeMediaStore.rows = listOf(
+            FakeMediaStore.Row(1, "/p/a.jpg", favorite = true),
+            FakeMediaStore.Row(2, "/p/b.jpg", favorite = false),
+            FakeMediaStore.Row(3, "/p/c.jpg", favorite = true),
+        )
+
+        assertEquals(setOf("/p/a.jpg"), queryFavoritesAmong(context.contentResolver, listOf("/p/a.jpg", "/p/b.jpg")))
+
+        assertEquals(listOf(2), FakeMediaStore.queries)
+        assertTrue(FakeMediaStore.selections.single()!!.endsWith("IN (?, ?) AND ${MediaStore.MediaColumns.IS_FAVORITE} = 1"))
+        assertEquals(emptySet<String>(), queryFavoritesAmong(context.contentResolver, emptyList()))
     }
 
     @Test

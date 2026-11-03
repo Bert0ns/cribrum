@@ -68,7 +68,7 @@ class CompressBatchTest {
     private val camera by lazy { File(volume, "DCIM/Camera").apply { mkdirs() } }
     private val index = memoryIndex()
     private var flagged = emptySet<String>()
-    private val trash by lazy { AppTrash({ listOf(volume) }, favorites = { flagged }) }
+    private val trash by lazy { AppTrash({ listOf(volume) }, favorites = { it intersect flagged }) }
 
     /** What the worker asked the activity to mark again, and the callback that tells the batch the answer. */
     private val asked: MutableList<List<String>> = Collections.synchronizedList(mutableListOf())

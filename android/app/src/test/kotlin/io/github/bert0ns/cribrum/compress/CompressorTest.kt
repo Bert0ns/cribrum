@@ -58,7 +58,7 @@ class CompressorTest {
     private val told = mutableListOf<Triple<String, String?, Long>>()
     private var flagged = emptySet<String>()
     private val trash by lazy {
-        AppTrash({ listOf(volume) }, clock, favorites = { flagged }) { paths ->
+        AppTrash({ listOf(volume) }, clock, favorites = { it intersect flagged }) { paths ->
             paths.forEach { told += Triple(it, ExifInterface(it).getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL), File(it).toImageRef().mtimeNs) }
         }
     }

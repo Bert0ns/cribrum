@@ -37,9 +37,17 @@ class AppTrashTest {
     private var retention = Duration.ofDays(30)
     private var favorites: () -> Set<String> = { emptySet() }
 
+    /** What the trash asked MediaStore about, one entry for each query. */
+    private val asked = mutableListOf<List<String>>()
+
     /** The paths of the restored images that were favourites, one entry for each restore that had any. */
     private val favoritesRestored = mutableListOf<List<String>>()
-    private val trash by lazy { AppTrash({ listOf(volume) }, clock, { retention }, { favorites() }, { favoritesRestored += it }) { changed += it } }
+    private val trash by lazy {
+        AppTrash({ listOf(volume) }, clock, { retention }, { paths ->
+            asked += paths.toList()
+            favorites() intersect paths.toSet()
+        }, { favoritesRestored += it }) { changed += it }
+    }
 
     private fun photo(path: String, bytes: String = "jpeg bytes"): ImageRef {
         val file = File(volume, path)
@@ -478,6 +486,29 @@ class AppTrashTest {
         moveToTrash(listOf(heart, plain))
 
         assertEquals(mapOf(heart to true, plain to false), trashed().associate { it.original to it.favorite })
+    }
+
+    @Test
+    fun `a swap asks MediaStore about its own path only, not for every favourite of the library`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        photo("DCIM/Camera/b.jpg")
+
+        replaceWithCopy(image, copyOf(image))
+
+        assertEquals(listOf(listOf(image.path)), asked)
+    }
+
+    @Test
+    fun `a move asks about the images it moves, and a restore only about the copy it puts in the trash`() = test {
+        val first = photo("DCIM/Camera/a.jpg", "the original photo")
+        val second = photo("DCIM/Camera/b.jpg")
+        moveToTrash(listOf(first, second))
+        assertEquals(listOf(listOf(first.path, second.path)), asked)
+        asked.clear()
+
+        restore(listOf(first, second))
+
+        assertEquals(emptyList<List<String>>(), asked)
     }
 
     @Test
