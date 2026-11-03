@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,21 +45,25 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -80,7 +83,6 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -579,7 +581,7 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () ->
                     Text(stringResource(R.string.compress_summary_level, summary.level.title(), summary.level.detail()))
                     Text(stringResource(R.string.compress_summary_saving, fileSize(saving)), fontWeight = FontWeight.Bold)
                     Text(stringResource(R.string.compress_summary_saving_detail, fileSize(total), fileSize(total - saving)), style = MaterialTheme.typography.bodySmall)
-                    BeforeAfter(summary)
+                    BeforeAfter(summary, count)
                     LossWarning(state, state.lossCounts())
                 }
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -595,57 +597,63 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () ->
     }
 }
 
-/** The original and a real compression of it at the chosen level, side by side, zoomed together. */
+/** The original and a real compression of it at the chosen level, under one draggable line, for each photo the summary compares. */
 @Composable
-private fun BeforeAfter(summary: Summary) {
-    val sample = summary.sample
-    val zoom = remember(sample.path) { Zoom(IntSize(sample.width, sample.height)) }
-    val after = target(sample.width, sample.height, summary.level)
-    val ratio = (sample.width.toFloat() / sample.height).coerceIn(0.5f, 2f)
+private fun BeforeAfter(summary: Summary, selected: Int) {
+    val haptics = LocalHapticFeedback.current
+    val samples = summary.samples
+    var tab by rememberSaveable { mutableIntStateOf(0) }
+    val current = tab.coerceIn(0, samples.lastIndex)
+    val sample = samples[current]
+    val photo = sample.photo
+    val line = remember { mutableFloatStateOf(0.5f) }
+    // A photo keeps its zoom while the user looks at another.
+    val zooms = remember(samples.map { it.photo.path }) { samples.map { Zoom(IntSize(it.photo.width, it.photo.height)) } }
+    val zoom = zooms[current]
+    val after = target(photo.width, photo.height, summary.level)
+    val ratio = (photo.width.toFloat() / photo.height).coerceIn(0.5f, 2f)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.compress_preview_heading), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.compress_preview_before, fileSize(sample.size), sample.width, sample.height), style = MaterialTheme.typography.labelMedium)
-                // Tiles of a 200 MP original would slow the preview's encode, and the zoom has nothing to compare yet.
-                ZoomPanel(File(sample.path), zoom, stringResource(R.string.compress_preview_before_description), ratio, tiled = summary.preview !is SampleResult.Loading)
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                when (val preview = summary.preview) {
-                    SampleResult.Loading -> {
-                        Text(stringResource(R.string.compress_preview_loading), style = MaterialTheme.typography.labelMedium)
-                        Box(Modifier.fillMaxWidth().aspectRatio(ratio), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        Text(stringResource(if (selected > samples.size) R.string.compress_preview_heading_some else R.string.compress_preview_heading), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+        if (samples.size > 1) {
+            PrimaryTabRow(current) {
+                samples.forEachIndexed { index, item ->
+                    val before = fileSize(item.photo.size)
+                    val description = when (val preview = item.preview) {
+                        SampleResult.Loading -> stringResource(R.string.compress_compare_tab_loading, index + 1, samples.size, before)
+                        is SampleResult.Ready -> stringResource(R.string.compress_compare_tab_ready, index + 1, samples.size, before, fileSize(preview.file.length()))
+                        is SampleResult.Failed -> stringResource(R.string.compress_compare_tab_failed, index + 1, samples.size, before)
                     }
-                    is SampleResult.Ready -> {
-                        Text(stringResource(R.string.compress_preview_after, fileSize(preview.file.length()), after.width, after.height), style = MaterialTheme.typography.labelMedium)
-                        ZoomPanel(preview.file, zoom, stringResource(R.string.compress_preview_after_description), ratio)
-                    }
-                    is SampleResult.Failed -> Text(stringResource(R.string.compress_preview_failed), style = MaterialTheme.typography.bodyMedium)
+                    Tab(
+                        index == current,
+                        {
+                            haptics.performHapticFeedback(Haptic.TICK.type)
+                            tab = index
+                        },
+                        Modifier.semantics { contentDescription = description },
+                        text = { Text(stringResource(R.string.compress_compare_tab, index + 1), Modifier.clearAndSetSemantics {}) },
+                    )
                 }
             }
         }
-        // Each panel already reads the zoom to a screen reader.
+        Text(stringResource(R.string.compress_preview_before, fileSize(photo.size), photo.width, photo.height), style = MaterialTheme.typography.labelMedium)
+        when (val preview = sample.preview) {
+            SampleResult.Loading -> {
+                Text(stringResource(R.string.compress_preview_loading), style = MaterialTheme.typography.labelMedium)
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+            is SampleResult.Ready -> Text(stringResource(R.string.compress_preview_after, fileSize(preview.file.length()), after.width, after.height), style = MaterialTheme.typography.labelMedium)
+            is SampleResult.Failed -> Text(stringResource(R.string.compress_preview_failed), style = MaterialTheme.typography.bodyMedium)
+        }
+        // Tiles wait until every preview is made: a zoom decoding next to an encode would slow it, and take memory its check counts on.
+        CompareSlider(File(photo.path), (sample.preview as? SampleResult.Ready)?.file, zoom, line, ratio, tiled = samples.none { it.preview is SampleResult.Loading })
+        // The image already reads the zoom to a screen reader.
         Text(zoomLabel(zoom), style = MaterialTheme.typography.labelMedium, modifier = Modifier.clearAndSetSemantics {})
         Text(stringResource(R.string.compress_preview_hint), style = MaterialTheme.typography.bodySmall)
     }
 }
 
 @Composable
-internal fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float, tiled: Boolean = true) {
-    val state = zoomLabel(zoom)
-    TiledImage(
-        file,
-        zoom,
-        Modifier.fillMaxWidth().aspectRatio(ratio).clipToBounds().zoomGestures(zoom).semantics {
-            contentDescription = description
-            stateDescription = state
-        },
-        tiled,
-    )
-}
-
-@Composable
-private fun zoomLabel(zoom: Zoom) = stringResource(R.string.compress_zoom, (zoom.share * 100).roundToInt())
+internal fun zoomLabel(zoom: Zoom) = stringResource(R.string.compress_zoom, (zoom.share * 100).roundToInt())
 
 /** What the copy loses (§9), with how many of the selected photos each loss touches. */
 @Composable
@@ -707,6 +715,7 @@ private fun PagedPreview() {
 
 @Preview(name = "Summary", showBackground = true)
 @Preview(name = "Summary, narrow Italian", widthDp = 280, locale = "it", showBackground = true)
+@Preview(name = "Summary, narrow Italian large font", widthDp = 280, locale = "it", fontScale = 1.5f, showBackground = true)
 @Composable
 private fun SummaryPreview() {
     val state = CompressState(
@@ -714,7 +723,7 @@ private fun SummaryPreview() {
         photos = previewPhotos.take(2),
         selected = previewPhotos.take(2).map { it.path }.toSet(),
         level = CompressionLevel.SMALLEST,
-        summary = Summary(previewPhotos[0], CompressionLevel.SMALLEST, SampleResult.Loading),
+        summary = Summary(CompressionLevel.SMALLEST, listOf(Sample(previewPhotos[0], SampleResult.Ready(File("/photos/preview.jpg"))), Sample(previewPhotos[1], SampleResult.Loading), Sample(previewPhotos[2], SampleResult.Loading))),
     )
     CompressContent(state, BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
 }

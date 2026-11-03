@@ -101,7 +101,8 @@ internal class Zoom(private val image: IntSize) {
 
 /**
  * Pinch zooms [zoom], and one finger pans once zoomed. A single finger on a photo at rest is left to
- * the parent, the summary's scroll or the pager. A double tap goes back to the whole photo.
+ * the parent, the summary's scroll or the pager. A double tap goes back to the whole photo. A finger
+ * a child already consumed is left alone.
  */
 internal fun Modifier.zoomGestures(zoom: Zoom, onTap: (() -> Unit)? = null) = this
     .pointerInput(zoom, onTap) { detectTapGestures(onTap = onTap?.let { { _ -> it() } }, onDoubleTap = { zoom.reset() }) }
@@ -110,7 +111,8 @@ internal fun Modifier.zoomGestures(zoom: Zoom, onTap: (() -> Unit)? = null) = th
             awaitFirstDown(requireUnconsumed = false)
             do {
                 val event = awaitPointerEvent()
-                if (event.changes.size > 1 || zoom.scale > 1f) {
+                // A single finger a child took, such as the comparison handle's, is left alone.
+                if (event.changes.size > 1 || (zoom.scale > 1f && event.changes.none { it.isConsumed })) {
                     zoom.transform(event.calculateCentroid(), event.calculatePan(), event.calculateZoom())
                     event.changes.forEach { if (it.pressed) it.consume() }
                 }

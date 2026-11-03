@@ -41,6 +41,9 @@ fun compressPageCount(size: Int) = maxOf(1, (size + COMPRESS_PAGE_SIZE - 1) / CO
 /** How many of the selected photos lose each thing the copy loses (§9). */
 data class LossCounts(val reEdit: Int = 0, val depthMap: Int = 0, val xmp: Int = 0, val c2pa: Int = 0)
 
+/** How many photos the summary compresses for real. */
+const val MAX_COMPARED = 3
+
 /** A photo compressed for real at the chosen level, for the before and after. */
 sealed interface SampleResult {
     data object Loading : SampleResult
@@ -51,8 +54,11 @@ sealed interface SampleResult {
     data class Failed(val reason: Refusal) : SampleResult
 }
 
-/** The summary before confirming: [sample] is the photo the preview shows. */
-data class Summary(val sample: CompressibleImage, val level: CompressionLevel, val preview: SampleResult)
+/** One of the photos the summary compares, and its compressed copy. */
+data class Sample(val photo: CompressibleImage, val preview: SampleResult)
+
+/** The summary before confirming, with the photos it compares, largest first. */
+data class Summary(val level: CompressionLevel, val samples: List<Sample>)
 
 data class CompressState(
     val loaded: Boolean = false,
@@ -83,6 +89,10 @@ data class CompressState(
     /** Largest first, as the batch runs them, whichever section a photo is in. */
     val selectedPhotos: List<CompressibleImage> get() = (photos + compressed).filter { it.path in selected }.sortedWith(compareByDescending<CompressibleImage> { it.size }.thenBy { it.path })
 
+    /** The photos the summary compares: all of them up to [MAX_COMPARED], else the largest, the middle one by size and the smallest. */
+    val comparedPhotos: List<CompressibleImage>
+        get() = selectedPhotos.let { if (it.size <= MAX_COMPARED) it else listOf(it.first(), it[it.size / 2], it.last()) }
+
     fun estimatedSaving(level: CompressionLevel): Long = selectedPhotos.sumOf { it.saving(level) }
 
     fun lossCounts(): LossCounts {
@@ -99,9 +109,9 @@ class CompressViewModel @JvmOverloads constructor(
     private val retentionDays: () -> Int = { (application as CribrumApp).trashRetention.days },
     /** Compresses the first file at the level into the third, like a real compression, and says why it could not. */
     preview: (suspend (File, CompressionLevel, File) -> Refusal?)? = null,
-    /** Named like a compressed copy, so only the trash may delete it. */
-    private val previewFile: File = copyFileFor(File(application.cacheDir, "preview")),
-    /** Deletes the preview file, through the trash. */
+    /** One for each photo compared, named like a compressed copy so only the trash may delete them. */
+    private val previewFiles: List<File> = List(MAX_COMPARED) { copyFileFor(File(application.cacheDir, "preview")) },
+    /** Deletes a preview file, through the trash. */
     private val discard: (File) -> Unit = { (application as CribrumApp).trash.discardCopy(it) },
 ) : AndroidViewModel(application) {
     private val mutableState = MutableStateFlow(CompressState())
@@ -155,20 +165,24 @@ class CompressViewModel @JvmOverloads constructor(
 
     fun toggleCompressed() = mutableState.update { it.copy(compressedExpanded = !it.compressedExpanded) }
 
-    /** Opens the summary, and compresses the largest selected photo at the chosen level for its before and after. */
+    /** Opens the summary, and compresses the photos it compares at the chosen level, one after the other. */
     fun openSummary() {
         val state = mutableState.value
         val level = state.level ?: return
-        val sample = state.selectedPhotos.firstOrNull() ?: return
+        val photos = state.comparedPhotos
+        if (photos.isEmpty()) return
         // A preview is a second full decode: it never runs next to a batch's.
         if (batches.state.value.let { it is BatchState.WaitingForScan || it is BatchState.Running }) return
         previewJob?.cancel()
-        mutableState.update { it.copy(summary = Summary(sample, level, SampleResult.Loading)) }
+        mutableState.update { it.copy(summary = Summary(level, photos.map { photo -> Sample(photo, SampleResult.Loading) })) }
         previewJob = viewModelScope.launch {
-            val refusal = makePreview(File(sample.path), level, previewFile)
-            val result = if (refusal == null) SampleResult.Ready(previewFile) else SampleResult.Failed(refusal)
-            // The summary may have been closed meanwhile.
-            mutableState.update { state -> state.copy(summary = state.summary?.copy(preview = result)) }
+            // One at a time: each is a full decode and encode of a photo, and the first shows while the others are made.
+            photos.forEachIndexed { index, photo ->
+                val refusal = makePreview(File(photo.path), level, previewFiles[index])
+                val result = if (refusal == null) SampleResult.Ready(previewFiles[index]) else SampleResult.Failed(refusal)
+                // The summary may have been closed meanwhile.
+                mutableState.update { state -> state.copy(summary = state.summary?.let { it.copy(samples = it.samples.mapIndexed { i, sample -> if (i == index) sample.copy(preview = result) else sample }) }) }
+            }
         }
     }
 
@@ -179,7 +193,7 @@ class CompressViewModel @JvmOverloads constructor(
 
     private fun dropPreview() {
         previewJob?.cancel()
-        runCatching { discard(previewFile) }.onFailure { Log.w(TAG, "Could not delete the preview", it) }
+        previewFiles.forEach { file -> runCatching { discard(file) }.onFailure { Log.w(TAG, "Could not delete the preview", it) } }
     }
 
     override fun onCleared() = dropPreview()

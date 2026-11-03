@@ -15,6 +15,7 @@ import io.github.bert0ns.cribrum.compress.JpegInfo
 import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
+import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.model.ImageRef
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
@@ -55,9 +56,13 @@ class CompressViewModelTest {
             out.writeBytes(ByteArray(10))
             null
         },
-        previewFile = File(folder.root, "preview.jpg"),
+        previewFiles = previewFiles,
         discard = { discarded += it },
     )
+
+    private val previewFiles by lazy { List(MAX_COMPARED) { File(folder.root, "preview$it.jpg") } }
+
+    private fun ready(state: CompressState) = state.summary?.samples?.all { it.preview is SampleResult.Ready } == true
 
     private fun settle(model: CompressViewModel, done: (CompressState) -> Boolean) {
         repeat(500) {
@@ -109,19 +114,153 @@ class CompressViewModelTest {
     }
 
     @Test
-    fun `the summary compresses the largest selected photo at the chosen level, and closing it drops the preview`() {
+    fun `the summary compresses the selected photo at the chosen level, and closing it drops the preview`() {
         val model = loaded()
         model.toggle(b.path)
         model.toggle(a.path)
         model.chooseLevel(CompressionLevel.SMALLEST)
 
         model.openSummary()
-        settle(model) { it.summary?.preview is SampleResult.Ready }
+        settle(model, ::ready)
 
-        assertEquals(listOf(File(a.path) to CompressionLevel.SMALLEST), previewed)
-        assertEquals(a, model.state.value.summary?.sample)
+        assertEquals(listOf(File(a.path) to CompressionLevel.SMALLEST, File(b.path) to CompressionLevel.SMALLEST), previewed)
+        assertEquals(listOf(a, b), model.state.value.summary?.samples?.map { it.photo })
         model.closeSummary()
         assertEquals(null, model.state.value.summary)
+    }
+
+    private fun photos(count: Int) = List(count) { CompressibleImage("/p/$it.jpg", 1_000_000L - it, 4000, 3000, JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) }
+
+    private fun compared(count: Int): List<String> {
+        listed = photos(count)
+        val model = loaded()
+        model.selectAll(true)
+        return model.state.value.comparedPhotos.map { it.path }
+    }
+
+    @Test
+    fun `up to three photos are all compared`() {
+        assertEquals(emptyList<String>(), compared(0))
+        assertEquals(listOf("/p/0.jpg"), compared(1))
+        assertEquals(listOf("/p/0.jpg", "/p/1.jpg"), compared(2))
+        assertEquals(listOf("/p/0.jpg", "/p/1.jpg", "/p/2.jpg"), compared(3))
+    }
+
+    @Test
+    fun `more than three compare the largest, the middle one by size and the smallest`() {
+        assertEquals(listOf("/p/0.jpg", "/p/2.jpg", "/p/3.jpg"), compared(4))
+        assertEquals(listOf("/p/0.jpg", "/p/3.jpg", "/p/6.jpg"), compared(7))
+        assertEquals(listOf("/p/0.jpg", "/p/25.jpg", "/p/49.jpg"), compared(50))
+    }
+
+    @Test
+    fun `the previews run one after the other, and the first shows as soon as it is ready`() {
+        val gates = List(3) { CompletableDeferred<Unit>() }
+        var running = 0
+        var most = 0
+        val order = mutableListOf<String>()
+        listed = photos(3)
+        val model = CompressViewModel(
+            app,
+            batches,
+            photos = { listed },
+            favorites = { emptySet() },
+            retentionDays = { 7 },
+            preview = { original, _, out ->
+                running++
+                most = maxOf(most, running)
+                order += original.name
+                gates[order.size - 1].await()
+                out.writeBytes(ByteArray(10))
+                running--
+                null
+            },
+            previewFiles = previewFiles,
+            discard = {},
+        )
+        model.refresh()
+        settle(model) { it.loaded }
+        model.selectAll(true)
+        model.chooseLevel(CompressionLevel.BALANCED)
+
+        model.openSummary()
+        settle(model) { order.size == 1 }
+        assertEquals(List(3) { SampleResult.Loading }, model.state.value.summary?.samples?.map { it.preview })
+
+        gates[0].complete(Unit)
+        settle(model) { it.summary?.samples?.get(0)?.preview is SampleResult.Ready }
+        settle(model) { order.size == 2 }
+        assertEquals(SampleResult.Loading, model.state.value.summary?.samples?.get(1)?.preview)
+
+        gates[1].complete(Unit)
+        gates[2].complete(Unit)
+        settle(model, ::ready)
+
+        assertEquals(listOf("0.jpg", "1.jpg", "2.jpg"), order)
+        assertEquals(1, most)
+    }
+
+    @Test
+    fun `a photo whose preview is refused says why and the others still get theirs`() {
+        listed = photos(3)
+        val model = CompressViewModel(
+            app,
+            batches,
+            photos = { listed },
+            favorites = { emptySet() },
+            retentionDays = { 7 },
+            preview = { original, _, out ->
+                out.writeBytes(ByteArray(10))
+                if (original.name == "1.jpg") Refusal.LOW_MEMORY else null
+            },
+            previewFiles = previewFiles,
+            discard = {},
+        )
+        model.refresh()
+        settle(model) { it.loaded }
+        model.selectAll(true)
+        model.chooseLevel(CompressionLevel.HIGH)
+
+        model.openSummary()
+        settle(model) { state -> state.summary?.samples?.none { it.preview is SampleResult.Loading } == true }
+
+        assertEquals(
+            listOf(SampleResult.Ready(previewFiles[0]), SampleResult.Failed(Refusal.LOW_MEMORY), SampleResult.Ready(previewFiles[2])),
+            model.state.value.summary?.samples?.map { it.preview },
+        )
+    }
+
+    @Test
+    fun `closing the summary stops the previews that have not started`() {
+        val gate = CompletableDeferred<Unit>()
+        listed = photos(3)
+        val started = mutableListOf<String>()
+        val model = CompressViewModel(
+            app,
+            batches,
+            photos = { listed },
+            favorites = { emptySet() },
+            retentionDays = { 7 },
+            preview = { original, _, _ ->
+                started += original.name
+                gate.await()
+                null
+            },
+            previewFiles = previewFiles,
+            discard = {},
+        )
+        model.refresh()
+        settle(model) { it.loaded }
+        model.selectAll(true)
+        model.chooseLevel(CompressionLevel.HIGH)
+        model.openSummary()
+        settle(model) { started.size == 1 }
+
+        model.closeSummary()
+        gate.complete(Unit)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(listOf("0.jpg"), started)
     }
 
     @Test
@@ -154,7 +293,7 @@ class CompressViewModelTest {
         val refusing = object : CompressBatches by batches {
             override fun start(paths: List<String>, level: CompressionLevel) = false
         }
-        val model = CompressViewModel(app, refusing, photos = { listed }, favorites = { emptySet() }, retentionDays = { 7 }, preview = { _, _, _ -> null }, previewFile = File(folder.root, "p.jpg"), discard = {})
+        val model = CompressViewModel(app, refusing, photos = { listed }, favorites = { emptySet() }, retentionDays = { 7 }, preview = { _, _, _ -> null }, previewFiles = previewFiles, discard = {})
         model.refresh()
         settle(model) { it.loaded }
         model.toggle(a.path)
@@ -184,8 +323,8 @@ class CompressViewModelTest {
 
         assertEquals(listOf(a, b, done), model.state.value.selectedPhotos)
         model.openSummary()
-        settle(model) { it.summary?.preview is SampleResult.Ready }
-        assertEquals(a, model.state.value.summary?.sample)
+        settle(model, ::ready)
+        assertEquals(listOf(a, b, done), model.state.value.summary?.samples?.map { it.photo })
         model.confirm()
 
         assertEquals(listOf(listOf(a.path, b.path, done.path) to CompressionLevel.BALANCED), batches.started)
@@ -266,7 +405,7 @@ class CompressViewModelTest {
     }
 
     @Test
-    fun `the preview file goes when the summary closes, when the batch starts and when the model is cleared`() {
+    fun `the preview files go when the summary closes, when the batch starts and when the model is cleared`() {
         val store = ViewModelStore()
         val model = ViewModelProvider(
             store,
@@ -278,21 +417,21 @@ class CompressViewModelTest {
         model.refresh()
         settle(model) { it.loaded }
         model.toggle(a.path)
+        model.toggle(b.path)
         model.chooseLevel(CompressionLevel.HIGH)
-        val file = File(folder.root, "preview.jpg")
 
         model.openSummary()
-        settle(model) { it.summary?.preview is SampleResult.Ready }
+        settle(model, ::ready)
         model.closeSummary()
-        assertEquals(listOf(file), discarded)
+        assertEquals(previewFiles, discarded)
 
         model.openSummary()
-        settle(model) { it.summary?.preview is SampleResult.Ready }
+        settle(model, ::ready)
         model.confirm()
-        assertEquals(listOf(file, file), discarded)
+        assertEquals(previewFiles + previewFiles, discarded)
 
         store.clear()
-        assertEquals(listOf(file, file, file), discarded)
+        assertEquals(previewFiles + previewFiles + previewFiles, discarded)
     }
 
     @Test
@@ -309,7 +448,7 @@ class CompressViewModelTest {
         assertEquals(emptyList<Any>(), previewed)
         batches.mutableState.value = BatchState.Idle
         model.openSummary()
-        settle(model) { it.summary?.preview is SampleResult.Ready }
+        settle(model, ::ready)
         assertEquals(1, previewed.size)
     }
 

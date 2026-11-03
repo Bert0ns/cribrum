@@ -245,9 +245,11 @@ class AccessibilityTest {
 
     @Test
     fun `the compress summary has targets of 48 dp`() {
-        compress(compressTile.copy(summary = Summary(photo, CompressionLevel.BALANCED, SampleResult.Loading)))
+        compress(compressTile.copy(summary = Summary(CompressionLevel.BALANCED, listOf(Sample(photo, SampleResult.Ready(File("/none.jpg"))), Sample(photo, SampleResult.Loading)))))
 
         compose.onNodeWithText("Compress 1 photo?").assertExists()
+        compose.onNodeWithContentDescription("Photo 2 of 2", substring = true).assertExists()
+        compose.onNodeWithContentDescription("Comparison line", substring = true).assertExists()
         assertTouchTargets("compress summary")
     }
 
