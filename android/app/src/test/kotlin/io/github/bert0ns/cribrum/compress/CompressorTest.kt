@@ -304,4 +304,31 @@ class CompressorTest {
         assertTrue(read.gainMap)
         assertEquals("high", read.marker?.level)
     }
+
+    @Test
+    fun `a preview is a compressed copy of the photo and touches nothing else`() {
+        val image = photo("a.jpg", encodedJpeg(800, 600, 100))
+        val bytes = File(image.path).readBytes()
+        val out = File(volume, "cache/preview.jpg").apply { parentFile.mkdirs() }
+
+        val refusal = runBlocking { compressor.preview(File(image.path), CompressionLevel.SMALLEST, out) }
+
+        assertEquals(null, refusal)
+        assertTrue(out.length() in 1 until image.size)
+        assertEquals(TAKEN, ExifInterface(out).getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL))
+        assertEquals(null, readJpeg(out).marker)
+        assertUntouched(image, bytes)
+        assertEquals(emptyList<ImageRef>(), runBlocking { index.images() })
+        assertEquals(emptyList<Triple<String, String?, Long>>(), told)
+    }
+
+    @Test
+    fun `a preview says why a photo cannot be compressed`() {
+        val image = photo("a.jpg", encodedJpeg(800, 600, 30))
+        val out = File(volume, "preview.jpg")
+
+        assertEquals(Refusal.NOT_SMALLER, runBlocking { compressor.preview(File(image.path), CompressionLevel.HIGH, out) })
+        free = { 1 }
+        assertEquals(Refusal.LOW_MEMORY, runBlocking { compressor.preview(File(image.path), CompressionLevel.HIGH, out) })
+    }
 }

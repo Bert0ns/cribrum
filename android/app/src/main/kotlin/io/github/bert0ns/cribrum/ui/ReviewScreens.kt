@@ -251,7 +251,7 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
 
 /** Tells the image is a favourite in the gallery. The dark disc keeps the heart legible on a light photo, and the pink on a dark one. */
 @Composable
-private fun FavoriteHeart(modifier: Modifier = Modifier) {
+internal fun FavoriteHeart(modifier: Modifier = Modifier) {
     Icon(
         Icons.Filled.Favorite,
         contentDescription = stringResource(R.string.favorite),

@@ -34,12 +34,13 @@ import io.github.bert0ns.cribrum.pipeline.ScanProgress
 
 /** The running scan with a progress bar, or a button that starts one. */
 @Composable
-fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier = Modifier, indexEmpty: Boolean = false, heat: Heat? = null) {
+fun ScanStatus(progress: ScanProgress?, onScan: () -> Unit, modifier: Modifier = Modifier, indexEmpty: Boolean = false, heat: Heat? = null, compressing: Boolean = false) {
     Column(modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when {
             progress == null -> {
                 if (indexEmpty) Text(stringResource(R.string.scan_empty))
-                OutlinedButton(onClick = onScan) { Text(stringResource(R.string.scan_now)) }
+                // A scan does not start under a compression (design §9), so the button waits for it to end.
+                if (compressing) Text(stringResource(R.string.compress_scan_blocked)) else OutlinedButton(onClick = onScan) { Text(stringResource(R.string.scan_now)) }
             }
             progress.total == 0 -> {
                 PhaseLine(progress.step, heat)

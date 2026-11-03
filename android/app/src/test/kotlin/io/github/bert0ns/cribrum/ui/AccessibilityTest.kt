@@ -22,6 +22,12 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import io.github.bert0ns.cribrum.compress.BatchState
+import io.github.bert0ns.cribrum.compress.CompressibleImage
+import io.github.bert0ns.cribrum.compress.CompressionLevel
+import io.github.bert0ns.cribrum.compress.JpegInfo
+import io.github.bert0ns.cribrum.compress.JpegStatus
+import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
@@ -214,5 +220,53 @@ class AccessibilityTest {
         assertEquals(1, restored)
         compose.onNodeWithText("Empty trash").performClick()
         compose.onNodeWithText("Delete 1 image for good?").assertIsDisplayed()
+    }
+
+    private val photo = CompressibleImage("/sdcard/DCIM/img1.jpg", 6_200_000, 4000, 3000, JpegInfo(JpegStatus.ELIGIBLE, quality = 92))
+    private val compressTile = CompressState(
+        loaded = true,
+        photos = listOf(photo),
+        compressed = listOf(photo.copy(path = "/sdcard/DCIM/img2.jpg", info = JpegInfo(JpegStatus.ELIGIBLE, marker = Marker(1, "balanced", null)))),
+        selected = setOf(photo.path),
+        level = CompressionLevel.BALANCED,
+        compressedExpanded = true,
+    )
+
+    private fun compress(state: CompressState, batch: BatchState = BatchState.Idle, onOpenSummary: () -> Unit = {}) {
+        compose.setContent { CompressContent(state, batch, true, {}, {}, {}, {}, onOpenSummary, {}, {}, {}, {}, {}) }
+    }
+
+    @Test
+    fun `the compress page has targets of 48 dp`() {
+        compress(compressTile)
+
+        assertTouchTargets("compress")
+    }
+
+    @Test
+    fun `the compress summary has targets of 48 dp`() {
+        compress(compressTile.copy(summary = Summary(photo, CompressionLevel.BALANCED, SampleResult.Loading)))
+
+        compose.onNodeWithText("Compress 1 photo?").assertExists()
+        assertTouchTargets("compress summary")
+    }
+
+    @Test
+    fun `a running batch and its result have targets of 48 dp`() {
+        compress(compressTile, BatchState.Running(1, 4, 1_000))
+        assertTouchTargets("compress progress")
+    }
+
+    @Test
+    fun `the compress page still works at twice the font size`() {
+        RuntimeEnvironment.setFontScale(2f)
+        var opened = 0
+        compress(compressTile, onOpenSummary = { opened++ })
+
+        // The button is pinned below the list, so it needs no scroll.
+        compose.onNodeWithText("Continue with 1 photo").assertIsDisplayed().performClick()
+        assertEquals(1, opened)
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("JPEG 85, up to 50 MP"))
+        compose.onNodeWithText("JPEG 85, up to 50 MP").assertIsDisplayed()
     }
 }

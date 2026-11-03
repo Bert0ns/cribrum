@@ -262,7 +262,6 @@
     <string name="nav_clean">Clean</string>
     <string name="nav_compress">Compress</string>
     <string name="nav_map">Map</string>
-    <string name="compress_coming_soon">Compressing large photos is coming soon.</string>
     <string name="compress_channel">Compressing photos</string>
     <string name="compress_progress">Compressing %1$d of %2$d</string>
     <string name="compress_saved">%1$s saved so far</string>
@@ -282,4 +281,135 @@
     </plurals>
     <string name="notification_hint">Scan progress notification is off</string>
     <string name="notification_action_settings">Settings</string>
+    <!-- Compress -->
+    <string name="close">Close</string>
+    <string name="action_select">Select</string>
+    <string name="action_deselect">Deselect</string>
+    <string name="compress_formats">Supported formats: JPEG. Motion Photos are not compressed.</string>
+    <string name="compress_formats_no_hdr">HDR photos are not compressed.</string>
+    <string name="compress_formats_open">Show what is supported</string>
+    <string name="compress_sheet_title">What Cribrum compresses</string>
+    <string name="compress_sheet_supported">Compressed</string>
+    <string name="compress_sheet_jpeg">JPEG photos. Ultra HDR photos too, on Android 14 and later.</string>
+    <string name="compress_sheet_again">Photos Cribrum already compressed, if you choose to compress them again.</string>
+    <string name="compress_sheet_unsupported">Not compressed</string>
+    <string name="compress_sheet_motion">Motion Photos. The video inside them would be lost.</string>
+    <string name="compress_sheet_hdr">HDR photos on Android 13 and earlier. The phone\'s encoder writes them without their HDR.</string>
+    <string name="compress_sheet_extra">JPEGs with other data after the image, such as depth photos from some phones. That data would be lost.</string>
+    <string name="compress_sheet_other">Other formats, such as HEIC, PNG, WebP and RAW, and 12-bit JPEGs.</string>
+    <string name="compress_level_heading">Level</string>
+    <string name="compress_level_high">High quality</string>
+    <string name="compress_level_balanced">Balanced</string>
+    <string name="compress_level_smallest">Smallest</string>
+    <string name="compress_level_detail_full">JPEG %1$d, full resolution</string>
+    <string name="compress_level_detail_limit">JPEG %1$d, up to %2$d MP</string>
+    <string name="compress_level_saving">Saves about %1$s</string>
+    <plurals name="compress_photos_heading">
+        <item quantity="one">%d photo, largest first</item>
+        <item quantity="other">%d photos, largest first</item>
+    </plurals>
+    <string name="compress_none">No photos to compress. They show up here after a scan.</string>
+    <plurals name="compress_already_heading">
+        <item quantity="one">Already compressed (%d)</item>
+        <item quantity="other">Already compressed (%d)</item>
+    </plurals>
+    <string name="compress_already_hint">You already compressed these images once. If you want, you can compress them again.</string>
+    <string name="compress_expand">Show the photos already compressed</string>
+    <string name="compress_collapse">Hide the photos already compressed</string>
+    <string name="compress_hint_select">Select the photos to compress.</string>
+    <string name="compress_hint_level">Choose a level.</string>
+    <plurals name="compress_continue">
+        <item quantity="one">Continue with %d photo</item>
+        <item quantity="other">Continue with %d photos</item>
+    </plurals>
+    <string name="compress_tile_description">%1$s, %2$s pixels, %3$s</string>
+    <string name="compress_tile_before">Compressed before at %1$s</string>
+    <string name="compress_tile_selected">Selected</string>
+    <string name="compress_tile_not_selected">Not selected</string>
+    <string name="compress_heat_pause">Paused while the phone cools down.</string>
+    <string name="compress_waiting_scan">Waiting for the scan to finish. The compression starts by itself afterwards.</string>
+    <string name="compress_screen_cancel_hint">Stopping waits for the photo in progress. The photos already compressed stay compressed.</string>
+    <string name="compress_screen_cancel">Stop compressing</string>
+    <plurals name="compress_result_compressed">
+        <item quantity="one">%d photo compressed</item>
+        <item quantity="other">%d photos compressed</item>
+    </plurals>
+    <string name="compress_result_saved">Saved %1$s</string>
+    <plurals name="compress_result_undo_hint">
+        <item quantity="one">Undo puts the originals back from the Cribrum trash, where they stay for %d day.</item>
+        <item quantity="other">Undo puts the originals back from the Cribrum trash, where they stay for %d days.</item>
+    </plurals>
+    <string name="compress_result_done">Done</string>
+    <plurals name="compress_refused_not_smaller">
+        <item quantity="one">%d photo did not get smaller, so it was left as it was</item>
+        <item quantity="other">%d photos did not get smaller, so they were left as they were</item>
+    </plurals>
+    <plurals name="compress_refused_low_memory">
+        <item quantity="one">%d photo needed more free memory than the phone had, so it was left as it was</item>
+        <item quantity="other">%d photos needed more free memory than the phone had, so they were left as they were</item>
+    </plurals>
+    <plurals name="compress_refused_gain_map">
+        <item quantity="one">%d HDR photo would have lost its HDR, so it was left as it was</item>
+        <item quantity="other">%d HDR photos would have lost their HDR, so they were left as they were</item>
+    </plurals>
+    <plurals name="compress_refused_failed">
+        <item quantity="one">%d photo could not be read or written, or changed since the scan, so it was left as it was</item>
+        <item quantity="other">%d photos could not be read or written, or changed since the scan, so they were left as they were</item>
+    </plurals>
+    <plurals name="compress_refused_in_trash">
+        <item quantity="one">%d original is in the Cribrum trash and not at its place: restore it from the trash</item>
+        <item quantity="other">%d originals are in the Cribrum trash and not at their place: restore them from the trash</item>
+    </plurals>
+    <plurals name="compress_summary_title">
+        <item quantity="one">Compress %d photo?</item>
+        <item quantity="other">Compress %d photos?</item>
+    </plurals>
+    <string name="compress_summary_level" translatable="false">%1$s: %2$s</string>
+    <string name="compress_summary_saving">Estimated saving: about %1$s</string>
+    <string name="compress_summary_saving_detail">From %1$s to about %2$s. This is an estimate: the real saving shows when it is done.</string>
+    <plurals name="compress_summary_confirm">
+        <item quantity="one">Compress %d photo</item>
+        <item quantity="other">Compress %d photos</item>
+    </plurals>
+    <string name="compress_preview_heading">Before and after, on the largest selected photo</string>
+    <string name="compress_preview_before">Original \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
+    <string name="compress_preview_after">Compressed \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
+    <string name="compress_preview_loading">Compressing this photo for the preview\u2026</string>
+    <string name="compress_preview_failed">This photo cannot be compressed at this level, so there is no preview. It would be left as it is.</string>
+    <string name="compress_preview_hint">Pinch to zoom both photos at the same position.</string>
+    <string name="compress_preview_before_description">Original</string>
+    <string name="compress_preview_after_description">Compressed at the chosen level</string>
+    <string name="compress_zoom">Zoom %1$d%%</string>
+    <string name="compress_loss_title">What you lose</string>
+    <string name="compress_loss_kept">The date, the place and the camera details are kept. The compressed copy loses:</string>
+    <plurals name="compress_loss_re_edit">
+        <item quantity="one">Samsung Gallery\'s Revert, for %d edited photo</item>
+        <item quantity="other">Samsung Gallery\'s Revert, for %d edited photos</item>
+    </plurals>
+    <plurals name="compress_loss_depth_map">
+        <item quantity="one">Re-blurring the background of a Live focus shot, in %d photo</item>
+        <item quantity="other">Re-blurring the background of a Live focus shot, in %d photos</item>
+    </plurals>
+    <plurals name="compress_loss_xmp">
+        <item quantity="one">The edits, ratings, keywords, captions and people tags that other apps saved, in %d photo</item>
+        <item quantity="other">The edits, ratings, keywords, captions and people tags that other apps saved, in %d photos</item>
+    </plurals>
+    <plurals name="compress_loss_c2pa">
+        <item quantity="one">Content credentials (C2PA), such as an \"edited with AI\" label, in %d photo</item>
+        <item quantity="other">Content credentials (C2PA), such as an \"edited with AI\" label, in %d photos</item>
+    </plurals>
+    <string name="compress_loss_shooting_mode">The shooting mode info</string>
+    <plurals name="compress_loss_restore">
+        <item quantity="one">All of it comes back only by restoring the original from the Cribrum trash, within %d day.</item>
+        <item quantity="other">All of it comes back only by restoring the original from the Cribrum trash, within %d days.</item>
+    </plurals>
+    <plurals name="compress_not_reached">
+        <item quantity="one">%d photo was not reached and stays as it was</item>
+        <item quantity="other">%d photos were not reached and stay as they were</item>
+    </plurals>
+    <plurals name="compress_undo_stayed">
+        <item quantity="one">%d original stayed in the trash, because another file took its place. Restore it from the trash.</item>
+        <item quantity="other">%d originals stayed in the trash, because other files took their place. Restore them from the trash.</item>
+    </plurals>
+    <string name="compress_scan_blocked">A compression is running. Scan now comes back when it ends.</string>
 </resources>

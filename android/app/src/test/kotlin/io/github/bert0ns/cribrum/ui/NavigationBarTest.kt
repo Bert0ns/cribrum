@@ -36,14 +36,14 @@ class NavigationBarTest {
     }
 
     @Test
-    fun `the bar lists clean, compress, map and settings and compress is a placeholder`() {
+    fun `the bar lists clean, compress, map and settings and compress opens its page`() {
         val model = ReviewViewModel(app)
         compose.setContent { App(model) }
 
         for (label in listOf("Clean", "Compress", "Map", "Settings")) compose.onNodeWithText(label).assertIsDisplayed()
 
         compose.onNodeWithText("Compress").performClick()
-        awaitText("Compressing large photos is coming soon.")
+        awaitText("Supported formats: JPEG. Motion Photos are not compressed.")
     }
 
     @Test

@@ -56,6 +56,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.bert0ns.cribrum.compress.BatchState
 import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
 import io.github.bert0ns.cribrum.review.ReviewOrder
@@ -63,6 +64,7 @@ import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
 import io.github.bert0ns.cribrum.ui.CompressScreen
+import io.github.bert0ns.cribrum.ui.CompressViewModel
 import io.github.bert0ns.cribrum.ui.Destination
 import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.Haptic
@@ -207,6 +209,9 @@ private fun AppContent(
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val state by model.state.collectAsStateWithLifecycle()
+    val compressModel: CompressViewModel = viewModel()
+    val batch by compressModel.batches.state.collectAsStateWithLifecycle()
+    val compressing = batch is BatchState.WaitingForScan || batch is BatchState.Running
     val progress by remember { Indexing.progress(context) }.collectAsStateWithLifecycle(null)
     val snackbar = remember { SnackbarHostState() }
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -334,7 +339,7 @@ private fun AppContent(
                 val body: @Composable () -> Unit = {
                     when (screen) {
                         Screen.Home -> {
-                            ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty, heat = rememberHeat(running = progress != null))
+                            ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty, heat = rememberHeat(running = progress != null), compressing = compressing)
                             if (!notificationsGranted) {
                                 NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
                             }
@@ -397,7 +402,7 @@ private fun AppContent(
                             onExclude = { model.excludeFolder(it.path) },
                             atRoot = state.storageMap.size <= 1,
                         )
-                        Screen.Compress -> CompressScreen()
+                        Screen.Compress -> CompressScreen(compressModel, scanning = progress != null)
                     }
                 }
                 // Each destination keeps its scroll positions while the user is elsewhere.
