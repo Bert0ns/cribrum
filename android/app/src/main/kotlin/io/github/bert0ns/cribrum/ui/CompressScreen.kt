@@ -7,12 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateCentroid
-import androidx.compose.foundation.gestures.calculatePan
-import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +54,6 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,13 +62,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
@@ -88,6 +76,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -101,9 +90,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
-import coil3.request.CachePolicy
-import coil3.request.ImageRequest
-import coil3.size.Scale
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.compress.BatchResult
 import io.github.bert0ns.cribrum.compress.BatchState
@@ -118,10 +104,7 @@ import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.compress.target
 import kotlinx.coroutines.launch
 import java.io.File
-
-/** How far the before and after zoom, and the longest side Coil decodes them at, so a zoom shows real pixels. */
-private const val MAX_ZOOM = 8f
-private const val PREVIEW_PIXELS = 2048
+import kotlin.math.roundToInt
 
 @Composable
 private fun CompressionLevel.title() = stringResource(
@@ -314,7 +297,22 @@ private fun Picker(
 /** The photos of the page on screen at full size, over the same viewer as the review's (§8). A button selects or deselects the one on screen. */
 @Composable
 private fun FullSize(photos: List<CompressibleImage>, start: CompressibleImage, state: CompressState, onToggle: (String) -> Unit, onClose: () -> Unit) {
-    FullSizeViewer(photos.map { it.path }, start.path, onClose) { page ->
+    val image: @Composable (Int) -> Unit = image@{ page ->
+        val photo = photos.getOrNull(page) ?: return@image
+        val zoom = remember(photo.path) { Zoom(IntSize(photo.width, photo.height)) }
+        TiledImage(
+            File(photo.path),
+            zoom,
+            Modifier.fillMaxSize().zoomGestures(zoom, onTap = onClose).semantics {
+                contentDescription = File(photo.path).name
+                onClick {
+                    onClose()
+                    true
+                }
+            },
+        )
+    }
+    FullSizeViewer(photos.map { it.path }, start.path, onClose, image) { page ->
         val photo = photos.getOrNull(page) ?: return@FullSizeViewer // the page emptied under the dialog; the picker closes it next
         val selected = photo.path in state.selected
         val favorite = photo.path in state.favorites
@@ -601,7 +599,7 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () ->
 @Composable
 private fun BeforeAfter(summary: Summary) {
     val sample = summary.sample
-    val zoom = remember { Zoom() }
+    val zoom = remember(sample.path) { Zoom(IntSize(sample.width, sample.height)) }
     val after = target(sample.width, sample.height, summary.level)
     val ratio = (sample.width.toFloat() / sample.height).coerceIn(0.5f, 2f)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -625,74 +623,27 @@ private fun BeforeAfter(summary: Summary) {
                 }
             }
         }
+        // Each panel already reads the zoom to a screen reader.
+        Text(zoomLabel(zoom), style = MaterialTheme.typography.labelMedium, modifier = Modifier.clearAndSetSemantics {})
         Text(stringResource(R.string.compress_preview_hint), style = MaterialTheme.typography.bodySmall)
     }
 }
 
-/** The zoom both sides of the before and after share, so the same part of the photo shows on both. */
-internal class Zoom {
-    var scale by mutableFloatStateOf(1f)
-    var offset by mutableStateOf(Offset.Zero)
-    var size = IntSize.Zero
-
-    /** Keeps the point under [centroid] where it is while zooming, then pans, and never shows past the photo's edge. */
-    fun transform(centroid: Offset, pan: Offset, zoom: Float) {
-        // The event that lifts the last finger has no finger that was down before: no centroid, and NaN would reach the layer.
-        if (centroid == Offset.Unspecified) return
-        val next = (scale * zoom).coerceIn(1f, MAX_ZOOM)
-        val moved = centroid - (centroid - offset) * (next / scale) + pan
-        scale = next
-        offset = Offset(moved.x.coerceIn(size.width * (1 - next), 0f), moved.y.coerceIn(size.height * (1 - next), 0f))
-    }
-
-    fun reset() {
-        scale = 1f
-        offset = Offset.Zero
-    }
-}
-
-/** The preview file keeps its name from one photo to the next, so the file's date is what tells Coil it changed. */
-internal fun previewCacheKey(file: File) = "${file.path}:${file.lastModified()}"
-
 @Composable
 internal fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float) {
-    val state = stringResource(R.string.compress_zoom, (zoom.scale * 100).toInt())
-    Box(
-        Modifier.fillMaxWidth().aspectRatio(ratio).clipToBounds()
-            .onSizeChanged { zoom.size = it }
-            .pointerInput(zoom) { detectTapGestures(onDoubleTap = { zoom.reset() }) }
-            // Two fingers, or one once zoomed, so a single finger on a photo at rest still scrolls the summary.
-            .pointerInput(zoom) {
-                awaitEachGesture {
-                    awaitFirstDown(requireUnconsumed = false)
-                    do {
-                        val event = awaitPointerEvent()
-                        if (event.changes.size > 1 || zoom.scale > 1f) {
-                            zoom.transform(event.calculateCentroid(), event.calculatePan(), event.calculateZoom())
-                            event.changes.forEach { if (it.pressed) it.consume() }
-                        }
-                    } while (event.changes.any { it.pressed })
-                }
-            }
-            .semantics {
-                contentDescription = description
-                stateDescription = state
-            },
-    ) {
-        AsyncImage(
-            ImageRequest.Builder(LocalContext.current).data(file).memoryCacheKey(previewCacheKey(file)).diskCachePolicy(CachePolicy.DISABLED).size(PREVIEW_PIXELS).scale(Scale.FIT).build(),
-            null,
-            Modifier.fillMaxSize().graphicsLayer {
-                transformOrigin = TransformOrigin(0f, 0f)
-                scaleX = zoom.scale
-                scaleY = zoom.scale
-                translationX = zoom.offset.x
-                translationY = zoom.offset.y
-            },
-            contentScale = ContentScale.Fit,
-        )
-    }
+    val state = zoomLabel(zoom)
+    TiledImage(
+        file,
+        zoom,
+        Modifier.fillMaxWidth().aspectRatio(ratio).clipToBounds().zoomGestures(zoom).semantics {
+            contentDescription = description
+            stateDescription = state
+        },
+    )
 }
+
+@Composable
+private fun zoomLabel(zoom: Zoom) = stringResource(R.string.compress_zoom, (zoom.share * 100).roundToInt())
 
 /** What the copy loses (§9), with how many of the selected photos each loss touches. */
 @Composable

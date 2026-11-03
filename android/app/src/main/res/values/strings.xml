@@ -384,7 +384,7 @@
     <string name="compress_preview_hint">Pinch to zoom both photos at the same position. Drag to move them, double tap to see the whole photo.</string>
     <string name="compress_preview_before_description">Original</string>
     <string name="compress_preview_after_description">Compressed at the chosen level</string>
-    <string name="compress_zoom">Zoom %1$d%%</string>
+    <string name="compress_zoom">Zoom: %1$d%% of full resolution</string>
     <string name="compress_loss_title">What you lose</string>
     <string name="compress_loss_kept">The date, the place and the camera details are kept. The compressed copy loses:</string>
     <plurals name="compress_loss_re_edit">

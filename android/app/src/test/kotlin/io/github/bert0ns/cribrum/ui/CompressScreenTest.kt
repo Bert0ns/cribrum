@@ -30,6 +30,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.CribrumApp
@@ -267,13 +268,13 @@ class CompressScreenTest {
         compose.onNodeWithText("Continue with 1 photo").performClick()
         awaitText("Compressed •", substring = true)
         fun zoom(description: String) = compose.onNodeWithContentDescription(description).fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
-        assertEquals("Zoom 100%", zoom("Original"))
+        assertEquals("Zoom: 1% of full resolution", zoom("Original"))
 
         compose.onNodeWithContentDescription("Original").performTouchInput {
             pinch(Offset(center.x - 10, center.y), Offset(center.x + 10, center.y), Offset(center.x - 60, center.y), Offset(center.x + 60, center.y))
         }
 
-        assertNotEquals("Zoom 100%", zoom("Original"))
+        assertNotEquals("Zoom: 1% of full resolution", zoom("Original"))
         assertEquals(zoom("Original"), zoom("Compressed at the chosen level"))
     }
 
@@ -296,6 +297,7 @@ class CompressScreenTest {
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
         compose.onNodeWithText(middle.path).assertExists()
         compose.onNodeWithTag("fullSize").performTouchInput { click() }
+        compose.mainClock.advanceTimeBy(1_000) // a tap waits to tell itself from a double tap, which resets the zoom
         compose.onNodeWithTag("fullSize").assertDoesNotExist()
         tile("IMG_1.jpg").assertIsSelected()
         tile("IMG_2.jpg").assertIsNotSelected()
@@ -379,7 +381,7 @@ class CompressScreenTest {
 
     @Test
     fun `the zoom and its position stay after the fingers lift`() {
-        val zoom = Zoom()
+        val zoom = Zoom(IntSize(4000, 3000))
         zoomPanel(zoom)
 
         pinchOut()
@@ -391,7 +393,7 @@ class CompressScreenTest {
 
     @Test
     fun `one finger pans while zoomed, and a double tap goes back to the whole photo`() {
-        val zoom = Zoom()
+        val zoom = Zoom(IntSize(4000, 3000))
         zoomPanel(zoom)
         pinchOut()
         val zoomed = zoom.offset
@@ -406,7 +408,7 @@ class CompressScreenTest {
 
     @Test
     fun `one finger on a photo that is not zoomed leaves the drag to the page`() {
-        val zoom = Zoom()
+        val zoom = Zoom(IntSize(4000, 3000))
         zoomPanel(zoom)
 
         compose.onNodeWithContentDescription("Panel").performTouchInput { swipe(Offset(150f, 100f), Offset(110f, 100f)) }

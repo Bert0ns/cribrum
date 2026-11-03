@@ -447,7 +447,7 @@
     <string name="compress_preview_hint">Pizzica per ingrandire entrambe le foto nello stesso punto. Trascina per spostarle, tocca due volte per vedere tutta la foto.</string>
     <string name="compress_preview_before_description">Originale</string>
     <string name="compress_preview_after_description">Compressa con il livello scelto</string>
-    <string name="compress_zoom">Zoom %1$d%%</string>
+    <string name="compress_zoom">Zoom: %1$d%% della risoluzione piena</string>
     <string name="compress_loss_title">Cosa perdi</string>
     <string name="compress_loss_kept">La data, il luogo e i dati della fotocamera restano. La copia compressa perde:</string>
     <plurals name="compress_loss_re_edit">
