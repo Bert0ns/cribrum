@@ -125,7 +125,7 @@ class TiledImageTest {
     }
 
     /** Records what the loader asks for, and fails the decodes [failing] says. */
-    private class FakeDecoder(var failing: Boolean = false) : RegionDecoder {
+    internal class FakeDecoder(var failing: Boolean = false) : RegionDecoder {
         override val raw = photo200
         override val orientation = 1
         val events = mutableListOf<String>()

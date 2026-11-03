@@ -607,7 +607,8 @@ private fun BeforeAfter(summary: Summary) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(stringResource(R.string.compress_preview_before, fileSize(sample.size), sample.width, sample.height), style = MaterialTheme.typography.labelMedium)
-                ZoomPanel(File(sample.path), zoom, stringResource(R.string.compress_preview_before_description), ratio)
+                // Tiles of a 200 MP original would slow the preview's encode, and the zoom has nothing to compare yet.
+                ZoomPanel(File(sample.path), zoom, stringResource(R.string.compress_preview_before_description), ratio, tiled = summary.preview !is SampleResult.Loading)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 when (val preview = summary.preview) {
@@ -630,7 +631,7 @@ private fun BeforeAfter(summary: Summary) {
 }
 
 @Composable
-internal fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float) {
+internal fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float, tiled: Boolean = true) {
     val state = zoomLabel(zoom)
     TiledImage(
         file,
@@ -639,6 +640,7 @@ internal fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float
             contentDescription = description
             stateDescription = state
         },
+        tiled,
     )
 }
 

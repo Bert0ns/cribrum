@@ -4,6 +4,10 @@ import android.text.format.Formatter
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -404,6 +408,25 @@ class CompressScreenTest {
         compose.onNodeWithContentDescription("Panel").performTouchInput { doubleClick() }
         assertEquals(1f, zoom.scale)
         assertEquals(Offset.Zero, zoom.offset)
+    }
+
+    @Test
+    fun `a held image opens no decoder until it is let go`() {
+        var tiled by mutableStateOf(false)
+        var opened = 0
+        compose.setContent {
+            TiledImage(File(folder.root, "none.jpg"), remember { Zoom(IntSize(4000, 3000)) }, Modifier.size(100.dp), tiled) {
+                opened++
+                TiledImageTest.FakeDecoder()
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(0, opened)
+
+        tiled = true
+        compose.waitForIdle()
+
+        compose.waitUntil { opened == 1 }
     }
 
     @Test

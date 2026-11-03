@@ -124,17 +124,20 @@ internal fun previewCacheKey(file: File) = "${file.path}:${file.lastModified()}"
 /**
  * [file] fitted to the size of this composable, zoomed by [zoom]. Coil draws the whole photo at up
  * to [BASE_PIXELS]; once the zoom needs more, the visible part is decoded again in tiles, at the
- * resolution the zoom shows. Tiles that leave the view are dropped, and closing the view stops the work and the decoder.
+ * resolution the zoom shows. Tiles that leave the view are dropped, and closing the view stops the
+ * work and the decoder. While [tiled] is false the file is not opened for tiles at all, as the
+ * summary's original waits while the preview encodes. [open] is there for tests.
  */
 @Composable
-internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier) {
+internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, tiled: Boolean = true, open: (File) -> RegionDecoder? = TileSource::open) {
     val key = previewCacheKey(file)
-    var source by remember(key) { mutableStateOf<TileSource?>(null) }
+    var source by remember(key) { mutableStateOf<RegionDecoder?>(null) }
     val tiles = remember(key) { mutableStateMapOf<Tile, Bitmap>() }
-    LaunchedEffect(key) {
+    LaunchedEffect(key, tiled) {
+        if (!tiled) return@LaunchedEffect
         // On IO from the start, so the decoder that opens is always closed, also when the view leaves mid-decode.
         withContext(Dispatchers.IO) {
-            val opened = TileSource.open(file) ?: return@withContext
+            val opened = open(file) ?: return@withContext
             source = opened
             TileLoader(opened, tiles).load(snapshotFlow { visibleTiles(opened.raw, opened.orientation, zoom.size, zoom.scale, zoom.offset) })
         }
