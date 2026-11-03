@@ -209,14 +209,18 @@ class CompressBatchTest {
 
     @Test
     fun `when a batch and a scan are asked for at once, the batch goes first`() {
-        val image = photo("a.jpg")
+        // Held, so the batch cannot end before the scan worker has run: a scan asked for after the batch does start.
+        val gate = CompletableDeferred<Unit>()
+        onPhoto = { gate.await() }
 
-        start(image)
+        start(photo("a.jpg"))
         Indexing.scanNow(app)
-
-        assertEquals(1, finished().compressed)
         scanEnded()
+
         assertEquals(0, scans.get())
+        gate.complete(Unit)
+        assertEquals(1, finished().compressed)
+        waitFor { !running() }
         assertFalse(IndexWorker.running.isLocked)
     }
 
