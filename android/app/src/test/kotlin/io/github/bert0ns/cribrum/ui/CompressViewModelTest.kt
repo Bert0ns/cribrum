@@ -16,6 +16,7 @@ import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.model.ImageRef
+import kotlinx.coroutines.CompletableDeferred
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -255,5 +256,23 @@ class CompressViewModelTest {
         file.setLastModified(file.lastModified() + 5_000)
 
         assertNotEquals(first, previewCacheKey(file))
+    }
+
+    @Test
+    fun `an undo is on until it ends, is not asked twice, and a failed one can be asked again`() {
+        val model = loaded()
+        val result = BatchResult(1, 1, emptyMap(), 100, emptyList())
+        batches.undoGate = CompletableDeferred()
+
+        model.undo(result)
+        model.undo(result)
+        settle(model) { it.undoing }
+        assertEquals(1, batches.undone.size)
+        batches.undoGate!!.complete(Unit)
+        settle(model) { !it.undoing }
+
+        batches.undoGate = CompletableDeferred<Unit>().also { it.completeExceptionally(java.io.IOException("trash")) }
+        model.undo(result)
+        settle(model) { !it.undoing && batches.undone.size == 2 }
     }
 }

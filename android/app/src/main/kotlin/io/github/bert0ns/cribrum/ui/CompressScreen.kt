@@ -171,7 +171,7 @@ fun CompressContent(
 ) {
     when {
         batch is BatchState.WaitingForScan || batch is BatchState.Running -> BatchProgress(batch, onCancelBatch, modifier)
-        batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, state.retentionDays, { onUndo(batch.result) }, { onDismissResult(batch.result) }, modifier)
+        batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, state.retentionDays, state.undoing, { onUndo(batch.result) }, { onDismissResult(batch.result) }, modifier)
         else -> Picker(state, hdrSupported, onToggle, onSelectAll, onLevel, onToggleCompressed, onOpenSummary, modifier)
     }
     // A summary is never over a batch: its preview is a second full decode next to the batch's.
@@ -415,7 +415,7 @@ private fun BatchProgress(batch: BatchState, onCancel: () -> Unit, modifier: Mod
 }
 
 @Composable
-private fun BatchResultPanel(result: BatchResult, retentionDays: Int, onUndo: () -> Unit, onDone: () -> Unit, modifier: Modifier) {
+private fun BatchResultPanel(result: BatchResult, retentionDays: Int, undoing: Boolean, onUndo: () -> Unit, onDone: () -> Unit, modifier: Modifier) {
     val haptics = LocalHapticFeedback.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -430,12 +430,19 @@ private fun BatchResultPanel(result: BatchResult, retentionDays: Int, onUndo: ()
         }
         if (result.compressed > 0) {
             Text(pluralStringResource(R.plurals.compress_result_undo_hint, retentionDays, retentionDays), style = MaterialTheme.typography.bodySmall)
+            if (undoing) {
+                // It waits for a scan or a batch that runs, which can take minutes, so the page says why nothing happens.
+                Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.compress_undoing))
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+            }
             Button({
                 haptics.performHapticFeedback(Haptic.TICK.type)
                 onUndo()
-            }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.undo)) }
+            }, Modifier.fillMaxWidth(), enabled = !undoing) { Text(stringResource(R.string.undo)) }
         }
-        OutlinedButton(onDone, Modifier.fillMaxWidth()) { Text(stringResource(R.string.compress_result_done)) }
+        OutlinedButton(onDone, Modifier.fillMaxWidth(), enabled = !undoing) { Text(stringResource(R.string.compress_result_done)) }
     }
 }
 
@@ -636,6 +643,6 @@ private fun SummaryPreview() {
 private fun BatchPreview() {
     Column {
         BatchProgress(BatchState.Running(3, 12, 412_000_000, paused = true), {}, Modifier.heightIn(max = 300.dp))
-        BatchResultPanel(BatchResult(12, 10, mapOf(Refusal.NOT_SMALLER to 2), 1_300_000_000, emptyList()), 30, {}, {}, Modifier.heightIn(max = 300.dp))
+        BatchResultPanel(BatchResult(12, 10, mapOf(Refusal.NOT_SMALLER to 2), 1_300_000_000, emptyList()), 30, false, {}, {}, Modifier.heightIn(max = 300.dp))
     }
 }

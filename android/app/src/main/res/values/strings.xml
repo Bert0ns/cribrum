@@ -412,4 +412,5 @@
         <item quantity="other">%d originals stayed in the trash, because other files took their place. Restore them from the trash.</item>
     </plurals>
     <string name="compress_scan_blocked">A compression is running. Scan now comes back when it ends.</string>
+    <string name="compress_undoing">Putting the originals back. This waits for a scan or a compression that is running, which can take minutes.</string>
 </resources>
