@@ -31,6 +31,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.UUID
 
@@ -106,18 +107,18 @@ object CompressBatch {
 
     /**
      * Puts every original of [result] back from the trash, and its compressed copy in the trash in its place, through
-     * [Review.restore]. Returns the originals that stayed in the trash, because their path holds a file that is not
-     * their copy any more.
+     * [Review.restore]. It waits while a scan or a batch runs, since a restore rewrites rows a scan may be recording.
+     * Returns the originals that stayed in the trash, because their path holds a file that is not their copy any more.
      */
     suspend fun undo(context: Context, result: BatchResult): List<ImageRef> {
         val app = context.applicationContext as CribrumApp
         return undo(Review(app.index, app.trash), result)
     }
 
-    internal suspend fun undo(review: Review, result: BatchResult): List<ImageRef> {
+    internal suspend fun undo(review: Review, result: BatchResult): List<ImageRef> = IndexWorker.running.withLock {
         val restored = review.restore(result.originals).toSet()
         mutableState.compareAndSet(BatchState.Finished(result), BatchState.Idle)
-        return result.originals.filterNot { it in restored }
+        result.originals.filterNot { it in restored }
     }
 
     /** The request [start] made for the worker [id], once. A rerun of an older worker gets nothing. */
