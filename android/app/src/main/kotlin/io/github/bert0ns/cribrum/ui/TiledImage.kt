@@ -46,12 +46,13 @@ import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import io.github.bert0ns.cribrum.imaging.orientation
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
+import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -131,25 +132,7 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier) {
         withContext(Dispatchers.IO) {
             val opened = TileSource.open(file) ?: return@withContext
             source = opened
-            try {
-                while (isActive) {
-                    val wanted = opened.visibleTiles(zoom)
-                    tiles.keys.retainAll(wanted.toSet())
-                    val next = wanted.firstOrNull { it !in tiles }
-                    if (next == null) {
-                        snapshotFlow { opened.visibleTiles(zoom) }.first { it != wanted }
-                        continue
-                    }
-                    val bitmap = opened.decode(next)
-                    if (bitmap == null) {
-                        tiles.clear() // out of memory or an unreadable region: the base image stays
-                        break
-                    }
-                    tiles[next] = bitmap
-                }
-            } finally {
-                opened.close()
-            }
+            TileLoader(opened, tiles).load(snapshotFlow { visibleTiles(opened.raw, opened.orientation, zoom.size, zoom.scale, zoom.offset) })
         }
     }
     Box(modifier.onSizeChanged { zoom.size = it }) {
@@ -190,23 +173,92 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier) {
 
 private val tilePaint = Paint(Paint.FILTER_BITMAP_FLAG)
 
-/** A file open for tiles. [raw] is its size before the EXIF [orientation]. */
-internal class TileSource private constructor(private val decoder: BitmapRegionDecoder, val orientation: Int) {
-    val raw = IntSize(decoder.width, decoder.height)
+/** What [TileLoader] reads regions from: a [TileSource] on a file, or a fake in tests. [raw] is its size before the EXIF [orientation]. */
+internal interface RegionDecoder {
+    val raw: IntSize
+    val orientation: Int
 
-    fun visibleTiles(zoom: Zoom) = visibleTiles(raw, orientation, zoom.size, zoom.scale, zoom.offset)
+    /** [rect] at [sample], or null when it cannot be read or does not fit in memory next to the rest. */
+    fun decode(rect: IntRect, sample: Int): Bitmap?
 
-    /** Null when the region cannot be read, or does not fit in memory next to the rest. */
-    fun decode(tile: Tile): Bitmap? = try {
-        decoder.decodeRegion(tile.rect.toAndroidRect(), BitmapFactory.Options().apply { inSampleSize = tile.sample })
+    /** Waits for a decode in progress, then lets go of the file. */
+    fun close()
+}
+
+/** Decoded pixels above which the tiles of one view are read a row of tiles at a time, the row nearest the centre first. */
+private const val MAX_BOX_BYTES = 100L shl 20
+
+/**
+ * Keeps [tiles] to what each view of the photo needs. A JPEG region decode reads every row of the
+ * file above the region at full width, whatever its size, so the missing tiles of a view are read
+ * in one decode of their bounding box and cut into the grid: one pass over the file per view, not
+ * one per tile. A box over [maxBoxBytes] is read a row of tiles at a time instead, centre first.
+ */
+internal class TileLoader(private val decoder: RegionDecoder, private val tiles: MutableMap<Tile, Bitmap>, private val maxBoxBytes: Long = MAX_BOX_BYTES) {
+    /** Runs until cancelled, then closes the decoder. A view whose decode fails clears the tiles, and the next view tries again. */
+    suspend fun load(views: Flow<List<Tile>>) {
+        try {
+            views.conflate().collect { wanted ->
+                tiles.keys.retainAll(wanted.toSet())
+                val missing = wanted.filter { it !in tiles }
+                if (missing.isEmpty()) return@collect
+                for (part in parts(missing, wanted)) {
+                    val cut = decodeBox(part)
+                    if (cut == null) {
+                        tiles.clear() // out of memory or an unreadable region: the base image stays until the view changes
+                        return@collect
+                    }
+                    tiles.putAll(cut)
+                }
+            }
+        } finally {
+            decoder.close()
+        }
+    }
+
+    /** [missing] as one box, or as its rows nearest the centre of [wanted] first when the box is too large. */
+    private fun parts(missing: List<Tile>, wanted: List<Tile>): List<List<Tile>> {
+        val box = bounds(missing)
+        val sample = missing.first().sample
+        val bytes = 4L * ceil(box.width / sample.toFloat()).toLong() * ceil(box.height / sample.toFloat()).toLong()
+        if (bytes <= maxBoxBytes) return listOf(missing)
+        val centre = bounds(wanted).center.y
+        return missing.groupBy { it.rect.top }.values.sortedBy { abs(it.first().rect.center.y - centre) }
+    }
+
+    /** One decode of the bounding box of [part], cut into its tiles; the box itself is never drawn, so it is recycled. */
+    private fun decodeBox(part: List<Tile>): Map<Tile, Bitmap>? {
+        val box = bounds(part)
+        val sample = part.first().sample
+        val decoded = decoder.decode(box, sample) ?: return null
+        return try {
+            part.associateWith {
+                val x = (it.rect.left - box.left) / sample
+                val y = (it.rect.top - box.top) / sample
+                Bitmap.createBitmap(decoded, x, y, min(TILE, decoded.width - x), min(TILE, decoded.height - y))
+            }.also { cut -> if (cut.values.none { it === decoded }) decoded.recycle() }
+        } catch (_: OutOfMemoryError) {
+            decoded.recycle()
+            null
+        }
+    }
+}
+
+private fun bounds(tiles: List<Tile>) = IntRect(tiles.minOf { it.rect.left }, tiles.minOf { it.rect.top }, tiles.maxOf { it.rect.right }, tiles.maxOf { it.rect.bottom })
+
+/** A file open for tiles. */
+internal class TileSource private constructor(private val decoder: BitmapRegionDecoder, override val orientation: Int) : RegionDecoder {
+    override val raw = IntSize(decoder.width, decoder.height)
+
+    override fun decode(rect: IntRect, sample: Int): Bitmap? = try {
+        decoder.decodeRegion(rect.toAndroidRect(), BitmapFactory.Options().apply { inSampleSize = sample })
     } catch (_: OutOfMemoryError) {
         null
     } catch (_: IllegalArgumentException) {
         null
     }
 
-    /** Waits for a decode in progress, then lets go of the file. */
-    fun close() = decoder.recycle()
+    override fun close() = decoder.recycle()
 
     companion object {
         /** Null when the file is gone or is not an image the decoder reads in regions. */

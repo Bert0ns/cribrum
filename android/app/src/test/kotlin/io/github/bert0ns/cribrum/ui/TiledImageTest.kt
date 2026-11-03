@@ -5,8 +5,15 @@ import android.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -96,17 +103,108 @@ class TiledImageTest {
     }
 
     @Test
-    fun `a tile decodes at its sample size`() {
+    fun `a region decodes at its sample size`() {
         val file = File(folder.root, "photo.jpg")
         val bitmap = Bitmap.createBitmap(1200, 900, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 90, it) }
         val source = TileSource.open(file)!!
 
-        val tile = source.decode(Tile(2, IntRect(1024, 512, 1200, 900)))
+        val region = source.decode(IntRect(1024, 512, 1200, 900), 2)
 
         assertEquals(IntSize(1200, 900), source.raw)
-        assertEquals(88 to 194, tile!!.width to tile.height)
+        assertEquals(88 to 194, region!!.width to region.height)
         source.close()
+    }
+
+    /** Records what the loader asks for, and fails the decodes [failing] says. */
+    private class FakeDecoder(var failing: Boolean = false) : RegionDecoder {
+        override val raw = photo200
+        override val orientation = 1
+        val events = mutableListOf<String>()
+
+        override fun decode(rect: IntRect, sample: Int): Bitmap? {
+            events += "decode $rect at $sample"
+            if (failing) return null
+            return Bitmap.createBitmap((rect.width + sample - 1) / sample, (rect.height + sample - 1) / sample, Bitmap.Config.ARGB_8888)
+        }
+
+        override fun close() {
+            events += "close"
+        }
+    }
+
+    private fun grid(sample: Int, columns: IntRange, rows: IntRange) = rows.flatMap { row ->
+        columns.map { column -> Tile(sample, IntRect(column * 512 * sample, row * 512 * sample, (column + 1) * 512 * sample, (row + 1) * 512 * sample)) }
+    }
+
+    private fun loading(decoder: FakeDecoder, first: List<Tile>, maxBoxBytes: Long = Long.MAX_VALUE, test: suspend TestScope.(MutableStateFlow<List<Tile>>, Map<Tile, Bitmap>, Job) -> Unit) = runTest {
+        val views = MutableStateFlow(first)
+        val tiles = mutableMapOf<Tile, Bitmap>()
+        val job = launch { TileLoader(decoder, tiles, maxBoxBytes).load(views) }
+        runCurrent()
+        test(views, tiles, job)
+        job.cancel()
+    }
+
+    @Test
+    fun `the missing tiles of a view are read in one decode and cut into the grid`() {
+        val decoder = FakeDecoder()
+        loading(decoder, grid(1, 0..1, 0..1)) { views, tiles, _ ->
+            assertEquals(listOf("decode ${IntRect(0, 0, 1024, 1024)} at 1"), decoder.events)
+            assertEquals(grid(1, 0..1, 0..1).toSet(), tiles.keys)
+            assertTrue(tiles.values.all { it.width == 512 && it.height == 512 })
+
+            // A pan by one column keeps the column still on screen, drops the other, and reads only the new one.
+            views.value = grid(1, 1..2, 0..1)
+            runCurrent()
+
+            assertEquals("decode ${IntRect(1024, 0, 1536, 1024)} at 1", decoder.events.last())
+            assertEquals(2, decoder.events.size)
+            assertEquals(grid(1, 1..2, 0..1).toSet(), tiles.keys)
+        }
+    }
+
+    @Test
+    fun `a box too large for memory is read a row at a time, the centre row first`() {
+        val decoder = FakeDecoder()
+        loading(decoder, grid(1, 0..0, 0..2), maxBoxBytes = 512L * 512 * 4) { _, tiles, _ ->
+            assertEquals(
+                listOf("decode ${IntRect(0, 512, 512, 1024)} at 1", "decode ${IntRect(0, 0, 512, 512)} at 1", "decode ${IntRect(0, 1024, 512, 1536)} at 1"),
+                decoder.events,
+            )
+            assertEquals(3, tiles.size)
+        }
+    }
+
+    @Test
+    fun `a failed decode clears the tiles and the next view tries again`() {
+        val decoder = FakeDecoder()
+        loading(decoder, grid(1, 0..0, 0..0)) { views, tiles, _ ->
+            decoder.failing = true
+            views.value = grid(1, 0..1, 0..0)
+            runCurrent()
+            assertEquals(emptyMap<Tile, Bitmap>(), tiles)
+
+            decoder.failing = false
+            views.value = grid(1, 1..2, 0..0)
+            runCurrent()
+
+            assertEquals(grid(1, 1..2, 0..0).toSet(), tiles.keys)
+            assertTrue("close" !in decoder.events)
+        }
+    }
+
+    @Test
+    fun `leaving the view stops the work and closes the decoder once`() {
+        val decoder = FakeDecoder()
+        loading(decoder, grid(1, 0..0, 0..0)) { views, _, job ->
+            job.cancel()
+            runCurrent()
+            views.value = grid(1, 1..1, 0..0)
+            runCurrent()
+
+            assertEquals(listOf("decode ${IntRect(0, 0, 512, 512)} at 1", "close"), decoder.events)
+        }
     }
 
     @Test
