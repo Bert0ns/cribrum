@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -23,6 +24,9 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -31,6 +35,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipe
@@ -99,7 +104,7 @@ private const val COMPARE = "Original on the left, compressed at the chosen leve
 private const val SLIDER = "Comparison line. The original is on its left, the compressed copy on its right."
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36], qualifiers = "w360dp-h840dp")
+@Config(sdk = [36], qualifiers = "w360dp-h740dp")
 class CompressScreenTest {
     @get:Rule
     val compose = createComposeRule()
@@ -138,6 +143,13 @@ class CompressScreenTest {
 
     private fun awaitText(text: String, substring: Boolean = false) = compose.waitUntil(5_000) {
         compose.onAllNodesWithText(text, substring = substring).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    /** Scrolls the page until [text] is on screen, once the list has loaded. */
+    private fun scrollTo(text: String) = scrollTo(hasText(text))
+
+    private fun scrollTo(node: SemanticsMatcher) = compose.waitUntil(5_000) {
+        runCatching { compose.onNode(hasScrollAction()).performScrollToNode(node) }.isSuccess
     }
 
     private fun size(bytes: Long) = Formatter.formatShortFileSize(app, bytes)
@@ -196,20 +208,23 @@ class CompressScreenTest {
         tile("IMG_1.jpg").assertIsSelected()
         tile("IMG_2.jpg").assertIsSelected()
         compose.onNodeWithText("Deselect all on this page").assertExists()
+        scrollTo("Already compressed (1)")
         compose.onNodeWithText("Already compressed (1)").performClick()
+        scrollTo(hasContentDescription("IMG_3.jpg", substring = true))
         tile("IMG_3.jpg").assertIsNotSelected()
     }
 
     @Test
     fun `the compressed photos are collapsed, and show the level from the marker`() {
         show(model(big, before))
-        awaitText("Already compressed (1)")
+        scrollTo("Already compressed (1)")
         compose.onAllNodesWithText("You already compressed these images once.", substring = true).assertCountEquals(0)
         compose.onAllNodesWithContentDescription("IMG_3.jpg").assertCountEquals(0)
 
         compose.onNodeWithText("Already compressed (1)").performClick()
 
-        compose.onNodeWithText("You already compressed these images once. If you want, you can compress them again.").assertExists()
+        scrollTo("You already compressed these images once. If you want, you can compress them again.")
+        scrollTo(hasContentDescription("IMG_3.jpg", substring = true))
         tile("IMG_3.jpg").assertExists()
         compose.onNodeWithContentDescription("IMG_3.jpg, 4000 × 3000 pixels, ${size(4_100_000)}. Compressed before at Balanced. Not selected").assertExists()
     }
@@ -545,10 +560,10 @@ class CompressScreenTest {
     fun `the already compressed photos page too`() {
         val done = many(70, "OLD", before.info)
         show(model(big, *done.toTypedArray()))
-        awaitText("Already compressed (70)")
+        scrollTo("Already compressed (70)")
         compose.onNodeWithText("Already compressed (70)").performClick()
 
-        compose.onNodeWithText("1 to 50 of 70").assertExists()
+        scrollTo("1 to 50 of 70")
         compose.onAllNodesWithContentDescription("Next page")[0].performClick()
 
         compose.onNodeWithText("51 to 70 of 70").assertExists()
@@ -684,6 +699,17 @@ class CompressScreenTest {
         batches.mutableState.value = BatchState.Running(1, 2, 1_000_000, paused = false)
 
         compose.onNodeWithText(line).assertExists()
+        compose.onNodeWithText("Scan now").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a scan running while a batch waits for it shows the scan, not the line`() {
+        batches.mutableState.value = BatchState.WaitingForScan(2)
+        progress = ScanProgress("detectors", 12, 100)
+        show(model(big))
+
+        awaitText("12 of 100", substring = true)
+        compose.onNodeWithText("A compression is running. Scan now comes back when it ends.").assertDoesNotExist()
         compose.onNodeWithText("Scan now").assertDoesNotExist()
     }
 
