@@ -16,6 +16,8 @@ import io.github.bert0ns.cribrum.trash.Swap
 import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.lang.reflect.Modifier
@@ -93,39 +95,70 @@ class Compressor(
         }
     }
 
+    /**
+     * Compresses [original] at [level] into [out] the way [compress] would, with the EXIF but no marker, and
+     * touches nothing else: the original, the trash and the index stay as they are. For the compress summary's
+     * before and after. One at a time, like a compression.
+     */
+    suspend fun preview(original: File, level: CompressionLevel, out: File): Refusal? = previews.withLock {
+        withContext(Dispatchers.IO + NonCancellable) {
+            try {
+                val encoded = encode(original, out, level)
+                if (encoded.refusal != null) return@withContext encoded.refusal
+                copyExif(original, out, encoded.width, encoded.height)
+                Refusal.NOT_SMALLER.takeIf { out.length() >= original.length() }
+            } catch (_: OutOfMemoryError) {
+                Refusal.LOW_MEMORY
+            } catch (_: Exception) {
+                Refusal.FAILED
+            }
+        }
+    }
+
+    private val previews = Mutex()
+
     private fun write(original: File, image: ImageRef, copy: File, level: CompressionLevel): Refusal? {
+        val encoded = encode(original, copy, level)
+        if (encoded.refusal != null) return encoded.refusal
+        copyExif(original, copy, encoded.width, encoded.height)
+        copy.writeBytes(withMarker(copy.readBytes(), markerSegment(level, clock.instant())))
+        Files.setLastModifiedTime(copy.toPath(), FileTime.from(image.mtimeNs, TimeUnit.NANOSECONDS))
+        return null
+    }
+
+    /** What [encode] wrote: its size, or the reason it did not. */
+    private class Encoded(val width: Int = 0, val height: Int = 0, val refusal: Refusal? = null)
+
+    /** Decodes [original] at [level]'s size and writes the JPEG to [copy], with the gain map checks. No EXIF yet. */
+    private fun encode(original: File, copy: File, level: CompressionLevel): Encoded {
         val gainMap = readJpeg(original).gainMap
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(original.path, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return Refusal.FAILED
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return Encoded(refusal = Refusal.FAILED)
         val target = target(bounds.outWidth, bounds.outHeight, level)
         val sample = target.sampleSize
         val decodedBytes = ceilDiv(bounds.outWidth, sample).toLong() * ceilDiv(bounds.outHeight, sample) * 4
-        if (decodedBytes * 5 / 2 > freeMemory()) return Refusal.LOW_MEMORY
+        if (decodedBytes * 5 / 2 > freeMemory()) return Encoded(refusal = Refusal.LOW_MEMORY)
 
-        var bitmap = BitmapFactory.decodeFile(original.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return Refusal.FAILED
+        var bitmap = BitmapFactory.decodeFile(original.path, BitmapFactory.Options().apply { inSampleSize = sample }) ?: return Encoded(refusal = Refusal.FAILED)
         val width: Int
         val height: Int
         try {
-            if (gainMap && !bitmapKeepsGainMap(bitmap)) return Refusal.GAIN_MAP_LOST
+            if (gainMap && !bitmapKeepsGainMap(bitmap)) return Encoded(refusal = Refusal.GAIN_MAP_LOST)
             if (bitmap.width != target.width || bitmap.height != target.height) {
                 val scaled = bitmap.scale(target.width, target.height)
                 bitmap.recycle()
                 bitmap = scaled
-                if (gainMap && !bitmapKeepsGainMap(bitmap)) return Refusal.GAIN_MAP_LOST
+                if (gainMap && !bitmapKeepsGainMap(bitmap)) return Encoded(refusal = Refusal.GAIN_MAP_LOST)
             }
             width = bitmap.width
             height = bitmap.height
-            if (!copy.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, level.quality, it) }) return Refusal.FAILED
+            if (!copy.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, level.quality, it) }) return Encoded(refusal = Refusal.FAILED)
         } finally {
             bitmap.recycle()
         }
-        if (gainMap && !readJpeg(copy).gainMap) return Refusal.GAIN_MAP_LOST
-
-        copyExif(original, copy, width, height)
-        copy.writeBytes(withMarker(copy.readBytes(), markerSegment(level, clock.instant())))
-        Files.setLastModifiedTime(copy.toPath(), FileTime.from(image.mtimeNs, TimeUnit.NANOSECONDS))
-        return null
+        if (gainMap && !readJpeg(copy).gainMap) return Encoded(refusal = Refusal.GAIN_MAP_LOST)
+        return Encoded(width, height)
     }
 
     companion object {

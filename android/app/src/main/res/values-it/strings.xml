@@ -313,7 +313,6 @@
     <string name="nav_clean">Pulisci</string>
     <string name="nav_compress">Comprimi</string>
     <string name="nav_map">Mappa</string>
-    <string name="compress_coming_soon">La compressione delle foto grandi arriverà presto.</string>
     <string name="compress_channel">Compressione delle foto</string>
     <string name="compress_progress">Compressione %1$d di %2$d</string>
     <string name="compress_saved">%1$s risparmiati finora</string>
@@ -334,4 +333,153 @@
     </plurals>
     <string name="notification_hint">La notifica di avanzamento della scansione è disattivata</string>
     <string name="notification_action_settings">Impostazioni</string>
+    <!-- Comprimi -->
+    <string name="close">Chiudi</string>
+    <string name="action_select">Seleziona</string>
+    <string name="action_deselect">Deseleziona</string>
+    <string name="compress_formats">Formati supportati: JPEG. Le Motion Photo non vengono compresse.</string>
+    <string name="compress_formats_no_hdr">Le foto HDR non vengono compresse.</string>
+    <string name="compress_formats_open">Mostra cosa è supportato</string>
+    <string name="compress_sheet_title">Cosa comprime Cribrum</string>
+    <string name="compress_sheet_supported">Compresse</string>
+    <string name="compress_sheet_jpeg">Foto JPEG. Anche le foto Ultra HDR, da Android 14 in poi.</string>
+    <string name="compress_sheet_again">Le foto che Cribrum ha già compresso, se scegli di comprimerle di nuovo.</string>
+    <string name="compress_sheet_unsupported">Non compresse</string>
+    <string name="compress_sheet_motion">Le Motion Photo. Il video al loro interno andrebbe perso.</string>
+    <string name="compress_sheet_hdr">Le foto HDR su Android 13 e precedenti. L\'encoder del telefono le scrive senza HDR.</string>
+    <string name="compress_sheet_extra">I JPEG con altri dati dopo l\'immagine, come le foto con mappa di profondità di alcuni telefoni. Quei dati andrebbero persi.</string>
+    <string name="compress_sheet_other">Gli altri formati, come HEIC, PNG, WebP e RAW, e i JPEG a 12 bit.</string>
+    <string name="compress_level_heading">Livello</string>
+    <string name="compress_level_high">Alta qualità</string>
+    <string name="compress_level_balanced">Bilanciato</string>
+    <string name="compress_level_smallest">Più piccolo</string>
+    <string name="compress_level_detail_full">JPEG %1$d, risoluzione piena</string>
+    <string name="compress_level_detail_limit">JPEG %1$d, fino a %2$d MP</string>
+    <string name="compress_level_saving">Risparmia circa %1$s</string>
+    <plurals name="compress_photos_heading">
+        <item quantity="one">%d foto, dalla più grande</item>
+        <item quantity="other">%d foto, dalla più grande</item>
+        <item quantity="many">%d di foto, dalla più grande</item>
+    </plurals>
+    <string name="compress_none">Nessuna foto da comprimere. Compaiono qui dopo una scansione.</string>
+    <plurals name="compress_already_heading">
+        <item quantity="one">Già compresse (%d)</item>
+        <item quantity="other">Già compresse (%d)</item>
+        <item quantity="many">Già compresse (%d)</item>
+    </plurals>
+    <string name="compress_already_hint">Hai già compresso queste immagini una volta. Se vuoi, puoi comprimerle di nuovo.</string>
+    <string name="compress_expand">Mostra le foto già compresse</string>
+    <string name="compress_collapse">Nascondi le foto già compresse</string>
+    <string name="compress_hint_select">Seleziona le foto da comprimere.</string>
+    <string name="compress_hint_level">Scegli un livello.</string>
+    <plurals name="compress_continue">
+        <item quantity="one">Continua con %d foto</item>
+        <item quantity="other">Continua con %d foto</item>
+        <item quantity="many">Continua con %d di foto</item>
+    </plurals>
+    <string name="compress_tile_description">%1$s, %2$s pixel, %3$s</string>
+    <string name="compress_tile_before">Già compressa con %1$s</string>
+    <string name="compress_tile_selected">Selezionata</string>
+    <string name="compress_tile_not_selected">Non selezionata</string>
+    <string name="compress_heat_pause">In pausa finché il telefono non si raffredda.</string>
+    <string name="compress_waiting_scan">In attesa che la scansione finisca. La compressione parte da sola dopo.</string>
+    <string name="compress_screen_cancel_hint">L\'interruzione aspetta la foto in corso. Le foto già compresse restano compresse.</string>
+    <string name="compress_screen_cancel">Interrompi la compressione</string>
+    <plurals name="compress_result_compressed">
+        <item quantity="one">%d foto compressa</item>
+        <item quantity="other">%d foto compresse</item>
+        <item quantity="many">%d di foto compresse</item>
+    </plurals>
+    <string name="compress_result_saved">Risparmiati %1$s</string>
+    <plurals name="compress_result_undo_hint">
+        <item quantity="one">Annulla rimette gli originali dal cestino di Cribrum, dove restano per %d giorno.</item>
+        <item quantity="other">Annulla rimette gli originali dal cestino di Cribrum, dove restano per %d giorni.</item>
+        <item quantity="many">Annulla rimette gli originali dal cestino di Cribrum, dove restano per %d di giorni.</item>
+    </plurals>
+    <string name="compress_result_done">Fatto</string>
+    <plurals name="compress_refused_not_smaller">
+        <item quantity="one">%d foto non è diventata più piccola, quindi è rimasta com\'era</item>
+        <item quantity="other">%d foto non sono diventate più piccole, quindi sono rimaste com\'erano</item>
+        <item quantity="many">%d di foto non sono diventate più piccole, quindi sono rimaste com\'erano</item>
+    </plurals>
+    <plurals name="compress_refused_low_memory">
+        <item quantity="one">%d foto richiedeva più memoria libera di quella del telefono, quindi è rimasta com\'era</item>
+        <item quantity="other">%d foto richiedevano più memoria libera di quella del telefono, quindi sono rimaste com\'erano</item>
+        <item quantity="many">%d di foto richiedevano più memoria libera di quella del telefono, quindi sono rimaste com\'erano</item>
+    </plurals>
+    <plurals name="compress_refused_gain_map">
+        <item quantity="one">%d foto HDR avrebbe perso l\'HDR, quindi è rimasta com\'era</item>
+        <item quantity="other">%d foto HDR avrebbero perso l\'HDR, quindi sono rimaste com\'erano</item>
+        <item quantity="many">%d di foto HDR avrebbero perso l\'HDR, quindi sono rimaste com\'erano</item>
+    </plurals>
+    <plurals name="compress_refused_failed">
+        <item quantity="one">%d foto non si è potuta leggere o scrivere, o è cambiata dopo la scansione, quindi è rimasta com\'era</item>
+        <item quantity="other">%d foto non si sono potute leggere o scrivere, o sono cambiate dopo la scansione, quindi sono rimaste com\'erano</item>
+        <item quantity="many">%d di foto non si sono potute leggere o scrivere, o sono cambiate dopo la scansione, quindi sono rimaste com\'erano</item>
+    </plurals>
+    <plurals name="compress_refused_in_trash">
+        <item quantity="one">%d originale è nel cestino di Cribrum e non al suo posto: ripristinalo dal cestino</item>
+        <item quantity="other">%d originali sono nel cestino di Cribrum e non al loro posto: ripristinali dal cestino</item>
+        <item quantity="many">%d di originali sono nel cestino di Cribrum e non al loro posto: ripristinali dal cestino</item>
+    </plurals>
+    <plurals name="compress_summary_title">
+        <item quantity="one">Comprimere %d foto?</item>
+        <item quantity="other">Comprimere %d foto?</item>
+        <item quantity="many">Comprimere %d di foto?</item>
+    </plurals>
+    <string name="compress_summary_saving">Risparmio stimato: circa %1$s</string>
+    <string name="compress_summary_saving_detail">Da %1$s a circa %2$s. È una stima: il risparmio reale si vede alla fine.</string>
+    <plurals name="compress_summary_confirm">
+        <item quantity="one">Comprimi %d foto</item>
+        <item quantity="other">Comprimi %d foto</item>
+        <item quantity="many">Comprimi %d di foto</item>
+    </plurals>
+    <string name="compress_preview_heading">Prima e dopo, sulla foto selezionata più grande</string>
+    <string name="compress_preview_before">Originale \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
+    <string name="compress_preview_after">Compressa \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
+    <string name="compress_preview_loading">Compressione della foto per l\'anteprima\u2026</string>
+    <string name="compress_preview_failed">Questa foto non si può comprimere con questo livello, quindi non c\'è un\'anteprima. Resterebbe com\'è.</string>
+    <string name="compress_preview_hint">Pizzica per ingrandire entrambe le foto nello stesso punto.</string>
+    <string name="compress_preview_before_description">Originale</string>
+    <string name="compress_preview_after_description">Compressa con il livello scelto</string>
+    <string name="compress_zoom">Zoom %1$d%%</string>
+    <string name="compress_loss_title">Cosa perdi</string>
+    <string name="compress_loss_kept">La data, il luogo e i dati della fotocamera restano. La copia compressa perde:</string>
+    <plurals name="compress_loss_re_edit">
+        <item quantity="one">Il Ripristina originale di Samsung Gallery, per %d foto modificata</item>
+        <item quantity="other">Il Ripristina originale di Samsung Gallery, per %d foto modificate</item>
+        <item quantity="many">Il Ripristina originale di Samsung Gallery, per %d di foto modificate</item>
+    </plurals>
+    <plurals name="compress_loss_depth_map">
+        <item quantity="one">La sfocatura dello sfondo di uno scatto Live focus, in %d foto</item>
+        <item quantity="other">La sfocatura dello sfondo di uno scatto Live focus, in %d foto</item>
+        <item quantity="many">La sfocatura dello sfondo di uno scatto Live focus, in %d di foto</item>
+    </plurals>
+    <plurals name="compress_loss_xmp">
+        <item quantity="one">Le modifiche, le valutazioni, le parole chiave, le didascalie e i tag delle persone salvati da altre app, in %d foto</item>
+        <item quantity="other">Le modifiche, le valutazioni, le parole chiave, le didascalie e i tag delle persone salvati da altre app, in %d foto</item>
+        <item quantity="many">Le modifiche, le valutazioni, le parole chiave, le didascalie e i tag delle persone salvati da altre app, in %d di foto</item>
+    </plurals>
+    <plurals name="compress_loss_c2pa">
+        <item quantity="one">Le credenziali dei contenuti (C2PA), come l\'etichetta \"modificata con IA\", in %d foto</item>
+        <item quantity="other">Le credenziali dei contenuti (C2PA), come l\'etichetta \"modificata con IA\", in %d foto</item>
+        <item quantity="many">Le credenziali dei contenuti (C2PA), come l\'etichetta \"modificata con IA\", in %d di foto</item>
+    </plurals>
+    <string name="compress_loss_shooting_mode">Le informazioni sulla modalità di scatto</string>
+    <plurals name="compress_loss_restore">
+        <item quantity="one">Tutto questo torna solo ripristinando l\'originale dal cestino di Cribrum, entro %d giorno.</item>
+        <item quantity="other">Tutto questo torna solo ripristinando l\'originale dal cestino di Cribrum, entro %d giorni.</item>
+        <item quantity="many">Tutto questo torna solo ripristinando l\'originale dal cestino di Cribrum, entro %d di giorni.</item>
+    </plurals>
+    <plurals name="compress_not_reached">
+        <item quantity="one">%d foto non è stata raggiunta e resta com\'era</item>
+        <item quantity="other">%d foto non sono state raggiunte e restano com\'erano</item>
+        <item quantity="many">%d di foto non sono state raggiunte e restano com\'erano</item>
+    </plurals>
+    <plurals name="compress_undo_stayed">
+        <item quantity="one">%d originale è rimasto nel cestino, perché un altro file ha preso il suo posto. Ripristinalo dal cestino.</item>
+        <item quantity="other">%d originali sono rimasti nel cestino, perché altri file hanno preso il loro posto. Ripristinali dal cestino.</item>
+        <item quantity="many">%d di originali sono rimasti nel cestino, perché altri file hanno preso il loro posto. Ripristinali dal cestino.</item>
+    </plurals>
+    <string name="compress_scan_blocked">Una compressione è in corso. Scansiona ora torna quando finisce.</string>
 </resources>

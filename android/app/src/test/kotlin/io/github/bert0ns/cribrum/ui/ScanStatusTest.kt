@@ -39,6 +39,14 @@ class ScanStatusTest {
     }
 
     @Test
+    fun `Scan now waits while a compression runs`() {
+        compose.setContent { ScanStatus(progress = null, onScan = {}, compressing = true) }
+
+        compose.onNodeWithText("Scan now").assertDoesNotExist()
+        compose.onNodeWithText("A compression is running. Scan now comes back when it ends.").assertExists()
+    }
+
+    @Test
     fun `an index with images says nothing about being empty`() {
         compose.setContent { ScanStatus(progress = null, onScan = {}, indexEmpty = false) }
 
