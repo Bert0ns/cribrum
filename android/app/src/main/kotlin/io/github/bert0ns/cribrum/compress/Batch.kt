@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.util.UUID
 
 /** What a finished batch did. */
 data class BatchResult(
@@ -69,9 +70,9 @@ object CompressBatch {
 
     internal class Request(val paths: List<String>, val level: CompressionLevel)
 
-    // shortcut: the request lives in memory, so a process killed mid-batch drops the rest of it, and WorkManager's
-    // rerun finds nothing to do. The originals compressed so far stay in the trash. Persist it if that bites.
-    private var pending: Request? = null
+    // shortcut: the request lives in memory, with the id of the worker it is for, so a process killed mid-batch drops
+    // the rest of it, and WorkManager's rerun finds nothing to do. The originals compressed so far stay in the trash. Persist it if that bites.
+    private var pending: Pair<UUID, Request>? = null
 
     /** While a batch waits or runs, a scan does not start (docs/design.md §9). */
     internal val busy: Boolean get() = state.value.let { it is BatchState.WaitingForScan || it is BatchState.Running }
@@ -81,13 +82,14 @@ object CompressBatch {
      * another batch waits or runs.
      */
     fun start(context: Context, paths: List<String>, level: CompressionLevel): Boolean {
+        val work = OneTimeWorkRequestBuilder<CompressWorker>().build()
         synchronized(this) {
             if (busy) return false
-            pending = Request(paths, level)
+            pending = work.id to Request(paths, level)
             mutableState.value = if (IndexWorker.running.isLocked) BatchState.WaitingForScan(paths.size) else BatchState.Running(0, paths.size, 0)
         }
         // APPEND, since the previous batch's worker may still be ending after it published its result.
-        WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.APPEND_OR_REPLACE, OneTimeWorkRequestBuilder<CompressWorker>().build())
+        WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.APPEND_OR_REPLACE, work)
         return true
     }
 
@@ -95,7 +97,7 @@ object CompressBatch {
     fun cancel(context: Context) {
         synchronized(this) {
             // Not taken by the worker yet: nothing was done.
-            pending?.let { finish(BatchResult(it.paths.size, 0, emptyMap(), 0, emptyList())) }
+            pending?.let { (_, request) -> finish(BatchResult(request.paths.size, 0, emptyMap(), 0, emptyList())) }
             pending = null
         }
         WorkManager.getInstance(context).cancelUniqueWork(WORK)
@@ -117,7 +119,10 @@ object CompressBatch {
         return result.originals.filterNot { it in restored }
     }
 
-    internal fun take(): Request? = synchronized(this) { pending.also { pending = null } }
+    /** The request [start] made for the worker [id], once. A rerun of an older worker gets nothing. */
+    internal fun take(id: UUID): Request? = synchronized(this) {
+        pending?.takeIf { it.first == id }?.second?.also { pending = null }
+    }
 
     internal fun publish(state: BatchState) {
         mutableState.value = state
@@ -149,7 +154,7 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
     private var headroom: Float? = null
 
     override suspend fun doWork(): Result {
-        val request = CompressBatch.take() ?: return Result.success()
+        val request = CompressBatch.take(id) ?: return Result.success()
         val total = request.paths.size
         var compressed = 0
         val refused = mutableMapOf<Refusal, Int>()
