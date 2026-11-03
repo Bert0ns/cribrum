@@ -152,7 +152,15 @@ class CompressorTest {
             ExifInterface.TAG_PIXEL_Y_DIMENSION to "3072",
             ExifInterface.TAG_XMP to "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">original edits</x:xmpmeta>",
         )
-        val image = photo("big.jpg", encodedJpeg(4096, 3072, 100), tags)
+        val encoding = mapOf(
+            ExifInterface.TAG_Y_CB_CR_SUB_SAMPLING to "2,1",
+            ExifInterface.TAG_BITS_PER_SAMPLE to "8,8,8",
+            ExifInterface.TAG_PHOTOMETRIC_INTERPRETATION to "2",
+            ExifInterface.TAG_SAMPLES_PER_PIXEL to "3",
+            ExifInterface.TAG_PLANAR_CONFIGURATION to "1",
+        )
+        val image = photo("big.jpg", encodedJpeg(4096, 3072, 100), tags + encoding)
+        assertEquals(encoding, encoding.mapValues { ExifInterface(image.path).getAttribute(it.key) })
 
         val copy = (compress(image, CompressionLevel.SMALLEST) as Compression.Done).copy
 
@@ -168,6 +176,7 @@ class CompressorTest {
         assertEquals("4000", exif.getAttribute(ExifInterface.TAG_PIXEL_X_DIMENSION))
         assertEquals("3000", exif.getAttribute(ExifInterface.TAG_PIXEL_Y_DIMENSION))
         assertFalse(String(File(copy.path).readBytes(), Charsets.ISO_8859_1).contains("original edits"))
+        assertEquals(encoding.mapValues { null }, encoding.mapValues { exif.getAttribute(it.key) })
         assertEquals(MTIME_NS, copy.mtimeNs)
     }
 
