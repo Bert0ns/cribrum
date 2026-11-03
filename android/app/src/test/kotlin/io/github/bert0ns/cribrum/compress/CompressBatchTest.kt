@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
 import androidx.work.ForegroundInfo
 import androidx.work.ListenableWorker
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
@@ -45,6 +46,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.util.Collections
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 @RunWith(RobolectricTestRunner::class)
@@ -71,12 +73,20 @@ class CompressBatchTest {
     @Volatile
     private var heat: HeatLevel? = null
 
+    /** Runs as a worker starts, before it takes its request. */
+    private var onWork: suspend (UUID) -> Unit = {}
+
     private inner class TestCompress(context: Context, parameters: WorkerParameters) : CompressWorker(context, parameters) {
         override val index get() = this@CompressBatchTest.index
         override val trash get() = this@CompressBatchTest.trash
         override val coolDownMs = 10L
 
         override fun heat() = this@CompressBatchTest.heat
+
+        override suspend fun doWork(): Result {
+            onWork(id)
+            return super.doWork()
+        }
 
         override suspend fun setForegroundInfo(info: ForegroundInfo) {}
 
@@ -311,5 +321,23 @@ class CompressBatchTest {
 
         assertFalse(orphan.exists())
         assertEquals(listOf("a.jpg"), camera.list()!!.toList())
+    }
+
+    @Test
+    fun `a worker that is not the batch's own leaves its request alone`() {
+        val stray = OneTimeWorkRequestBuilder<CompressWorker>().build()
+        val gate = CompletableDeferred<Unit>()
+        onWork = { if (it != stray.id) gate.await() }
+        val image = photo("a.jpg")
+        start(image)
+
+        // As WorkManager's rerun of a worker from an earlier process.
+        WorkManager.getInstance(app).enqueue(stray)
+        waitFor { WorkManager.getInstance(app).getWorkInfoById(stray.id).get()!!.state.isFinished }
+
+        assertEquals(emptyList<String>(), started)
+        assertEquals(BatchState.Running(0, 1, 0), CompressBatch.state.value)
+        gate.complete(Unit)
+        assertEquals(1, finished().compressed)
     }
 }
