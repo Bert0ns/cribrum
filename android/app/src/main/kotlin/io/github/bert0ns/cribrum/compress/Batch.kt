@@ -25,6 +25,7 @@ import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.ui.HeatLevel
 import io.github.bert0ns.cribrum.ui.heatOf
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
@@ -80,15 +82,16 @@ object CompressBatch {
     internal val busy: Boolean get() = state.value.let { it is BatchState.WaitingForScan || it is BatchState.Running }
 
     /**
-     * Compresses [paths], indexed photos, at [level], one at a time. Returns false, and starts nothing, while
-     * another batch waits or runs.
+     * Compresses [paths], indexed photos, at [level], one at a time, each once. Returns false, and starts nothing,
+     * while another batch waits or runs.
      */
     fun start(context: Context, paths: List<String>, level: CompressionLevel): Boolean {
         val work = OneTimeWorkRequestBuilder<CompressWorker>().build()
+        val distinct = paths.distinct()
         synchronized(this) {
             if (busy) return false
-            pending = work.id to Request(paths, level)
-            mutableState.value = if (IndexWorker.running.isLocked) BatchState.WaitingForScan(paths.size) else BatchState.Running(0, paths.size, 0)
+            pending = work.id to Request(distinct, level)
+            mutableState.value = if (IndexWorker.running.isLocked) BatchState.WaitingForScan(distinct.size) else BatchState.Running(0, distinct.size, 0)
         }
         // APPEND, since the previous batch's worker may still be ending after it published its result.
         WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.APPEND_OR_REPLACE, work)
@@ -164,7 +167,7 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
         val originals = mutableListOf<ImageRef>()
         try {
             try {
-                setForegroundInfo(foregroundInfo(BatchState.Running(0, total, 0)))
+                setForegroundInfo(foregroundInfo(if (IndexWorker.running.isLocked) BatchState.WaitingForScan(total) else BatchState.Running(0, total, 0)))
                 isForeground = true
             } catch (e: IllegalStateException) {
                 Log.w(TAG, "Foreground service start refused, continuing in background", e)
@@ -175,8 +178,10 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
             }
             try {
                 val images = index.images()
-                runCatching { trash.discardCopiesIn(images.mapNotNullTo(HashSet()) { File(it.path).parentFile }) }
-                    .onFailure { Log.w(TAG, "Could not sweep the copies of killed compressions", it) }
+                withContext(Dispatchers.IO) {
+                    runCatching { trash.discardCopiesIn(images.mapNotNullTo(HashSet()) { File(it.path).parentFile }) }
+                        .onFailure { Log.w(TAG, "Could not sweep the copies of killed compressions", it) }
+                }
                 val byPath = images.associateBy { it.path }
                 for ((done, path) in request.paths.withIndex()) {
                     while (heat() == HeatLevel.SEVERE) {

@@ -201,7 +201,9 @@ class CompressBatchTest {
         state { it is BatchState.WaitingForScan }
 
         assertEquals(BatchState.WaitingForScan(1), CompressBatch.state.value)
-        notification(app.getString(R.string.compress_waiting))
+        val waiting = app.getString(R.string.compress_waiting)
+        notification(waiting)
+        assertEquals(waiting, foregrounds.single().notification.extras.getString("android.title"))
         assertEquals(emptyList<String>(), started)
         assertEquals(image, File(image.path).toImageRef())
         scanGate.complete(Unit)
@@ -385,5 +387,17 @@ class CompressBatchTest {
         scanGate.complete(Unit)
         assertEquals(emptyList<ImageRef>(), runBlocking { withTimeout(10_000) { undo.await() } })
         assertArrayEquals(bytes, File(image.path).readBytes())
+    }
+
+    @Test
+    fun `a path asked for twice is compressed once`() {
+        val image = photo("a.jpg")
+
+        assertTrue(CompressBatch.start(app, listOf(image.path, image.path), CompressionLevel.HIGH))
+        val result = finished()
+
+        assertEquals(listOf(image.path), started)
+        assertEquals(1, result.total)
+        assertEquals(1, result.compressed)
     }
 }
