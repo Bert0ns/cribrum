@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -372,7 +373,7 @@ class AppTrashTest {
     @Test
     fun `a move whose record write fails cleans up the trash folder and leaves the file in place`() = test {
         val image = photo("DCIM/write_fail.jpg")
-        recordWriter = { _, _, _, _ -> throw IOException("simulated disk full") }
+        recordWriter = { _, _, _, _, _ -> throw IOException("simulated disk full") }
 
         assertEquals(emptyList<ImageRef>(), moveToTrash(listOf(image)))
 
@@ -437,5 +438,163 @@ class AppTrashTest {
 
         assertEquals("collision file", File(image.path).readText())
         assertEquals(listOf(image), trashed().map { it.original })
+    }
+
+    /** A compressed copy of [image] written next to it, smaller and with its mtime. */
+    private fun copyOf(image: ImageRef): File = copyFileFor(File(image.path)).apply {
+        writeText("small")
+        setLastModified(1_700_000_000_000)
+    }
+
+    private fun filesIn(image: ImageRef) = File(image.path).parentFile!!.list()!!.toList()
+
+    @Test
+    fun `a copy takes its original's path and the original waits in the trash with a record of it`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val copy = copyOf(image)
+
+        val swapped = replaceWithCopy(image, copy)!!
+
+        assertEquals(ImageRef(image.path, 5, image.mtimeNs), swapped)
+        assertEquals("small", File(image.path).readText())
+        assertEquals(listOf("a.jpg"), filesIn(image))
+        val item = trashed().single()
+        assertEquals(image, item.original)
+        assertEquals(swapped, item.compressedCopy)
+        assertEquals("the original photo", item.file.readText())
+        assertEquals(listOf(image.path), changed)
+    }
+
+    @Test
+    fun `restoring a compressed original puts its copy in the trash`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = replaceWithCopy(image, copyOf(image))!!
+        changed.clear()
+
+        assertEquals(listOf(image), restore(listOf(image)))
+
+        assertEquals(image, File(image.path).toImageRef())
+        assertEquals("the original photo", File(image.path).readText())
+        val item = trashed().single()
+        assertEquals(swapped, item.original)
+        assertEquals(null, item.compressedCopy)
+        assertEquals("small", item.file.readText())
+        assertEquals(listOf(image.path), changed)
+    }
+
+    @Test
+    fun `restoring a compressed original whose path holds another file leaves both alone`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        replaceWithCopy(image, copyOf(image))
+        File(image.path).writeText("edited in the gallery")
+
+        assertEquals(emptyList<ImageRef>(), restore(listOf(image)))
+
+        assertEquals("edited in the gallery", File(image.path).readText())
+        assertEquals(listOf(image), trashed().map { it.original })
+    }
+
+    @Test
+    fun `restoring a compressed original whose copy is gone puts it back`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = replaceWithCopy(image, copyOf(image))!!
+        moveToTrash(listOf(swapped))
+
+        assertEquals(listOf(image), restore(listOf(image)))
+
+        assertEquals(image, File(image.path).toImageRef())
+        assertEquals(listOf(swapped), trashed().map { it.original })
+    }
+
+    @Test
+    fun `a restore that cannot put the original back returns the copy to its path`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = replaceWithCopy(image, copyOf(image))!!
+        val item = trashed().single()
+        mover = { from, to ->
+            if (from == item.file) throw IOException("simulated")
+            Files.move(from.toPath(), to.toPath())
+        }
+
+        assertEquals(emptyList<ImageRef>(), restore(listOf(image)))
+
+        assertEquals(swapped, File(image.path).toImageRef())
+        assertEquals(listOf(item), trashed())
+    }
+
+    @Test
+    fun `a swap whose record write fails leaves the original and discards the copy`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        recordWriter = { _, _, _, _, _ -> throw IOException("simulated disk full") }
+
+        assertEquals(null, replaceWithCopy(image, copyOf(image)))
+
+        assertEquals(image, File(image.path).toImageRef())
+        assertEquals(listOf("a.jpg"), filesIn(image))
+        assertEquals(emptyList<File>(), File(volume, TRASH_FOLDER).listFiles()!!.filter { it.isDirectory })
+    }
+
+    @Test
+    fun `a swap whose rename fails puts the original back and discards the copy`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val copy = copyOf(image)
+        mover = { from, to ->
+            if (from == copy) throw IOException("simulated")
+            Files.move(from.toPath(), to.toPath())
+        }
+
+        assertEquals(null, replaceWithCopy(image, copy))
+
+        assertEquals(image, File(image.path).toImageRef())
+        assertEquals(listOf("a.jpg"), filesIn(image))
+        assertEquals(emptyList<TrashedImage>(), trashed())
+        assertEquals(emptyList<File>(), File(volume, TRASH_FOLDER).listFiles()!!.filter { it.isDirectory })
+    }
+
+    @Test
+    fun `a swap that cannot put the original back leaves it to restore`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val copy = copyOf(image)
+        mover = { _, _ -> throw IOException("simulated") }
+
+        assertEquals(null, replaceWithCopy(image, copy))
+
+        assertFalse(copy.exists())
+        assertEquals(listOf(image), trashed().map { it.original })
+        mover = { from, to -> Files.move(from.toPath(), to.toPath()) }
+        assertEquals(listOf(image), restore(listOf(image)))
+        assertEquals(image, File(image.path).toImageRef())
+    }
+
+    @Test
+    fun `a swap refuses an original that changed since its scan`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        File(image.path).writeText("changed since the scan")
+
+        assertEquals(null, replaceWithCopy(image, copyOf(image)))
+
+        assertEquals("changed since the scan", File(image.path).readText())
+        assertEquals(listOf("a.jpg"), filesIn(image))
+        assertEquals(emptyList<TrashedImage>(), trashed())
+    }
+
+    @Test
+    fun `purging a compressed original keeps its copy`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = replaceWithCopy(image, copyOf(image))!!
+
+        assertEquals(listOf(image), purge(listOf(image)))
+
+        assertEquals(swapped, File(image.path).toImageRef())
+        assertEquals(emptyList<TrashedImage>(), trashed())
+    }
+
+    @Test
+    fun `discarding refuses a file that is not a compressed copy`() = test {
+        val image = photo("DCIM/Camera/a.jpg")
+
+        assertThrows(IllegalStateException::class.java) { discardCopy(File(image.path)) }
+
+        assertTrue(File(image.path).exists())
     }
 }

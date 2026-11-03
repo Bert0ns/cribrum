@@ -1,6 +1,9 @@
 // Small synthetic JPEGs built byte by byte. The parser reads no image data, so the entropy-coded part is filler.
+// The compressor's tests need JPEGs that decode, so [encodedJpeg] makes them with Bitmap.compress. Never image
+// data from a phone (AGENTS.md).
 package io.github.bert0ns.cribrum.compress
 
+import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -57,10 +60,11 @@ private const val HDR_XMP = """<rdf:Description xmlns:hdrgm="http://ns.adobe.com
 
 /**
  * An Ultra HDR file as a camera writes it: the primary image with the `hdrgm` XMP (or the ISO 21496-1 APP2) and an
- * MPF APP2 that points at the gain map image, which follows the primary's EOI.
+ * MPF APP2 that points at the gain map image, which follows the primary's EOI. [primary] builds the primary image
+ * from its header segments, which must follow SOI.
  */
-fun ultraHdr(iso: Boolean = false, gainMapBytes: ByteArray = jpeg()): ByteArray {
-    fun primary(mpf: ByteArray) = if (iso) jpeg(EXIF, ISO_21496, mpf) else jpeg(EXIF, xmp(rdf(HDR_XMP)), mpf)
+fun ultraHdr(iso: Boolean = false, gainMapBytes: ByteArray = jpeg(), primary: (List<ByteArray>) -> ByteArray = { jpeg(*it.toTypedArray()) }): ByteArray {
+    fun primary(mpf: ByteArray) = primary(if (iso) listOf(EXIF, ISO_21496, mpf) else listOf(EXIF, xmp(rdf(HDR_XMP)), mpf))
     val probe = primary(mpf(listOf(0 to 0, 0 to 0)))
     val mpfAt = 2 + EXIF.size + (if (iso) ISO_21496.size else xmp(rdf(HDR_XMP)).size)
     val base = mpfAt + 4 + 4
@@ -78,4 +82,57 @@ fun withSef(image: ByteArray, vararg names: String): ByteArray {
         blocks.indices.forEach { putShort(0).putShort(0x0A01).putInt(directoryAt - starts[it]).putInt(blocks[it].size) }
     }
     return concat(listOf(image) + blocks + listOf(directory, le(4) { putInt(directory.size) }, ascii("SEFT")))
+}
+
+/** A JPEG that decodes: a gradient with fine detail, so a lower quality makes it clearly smaller. */
+fun encodedJpeg(width: Int, height: Int, quality: Int): ByteArray {
+    val pixels = IntArray(width * height) { i ->
+        val x = i % width
+        val y = i / width
+        0xFF000000.toInt() or ((x * 7 + y) and 0xFF shl 16) or ((y * 5 + x * x) and 0xFF shl 8) or ((x xor y) and 0xFF)
+    }
+    val bitmap = Bitmap.createBitmap(pixels, width, height, Bitmap.Config.ARGB_8888)
+    return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, quality, it) }.toByteArray().also { bitmap.recycle() }
+}
+
+/** An [ultraHdr] file whose primary image decodes, [width] × [height] at quality 100. */
+fun decodableUltraHdr(width: Int, height: Int, gainMapBytes: ByteArray = jpeg()): ByteArray = ultraHdr(gainMapBytes = gainMapBytes) { headers -> withHeaders(encodedJpeg(width, height, 100), headers) }
+
+/** [jpeg] with its APPn segments replaced by [headers]. */
+fun withHeaders(jpeg: ByteArray, headers: List<ByteArray>): ByteArray {
+    val body = jpeg.copyOfRange(headerSegments(jpeg).first { it.code !in 0xE0..0xEF }.start, jpeg.size)
+    return concat(listOf(SOI) + headers + listOf(body))
+}
+
+/** [jpeg] with the frame header saying another size: enough for a bounds decode. */
+fun withSize(jpeg: ByteArray, width: Int, height: Int): ByteArray {
+    val sof = headerSegments(jpeg).first { it.code == 0xC0 }
+    return jpeg.copyOf().also { ByteBuffer.wrap(it, sof.start + 5, 4).putShort(height.toShort()).putShort(width.toShort()) }
+}
+
+class JpegSegment(val code: Int, val start: Int, val end: Int, val payload: ByteArray) {
+    fun startsWith(id: String) = String(payload, Charsets.ISO_8859_1).startsWith(id)
+}
+
+/** The segments before SOS, with where each starts and ends. */
+fun headerSegments(jpeg: ByteArray): List<JpegSegment> {
+    val found = mutableListOf<JpegSegment>()
+    var position = 2
+    while (jpeg[position + 1].toInt() and 0xFF != 0xDA) {
+        val end = position + 2 + ((jpeg[position + 2].toInt() and 0xFF) shl 8 or (jpeg[position + 3].toInt() and 0xFF))
+        found += JpegSegment(jpeg[position + 1].toInt() and 0xFF, position, end, jpeg.copyOfRange(position + 4, end))
+        position = end
+    }
+    return found
+}
+
+/** Where the MPF APP2 says the last image (the gain map) starts, from the start of the file. */
+fun gainMapOffset(jpeg: ByteArray): Int {
+    val mpf = headerSegments(jpeg).first { it.code == 0xE2 && it.startsWith("MPF\u0000") }
+    val tiffHeader = mpf.start + 4 + 4
+    val tiff = ByteBuffer.wrap(mpf.payload, 4, mpf.payload.size - 4).slice()
+    tiff.order(if (mpf.startsWith("MPF\u0000II")) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN)
+    val entries = tiff.getInt(8 + 2 + 2 * 12 + 8)
+    val count = tiff.getInt(8 + 2 + 2 * 12 + 4) / 16
+    return tiffHeader + tiff.getInt(entries + (count - 1) * 16 + 8)
 }
