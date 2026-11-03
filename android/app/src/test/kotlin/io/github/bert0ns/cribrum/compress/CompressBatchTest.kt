@@ -99,7 +99,7 @@ class CompressBatchTest {
 
         override fun heat() = this@CompressBatchTest.heat
 
-        override suspend fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
+        override fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
             asked += paths
             answer = onAnswer
         }

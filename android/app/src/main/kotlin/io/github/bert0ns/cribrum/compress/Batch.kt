@@ -26,9 +26,7 @@ import io.github.bert0ns.cribrum.sources.FavoriteRequests
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.ui.HeatLevel
 import io.github.bert0ns.cribrum.ui.heatOf
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -232,22 +230,15 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
             val result = BatchResult(total, compressed, refused, saved, originals, favorites)
             CompressBatch.finish(result)
-            // After the result, so the page that shows it can say a declined request. Not cancellable: the request is only queued.
-            if (favorites.isNotEmpty()) withContext(NonCancellable) { askFavorites(favorites) { lost -> CompressBatch.favoritesLost(result, lost) } }
+            // After the result, so the page that shows it can say a declined request. Returns at once: the scan wait is not the worker's.
+            if (favorites.isNotEmpty()) askFavorites(favorites) { lost -> CompressBatch.favoritesLost(result, lost) }
         }
         return Result.success()
     }
 
     /** Queues the request to mark [paths] as favourites again, which the activity launches when it is in front (docs/design.md §9). */
-    protected open suspend fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
-        try {
-            FavoriteRequests.ask(applicationContext, paths, onAnswer)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not ask for the favourites of the batch", e)
-            onAnswer(paths.size)
-        }
+    protected open fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
+        FavoriteRequests.askAsync(applicationContext, paths, onAnswer)
     }
 
     /** Not cancellable, so a cancel lets the photo it is on finish. */
