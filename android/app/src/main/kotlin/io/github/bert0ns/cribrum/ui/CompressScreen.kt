@@ -6,30 +6,39 @@ import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
@@ -38,6 +47,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -53,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,9 +88,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -102,6 +116,7 @@ import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.compress.target
+import kotlinx.coroutines.launch
 import java.io.File
 
 /** How far the before and after zoom, and the longest side Coil decodes them at, so a zoom shows real pixels. */
@@ -140,6 +155,8 @@ fun CompressScreen(model: CompressViewModel, scanning: Boolean, modifier: Modifi
         hdrSupported = Build.VERSION.SDK_INT >= GAIN_MAP_SDK,
         onToggle = model::toggle,
         onSelectAll = model::selectAll,
+        onPage = model::goToPage,
+        onCompressedPage = model::goToCompressedPage,
         onLevel = model::chooseLevel,
         onToggleCompressed = model::toggleCompressed,
         onOpenSummary = model::openSummary,
@@ -159,6 +176,8 @@ fun CompressContent(
     hdrSupported: Boolean,
     onToggle: (String) -> Unit,
     onSelectAll: (Boolean) -> Unit,
+    onPage: (Int) -> Unit,
+    onCompressedPage: (Int) -> Unit,
     onLevel: (CompressionLevel) -> Unit,
     onToggleCompressed: () -> Unit,
     onOpenSummary: () -> Unit,
@@ -172,7 +191,7 @@ fun CompressContent(
     when {
         batch is BatchState.WaitingForScan || batch is BatchState.Running -> BatchProgress(batch, onCancelBatch, modifier)
         batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, state.retentionDays, state.undoing, { onUndo(batch.result) }, { onDismissResult(batch.result) }, modifier)
-        else -> Picker(state, hdrSupported, onToggle, onSelectAll, onLevel, onToggleCompressed, onOpenSummary, modifier)
+        else -> Picker(state, hdrSupported, onToggle, onSelectAll, onPage, onCompressedPage, onLevel, onToggleCompressed, onOpenSummary, modifier)
     }
     // A summary is never over a batch: its preview is a second full decode next to the batch's.
     if (batch !is BatchState.WaitingForScan && batch !is BatchState.Running) state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
@@ -184,6 +203,8 @@ private fun Picker(
     hdrSupported: Boolean,
     onToggle: (String) -> Unit,
     onSelectAll: (Boolean) -> Unit,
+    onPage: (Int) -> Unit,
+    onCompressedPage: (Int) -> Unit,
     onLevel: (CompressionLevel) -> Unit,
     onToggleCompressed: () -> Unit,
     onOpenSummary: () -> Unit,
@@ -192,8 +213,23 @@ private fun Picker(
     val haptics = LocalHapticFeedback.current
     val tick = { haptics.performHapticFeedback(Haptic.TICK.type) }
     val selection = state.selectedPhotos
+    val grid = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
+    var fullSize by remember { mutableStateOf<CompressibleImage?>(null) }
+    val shown = state.pagePhotos
+    val shownCompressed = state.pageCompressed
+    val pages = compressPageCount(state.photos.size)
+    val compressedPages = compressPageCount(state.compressed.size)
+    // A new page starts at the top of its section. The indices count the grid's items above it.
+    val photosAt = (if (state.stayedInTrash > 0) 1 else 0) + 2
+    val compressedAt = photosAt + 1 + (if (state.loaded && state.photos.isEmpty()) 1 else 0) + shown.size + (if (pages > 1) 2 else 0)
+    fun goTo(at: Int, change: (Int) -> Unit): (Int) -> Unit = { page ->
+        tick()
+        change(page)
+        scope.launch { grid.scrollToItem(at) }
+    }
     Column(modifier.fillMaxSize()) {
-        LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f)) {
+        LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f), grid) {
             if (state.stayedInTrash > 0) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "stayed") {
                     Text(
@@ -216,21 +252,22 @@ private fun Picker(
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }, key = "photos") {
-                val all = state.photos.isNotEmpty() && state.photos.all { it.path in state.selected }
+                // Only this page: the photos on the other pages keep the selection they have.
+                val all = shown.isNotEmpty() && shown.all { it.path in state.selected }
                 Row(Modifier.padding(start = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(pluralStringResource(R.plurals.compress_photos_heading, state.photos.size, state.photos.size), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleSmall)
-                    if (state.photos.isNotEmpty()) {
+                    if (shown.isNotEmpty()) {
                         TextButton({
                             tick()
                             onSelectAll(!all)
-                        }) { Text(stringResource(if (all) R.string.deselect_all else R.string.select_all)) }
+                        }) { Text(stringResource(if (all) R.string.compress_deselect_page else R.string.compress_select_page)) }
                     }
                 }
             }
             if (state.loaded && state.photos.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "none") { Text(stringResource(R.string.compress_none), Modifier.padding(16.dp)) }
             }
-            tiles(state.photos, state, onToggle = {
+            section(shown, state, state.page, state.photos.size, "photos", goTo(photosAt, onPage), onHold = { fullSize = it }, onToggle = {
                 tick()
                 onToggle(it)
             })
@@ -242,7 +279,7 @@ private fun Picker(
                     item(span = { GridItemSpan(maxLineSpan) }, key = "compressed-hint") {
                         Text(stringResource(R.string.compress_already_hint), Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodyMedium)
                     }
-                    tiles(state.compressed, state, onToggle = {
+                    section(shownCompressed, state, state.compressedPage, state.compressed.size, "compressed", goTo(compressedAt, onCompressedPage), onHold = { fullSize = it }, onToggle = {
                         tick()
                         onToggle(it)
                     })
@@ -260,6 +297,61 @@ private fun Picker(
                 Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
             }
         }
+    }
+    // A scan or a batch can take the photo off the page while it is open.
+    LaunchedEffect(shown, shownCompressed, fullSize) {
+        if (fullSize != null && fullSize !in shown && fullSize !in shownCompressed) fullSize = null
+    }
+    fullSize?.let { start ->
+        val photos = if (start in shown) shown else shownCompressed
+        FullSize(photos, start, state, onToggle = {
+            tick()
+            onToggle(it)
+        }) { fullSize = null }
+    }
+}
+
+/** The photos of the page on screen at full size, over the same viewer as the review's (§8). A button selects or deselects the one on screen. */
+@Composable
+private fun FullSize(photos: List<CompressibleImage>, start: CompressibleImage, state: CompressState, onToggle: (String) -> Unit, onClose: () -> Unit) {
+    FullSizeViewer(photos.map { it.path }, start.path, onClose) { page ->
+        val photo = photos.getOrNull(page) ?: return@FullSizeViewer // the page emptied under the dialog; the picker closes it next
+        val selected = photo.path in state.selected
+        val favorite = photo.path in state.favorites
+        val before = photo.info.marker?.let { marker -> CompressionLevel.entries.firstOrNull { it.id == marker.level }?.title() }
+        if (favorite && selected) FavoriteHeart(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp))
+        FullSizeMark(
+            if (selected) Icons.Filled.Check else Icons.Filled.Add,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+            if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary,
+            stringResource(if (selected) R.string.compress_tile_selected else R.string.compress_tile_not_selected),
+            stringResource(if (selected) R.string.action_deselect else R.string.action_select),
+        ) { onToggle(photo.path) }
+        FullSizeBar {
+            Text(photo.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                Text("${photo.width} × ${photo.height} • ${fileSize(photo.size)}" + if (before != null) " • " + stringResource(R.string.compress_tile_before, before) else "", Modifier.weight(1f), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+                if (favorite && !selected) FavoriteHeart()
+            }
+        }
+    }
+}
+
+/** The page's position, and the way to the next and the previous one. */
+@Composable
+private fun PageControls(page: Int, total: Int, onPage: (Int) -> Unit) {
+    val first = page * COMPRESS_PAGE_SIZE + 1
+    val last = minOf(total, first + COMPRESS_PAGE_SIZE - 1)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton({ onPage(page - 1) }, enabled = page > 0) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, stringResource(R.string.compress_page_previous)) }
+        // Polite, so a screen reader says the new position when the page changes.
+        Text(
+            stringResource(R.string.compress_page_position, first, last, total),
+            Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
+            textAlign = TextAlign.Center,
+            style = MaterialTheme.typography.titleSmall,
+        )
+        IconButton({ onPage(page + 1) }, enabled = page < compressPageCount(total) - 1) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, stringResource(R.string.compress_page_next)) }
     }
 }
 
@@ -328,15 +420,28 @@ private fun CompressedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit
     }
 }
 
-private fun LazyGridScope.tiles(photos: List<CompressibleImage>, state: CompressState, onToggle: (String) -> Unit) {
-    items(photos, key = { it.path }) { photo ->
-        PhotoTile(photo, photo.path in state.selected, photo.path in state.favorites) { onToggle(photo.path) }
+/** The tiles of the page on screen, with the page controls above and below them once the list takes more than one page. */
+private fun LazyGridScope.section(
+    shown: List<CompressibleImage>,
+    state: CompressState,
+    page: Int,
+    total: Int,
+    key: String,
+    onPage: (Int) -> Unit,
+    onHold: (CompressibleImage) -> Unit,
+    onToggle: (String) -> Unit,
+) {
+    val paged = total > COMPRESS_PAGE_SIZE
+    if (paged) item(span = { GridItemSpan(maxLineSpan) }, key = "$key-pages-top") { PageControls(page, total, onPage) }
+    items(shown, key = { it.path }) { photo ->
+        PhotoTile(photo, photo.path in state.selected, photo.path in state.favorites, onHold = { onHold(photo) }) { onToggle(photo.path) }
     }
+    if (paged) item(span = { GridItemSpan(maxLineSpan) }, key = "$key-pages-bottom") { PageControls(page, total, onPage) }
 }
 
-/** A thumbnail with its size and resolution. A tap selects it. A marker adds the level it was compressed at. */
+/** A thumbnail with its size and resolution. A tap selects it and a long press opens it full screen. A marker adds the level it was compressed at. */
 @Composable
-private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boolean, onToggle: () -> Unit) {
+private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boolean, onHold: () -> Unit, onToggle: () -> Unit) {
     val name = File(photo.path).name
     val size = fileSize(photo.size)
     val resolution = "${photo.width} × ${photo.height}"
@@ -348,15 +453,22 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
         if (favorite) add(stringResource(R.string.favorite))
     }
     val toggle = stringResource(if (selected) R.string.action_deselect else R.string.action_select)
+    val open = stringResource(R.string.action_open_full_size)
     Box(
         Modifier.aspectRatio(1f).padding(2.dp)
             .border(if (selected) 3.dp else 0.dp, if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
-            .selectable(selected, role = Role.Checkbox, onClick = onToggle)
+            .combinedClickable(onClick = onToggle, onClickLabel = toggle, onLongClick = onHold, onLongClickLabel = open)
             .semantics {
+                role = Role.Checkbox
+                this.selected = selected
                 contentDescription = parts.joinToString(". ")
                 customActions = listOf(
                     CustomAccessibilityAction(toggle) {
                         onToggle()
+                        true
+                    },
+                    CustomAccessibilityAction(open) {
+                        onHold()
                         true
                     },
                 )
@@ -518,17 +630,24 @@ private fun BeforeAfter(summary: Summary) {
 }
 
 /** The zoom both sides of the before and after share, so the same part of the photo shows on both. */
-private class Zoom {
+internal class Zoom {
     var scale by mutableFloatStateOf(1f)
     var offset by mutableStateOf(Offset.Zero)
     var size = IntSize.Zero
 
     /** Keeps the point under [centroid] where it is while zooming, then pans, and never shows past the photo's edge. */
     fun transform(centroid: Offset, pan: Offset, zoom: Float) {
+        // The event that lifts the last finger has no finger that was down before: no centroid, and NaN would reach the layer.
+        if (centroid == Offset.Unspecified) return
         val next = (scale * zoom).coerceIn(1f, MAX_ZOOM)
         val moved = centroid - (centroid - offset) * (next / scale) + pan
         scale = next
         offset = Offset(moved.x.coerceIn(size.width * (1 - next), 0f), moved.y.coerceIn(size.height * (1 - next), 0f))
+    }
+
+    fun reset() {
+        scale = 1f
+        offset = Offset.Zero
     }
 }
 
@@ -536,11 +655,12 @@ private class Zoom {
 internal fun previewCacheKey(file: File) = "${file.path}:${file.lastModified()}"
 
 @Composable
-private fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float) {
+internal fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float) {
     val state = stringResource(R.string.compress_zoom, (zoom.scale * 100).toInt())
     Box(
         Modifier.fillMaxWidth().aspectRatio(ratio).clipToBounds()
             .onSizeChanged { zoom.size = it }
+            .pointerInput(zoom) { detectTapGestures(onDoubleTap = { zoom.reset() }) }
             // Two fingers, or one once zoomed, so a single finger on a photo at rest still scrolls the summary.
             .pointerInput(zoom) {
                 awaitEachGesture {
@@ -620,7 +740,16 @@ private fun CompressPreview() {
         level = CompressionLevel.BALANCED,
         compressedExpanded = true,
     )
-    CompressContent(state, BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+    CompressContent(state, BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+}
+
+@Preview(name = "Second page", showBackground = true)
+@Preview(name = "Second page, narrow Italian", widthDp = 280, locale = "it", showBackground = true)
+@Composable
+private fun PagedPreview() {
+    val photos = List(120) { CompressibleImage("/photos/IMG_$it.jpg", 9_000_000L - it, 4000, 3000, JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) }
+    val state = CompressState(loaded = true, photos = photos, page = 1, selected = photos.take(60).map { it.path }.toSet(), level = CompressionLevel.BALANCED)
+    CompressContent(state, BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
 }
 
 @Preview(name = "Summary", showBackground = true)
@@ -634,7 +763,7 @@ private fun SummaryPreview() {
         level = CompressionLevel.SMALLEST,
         summary = Summary(previewPhotos[0], CompressionLevel.SMALLEST, SampleResult.Loading),
     )
-    CompressContent(state, BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
+    CompressContent(state, BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
 }
 
 @Preview(name = "Running", showBackground = true)

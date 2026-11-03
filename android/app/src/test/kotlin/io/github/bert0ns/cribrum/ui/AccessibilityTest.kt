@@ -233,7 +233,7 @@ class AccessibilityTest {
     )
 
     private fun compress(state: CompressState, batch: BatchState = BatchState.Idle, onOpenSummary: () -> Unit = {}) {
-        compose.setContent { CompressContent(state, batch, true, {}, {}, {}, {}, onOpenSummary, {}, {}, {}, {}, {}) }
+        compose.setContent { CompressContent(state, batch, true, {}, {}, {}, {}, {}, {}, onOpenSummary, {}, {}, {}, {}, {}) }
     }
 
     @Test

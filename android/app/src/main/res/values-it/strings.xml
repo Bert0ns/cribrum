@@ -368,6 +368,11 @@
         <item quantity="many">Già compresse (%d)</item>
     </plurals>
     <string name="compress_already_hint">Hai già compresso queste immagini una volta. Se vuoi, puoi comprimerle di nuovo.</string>
+    <string name="compress_select_page">Seleziona tutte in questa pagina</string>
+    <string name="compress_deselect_page">Deseleziona tutte in questa pagina</string>
+    <string name="compress_page_position">Da %1$,d a %2$,d su %3$,d</string>
+    <string name="compress_page_previous">Pagina precedente</string>
+    <string name="compress_page_next">Pagina successiva</string>
     <string name="compress_expand">Mostra le foto già compresse</string>
     <string name="compress_collapse">Nascondi le foto già compresse</string>
     <string name="compress_hint_select">Seleziona le foto da comprimere.</string>
@@ -439,7 +444,7 @@
     <string name="compress_preview_after">Compressa \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_loading">Compressione della foto per l\'anteprima\u2026</string>
     <string name="compress_preview_failed">Questa foto non si può comprimere con questo livello, quindi non c\'è un\'anteprima. Resterebbe com\'è.</string>
-    <string name="compress_preview_hint">Pizzica per ingrandire entrambe le foto nello stesso punto.</string>
+    <string name="compress_preview_hint">Pizzica per ingrandire entrambe le foto nello stesso punto. Trascina per spostarle, tocca due volte per vedere tutta la foto.</string>
     <string name="compress_preview_before_description">Originale</string>
     <string name="compress_preview_after_description">Compressa con il livello scelto</string>
     <string name="compress_zoom">Zoom %1$d%%</string>
