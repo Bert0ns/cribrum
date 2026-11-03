@@ -22,16 +22,20 @@ import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.pipeline.IndexWorker
 import io.github.bert0ns.cribrum.review.Review
+import io.github.bert0ns.cribrum.sources.FavoriteRequests
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.ui.HeatLevel
 import io.github.bert0ns.cribrum.ui.heatOf
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -47,6 +51,8 @@ data class BatchResult(
     val savedBytes: Long,
     /** Every original the batch moved to the trash, those a swap that failed halfway left there included: what Undo restores. */
     val originals: List<ImageRef>,
+    /** The paths of the compressed photos that were favourites: their copies are new MediaStore rows without the mark. */
+    val favorites: List<String> = emptyList(),
 ) {
     /** The photos a cancel, or a failure of the job itself, kept the batch from reaching. They are untouched. */
     val notReached: Int get() = total - compressed - refused.values.sum()
@@ -61,8 +67,11 @@ sealed interface BatchState {
     /** [done] of [total] photos are finished. [paused] while the phone is severely hot, between two photos. */
     data class Running(val done: Int, val total: Int, val savedBytes: Long, val paused: Boolean = false) : BatchState
 
-    /** Kept until the next batch starts or this one is undone. Only in memory: a killed process forgets it. */
-    data class Finished(val result: BatchResult) : BatchState
+    /**
+     * Kept until the next batch starts or this one is undone. Only in memory: a killed process forgets it.
+     * [favoritesLost]: the user declined the request to mark the compressed favourites again, so this many lost the mark.
+     */
+    data class Finished(val result: BatchResult, val favoritesLost: Int = 0) : BatchState
 }
 
 /** The one batch the app runs at a time, and its state for the compress page. */
@@ -120,7 +129,7 @@ object CompressBatch {
 
     internal suspend fun undo(review: Review, result: BatchResult): List<ImageRef> = IndexWorker.running.withLock {
         val restored = review.restore(result.originals).toSet()
-        mutableState.compareAndSet(BatchState.Finished(result), BatchState.Idle)
+        mutableState.update { if (it is BatchState.Finished && it.result == result) BatchState.Idle else it }
         result.originals.filterNot { it in restored }
     }
 
@@ -134,6 +143,11 @@ object CompressBatch {
     }
 
     internal fun finish(result: BatchResult) = publish(BatchState.Finished(result))
+
+    /** The user answered the request to mark the favourites of [result] again, and [lost] stayed without the mark. */
+    internal fun favoritesLost(result: BatchResult, lost: Int) = mutableState.update {
+        if (it is BatchState.Finished && it.result == result) it.copy(favoritesLost = lost) else it
+    }
 
     /** For tests: the state is process-wide. */
     internal fun reset() = synchronized(this) {
@@ -165,6 +179,7 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
         val refused = mutableMapOf<Refusal, Int>()
         var saved = 0L
         val originals = mutableListOf<ImageRef>()
+        val favorites = mutableListOf<String>()
         try {
             try {
                 setForegroundInfo(foregroundInfo(if (IndexWorker.running.isLocked) BatchState.WaitingForScan(total) else BatchState.Running(0, total, 0)))
@@ -201,6 +216,7 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
                             compressed++
                             saved += image.size - outcome.copy.size
                             originals += image
+                            if (outcome.favorite) favorites += path
                         }
                         is Compression.Refused -> {
                             refused.merge(outcome.reason, 1, Int::plus)
@@ -214,9 +230,24 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
         } finally {
             // Before the result: once it is out, the next batch can start and post its own notification under this id.
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
-            CompressBatch.finish(BatchResult(total, compressed, refused, saved, originals))
+            val result = BatchResult(total, compressed, refused, saved, originals, favorites)
+            CompressBatch.finish(result)
+            // After the result, so the page that shows it can say a declined request. Not cancellable: the request is only queued.
+            if (favorites.isNotEmpty()) withContext(NonCancellable) { askFavorites(favorites) { lost -> CompressBatch.favoritesLost(result, lost) } }
         }
         return Result.success()
+    }
+
+    /** Queues the request to mark [paths] as favourites again, which the activity launches when it is in front (docs/design.md §9). */
+    protected open suspend fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
+        try {
+            FavoriteRequests.ask(applicationContext, paths, onAnswer)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not ask for the favourites of the batch", e)
+            onAnswer(paths.size)
+        }
     }
 
     /** Not cancellable, so a cancel lets the photo it is on finish. */

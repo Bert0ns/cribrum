@@ -66,6 +66,7 @@ import io.github.bert0ns.cribrum.ui.CategoryScreen
 import io.github.bert0ns.cribrum.ui.CompressScreen
 import io.github.bert0ns.cribrum.ui.CompressViewModel
 import io.github.bert0ns.cribrum.ui.Destination
+import io.github.bert0ns.cribrum.ui.FavoriteRequestHost
 import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.Haptic
 import io.github.bert0ns.cribrum.ui.ReviewOrderMenu
@@ -217,6 +218,7 @@ private fun AppContent(
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         onNotificationResult(granted)
     }
+    FavoriteRequestHost()
     val app = context.applicationContext as CribrumApp
     // Opening the app starts no scan: the nightly one and "Scan now" do (design §4).
     LaunchedEffect(Unit) {

@@ -54,8 +54,9 @@ class CompressorTest {
 
     /** What MediaStore was told, with the date taken and the mtime of the file at that path when it was told. */
     private val told = mutableListOf<Triple<String, String?, Long>>()
+    private var flagged = emptySet<String>()
     private val trash by lazy {
-        AppTrash({ listOf(volume) }, clock) { paths ->
+        AppTrash({ listOf(volume) }, clock, favorites = { flagged }) { paths ->
             paths.forEach { told += Triple(it, ExifInterface(it).getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL), File(it).toImageRef().mtimeNs) }
         }
     }
@@ -207,6 +208,49 @@ class CompressorTest {
         assertFalse(String(File(copy.path).readBytes(), Charsets.ISO_8859_1).contains("original edits"))
         assertEquals(encoding.mapValues { null }, encoding.mapValues { exif.getAttribute(it.key) })
         assertEquals(MTIME_NS, copy.mtimeNs)
+    }
+
+    @Test
+    fun `a photo the gallery marked as a favourite is reported as one, since its copy is a new MediaStore row`() {
+        val heart = photo("heart.jpg", encodedJpeg(800, 600, 100))
+        val plain = photo("plain.jpg", encodedJpeg(800, 600, 100))
+        flagged = setOf(heart.path)
+
+        assertTrue((compress(heart, CompressionLevel.HIGH) as Compression.Done).favorite)
+        assertFalse((compress(plain, CompressionLevel.HIGH) as Compression.Done).favorite)
+    }
+
+    @Test
+    fun `the GPS reference tags are kept, the altitude one included, since without it a depth reads as a height`() {
+        val tags = mapOf(
+            ExifInterface.TAG_GPS_ALTITUDE to "35/1",
+            ExifInterface.TAG_GPS_ALTITUDE_REF to "1",
+            ExifInterface.TAG_GPS_LATITUDE to "45/1,28/1,0/1",
+            ExifInterface.TAG_GPS_LATITUDE_REF to "S",
+            ExifInterface.TAG_GPS_LONGITUDE to "9/1,11/1,0/1",
+            ExifInterface.TAG_GPS_LONGITUDE_REF to "W",
+            ExifInterface.TAG_GPS_SPEED to "5/1",
+            ExifInterface.TAG_GPS_SPEED_REF to "N",
+            ExifInterface.TAG_GPS_IMG_DIRECTION to "90/1",
+            ExifInterface.TAG_GPS_IMG_DIRECTION_REF to "M",
+            ExifInterface.TAG_GPS_DEST_BEARING to "180/1",
+            ExifInterface.TAG_GPS_DEST_BEARING_REF to "M",
+        )
+        val image = photo("gps.jpg", encodedJpeg(800, 600, 100), tags)
+        assertEquals(tags, tags.mapValues { ExifInterface(image.path).getAttribute(it.key) })
+
+        val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
+
+        assertEquals(tags, tags.mapValues { ExifInterface(copy.path).getAttribute(it.key) })
+    }
+
+    @Test
+    fun `an altitude above sea level keeps its reference too`() {
+        val image = photo("high.jpg", encodedJpeg(800, 600, 100), mapOf(ExifInterface.TAG_GPS_ALTITUDE to "812/1", ExifInterface.TAG_GPS_ALTITUDE_REF to "0"))
+
+        val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
+
+        assertEquals("0", ExifInterface(copy.path).getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF))
     }
 
     @Test

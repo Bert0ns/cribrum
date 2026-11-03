@@ -418,6 +418,10 @@
         <item quantity="one">%d photo was not reached and stays as it was</item>
         <item quantity="other">%d photos were not reached and stay as they were</item>
     </plurals>
+    <plurals name="compress_favorites_lost">
+        <item quantity="one">%d photo lost its favourite flag, because the request to mark it again was declined</item>
+        <item quantity="other">%d photos lost their favourite flag, because the request to mark them again was declined</item>
+    </plurals>
     <plurals name="compress_undo_stayed">
         <item quantity="one">%d original stayed in the trash, because another file took its place. Restore it from the trash.</item>
         <item quantity="other">%d originals stayed in the trash, because other files took their place. Restore them from the trash.</item>

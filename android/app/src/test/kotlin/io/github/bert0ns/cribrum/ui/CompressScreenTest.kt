@@ -656,6 +656,20 @@ class CompressScreenTest {
     }
 
     @Test
+    fun `a declined request to mark the favourites again is told on the result, and an accepted one says nothing`() {
+        val result = BatchResult(3, 3, emptyMap(), 100, emptyList(), favorites = listOf("/p/a.jpg", "/p/b.jpg"))
+        batches.mutableState.value = BatchState.Finished(result)
+        show(model(big))
+
+        awaitText("3 photos compressed")
+        compose.onNodeWithText("2 photos lost their favourite flag", substring = true).assertDoesNotExist()
+        batches.mutableState.value = BatchState.Finished(result, favoritesLost = 2)
+        awaitText("2 photos lost their favourite flag, because the request to mark them again was declined")
+        batches.mutableState.value = BatchState.Finished(result, favoritesLost = 1)
+        awaitText("1 photo lost its favourite flag, because the request to mark it again was declined")
+    }
+
+    @Test
     fun `a finished batch shows the real saving, what was refused and one Undo, then the list again`() {
         val result = BatchResult(14, 10, mapOf(Refusal.NOT_SMALLER to 2, Refusal.LOW_MEMORY to 1), 1_300_000_000, emptyList())
         batches.mutableState.value = BatchState.Finished(result)

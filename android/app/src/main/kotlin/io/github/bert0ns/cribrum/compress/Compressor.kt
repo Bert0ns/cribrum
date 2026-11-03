@@ -47,8 +47,8 @@ enum class Refusal {
 }
 
 sealed interface Compression {
-    /** The compressed copy, now at the original's path. The original is in the trash. */
-    data class Done(val copy: ImageRef) : Compression
+    /** The compressed copy, now at the original's path. The original is in the trash. [favorite]: the original was marked in the gallery, the copy is not. */
+    data class Done(val copy: ImageRef, val favorite: Boolean = false) : Compression
 
     data class Refused(val reason: Refusal) : Compression
 }
@@ -92,7 +92,7 @@ class Compressor(
             is Swap.Swapped -> {
                 // The files are swapped already. If the index cannot follow, the next scan records the copy.
                 runCatching { index.record(swap.copy) }
-                Compression.Done(swap.copy)
+                Compression.Done(swap.copy, swap.favorite)
             }
         }
     }

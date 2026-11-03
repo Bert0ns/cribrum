@@ -67,7 +67,14 @@ class CompressBatchTest {
     private val volume by lazy { folder.newFolder("storage") }
     private val camera by lazy { File(volume, "DCIM/Camera").apply { mkdirs() } }
     private val index = memoryIndex()
-    private val trash by lazy { AppTrash({ listOf(volume) }) }
+    private var flagged = emptySet<String>()
+    private val trash by lazy { AppTrash({ listOf(volume) }, favorites = { flagged }) }
+
+    /** What the worker asked the activity to mark again, and the callback that tells the batch the answer. */
+    private val asked: MutableList<List<String>> = Collections.synchronizedList(mutableListOf())
+
+    @Volatile
+    private var answer: (Int) -> Unit = {}
     private val scans = AtomicInteger()
     private val scanGate = CompletableDeferred<Unit>()
 
@@ -91,6 +98,11 @@ class CompressBatchTest {
         override val coolDownMs = 10L
 
         override fun heat() = this@CompressBatchTest.heat
+
+        override suspend fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
+            asked += paths
+            answer = onAnswer
+        }
 
         override suspend fun doWork(): Result {
             onWork(id)
@@ -177,6 +189,60 @@ class CompressBatchTest {
         assertEquals(listOf(small), result.originals)
         assertEquals(0, result.notReached)
         assertEquals(listOf(small), runBlocking { trash.trashed() }.map { it.original })
+    }
+
+    @Test
+    fun `the compressed photos that were favourites are asked for once, after the batch, and no others`() {
+        val heart = photo("heart.jpg")
+        val plain = photo("plain.jpg")
+        val notSmaller = photo("low.jpg", quality = 40)
+        flagged = setOf(heart.path, notSmaller.path)
+
+        start(heart, plain, notSmaller)
+        val result = finished()
+
+        assertEquals(listOf(heart.path), result.favorites)
+        waitFor { asked.isNotEmpty() }
+        assertEquals(listOf(listOf(heart.path)), asked)
+        assertEquals(0, (CompressBatch.state.value as BatchState.Finished).favoritesLost)
+    }
+
+    @Test
+    fun `a batch without a favourite asks for nothing`() {
+        start(photo("a.jpg"))
+
+        assertEquals(emptyList<String>(), finished().favorites)
+        waitFor { !running() }
+        assertEquals(emptyList<List<String>>(), asked)
+    }
+
+    @Test
+    fun `a declined request is on the finished batch, and undo still ends it`() {
+        val heart = photo("heart.jpg")
+        flagged = setOf(heart.path)
+        start(heart)
+        val result = finished()
+        waitFor { asked.isNotEmpty() }
+
+        answer(1)
+
+        assertEquals(BatchState.Finished(result, favoritesLost = 1), CompressBatch.state.value)
+        runBlocking { CompressBatch.undo(Review(index, trash), result) }
+        assertEquals(BatchState.Idle, CompressBatch.state.value)
+    }
+
+    @Test
+    fun `an answer for a batch that is gone changes nothing`() {
+        val heart = photo("heart.jpg")
+        flagged = setOf(heart.path)
+        start(heart)
+        waitFor { asked.isNotEmpty() }
+        val late = answer
+        runBlocking { CompressBatch.undo(Review(index, trash), finished()) }
+
+        late(1)
+
+        assertEquals(BatchState.Idle, CompressBatch.state.value)
     }
 
     @Test
