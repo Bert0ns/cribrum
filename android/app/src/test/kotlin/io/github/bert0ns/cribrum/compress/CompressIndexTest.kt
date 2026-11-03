@@ -46,7 +46,7 @@ class CompressIndexTest {
     }
 
     @Test
-    fun `the list leaves out ineligible, trashed and excluded photos, and Ultra HDR below API 34`() = test {
+    fun `the list leaves out ineligible, trashed, unreadable and excluded photos, and Ultra HDR below API 34`() = test {
         photo("/p/a.jpg", 10)
         photo("/p/motion.jpg", 20, JpegInfo(JpegStatus.MOTION_PHOTO))
         photo("/p/trashed.jpg", 30)
@@ -54,6 +54,8 @@ class CompressIndexTest {
         photo("/p/hidden/b.jpg", 40)
         index.excludeFolder("/p/hidden")
         photo("/p/hdr.jpg", 50, JpegInfo(JpegStatus.ELIGIBLE, gainMap = true, quality = 95))
+        photo("/p/unreadable.jpg", 60)
+        index.setUnreadable("/p/unreadable.jpg")
 
         assertEquals(listOf("/p/a.jpg"), listed(sdk = 33))
         assertEquals(listOf("/p/hdr.jpg", "/p/a.jpg"), listed(sdk = 34))

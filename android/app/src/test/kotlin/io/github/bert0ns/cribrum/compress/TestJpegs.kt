@@ -27,8 +27,8 @@ fun sof(marker: Int = 0xC0, precision: Int = 8): ByteArray = segment(marker, byt
 private val DQT = segment(0xDB, byteArrayOf(0) + ByteArray(64) { 2 })
 private val SOS = segment(0xDA, byteArrayOf(1, 1, 0, 0, 63, 0))
 
-/** SOI, [headers], a DQT, the SOF, SOS, [entropy] filler bytes and EOI. */
-fun jpeg(vararg headers: ByteArray, sof: ByteArray = sof(), entropy: Int = 64): ByteArray = concat(listOf(SOI) + headers.toList() + listOf(DQT, sof, SOS, ByteArray(entropy) { 0x55 }, EOI))
+/** SOI, [headers], the DQT, the SOF, SOS, [entropy] filler bytes and EOI. */
+fun jpeg(vararg headers: ByteArray, sof: ByteArray = sof(), dqt: ByteArray = DQT, entropy: Int = 64): ByteArray = concat(listOf(SOI) + headers.toList() + listOf(dqt, sof, SOS, ByteArray(entropy) { 0x55 }, EOI))
 
 fun concat(parts: List<ByteArray>): ByteArray = ByteArrayOutputStream().apply { parts.forEach(::write) }.toByteArray()
 
