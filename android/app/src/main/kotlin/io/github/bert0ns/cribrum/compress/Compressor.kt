@@ -14,8 +14,10 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.Swap
 import io.github.bert0ns.cribrum.trash.copyFileFor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -98,19 +100,34 @@ class Compressor(
     /**
      * Compresses [original] at [level] into [out] the way [compress] would, with the EXIF but no marker, and
      * touches nothing else: the original, the trash and the index stay as they are. For the compress summary's
-     * before and after. One at a time, like a compression.
+     * before and after. One at a time, like a compression. Cancellable between the decode, the scale and the
+     * encode, since the bitmap calls themselves cannot be interrupted. [out] is deleted, through the trash, when
+     * the preview refuses, fails or is cancelled, so it must be named by [copyFileFor].
      */
     suspend fun preview(original: File, level: CompressionLevel, out: File): Refusal? = previews.withLock {
-        withContext(Dispatchers.IO + NonCancellable) {
+        withContext(Dispatchers.IO) {
+            // Until it ends well, [out] is not worth keeping: a throw or a cancel leaves this as it is.
+            var refusal: Refusal? = Refusal.FAILED
             try {
-                val encoded = encode(original, out, level)
-                if (encoded.refusal != null) return@withContext encoded.refusal
-                copyExif(original, out, encoded.width, encoded.height)
-                Refusal.NOT_SMALLER.takeIf { out.length() >= original.length() }
-            } catch (_: OutOfMemoryError) {
-                Refusal.LOW_MEMORY
-            } catch (_: Exception) {
-                Refusal.FAILED
+                refusal = try {
+                    val encoded = encode(original, out, level) { ensureActive() }
+                    if (encoded.refusal != null) {
+                        encoded.refusal
+                    } else {
+                        ensureActive()
+                        copyExif(original, out, encoded.width, encoded.height)
+                        Refusal.NOT_SMALLER.takeIf { out.length() >= original.length() }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: OutOfMemoryError) {
+                    Refusal.LOW_MEMORY
+                } catch (_: Exception) {
+                    Refusal.FAILED
+                }
+                refusal
+            } finally {
+                if (refusal != null) trash.discardCopy(out)
             }
         }
     }
@@ -130,7 +147,7 @@ class Compressor(
     private class Encoded(val width: Int = 0, val height: Int = 0, val refusal: Refusal? = null)
 
     /** Decodes [original] at [level]'s size and writes the JPEG to [copy], with the gain map checks. No EXIF yet. */
-    private fun encode(original: File, copy: File, level: CompressionLevel): Encoded {
+    private fun encode(original: File, copy: File, level: CompressionLevel, checkActive: () -> Unit = {}): Encoded {
         val gainMap = readJpeg(original).gainMap
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(original.path, bounds)
@@ -144,15 +161,18 @@ class Compressor(
         val width: Int
         val height: Int
         try {
+            checkActive()
             if (gainMap && !bitmapKeepsGainMap(bitmap)) return Encoded(refusal = Refusal.GAIN_MAP_LOST)
             if (bitmap.width != target.width || bitmap.height != target.height) {
                 val scaled = bitmap.scale(target.width, target.height)
                 bitmap.recycle()
                 bitmap = scaled
+                checkActive()
                 if (gainMap && !bitmapKeepsGainMap(bitmap)) return Encoded(refusal = Refusal.GAIN_MAP_LOST)
             }
             width = bitmap.width
             height = bitmap.height
+            checkActive()
             if (!copy.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, level.quality, it) }) return Encoded(refusal = Refusal.FAILED)
         } finally {
             bitmap.recycle()

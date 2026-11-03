@@ -87,6 +87,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.size.Scale
 import io.github.bert0ns.cribrum.R
@@ -173,7 +174,8 @@ fun CompressContent(
         batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, state.retentionDays, { onUndo(batch.result) }, { onDismissResult(batch.result) }, modifier)
         else -> Picker(state, hdrSupported, onToggle, onSelectAll, onLevel, onToggleCompressed, onOpenSummary, modifier)
     }
-    state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
+    // A summary is never over a batch: its preview is a second full decode next to the batch's.
+    if (batch !is BatchState.WaitingForScan && batch !is BatchState.Running) state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
 }
 
 @Composable
@@ -523,6 +525,9 @@ private class Zoom {
     }
 }
 
+/** The preview file keeps its name from one photo to the next, so the file's date is what tells Coil it changed. */
+internal fun previewCacheKey(file: File) = "${file.path}:${file.lastModified()}"
+
 @Composable
 private fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float) {
     val state = stringResource(R.string.compress_zoom, (zoom.scale * 100).toInt())
@@ -548,7 +553,7 @@ private fun ZoomPanel(file: File, zoom: Zoom, description: String, ratio: Float)
             },
     ) {
         AsyncImage(
-            ImageRequest.Builder(LocalContext.current).data(file).size(PREVIEW_PIXELS).scale(Scale.FIT).build(),
+            ImageRequest.Builder(LocalContext.current).data(file).memoryCacheKey(previewCacheKey(file)).diskCachePolicy(CachePolicy.DISABLED).size(PREVIEW_PIXELS).scale(Scale.FIT).build(),
             null,
             Modifier.fillMaxSize().graphicsLayer {
                 transformOrigin = TransformOrigin(0f, 0f)
