@@ -83,7 +83,7 @@ class AccessibilityTest {
     @Test
     fun `the home screen has targets of 48 dp`() {
         compose.setContent {
-            CategoryList(listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000), CategorySummary(Category.DOCUMENT, 0)), 3_000_000, {}, {})
+            CategoryList(listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000), CategorySummary(Category.DOCUMENT, 0)), 3_000_000, {})
         }
 
         assertTouchTargets("home")
@@ -164,16 +164,12 @@ class AccessibilityTest {
     fun `the home screen still works at twice the font size`() {
         RuntimeEnvironment.setFontScale(2f)
         var opened: Category? = null
-        var trash = 0
         compose.setContent {
-            CategoryList(listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000)), 3_000_000, { opened = it }, { trash++ })
+            CategoryList(listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000)), 3_000_000, { opened = it })
         }
 
         compose.onNodeWithText("Blurry").assertIsDisplayed().performClick()
         assertEquals(Category.BLURRY, opened)
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Trash"))
-        compose.onNodeWithText("Trash").assertIsDisplayed().performClick()
-        assertEquals(1, trash)
     }
 
     @Test

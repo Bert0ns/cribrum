@@ -1241,6 +1241,26 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `Back from a trash opened on Compress returns to Compress, and from Clean to the home`() {
+        val model = ReviewViewModel(app)
+
+        model.selectDestination(Destination.Compress)
+        settle(model) { it.state.value.screen == Screen.Compress }
+        model.openTrash()
+        settle(model) { it.state.value.screen == Screen.Trash }
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Compress }
+        assertEquals(Destination.Compress, model.state.value.screen.destination)
+
+        model.selectDestination(Destination.Clean)
+        settle(model) { it.state.value.screen == Screen.Home }
+        model.openTrash()
+        settle(model) { it.state.value.screen == Screen.Trash }
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home }
+    }
+
+    @Test
     fun `a thresholds reload queued behind another screen does not pull the user back to thresholds`() {
         val release = CompletableDeferred<Unit>()
         val model = ReviewViewModel(app, Review(app.index, SlowTrash(release)))

@@ -65,7 +65,7 @@ class CategoryScreenTest {
         var opened: Category? = null
         val categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true, bytes = 3_000_000))
         compose.setContent {
-            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it }, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it })
         }
 
         compose.onNodeWithText("Blurry").assertExists()
@@ -75,10 +75,19 @@ class CategoryScreenTest {
     }
 
     @Test
+    fun `category list has no trash row`() {
+        compose.setContent {
+            CategoryList(categories = listOf(CategorySummary(Category.BLURRY, 3, hasDetector = true)), freeableBytes = 0, onOpen = {})
+        }
+
+        compose.onNodeWithText("Trash").assertDoesNotExist()
+    }
+
+    @Test
     fun `category list says what the candidates can free in all, and nothing when there are none`() {
         var freeable by mutableStateOf(2_000_000L)
         compose.setContent {
-            CategoryList(categories = listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000)), freeableBytes = freeable, onOpen = {}, onTrash = {})
+            CategoryList(categories = listOf(CategorySummary(Category.BLURRY, 3, bytes = 3_000_000)), freeableBytes = freeable, onOpen = {})
         }
 
         compose.onNodeWithText("Up to 2.0 MB can be freed").assertExists()
@@ -92,7 +101,7 @@ class CategoryScreenTest {
     fun `category list shows no space for a category without candidates`() {
         val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
         compose.setContent {
-            CategoryList(categories = categories, freeableBytes = 0, onOpen = {}, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = {})
         }
 
         compose.onNodeWithText("can free", substring = true).assertDoesNotExist()
@@ -103,7 +112,7 @@ class CategoryScreenTest {
         var opened: Category? = null
         val categories = listOf(CategorySummary(Category.BLURRY, 0, hasDetector = true))
         compose.setContent {
-            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it }, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it })
         }
 
         compose.onNodeWithText("Blurry").assertExists()
@@ -117,7 +126,7 @@ class CategoryScreenTest {
         var opened: Category? = null
         val categories = listOf(CategorySummary(Category.NEAR_DUPLICATE, 0, hasDetector = false))
         compose.setContent {
-            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it }, onTrash = {})
+            CategoryList(categories = categories, freeableBytes = 0, onOpen = { opened = it })
         }
 
         compose.onNodeWithText("Similar copies").assertExists()

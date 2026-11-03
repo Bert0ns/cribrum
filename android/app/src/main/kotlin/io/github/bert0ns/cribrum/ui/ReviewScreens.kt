@@ -118,7 +118,7 @@ fun categoryName(category: Category): String = stringResource(
 )
 
 @Composable
-fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen: (Category) -> Unit, onTrash: () -> Unit, modifier: Modifier = Modifier) {
+fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen: (Category) -> Unit, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize()) {
         if (freeableBytes > 0) {
             item {
@@ -147,13 +147,6 @@ fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen:
                 modifier = Modifier.clickable(enabled = canOpen) { onOpen(summary.category) }.alpha(if (canOpen) 1f else 0.5f),
             )
             HorizontalDivider()
-        }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.trash)) },
-                leadingContent = { Icon(Icons.Default.Delete, null) },
-                modifier = Modifier.clickable(onClick = onTrash),
-            )
         }
     }
 }

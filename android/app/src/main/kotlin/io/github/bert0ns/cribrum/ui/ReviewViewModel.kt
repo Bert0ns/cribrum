@@ -78,6 +78,8 @@ data class ReviewState(
     /** Paths marked for the trash on the current page. */
     val marked: Set<String> = emptySet(),
     val trashed: List<TrashedImage> = emptyList(),
+    /** The destination the trash was opened from, which Back returns to. */
+    val trashOrigin: Destination = Destination.Clean,
     /** Paths selected on the trash screen. */
     val selected: Set<String> = emptySet(),
     /** The last applied page, until the user undoes it or moves on. */
@@ -168,7 +170,9 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(reviewOrder = grouping).showing(pageFor(category, state, grouping = grouping), keepMarksOf = state)
     }
 
-    fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
+    fun openTrash() = load {
+        it.copy(screen = Screen.Trash, trashOrigin = if (it.screen == Screen.Trash) it.trashOrigin else it.screen.destination, trashed = review.trashed(), selected = emptySet())
+    }
 
     /** Only the embeddings go: the next scan computes them again. */
     fun deleteEmbeddings() {
@@ -334,6 +338,8 @@ class ReviewViewModel @JvmOverloads constructor(
                 state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
+            state.screen == Screen.Trash && state.trashOrigin == Destination.Compress ->
+                state.copy(screen = Screen.Compress)
             else -> state.home()
         }
     }

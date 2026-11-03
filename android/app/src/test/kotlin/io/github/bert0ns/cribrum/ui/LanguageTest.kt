@@ -50,7 +50,7 @@ class LanguageTest {
     @Config(qualifiers = "it")
     fun `the home screen speaks Italian, with the plural forms`() {
         compose.setContent {
-            CategoryList(listOf(CategorySummary(Category.BLURRY, 1, bytes = 1_000_000), CategorySummary(Category.DOCUMENT, 3, bytes = 3_000_000)), 0, {}, {})
+            CategoryList(listOf(CategorySummary(Category.BLURRY, 1, bytes = 1_000_000), CategorySummary(Category.DOCUMENT, 3, bytes = 3_000_000)), 0, {})
         }
 
         compose.onNodeWithText("Sfocate").assertExists()
