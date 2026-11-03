@@ -50,6 +50,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import java.io.IOException
+import java.nio.file.Files
 import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -399,5 +401,42 @@ class CompressBatchTest {
         assertEquals(listOf(image.path), started)
         assertEquals(1, result.total)
         assertEquals(1, result.compressed)
+    }
+
+    @Test
+    fun `undo also restores an original a swap left in the trash`() {
+        val image = photo("a.jpg")
+        val bytes = File(image.path).readBytes()
+        trash.mover = { _, _ -> throw IOException("simulated") }
+        start(image)
+        val result = finished()
+        assertEquals(mapOf(Refusal.LEFT_IN_TRASH to 1), result.refused)
+        assertEquals(listOf(image), result.originals)
+        assertFalse(File(image.path).exists())
+        trash.mover = { from, to -> Files.move(from.toPath(), to.toPath()) }
+
+        assertEquals(emptyList<ImageRef>(), runBlocking { CompressBatch.undo(Review(index, trash), result) })
+
+        assertArrayEquals(bytes, File(image.path).readBytes())
+        assertEquals(emptyList<ImageRef>(), runBlocking { trash.trashed() }.map { it.original })
+    }
+
+    @Test
+    fun `cancelling during a pause for the heat stops before the next photo`() {
+        val first = photo("a.jpg")
+        val second = photo("b.jpg")
+        onPhoto = { if (it == first) heat = HeatLevel.SEVERE }
+        start(first, second)
+        state { it is BatchState.Running && it.paused }
+
+        CompressBatch.cancel(app)
+        val result = finished()
+
+        assertEquals(1, result.compressed)
+        assertEquals(1, result.notReached)
+        assertEquals(listOf(first.path), started)
+        assertEquals(second, File(second.path).toImageRef())
+        waitFor { !running() }
+        assertFalse(IndexWorker.running.isLocked)
     }
 }
