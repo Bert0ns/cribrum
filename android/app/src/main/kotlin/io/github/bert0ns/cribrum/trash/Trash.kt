@@ -20,6 +20,12 @@ import java.util.UUID
 /** Folder at the root of each storage volume. Hidden, and with a `.nomedia` so galleries skip it. */
 const val TRASH_FOLDER = ".cribrum-trash"
 
+/** Starts the name of a compressed copy while it is written. The scan skips `.pending-` files (§4). */
+private const val COPY_PREFIX = ".pending-cribrum-"
+
+/** Where to write a compressed copy of [original]: next to it, so moving it into place is a rename on the same volume. */
+fun copyFileFor(original: File): File = File(original.parentFile, "$COPY_PREFIX${UUID.randomUUID()}.jpg")
+
 data class TrashedImage(
     /** Where the image was, with the size and mtime it had: moving keeps both. */
     val original: ImageRef,
@@ -29,6 +35,8 @@ data class TrashedImage(
     /** When the trash purges it, under the retention the user has chosen now. */
     val purgeAt: Instant,
     val seenAt: Instant = trashedAt,
+    /** The compressed copy that took the original's path, as it was when it did. Null for an ordinary item. */
+    val compressedCopy: ImageRef? = null,
 )
 
 interface Trash {
@@ -63,29 +71,65 @@ class AppTrash(
     private val changed: (List<String>) -> Unit = {},
 ) : Trash {
 
-    internal var recordWriter: (File, ImageRef, Instant, Instant) -> Unit = ::writeOrigin
+    internal var recordWriter: (File, ImageRef, Instant, Instant, ImageRef?) -> Unit = ::writeOrigin
+
+    /** Moves a file without replacing one already there. Tests swap it to fail a step. */
+    internal var mover: (File, File) -> Unit = { from, to -> Files.move(from.toPath(), to.toPath()) }
 
     override suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef> = io {
-        val moved = images.filter(::move)
+        val moved = images.filter { move(it) != null }
         changed(moved.map { it.path })
         moved
     }
 
+    /**
+     * Restoring an original whose path holds its compressed copy moves the copy to the trash first, so nothing is
+     * deleted. A file at the path that is not that copy is never moved or overwritten, and the original stays.
+     */
     override suspend fun restore(images: List<ImageRef>): List<ImageRef> = io {
         val byOriginal = items().associateBy { it.original }
         val restored = images.filter { image ->
             val item = byOriginal[image] ?: return@filter false
             val target = File(image.path)
+            val copy = item.compressedCopy
+            val copyFolder = if (copy != null && target.exists()) move(copy) ?: return@filter false else null
             target.parentFile?.mkdirs()
-            val moved = runCatching {
-                Files.move(item.file.toPath(), target.toPath())
-                true
-            }.getOrDefault(false)
-            if (moved) deleteItem(item.file.parentFile!!)
+            val moved = runCatching { mover(item.file, target) }.isSuccess
+            if (moved) {
+                deleteItem(item.file.parentFile!!)
+            } else if (copyFolder != null && runCatching { mover(File(copyFolder, target.name), target) }.isSuccess) {
+                deleteItem(copyFolder)
+            }
             moved
         }
         changed(restored.map { it.path })
         restored
+    }
+
+    /**
+     * Moves [original] to the trash and renames [copy], its compressed copy written by [copyFileFor], to its path.
+     * The item records the copy, so restoring the original puts the copy in the trash in its place. Returns the
+     * copy as it now is at the original's path, or null when nothing changed: the original stays where it was, or
+     * stays in the trash if it could not be put back, and the copy is discarded either way.
+     */
+    suspend fun replaceWithCopy(original: ImageRef, copy: File): ImageRef? = io {
+        val target = File(original.path)
+        val copyRef = runCatching { copy.toImageRef() }.getOrNull()?.let { ImageRef(original.path, it.size, it.mtimeNs) }
+        val folder = copyRef?.let { move(original, it) }
+        val swapped = folder != null && runCatching { mover(copy, target) }.isSuccess
+        if (folder != null && !swapped && runCatching { mover(File(folder, target.name), target) }.isSuccess) deleteItem(folder)
+        if (!swapped) {
+            discardCopy(copy)
+            return@io null
+        }
+        changed(listOf(original.path))
+        target.toImageRef()
+    }
+
+    /** Deletes a compressed copy that never took its original's place. Refuses any file [copyFileFor] did not name. */
+    fun discardCopy(copy: File) {
+        check(copy.name.startsWith(COPY_PREFIX)) { "not a compressed copy: $copy" }
+        copy.delete()
     }
 
     override suspend fun trashed(): List<TrashedImage> = io { items() }
@@ -108,22 +152,23 @@ class AppTrash(
         expired
     }
 
-    private fun move(image: ImageRef): Boolean {
+    /** Returns the item folder the file went to, or null if it stayed where it was. */
+    private fun move(image: ImageRef, compressedCopy: ImageRef? = null): File? {
         val file = File(image.path)
-        if (file.name == ORIGIN) return false
-        if (!file.isFile || runCatching { file.toImageRef() }.getOrNull() != image) return false
-        val root = rootOf(file) ?: return false
+        if (file.name == ORIGIN) return null
+        if (!file.isFile || runCatching { file.toImageRef() }.getOrNull() != image) return null
+        val root = rootOf(file) ?: return null
         val folder = File(root, UUID.randomUUID().toString())
         try {
-            if (!folder.mkdirs()) return false
+            if (!folder.mkdirs()) return null
             File(root, ".nomedia").createNewFile()
             val now = clock.instant()
-            recordWriter(folder, image, now, now)
-            if (file.renameTo(File(folder, file.name))) return true
+            recordWriter(folder, image, now, now, compressedCopy)
+            if (file.renameTo(File(folder, file.name))) return folder
         } catch (_: IOException) {
         }
         deleteItem(folder)
-        return false
+        return null
     }
 
     private fun items(): List<TrashedImage> = volumes().flatMap { volume ->
@@ -136,13 +181,17 @@ class AppTrash(
         return File(volume, TRASH_FOLDER)
     }
 
-    private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant, seenAt: Instant) {
+    private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant, seenAt: Instant, compressedCopy: ImageRef?) {
         val origin = Properties()
         origin["path"] = image.path
         origin["size"] = image.size.toString()
         origin["mtime_ns"] = image.mtimeNs.toString()
         origin["trashed_at"] = trashedAt.toString()
         origin["seen_at"] = seenAt.toString()
+        if (compressedCopy != null) {
+            origin["compressed_size"] = compressedCopy.size.toString()
+            origin["compressed_mtime_ns"] = compressedCopy.mtimeNs.toString()
+        }
         File(folder, ORIGIN).outputStream().use { origin.store(it, "Cribrum trash: where this file came from") }
     }
 
@@ -171,12 +220,15 @@ class AppTrash(
         val size = origin.getProperty("size")?.toLongOrNull() ?: return null
         val mtimeNs = origin.getProperty("mtime_ns")?.toLongOrNull() ?: return null
         val purgeAt = maxOf(trashedAt, seenAt) + retention()
+        val compressedSize = origin.getProperty("compressed_size")?.toLongOrNull()
+        val compressedMtimeNs = origin.getProperty("compressed_mtime_ns")?.toLongOrNull()
         TrashedImage(
             ImageRef(path, size, mtimeNs),
             trashedAt,
             file,
             purgeAt,
             seenAt,
+            if (compressedSize != null && compressedMtimeNs != null) ImageRef(path, compressedSize, compressedMtimeNs) else null,
         )
     }.getOrNull()
 
