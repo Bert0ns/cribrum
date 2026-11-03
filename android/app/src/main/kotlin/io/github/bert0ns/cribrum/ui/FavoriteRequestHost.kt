@@ -29,6 +29,7 @@ fun FavoriteRequestHost() {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             FavoriteRequests.asks.collect { ask ->
                 FavoriteRequests.awaitIdle()
+                if (!ask.stillWanted()) return@collect
                 runCatching { ask.intentSender(context.contentResolver) }
                     .onSuccess {
                         FavoriteRequests.launched(ask)

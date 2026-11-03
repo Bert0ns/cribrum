@@ -75,6 +75,9 @@ class CompressBatchTest {
 
     @Volatile
     private var answer: (Int) -> Unit = {}
+
+    @Volatile
+    private var wanted: () -> Boolean = { true }
     private val scans = AtomicInteger()
     private val scanGate = CompletableDeferred<Unit>()
 
@@ -99,9 +102,10 @@ class CompressBatchTest {
 
         override fun heat() = this@CompressBatchTest.heat
 
-        override fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
-            asked += paths
-            answer = onAnswer
+        override fun askFavorites(result: BatchResult) {
+            asked += result.favorites
+            answer = { lost -> CompressBatch.favoritesLost(result, lost) }
+            wanted = { CompressBatch.isFinished(result) }
         }
 
         override suspend fun doWork(): Result {
@@ -229,6 +233,20 @@ class CompressBatchTest {
         assertEquals(BatchState.Finished(result, favoritesLost = 1), CompressBatch.state.value)
         runBlocking { CompressBatch.undo(Review(index, trash), result) }
         assertEquals(BatchState.Idle, CompressBatch.state.value)
+    }
+
+    @Test
+    fun `a request for a batch the user undid is no longer wanted`() {
+        val heart = photo("heart.jpg")
+        flagged = setOf(heart.path)
+        start(heart)
+        val result = finished()
+        waitFor { asked.isNotEmpty() }
+        assertTrue(wanted())
+
+        runBlocking { CompressBatch.undo(Review(index, trash), result) }
+
+        assertFalse(wanted())
     }
 
     @Test

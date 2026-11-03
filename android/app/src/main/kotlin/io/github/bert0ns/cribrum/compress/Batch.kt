@@ -142,6 +142,9 @@ object CompressBatch {
 
     internal fun finish(result: BatchResult) = publish(BatchState.Finished(result))
 
+    /** The result is still the one on show, so its favourites are still worth a request. */
+    internal fun isFinished(result: BatchResult) = state.value.let { it is BatchState.Finished && it.result == result }
+
     /** The user answered the request to mark the favourites of [result] again, and [lost] stayed without the mark. */
     internal fun favoritesLost(result: BatchResult, lost: Int) = mutableState.update {
         if (it is BatchState.Finished && it.result == result) it.copy(favoritesLost = lost) else it
@@ -231,14 +234,17 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
             val result = BatchResult(total, compressed, refused, saved, originals, favorites)
             CompressBatch.finish(result)
             // After the result, so the page that shows it can say a declined request. Returns at once: the scan wait is not the worker's.
-            if (favorites.isNotEmpty()) askFavorites(favorites) { lost -> CompressBatch.favoritesLost(result, lost) }
+            if (favorites.isNotEmpty()) askFavorites(result)
         }
         return Result.success()
     }
 
-    /** Queues the request to mark [paths] as favourites again, which the activity launches when it is in front (docs/design.md §9). */
-    protected open fun askFavorites(paths: List<String>, onAnswer: (lost: Int) -> Unit) {
-        FavoriteRequests.askAsync(applicationContext, paths, onAnswer)
+    /**
+     * Queues the request to mark the favourites of [result] again, which the activity launches when it is in front
+     * (docs/design.md §9). It is dropped if the batch was undone or replaced before it is queued or launched.
+     */
+    protected open fun askFavorites(result: BatchResult) {
+        FavoriteRequests.askAsync(applicationContext, result.favorites, { lost -> CompressBatch.favoritesLost(result, lost) }, stillWanted = { CompressBatch.isFinished(result) })
     }
 
     /** Not cancellable, so a cancel lets the photo it is on finish. */
