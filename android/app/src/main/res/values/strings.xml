@@ -324,7 +324,6 @@
     <string name="compress_page_next">Next page</string>
     <string name="compress_expand">Show the photos already compressed</string>
     <string name="compress_collapse">Hide the photos already compressed</string>
-    <string name="compress_hint_select">Select the photos to compress.</string>
     <plurals name="compress_continue">
         <item quantity="one">Continue with %d photo</item>
         <item quantity="other">Continue with %d photos</item>

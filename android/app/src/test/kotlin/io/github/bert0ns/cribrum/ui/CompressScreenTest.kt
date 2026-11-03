@@ -167,7 +167,6 @@ class CompressScreenTest {
         tile("IMG_1.jpg").assertIsNotSelected()
         tile("IMG_2.jpg").assertIsNotSelected()
         compose.onNodeWithText("Continue with 0 photos").assertIsNotEnabled()
-        compose.onNodeWithText("Select the photos to compress.").assertExists()
         // The index gives them largest first, and the page keeps that order.
         assertTrue(tile("IMG_1.jpg").fetchSemanticsNode().boundsInRoot.left < tile("IMG_2.jpg").fetchSemanticsNode().boundsInRoot.left)
         compose.onNodeWithContentDescription("IMG_1.jpg, 16320 × 12240 pixels, ${size(24_000_000)}. Not selected").assertExists()
