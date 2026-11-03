@@ -3,7 +3,10 @@
 package io.github.bert0ns.cribrum.pipeline
 
 import android.os.SystemClock
+import android.util.Log
 import com.appmattus.crypto.Algorithm
+import io.github.bert0ns.cribrum.compress.JpegInfo
+import io.github.bert0ns.cribrum.compress.readJpeg
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.BlurDetector
 import io.github.bert0ns.cribrum.detectors.BurstDetector
@@ -61,6 +64,12 @@ val DETECTOR_CATEGORIES: Set<Category> =
 
 /** Images embedded at once: bounds the memory held by decoded pixels. */
 const val EMBEDDING_BATCH = 16
+
+/** The progress step of the JPEG header read, part of the metadata phase. */
+const val JPEG_STEP = "jpeg_headers"
+
+/** The log tag of the JPEG status counts each scan writes, for the maintainer's check of the rules on a real library. */
+const val JPEG_TAG = "jpeg-status"
 
 /** Images the walk records in one transaction. */
 private const val RECORD_BATCH = 300
@@ -124,6 +133,7 @@ class Pipeline(
     /** Lists what the trash holds, to reconcile TRASHED rows with it. Without one, TRASHED rows are left alone. */
     private val trash: Trash? = null,
     private val metadataReader: (File) -> ImageMetadata = ::readMetadata,
+    private val jpegReader: (File) -> JpegInfo = ::readJpeg,
     private val perceptualHasher: (ImageRef) -> ULong = ::perceptualHash,
     private val contentHasher: (ImageRef) -> String = ::contentHash,
     /** Monotonic milliseconds, for [Stats.phaseMs]. */
@@ -192,6 +202,15 @@ class Pipeline(
                 progress("metadata", done + 1, pending.size)
             }
         }
+        // Android only: what the compress page needs, from the JPEG headers (docs/design.md §9).
+        val jpegs = index.jpegsToRead().filter { it.path in found }
+        phase("jpegHeaders", stats) {
+            for ((done, image) in jpegs.withIndex()) {
+                storeJpeg(image.path, stats)
+                progress(JPEG_STEP, done + 1, jpegs.size)
+            }
+        }
+        index.jpegCounts().forEach { Log.i(JPEG_TAG, "${it.status} gain_map=${it.gainMap} ${it.count}") }
         val unreadable = index.unreadable().toSet()
         stats.unreadablePaths = found.filter { it in unreadable }
         stats.unreadable = stats.unreadablePaths.size
@@ -530,6 +549,21 @@ class Pipeline(
         }
         try {
             index.setMetadata(path, metadata)
+        } catch (_: NoSuchElementException) {
+            // the row went while the scan ran
+        }
+    }
+
+    /** A JPEG whose headers fail to read is a failure of the metadata step, so the next scan reads it again. */
+    private suspend fun storeJpeg(path: String, stats: Stats) {
+        val file = File(path)
+        if (!file.isFile) return
+        val info = attempt { jpegReader(file) }.getOrElse { error ->
+            stats.failures += Failure(path, "metadata", failureMessage(error))
+            return
+        }
+        try {
+            index.setJpeg(path, info)
         } catch (_: NoSuchElementException) {
             // the row went while the scan ran
         }

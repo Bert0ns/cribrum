@@ -140,7 +140,7 @@ object Indexing {
      */
     private fun phase(step: String) = when (step) {
         "", "scan" -> 1 to R.string.scan_phase_scan
-        "metadata" -> 2 to R.string.scan_phase_metadata
+        "metadata", JPEG_STEP -> 2 to R.string.scan_phase_metadata
         "detectors" -> 3 to R.string.scan_phase_analysis
         "embeddings" -> 4 to R.string.scan_phase_embeddings
         "embedded_detectors" -> 5 to R.string.scan_phase_classification

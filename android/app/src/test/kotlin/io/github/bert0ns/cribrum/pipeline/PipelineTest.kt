@@ -1,6 +1,8 @@
 // The lab's tests/test_pipeline.py, translated.
 package io.github.bert0ns.cribrum.pipeline
 
+import android.graphics.Bitmap
+import io.github.bert0ns.cribrum.compress.readJpeg
 import io.github.bert0ns.cribrum.detectors.AnalysisContext
 import io.github.bert0ns.cribrum.detectors.BlurDetector
 import io.github.bert0ns.cribrum.detectors.BurstDetector
@@ -123,7 +125,7 @@ class PipelineTest {
 
         val stats = run(Pipeline(index, embedder = MeanColorEmbedder(), clock = clock))
 
-        val phases = listOf("walk", "metadata", "detectors", "embeddings", "embeddedDetectors", "groupDetectors")
+        val phases = listOf("walk", "metadata", "jpegHeaders", "detectors", "embeddings", "embeddedDetectors", "groupDetectors")
         assertEquals(phases.associateWith { 10L }, stats.phaseMs)
         assertEquals(phases, stats.phaseMs.keys.toList())
     }
@@ -134,7 +136,39 @@ class PipelineTest {
 
         val stats = run(Pipeline(index, clock = { 0 }))
 
-        assertEquals(listOf("walk", "metadata", "detectors", "embeddings", "embeddedDetectors", "groupDetectors"), stats.phaseMs.keys.toList())
+        assertEquals(listOf("walk", "metadata", "jpegHeaders", "detectors", "embeddings", "embeddedDetectors", "groupDetectors"), stats.phaseMs.keys.toList())
+    }
+
+    @Test
+    fun `a scan reads the JPEG headers once, and again when the file changes`() {
+        val jpeg = TestImage.texture(64, 48).save(File(root, "DCIM/Camera/a.jpg").apply { parentFile!!.mkdirs() }, Bitmap.CompressFormat.JPEG)
+        save("DCIM/Camera/b.png")
+        val reads = mutableListOf<String>()
+        fun pipeline() = Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), jpegReader = {
+            reads += it.name
+            readJpeg(it)
+        })
+
+        run(pipeline())
+        assertEquals(listOf("a.jpg"), reads)
+        assertEquals(listOf(95), runBlocking { index.compressible(34) }.map { it.info.quality })
+        run(pipeline())
+        assertEquals(listOf("a.jpg"), reads)
+        jpeg.setLastModified(jpeg.lastModified() + 5_000)
+        run(pipeline())
+        assertEquals(listOf("a.jpg", "a.jpg"), reads)
+    }
+
+    @Test
+    fun `a JPEG whose headers fail to read is a metadata failure, and is read again on the next scan`() {
+        TestImage.texture(64, 48).save(File(root, "DCIM/Camera/a.jpg").apply { parentFile!!.mkdirs() }, Bitmap.CompressFormat.JPEG)
+        var fail = true
+        fun pipeline() = Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), jpegReader = { if (fail) throw java.io.IOException("busy") else readJpeg(it) })
+
+        assertEquals(listOf("metadata"), run(pipeline()).failures.map { it.step })
+        fail = false
+        assertEquals(emptyList<Failure>(), run(pipeline()).failures)
+        assertEquals(1, runBlocking { index.compressible(34) }.size)
     }
 
     @Test
