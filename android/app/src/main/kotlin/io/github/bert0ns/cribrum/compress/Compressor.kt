@@ -10,7 +10,9 @@ import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Swap
 import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -22,7 +24,7 @@ import java.nio.file.attribute.FileTime
 import java.time.Clock
 import java.util.concurrent.TimeUnit
 
-/** Why a photo was not compressed at a level, for the UI to say. The original is untouched in every case. */
+/** Why a photo was not compressed at a level, for the UI to say. The original is untouched, except with [LEFT_IN_TRASH]. */
 enum class Refusal {
     /** The new file is not smaller than the original. */
     NOT_SMALLER,
@@ -35,6 +37,9 @@ enum class Refusal {
 
     /** Anything else: the file could not be read, written or swapped, or it changed since its scan. */
     FAILED,
+
+    /** The swap failed halfway and the original could not be put back: it is in the Cribrum trash, to restore from there. */
+    LEFT_IN_TRASH,
 }
 
 sealed interface Compression {
@@ -70,9 +75,19 @@ class Compressor(
             trash.discardCopy(copy)
             return@withContext Compression.Refused(refusal)
         }
-        val swapped = trash.replaceWithCopy(image, copy) ?: return@withContext Compression.Refused(Refusal.FAILED)
-        index.record(swapped)
-        Compression.Done(swapped)
+        when (val swap = trash.replaceWithCopy(image, copy)) {
+            Swap.Untouched -> Compression.Refused(Refusal.FAILED)
+            Swap.LeftInTrash -> {
+                // Like any trashed image, so the next scan does not forget the row of a file it no longer finds.
+                runCatching { index.setReviewState(image.path, ReviewState.TRASHED) }
+                Compression.Refused(Refusal.LEFT_IN_TRASH)
+            }
+            is Swap.Swapped -> {
+                // The files are swapped already. If the index cannot follow, the next scan records the copy.
+                runCatching { index.record(swap.copy) }
+                Compression.Done(swap.copy)
+            }
+        }
     }
 
     private fun write(original: File, image: ImageRef, copy: File, level: CompressionLevel): Refusal? {

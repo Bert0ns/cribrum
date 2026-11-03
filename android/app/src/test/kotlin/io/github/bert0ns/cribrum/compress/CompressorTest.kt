@@ -22,6 +22,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import java.time.Clock
@@ -106,6 +107,30 @@ class CompressorTest {
         assertEquals(ReviewState.KEPT, index.reviewState(image.path))
         assertEquals(emptyList<Signal>(), index.signals(image.path))
         assertFalse(index.isAnalyzed(image.path, "blur", 1))
+    }
+
+    @Test
+    fun `a swap that leaves the original in the trash says so and marks its row trashed`() = runBlocking {
+        val image = photo("a.jpg", encodedJpeg(800, 600, 100))
+        index.record(image)
+        trash.mover = { _, _ -> throw IOException("simulated") }
+
+        assertEquals(Compression.Refused(Refusal.LEFT_IN_TRASH), compressor.compress(image, CompressionLevel.HIGH))
+
+        assertEquals(listOf(image), trash.trashed().map { it.original })
+        assertEquals(ReviewState.TRASHED, index.reviewState(image.path))
+        assertEquals(emptyList<String>(), camera.list()!!.toList())
+    }
+
+    @Test
+    fun `a swap is done even when the index cannot follow it`() {
+        val image = photo("a.jpg", encodedJpeg(800, 600, 100))
+        index.close()
+
+        val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
+
+        assertEquals(copy, File(image.path).toImageRef())
+        assertEquals(listOf(image), runBlocking { trash.trashed() }.map { it.original })
     }
 
     @Test

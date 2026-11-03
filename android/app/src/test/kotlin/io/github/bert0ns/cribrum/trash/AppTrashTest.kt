@@ -453,7 +453,7 @@ class AppTrashTest {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
         val copy = copyOf(image)
 
-        val swapped = replaceWithCopy(image, copy)!!
+        val swapped = (replaceWithCopy(image, copy) as Swap.Swapped).copy
 
         assertEquals(ImageRef(image.path, 5, image.mtimeNs), swapped)
         assertEquals("small", File(image.path).readText())
@@ -468,7 +468,7 @@ class AppTrashTest {
     @Test
     fun `restoring a compressed original puts its copy in the trash`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
-        val swapped = replaceWithCopy(image, copyOf(image))!!
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
         changed.clear()
 
         assertEquals(listOf(image), restore(listOf(image)))
@@ -497,7 +497,7 @@ class AppTrashTest {
     @Test
     fun `restoring a compressed original whose copy is gone puts it back`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
-        val swapped = replaceWithCopy(image, copyOf(image))!!
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
         moveToTrash(listOf(swapped))
 
         assertEquals(listOf(image), restore(listOf(image)))
@@ -509,7 +509,7 @@ class AppTrashTest {
     @Test
     fun `a restore that cannot put the original back returns the copy to its path`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
-        val swapped = replaceWithCopy(image, copyOf(image))!!
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
         val item = trashed().single()
         mover = { from, to ->
             if (from == item.file) throw IOException("simulated")
@@ -527,7 +527,7 @@ class AppTrashTest {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
         recordWriter = { _, _, _, _, _ -> throw IOException("simulated disk full") }
 
-        assertEquals(null, replaceWithCopy(image, copyOf(image)))
+        assertEquals(Swap.Untouched, replaceWithCopy(image, copyOf(image)))
 
         assertEquals(image, File(image.path).toImageRef())
         assertEquals(listOf("a.jpg"), filesIn(image))
@@ -543,7 +543,7 @@ class AppTrashTest {
             Files.move(from.toPath(), to.toPath())
         }
 
-        assertEquals(null, replaceWithCopy(image, copy))
+        assertEquals(Swap.Untouched, replaceWithCopy(image, copy))
 
         assertEquals(image, File(image.path).toImageRef())
         assertEquals(listOf("a.jpg"), filesIn(image))
@@ -557,7 +557,7 @@ class AppTrashTest {
         val copy = copyOf(image)
         mover = { _, _ -> throw IOException("simulated") }
 
-        assertEquals(null, replaceWithCopy(image, copy))
+        assertEquals(Swap.LeftInTrash, replaceWithCopy(image, copy))
 
         assertFalse(copy.exists())
         assertEquals(listOf(image), trashed().map { it.original })
@@ -567,11 +567,23 @@ class AppTrashTest {
     }
 
     @Test
+    fun `a swap whose volumes cannot be listed discards the copy`() = runBlocking {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val copy = copyOf(image)
+        val broken = AppTrash({ throw IOException("simulated") }, clock)
+
+        assertEquals(Swap.Untouched, broken.replaceWithCopy(image, copy))
+
+        assertEquals(image, File(image.path).toImageRef())
+        assertEquals(listOf("a.jpg"), filesIn(image))
+    }
+
+    @Test
     fun `a swap refuses an original that changed since its scan`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
         File(image.path).writeText("changed since the scan")
 
-        assertEquals(null, replaceWithCopy(image, copyOf(image)))
+        assertEquals(Swap.Untouched, replaceWithCopy(image, copyOf(image)))
 
         assertEquals("changed since the scan", File(image.path).readText())
         assertEquals(listOf("a.jpg"), filesIn(image))
@@ -581,7 +593,7 @@ class AppTrashTest {
     @Test
     fun `purging a compressed original keeps its copy`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
-        val swapped = replaceWithCopy(image, copyOf(image))!!
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
 
         assertEquals(listOf(image), purge(listOf(image)))
 

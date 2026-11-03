@@ -26,6 +26,18 @@ private const val COPY_PREFIX = ".pending-cribrum-"
 /** Where to write a compressed copy of [original]: next to it, so moving it into place is a rename on the same volume. */
 fun copyFileFor(original: File): File = File(original.parentFile, "$COPY_PREFIX${UUID.randomUUID()}.jpg")
 
+/** What [AppTrash.replaceWithCopy] did. The copy is discarded unless it is [Swapped]. */
+sealed interface Swap {
+    /** The copy, as it now is at the original's path. The original is in the trash. */
+    data class Swapped(val copy: ImageRef) : Swap
+
+    /** Nothing changed: the original is where it was. */
+    data object Untouched : Swap
+
+    /** The copy never took the path and the original could not be put back: it waits in the trash. */
+    data object LeftInTrash : Swap
+}
+
 data class TrashedImage(
     /** Where the image was, with the size and mtime it had: moving keeps both. */
     val original: ImageRef,
@@ -108,22 +120,21 @@ class AppTrash(
 
     /**
      * Moves [original] to the trash and renames [copy], its compressed copy written by [copyFileFor], to its path.
-     * The item records the copy, so restoring the original puts the copy in the trash in its place. Returns the
-     * copy as it now is at the original's path, or null when nothing changed: the original stays where it was, or
-     * stays in the trash if it could not be put back, and the copy is discarded either way.
+     * The item records the copy, so restoring the original puts the copy in the trash in its place.
      */
-    suspend fun replaceWithCopy(original: ImageRef, copy: File): ImageRef? = io {
+    suspend fun replaceWithCopy(original: ImageRef, copy: File): Swap = io {
         val target = File(original.path)
         val copyRef = runCatching { copy.toImageRef() }.getOrNull()?.let { ImageRef(original.path, it.size, it.mtimeNs) }
-        val folder = copyRef?.let { move(original, it) }
-        val swapped = folder != null && runCatching { mover(copy, target) }.isSuccess
-        if (folder != null && !swapped && runCatching { mover(File(folder, target.name), target) }.isSuccess) deleteItem(folder)
-        if (!swapped) {
+        val folder = copyRef?.let { runCatching { move(original, it) }.getOrNull() }
+        if (folder == null || runCatching { mover(copy, target) }.isFailure) {
             discardCopy(copy)
-            return@io null
+            if (folder == null) return@io Swap.Untouched
+            if (runCatching { mover(File(folder, target.name), target) }.isFailure) return@io Swap.LeftInTrash
+            deleteItem(folder)
+            return@io Swap.Untouched
         }
         changed(listOf(original.path))
-        target.toImageRef()
+        Swap.Swapped(runCatching { target.toImageRef() }.getOrDefault(copyRef))
     }
 
     /** Deletes a compressed copy that never took its original's place. Refuses any file [copyFileFor] did not name. */
