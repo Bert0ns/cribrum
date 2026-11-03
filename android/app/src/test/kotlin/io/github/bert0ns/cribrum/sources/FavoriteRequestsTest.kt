@@ -17,7 +17,6 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -112,7 +111,7 @@ class FavoriteRequestsTest {
 
     private fun ask(vararg paths: String) = runBlocking { FavoriteRequests.ask(context, paths.toList(), { asked += it }, noScan) }
 
-    private fun next() = runBlocking { FavoriteRequests.asks.first() }
+    private fun next() = runBlocking { withTimeout(5_000) { FavoriteRequests.next() } }
 
     @Test
     fun `the photos without the mark go into one request, and those that have it are left out`() {
@@ -155,7 +154,7 @@ class FavoriteRequestsTest {
 
         runBlocking { FavoriteRequests.ask(context, listOf("/p/a.jpg"), { asked += it }, { _, _ -> wanted = false }, { wanted }) }
 
-        assertEquals(null, runBlocking { withTimeoutOrNull(300) { FavoriteRequests.asks.first() } })
+        assertEquals(null, runBlocking { withTimeoutOrNull(300) { FavoriteRequests.next() } })
         assertEquals(emptyList<Int>(), asked)
     }
 
@@ -180,6 +179,33 @@ class FavoriteRequestsTest {
         FavoriteRequests.answered(granted = true)
 
         assertEquals(listOf(2, 0), asked)
+    }
+
+    @Test
+    fun `a second request waits for the answer to the first, and a cancelled wait loses nothing`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", false), FakeMediaStore.Row(2, "/p/b.jpg", false))
+        ask("/p/a.jpg")
+        ask("/p/b.jpg")
+        FavoriteRequests.launched(next())
+
+        // The host is cancelled while it waits, as a rotation or Home does.
+        assertEquals(null, runBlocking { withTimeoutOrNull(300) { FavoriteRequests.next() } })
+        FavoriteRequests.answered(granted = true)
+
+        assertEquals(listOf(FakeMediaStore.uri(2)), next().uris)
+    }
+
+    @Test
+    fun `a request that never comes back is dropped when the activity is gone, so later ones are not blocked`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", false), FakeMediaStore.Row(2, "/p/b.jpg", false))
+        ask("/p/a.jpg")
+        ask("/p/b.jpg")
+        FavoriteRequests.launched(next())
+
+        FavoriteRequests.abandon()
+
+        assertEquals(listOf(FakeMediaStore.uri(2)), next().uris)
+        assertEquals(emptyList<Int>(), asked)
     }
 
     @Test
