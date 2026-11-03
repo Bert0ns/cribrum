@@ -68,8 +68,8 @@ data class CompressState(
     val compressed: List<CompressibleImage> = emptyList(),
     val favorites: Set<String> = emptySet(),
     val selected: Set<String> = emptySet(),
-    /** Not preselected: the user picks it. */
-    val level: CompressionLevel? = null,
+    /** Balanced until the user moves the slider (§8). Photos, unlike the level, are never preselected. */
+    val level: CompressionLevel = CompressionLevel.BALANCED,
     val compressedExpanded: Boolean = false,
     /** The page of [photos] and of [compressed] on screen, counted from 0. */
     val page: Int = 0,
@@ -168,7 +168,7 @@ class CompressViewModel @JvmOverloads constructor(
     /** Opens the summary, and compresses the photos it compares at the chosen level, one after the other. */
     fun openSummary() {
         val state = mutableState.value
-        val level = state.level ?: return
+        val level = state.level
         val photos = state.comparedPhotos
         if (photos.isEmpty()) return
         // A preview is a second full decode: it never runs next to a batch's.
@@ -201,13 +201,13 @@ class CompressViewModel @JvmOverloads constructor(
     /** Starts the batch with the selection, largest first. */
     fun confirm() {
         val state = mutableState.value
-        val level = state.level ?: return
+        val level = state.level
         val paths = state.selectedPhotos.map { it.path }
         if (paths.isEmpty()) return
         dropPreview()
         // False when a batch is already on: the page shows it, and the selection stays.
         val started = batches.start(paths, level)
-        mutableState.update { if (started) it.copy(selected = emptySet(), level = null, summary = null, dismissed = null, stayedInTrash = 0) else it.copy(summary = null) }
+        mutableState.update { if (started) it.copy(selected = emptySet(), summary = null, dismissed = null, stayedInTrash = 0) else it.copy(summary = null) }
     }
 
     fun dismissResult(result: BatchResult) = mutableState.update { it.copy(dismissed = result) }

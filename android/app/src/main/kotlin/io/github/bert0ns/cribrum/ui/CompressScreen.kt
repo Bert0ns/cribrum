@@ -27,7 +27,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -46,7 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -83,6 +82,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -239,14 +239,9 @@ private fun Picker(
             }
             item(span = { GridItemSpan(maxLineSpan) }, key = "formats") { SupportedFormats(hdrSupported) }
             item(span = { GridItemSpan(maxLineSpan) }, key = "levels") {
-                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(stringResource(R.string.compress_level_heading), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-                    for (level in CompressionLevel.entries) {
-                        LevelRow(level, state.level == level, selection.takeIf { it.isNotEmpty() }?.let { state.estimatedSaving(level) }) {
-                            tick()
-                            onLevel(level)
-                        }
-                    }
+                LevelSlider(state.level, selection.takeIf { it.isNotEmpty() }?.let { state.estimatedSaving(state.level) }) {
+                    tick()
+                    onLevel(it)
                 }
             }
             item(span = { GridItemSpan(maxLineSpan) }, key = "photos") {
@@ -285,13 +280,8 @@ private fun Picker(
             }
         }
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val hint = when {
-                selection.isEmpty() -> R.string.compress_hint_select
-                state.level == null -> R.string.compress_hint_level
-                else -> null
-            }
-            if (hint != null) Text(stringResource(hint), style = MaterialTheme.typography.bodySmall)
-            Button(onOpenSummary, Modifier.fillMaxWidth(), enabled = hint == null) {
+            if (selection.isEmpty()) Text(stringResource(R.string.compress_hint_select), style = MaterialTheme.typography.bodySmall)
+            Button(onOpenSummary, Modifier.fillMaxWidth(), enabled = selection.isNotEmpty()) {
                 Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
             }
         }
@@ -402,20 +392,38 @@ private fun SupportedFormats(hdrSupported: Boolean) {
     }
 }
 
+/**
+ * The three levels on one slider, High quality at the left and Smallest at the right (§8). Material's `Slider` with
+ * one step in the middle snaps to the three stops and brings the semantics: the range, the action that increment and
+ * decrement send, and a state description that names the level.
+ */
 @Composable
-private fun LevelRow(level: CompressionLevel, selected: Boolean, saving: Long?, onSelect: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected, role = Role.RadioButton, onClick = onSelect),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        RadioButton(selected, onClick = null)
-        Column(Modifier.weight(1f)) {
-            Text(level.title(), style = MaterialTheme.typography.bodyLarge)
-            Text(level.detail(), style = MaterialTheme.typography.bodySmall)
+private fun LevelSlider(level: CompressionLevel, saving: Long?, onLevel: (CompressionLevel) -> Unit) {
+    val heading = stringResource(R.string.compress_level_heading)
+    val state = stringResource(R.string.compress_level_state, level.title(), level.detail())
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(heading, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(level.title(), style = MaterialTheme.typography.bodyLarge)
+                Text(level.detail(), style = MaterialTheme.typography.bodySmall)
+            }
+            if (saving != null) Text(stringResource(R.string.compress_level_saving, fileSize(saving)), style = MaterialTheme.typography.labelMedium)
         }
-        if (saving != null) {
-            Text(stringResource(R.string.compress_level_saving, fileSize(saving)), style = MaterialTheme.typography.labelMedium)
+        Slider(
+            value = level.ordinal.toFloat(),
+            // Only a new stop is reported, so the caller's tick comes once per stop even while the finger stays on it.
+            onValueChange = { value -> CompressionLevel.entries[value.roundToInt().coerceIn(0, 2)].let { if (it != level) onLevel(it) } },
+            valueRange = 0f..2f,
+            steps = 1,
+            modifier = Modifier.semantics {
+                contentDescription = heading
+                stateDescription = state
+            },
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.compress_level_better), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+            Text(stringResource(R.string.compress_level_smaller), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
         }
     }
 }
