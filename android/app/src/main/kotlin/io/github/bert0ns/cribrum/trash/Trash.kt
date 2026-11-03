@@ -68,6 +68,15 @@ interface Trash {
 }
 
 /**
+ * The paths of [purged] that no item left in the trash holds, for the index to forget. A compressed original and
+ * its copy share a path, so purging one must not drop the row the other still needs (docs/design.md §9).
+ */
+suspend fun Trash.unheldPaths(purged: List<ImageRef>): List<String> {
+    val held = trashed().mapTo(HashSet()) { it.original.path }
+    return purged.map { it.path }.filterNot { it in held }
+}
+
+/**
  * Each trashed file gets its own folder in the trash of its volume, holding the file under its
  * own name and an `origin.properties` with where it came from. The trash survives an uninstall
  * and needs no database to be restored. Moving is a rename, so it is instant and keeps the
