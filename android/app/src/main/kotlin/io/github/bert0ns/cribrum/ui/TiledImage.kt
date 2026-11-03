@@ -44,6 +44,7 @@ import androidx.core.graphics.withMatrix
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import coil3.size.Scale
 import io.github.bert0ns.cribrum.imaging.orientation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -60,6 +61,9 @@ import kotlin.math.min
 
 /** The side of a tile, in decoded pixels. */
 private const val TILE = 512
+
+/** The longest side Coil draws the whole photo at, below the tiles. */
+private const val BASE_PIXELS = 2048
 
 /** How far a zoom goes: two screen pixels for one of the original, so single pixels and JPEG blocks show. */
 private const val MAX_SHARE = 2f
@@ -118,9 +122,9 @@ internal fun Modifier.zoomGestures(zoom: Zoom, onTap: (() -> Unit)? = null) = th
 internal fun previewCacheKey(file: File) = "${file.path}:${file.lastModified()}"
 
 /**
- * [file] fitted to the size of this composable, zoomed by [zoom]. Coil draws the whole photo at the
- * size of the view; once zoomed, the visible part is decoded again in tiles, at the resolution the
- * zoom shows. Tiles that leave the view are dropped, and closing the view stops the work and the decoder.
+ * [file] fitted to the size of this composable, zoomed by [zoom]. Coil draws the whole photo at up
+ * to [BASE_PIXELS]; once the zoom needs more, the visible part is decoded again in tiles, at the
+ * resolution the zoom shows. Tiles that leave the view are dropped, and closing the view stops the work and the decoder.
  */
 @Composable
 internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier) {
@@ -146,7 +150,7 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier) {
             },
         ) {
             AsyncImage(
-                ImageRequest.Builder(LocalContext.current).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).build(),
+                ImageRequest.Builder(LocalContext.current).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).build(),
                 null,
                 Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
@@ -313,8 +317,9 @@ private fun toRaw(rect: Rect, raw: IntSize, orientation: Int): Rect {
 
 /**
  * The tiles that cover what a [view] shows of a file of [raw] pixels, fitted and zoomed by [scale] and
- * [offset] as [TiledImage] draws it. None at rest, where Coil's image already has the view's resolution.
- * The sample is the largest power of two that still gives a screen pixel at least one decoded pixel.
+ * [offset] as [TiledImage] draws it. The sample is the largest power of two that still gives a screen
+ * pixel at least one decoded pixel. None at rest, and none until that sample is finer than Coil's
+ * [BASE_PIXELS] image, which shows the photo until then.
  */
 internal fun visibleTiles(raw: IntSize, orientation: Int, view: IntSize, scale: Float, offset: Offset): List<Tile> {
     if (scale <= 1f || view.width == 0 || view.height == 0) return emptyList()
@@ -325,6 +330,7 @@ internal fun visibleTiles(raw: IntSize, orientation: Int, view: IntSize, scale: 
     val region = toRaw(shown, raw, orientation).intersect(Rect(0f, 0f, raw.width.toFloat(), raw.height.toFloat()))
     if (region.isEmpty) return emptyList()
     val sample = Integer.highestOneBit(max(1, (1 / (fit * scale)).toInt()))
+    if (sample.toLong() * BASE_PIXELS >= max(raw.width, raw.height)) return emptyList()
     val step = TILE * sample
     return (floor(region.top / step).toInt() until ceil(region.bottom / step).toInt()).flatMap { row ->
         (floor(region.left / step).toInt() until ceil(region.right / step).toInt()).map { column ->

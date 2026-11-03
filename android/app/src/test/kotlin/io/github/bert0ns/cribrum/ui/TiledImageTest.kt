@@ -37,6 +37,14 @@ class TiledImageTest {
     }
 
     @Test
+    fun `a zoom the base image still covers needs no tiles`() {
+        // Twice the fitted size asks for 15 pixels of the photo per screen pixel, sampled by 8: the 2048 px base gives 8 too.
+        assertEquals(emptyList<Tile>(), visibleTiles(photo200, 1, panel, 2f, Offset.Zero))
+        // Under 8 pixels per screen pixel the tiles start, sampled by 4.
+        assertEquals(4, visibleTiles(photo200, 1, panel, 16320f / 540 / 7.9f, Offset.Zero).first().sample)
+    }
+
+    @Test
     fun `at full resolution the tiles cover the visible pixels of the photo`() {
         // 540 / 16320 times this is one screen pixel per pixel, and the offset shows the photo from (8000, 6000).
         val tiles = visibleTiles(photo200, 1, panel, 16320f / 540, Offset(-8000f, -6000f))
