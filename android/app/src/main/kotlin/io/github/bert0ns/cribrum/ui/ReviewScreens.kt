@@ -449,16 +449,22 @@ private fun FullSize(
 
 /**
  * The full size view both the review and the Compress page open: a black dialog that pages through
- * [paths] from [start], with the zoomable image in each page. [overlay] draws over it what is
- * specific to the screen, for the page the pager is on.
+ * [paths] from [start], with [image] in each page, the review's zoomable image unless the screen
+ * has its own. [overlay] draws over it what is specific to the screen, for the page the pager is on.
  */
 @Composable
-internal fun FullSizeViewer(paths: List<String>, start: String, onClose: () -> Unit, overlay: @Composable BoxScope.(page: Int) -> Unit) {
+internal fun FullSizeViewer(
+    paths: List<String>,
+    start: String,
+    onClose: () -> Unit,
+    image: @Composable (page: Int) -> Unit = { ZoomableImage(paths[it], onClose) },
+    overlay: @Composable BoxScope.(page: Int) -> Unit,
+) {
     val pager = rememberPagerState(paths.indexOf(start).coerceAtLeast(0)) { paths.size }
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { paths[it] }) { page ->
-                ZoomableImage(paths[page], onClose)
+                image(page)
             }
             overlay(pager.currentPage)
         }
