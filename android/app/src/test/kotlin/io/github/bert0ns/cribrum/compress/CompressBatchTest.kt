@@ -2,6 +2,7 @@ package io.github.bert0ns.cribrum.compress
 
 import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.ServiceInfo
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
 import androidx.work.ForegroundInfo
@@ -73,6 +74,8 @@ class CompressBatchTest {
     @Volatile
     private var heat: HeatLevel? = null
 
+    private val foregrounds: MutableList<ForegroundInfo> = Collections.synchronizedList(mutableListOf())
+
     /** Runs as a worker starts, before it takes its request. */
     private var onWork: suspend (UUID) -> Unit = {}
 
@@ -88,7 +91,9 @@ class CompressBatchTest {
             return super.doWork()
         }
 
-        override suspend fun setForegroundInfo(info: ForegroundInfo) {}
+        override suspend fun setForegroundInfo(info: ForegroundInfo) {
+            foregrounds += info
+        }
 
         override suspend fun compress(image: ImageRef, level: CompressionLevel): Compression = withContext(NonCancellable) {
             started += image.path
@@ -339,5 +344,22 @@ class CompressBatchTest {
         assertEquals(BatchState.Running(0, 1, 0), CompressBatch.state.value)
         gate.complete(Unit)
         assertEquals(1, finished().compressed)
+    }
+
+    @Test
+    fun `from API 35 the batch runs as media processing, apart from the scan's dataSync budget`() {
+        start(photo("a.jpg"))
+        finished()
+
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING, foregrounds.single().foregroundServiceType)
+    }
+
+    @Test
+    @Config(sdk = [34])
+    fun `below API 35 the batch runs as dataSync`() {
+        start(photo("a.jpg"))
+        finished()
+
+        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC, foregrounds.single().foregroundServiceType)
     }
 }

@@ -9,6 +9,8 @@
     <!-- A first scan runs as a foreground service, so Android lets it finish. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- A compression batch, on API 35 and later, where media processing has a time budget apart from dataSync's. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- The app works entirely offline. ONNX Runtime brings INTERNET for telemetry; remove it. -->
     <uses-permission
@@ -39,7 +41,7 @@
         </activity>
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
-            android:foregroundServiceType="dataSync"
+            android:foregroundServiceType="dataSync|mediaProcessing"
             tools:node="merge" />
     </application>
 
