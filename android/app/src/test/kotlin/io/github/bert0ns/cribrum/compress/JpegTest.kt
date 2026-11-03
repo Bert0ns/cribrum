@@ -109,6 +109,45 @@ class JpegTest {
     }
 
     @Test
+    fun `a header walk that never reaches SOS is unsupported, so nothing behind a broken segment is missed`() {
+        val noSos = concat(listOf(ascii("\u00FF\u00D8"), EXIF, sof(), ByteArray(64) { 0x55 }, ascii("\u00FF\u00D9")))
+        assertEquals(JpegStatus.UNSUPPORTED, status(noSos))
+        val motionBehindJunk = jpeg(EXIF, byteArrayOf(0, 0), xmp(rdf("""<rdf:Description xmlns:GCamera="http://ns.google.com/photos/1.0/camera/" GCamera:MotionPhoto="1"/>""")))
+        assertEquals(JpegStatus.UNSUPPORTED, status(motionBehindJunk))
+        // thousands of empty segments before SOS: the walk gives up instead of reading them all
+        assertEquals(JpegStatus.UNSUPPORTED, status(jpeg(*Array(5_000) { segment(0xFE, ByteArray(0)) })))
+    }
+
+    @Test
+    fun `an MPF that does not parse cannot vouch for data after the image`() {
+        val broken = mpf(listOf(0 to 0, 0 to 0)).also {
+            it[8] = 'X'.code.toByte()
+            it[9] = 'X'.code.toByte()
+        }
+
+        assertEquals(JpegStatus.TRAILING_DATA, status(jpeg(EXIF, broken) + jpeg()))
+    }
+
+    @Test
+    fun `a SEF directory that claims too many entries is not read`() {
+        val image = jpeg(EXIF)
+        val directory = ascii("SEFH") + byteArrayOf(107, 0, 0, 0) + byteArrayOf(0xD0.toByte(), 0x07, 0, 0) + ByteArray(12 * 2_000)
+        val file = image + directory + byteArrayOf((directory.size and 0xFF).toByte(), (directory.size shr 8 and 0xFF).toByte(), (directory.size shr 16).toByte(), 0) + ascii("SEFT")
+
+        assertEquals(JpegStatus.TRAILING_DATA, status(file))
+    }
+
+    @Test
+    fun `tables no IJG quality matches give no quality, as in ImageMagick`() {
+        // natural positions 2 and 53 of the luma table, 0 and 63 of the chroma one, set to 1 in zigzag order
+        val luma = ByteArray(64) { if (it == 5 || it == 56) 1 else 0xFF.toByte() }
+        val chroma = ByteArray(64) { if (it == 0 || it == 63) 1 else 0xFF.toByte() }
+        val dqt = segment(0xDB, byteArrayOf(0) + luma + byteArrayOf(1) + chroma)
+
+        assertNull(readJpeg(jpeg(dqt = dqt)).quality)
+    }
+
+    @Test
     fun `the marker is read with its keys, wherever it sits before SOS`() {
         val marker = app15("cribrum\u0000version=1\nlevel=balanced\ncompressed_at=2026-11-03T10:15:30Z\n")
 
@@ -182,6 +221,13 @@ class JpegTest {
     }
 
     @Test
+    fun `a file that already has a Cribrum marker gets no second one`() {
+        val marked = withMarker(jpeg(EXIF), markerSegment(CompressionLevel.HIGH, Instant.EPOCH))
+
+        assertThrows(IllegalArgumentException::class.java) { withMarker(marked, markerSegment(CompressionLevel.SMALLEST, Instant.EPOCH)) }
+    }
+
+    @Test
     fun `the loss flags name re-edit data, a depth map, XMP and C2PA`() {
         val c2pa = segment(0xEB, ascii("JP") + ByteArray(8))
         val file = withSef(jpeg(EXIF, xmp(rdf("")), c2pa), "PhotoEditor_Re_Edit_Data", "DualShot_DepthMap_1")
@@ -191,8 +237,10 @@ class JpegTest {
     }
 
     @Test
-    fun `a 20 MB file is read from its headers and its last bytes only`() {
-        val file = withSef(jpeg(EXIF, xmp(rdf("")), entropy = 20_000_000), "Image_UTC_Data")
+    fun `a 20 MB file is read from its headers and its last bytes only, skipping the Exif and ICC payloads`() {
+        val exif = segment(0xE1, ascii("Exif\u0000\u0000") + ByteArray(60_000))
+        val icc = segment(0xE2, ascii("ICC_PROFILE\u0000\u0001\u0001") + ByteArray(30_000))
+        val file = withSef(jpeg(exif, xmp(rdf("")), icc, entropy = 20_000_000), "Image_UTC_Data")
         var read = 0L
         val counting = object : Bytes {
             override val size = file.size.toLong()

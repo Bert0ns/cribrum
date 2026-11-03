@@ -387,10 +387,10 @@ interface IndexDao {
     )
     suspend fun jpegsToRead(version: Int): List<StoredRef>
 
-    /** The images a JPEG read at [version] found eligible, not trashed, largest first. */
+    /** The images a JPEG read at [version] found eligible, neither trashed nor unreadable, largest first. */
     @Query(
         """SELECT i.size, i.width, i.height, j.* FROM images i JOIN jpegs j ON j.path = i.path
-           WHERE i.review_state != 'trashed' AND i.width IS NOT NULL AND j.version = :version AND j.status = 'eligible'
+           WHERE i.review_state != 'trashed' AND NOT i.unreadable AND i.width IS NOT NULL AND j.version = :version AND j.status = 'eligible'
            ORDER BY i.size DESC, i.path""",
     )
     suspend fun eligibleJpegs(version: Int): List<StoredJpeg>

@@ -130,10 +130,12 @@ fun markerSegment(level: CompressionLevel, compressedAt: Instant): ByteArray {
 /**
  * [jpeg] with [marker] inserted where §9 puts it: directly after the Exif APP1, or with none directly after SOI,
  * or after an APP0 JFIF that follows SOI. Throws when that place is behind the MPF APP2, since a segment between
- * MPF and the gain map moves the gain map away from where MPF says it is.
+ * MPF and the gain map moves the gain map away from where MPF says it is, and when [jpeg] already has a Cribrum
+ * marker, since a file holds one.
  */
 fun withMarker(jpeg: ByteArray, marker: ByteArray): ByteArray {
-    val segments = requireNotNull(segments(jpeg.asBytes(), keep = { it == APP0 || it == APP1 || it == APP2 })) { "not a JPEG" }
+    val segments = requireNotNull(segments(jpeg.asBytes(), keep = { it == APP0 || it == APP1 || it == APP2 || it == APP15 })) { "not a JPEG" }
+    require(segments.none { it.marker == APP15 && it.startsWith(MARKER_ID) }) { "the file already has a Cribrum marker" }
     val exif = segments.firstOrNull { it.marker == APP1 && it.startsWith(EXIF) }
     val first = segments.firstOrNull()
     val at = when {
@@ -149,8 +151,10 @@ fun withMarker(jpeg: ByteArray, marker: ByteArray): ByteArray {
 private class Segment(val marker: Int, val offset: Long, val length: Int, val payload: ByteArray?) {
     val end get() = offset + 2 + length
 
-    fun startsWith(prefix: ByteArray) = payload != null && payload.size >= prefix.size && prefix.indices.all { payload[it] == prefix[it] }
+    fun startsWith(prefix: ByteArray) = payload != null && payload.startsWith(prefix)
 }
+
+private fun ByteArray.startsWith(prefix: ByteArray) = size >= prefix.size && prefix.indices.all { this[it] == prefix[it] }
 
 private const val SOI = 0xD8
 private const val EOI = 0xD9
@@ -169,6 +173,7 @@ private val KEPT = SOF + setOf(DQT, APP1, APP2, APP11, APP15)
 private fun ascii(text: String) = text.toByteArray(Charsets.ISO_8859_1)
 
 private val EXIF = ascii("Exif\u0000\u0000")
+private val ICC = ascii("ICC_PROFILE\u0000")
 private val JFIF = ascii("JFIF\u0000")
 private val XMP = ascii("http://ns.adobe.com/xap/1.0/\u0000")
 private val XMP_EXTENSION = ascii("http://ns.adobe.com/xmp/extension/\u0000")
@@ -180,39 +185,52 @@ private const val HDRGM = "http://ns.adobe.com/hdr-gain-map/1.0/"
 
 /**
  * The segments from SOI up to SOS, SOS included, with the payload of those [keep] picks, or null when the bytes do
- * not start with SOI. A file cut short ends the list where it is cut.
+ * not start with SOI. A file cut short, or a walk longer than [MAX_STEPS], ends the list without SOS.
  */
 private fun segments(bytes: Bytes, keep: (Int) -> Boolean): List<Segment>? {
     val head = bytes.read(0, 2)
     if (head.size < 2 || head.u8(0) != 0xFF || head.u8(1) != SOI) return null
     val segments = mutableListOf<Segment>()
     var pos = 2L
-    while (true) {
+    repeat(MAX_STEPS) {
         val header = bytes.read(pos, 4)
-        if (header.size < 2 || header.u8(0) != 0xFF) break
+        if (header.size < 2 || header.u8(0) != 0xFF) return segments
         val marker = header.u8(1)
         when {
             marker == 0xFF -> pos++ // a fill byte before the marker
             marker == EOI || marker in 0xD0..0xD7 || marker == 0x01 -> pos += 2 // no length
-            header.size < 4 -> break
+            header.size < 4 -> return segments
             else -> {
                 val length = (header.u8(2) shl 8) or header.u8(3)
-                if (length < 2) break
-                val payload = if (keep(marker)) bytes.read(pos + 4, length - 2) else null
+                if (length < 2) return segments
+                val payload = if (keep(marker)) payload(bytes, pos + 4, length - 2) else null
                 segments += Segment(marker, pos, length, payload)
-                if (marker == SOS || pos + 2 + length > bytes.size) break
+                if (marker == SOS || pos + 2 + length > bytes.size) return segments
                 pos += 2 + length
             }
         }
-        if (marker == EOI) break
+        if (marker == EOI) return segments
     }
     return segments
 }
 
+/** A camera JPEG has a few dozen segments, so a walk this long is a malformed file. */
+private const val MAX_STEPS = 4096
+
+/** A segment's payload, but only the first bytes of an Exif APP1 or an ICC APP2, whose contents no rule reads. */
+private fun payload(bytes: Bytes, at: Long, length: Int): ByteArray {
+    val head = bytes.read(at, minOf(length, SKIM))
+    if (head.size == length || head.size < SKIM || head.startsWith(EXIF) || head.startsWith(ICC)) return head
+    return head + bytes.read(at + SKIM, length - SKIM)
+}
+
+private const val SKIM = 32
+
 private fun ByteArray.u8(i: Int) = this[i].toInt() and 0xFF
 
-/** The first SOF before SOS is SOF0, SOF1 or SOF2 with 8-bit samples. */
+/** The walk reached SOS, and the first SOF before it is SOF0, SOF1 or SOF2 with 8-bit samples. */
 private fun supported(segments: List<Segment>): Boolean {
+    if (segments.lastOrNull()?.marker != SOS) return false
     val sof = segments.firstOrNull { it.marker in SOF } ?: return false
     return sof.marker in 0xC0..0xC2 && sof.payload!!.isNotEmpty() && sof.payload.u8(0) == 8
 }
@@ -262,7 +280,7 @@ private fun sef(bytes: Bytes): Sef? {
     val header = bytes.read(directory, 12)
     if (header.size < 12 || String(header, 0, 4, Charsets.ISO_8859_1) != "SEFH") return null
     val count = header.le32(8)
-    if (count < 0 || directory + 12 + count * 12 > bytes.size - 8) return null
+    if (count > MAX_SEF_ENTRIES || directory + 12 + count * 12 > bytes.size - 8) return null
     val entries = bytes.read(directory + 12, (count * 12).toInt())
     var start = directory
     val names = (0 until count.toInt()).map { i ->
@@ -278,17 +296,21 @@ private fun sef(bytes: Bytes): Sef? {
 
 private const val MAX_SEF_NAME = 256L
 
+/** Camera files hold a handful of entries; more is a malformed trailer, and reading it would cost a read each. */
+private const val MAX_SEF_ENTRIES = 1024
+
 private fun ByteArray.le32(i: Int): Long = ByteBuffer.wrap(this, i, 4).order(ByteOrder.LITTLE_ENDIAN).int.toUInt().toLong()
 
 /**
  * The bytes up to [end] (the file, with any SEF trailer cut off) end in EOI, and when MPF lists secondary images,
- * the last of them ends exactly at [end].
+ * the last of them ends exactly at [end]. An MPF whose entries do not parse cannot vouch for what follows the image.
  */
 private fun endsCleanly(bytes: Bytes, end: Long, mpf: Segment?): Boolean {
     if (end < 2) return false
     val last = bytes.read(end - 2, 2)
     if (last.size < 2 || last.u8(0) != 0xFF || last.u8(1) != EOI) return false
-    val images = mpf?.let(::mpfImages) ?: return true
+    if (mpf == null) return true
+    val images = mpfImages(mpf) ?: return false
     if (images.size < 2) return true
     // MPF offsets count from its TIFF header, right after `MPF\0`, and the primary image's offset is 0.
     val (size, offset) = images.last()
@@ -382,7 +404,7 @@ private fun quality(segments: List<Segment>): Int? {
         val hash = l[2] + l[53] + if (chroma != null) c[0] + c[63] else 0
         val sums = l.sum() + if (chroma != null) c.sum() else 0
         if (value < hash && sum < sums) continue
-        if ((value <= hash && sum <= sums) || i >= 50) return i + 1
+        return if ((value <= hash && sum <= sums) || i >= 50) i + 1 else null
     }
     return null
 }
