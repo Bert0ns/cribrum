@@ -205,8 +205,9 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
                 IndexWorker.running.unlock()
             }
         } finally {
-            CompressBatch.finish(BatchResult(total, compressed, refused, saved, originals))
+            // Before the result: once it is out, the next batch can start and post its own notification under this id.
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+            CompressBatch.finish(BatchResult(total, compressed, refused, saved, originals))
         }
         return Result.success()
     }
