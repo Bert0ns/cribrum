@@ -638,4 +638,22 @@ class AppTrashTest {
         assertFalse(copy.exists())
         assertEquals(listOf("a.jpg"), filesIn(image))
     }
+
+    @Test
+    fun `sweeping discards the copies a killed compression left, and nothing else`() = test {
+        val image = photo("DCIM/Camera/a.jpg")
+        val orphan = copyOf(image)
+        val pending = File(File(image.path).parentFile, ".pending-1700000000-b.jpg").apply { writeText("another app's") }
+        val inTrash = copyFileFor(File(volume, "$TRASH_FOLDER/item/a.jpg")).apply {
+            parentFile!!.mkdirs()
+            writeText("in the trash")
+        }
+
+        discardCopiesIn(listOf(File(image.path).parentFile!!, inTrash.parentFile!!, File(volume, "gone")))
+
+        assertFalse(orphan.exists())
+        assertTrue(pending.exists())
+        assertTrue(inTrash.exists())
+        assertEquals(image, File(image.path).toImageRef())
+    }
 }

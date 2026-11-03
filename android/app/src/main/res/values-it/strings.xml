@@ -314,6 +314,12 @@
     <string name="nav_compress">Comprimi</string>
     <string name="nav_map">Mappa</string>
     <string name="compress_coming_soon">La compressione delle foto grandi arriverà presto.</string>
+    <string name="compress_channel">Compressione delle foto</string>
+    <string name="compress_progress">Compressione %1$d di %2$d</string>
+    <string name="compress_saved">%1$s risparmiati finora</string>
+    <string name="compress_paused">In pausa mentre il telefono si raffredda · %1$s</string>
+    <string name="compress_waiting">In attesa della fine della scansione</string>
+    <string name="compress_cancel">Annulla</string>
     <string name="storage_map">Mappa dell\'archiviazione</string>
     <string name="storage_map_card_details">%1$s \u2022 dimensioni delle immagini</string>
     <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>

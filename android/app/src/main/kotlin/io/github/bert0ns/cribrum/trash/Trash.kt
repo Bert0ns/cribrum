@@ -158,6 +158,13 @@ class AppTrash(
         copy.delete()
     }
 
+    /** Discards the copies [copyFileFor] named in [folders], which a compression killed before its swap leaves behind. */
+    internal fun discardCopiesIn(folders: Collection<File>) {
+        for (folder in folders) {
+            folder.listFiles { file -> COPY_NAME.matches(file.name) }.orEmpty().forEach { runCatching { discardCopy(it) } }
+        }
+    }
+
     override suspend fun trashed(): List<TrashedImage> = io { items() }
 
     override suspend fun purge(images: List<ImageRef>): List<ImageRef> = io {

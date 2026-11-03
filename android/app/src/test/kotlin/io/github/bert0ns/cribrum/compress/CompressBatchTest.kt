@@ -1,0 +1,311 @@
+package io.github.bert0ns.cribrum.compress
+
+import android.app.NotificationManager
+import android.content.Context
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.ForegroundInfo
+import androidx.work.ListenableWorker
+import androidx.work.WorkManager
+import androidx.work.WorkerFactory
+import androidx.work.WorkerParameters
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
+import io.github.bert0ns.cribrum.R
+import io.github.bert0ns.cribrum.index.memoryIndex
+import io.github.bert0ns.cribrum.model.ImageRef
+import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.pipeline.FakeScan
+import io.github.bert0ns.cribrum.pipeline.IndexWorker
+import io.github.bert0ns.cribrum.pipeline.Indexing
+import io.github.bert0ns.cribrum.review.Review
+import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.copyFileFor
+import io.github.bert0ns.cribrum.ui.HeatLevel
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
+import org.junit.After
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Rule
+import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import java.io.File
+import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [36])
+class CompressBatchTest {
+    @get:Rule
+    val folder = TemporaryFolder()
+
+    private val app = ApplicationProvider.getApplicationContext<Context>()
+    private val volume by lazy { folder.newFolder("storage") }
+    private val camera by lazy { File(volume, "DCIM/Camera").apply { mkdirs() } }
+    private val index = memoryIndex()
+    private val trash by lazy { AppTrash({ listOf(volume) }) }
+    private val scans = AtomicInteger()
+    private val scanGate = CompletableDeferred<Unit>()
+
+    /** The paths the worker started compressing, in order. */
+    private val started: MutableList<String> = Collections.synchronizedList(mutableListOf())
+
+    /** Runs as a photo starts, before the compressor. Like the compressor, a cancel does not stop it. */
+    private var onPhoto: suspend (ImageRef) -> Unit = {}
+
+    @Volatile
+    private var heat: HeatLevel? = null
+
+    private inner class TestCompress(context: Context, parameters: WorkerParameters) : CompressWorker(context, parameters) {
+        override val index get() = this@CompressBatchTest.index
+        override val trash get() = this@CompressBatchTest.trash
+        override val coolDownMs = 10L
+
+        override fun heat() = this@CompressBatchTest.heat
+
+        override suspend fun setForegroundInfo(info: ForegroundInfo) {}
+
+        override suspend fun compress(image: ImageRef, level: CompressionLevel): Compression = withContext(NonCancellable) {
+            started += image.path
+            onPhoto(image)
+            // Robolectric's ActivityManager reports no free memory.
+            Compressor(trash, index, { Long.MAX_VALUE }).compress(image, level)
+        }
+    }
+
+    @Before
+    fun setUp() {
+        CompressBatch.reset()
+        val configuration = Configuration.Builder()
+            .setExecutor(SynchronousExecutor())
+            .setWorkerFactory(object : WorkerFactory() {
+                override fun createWorker(appContext: Context, workerClassName: String, workerParameters: WorkerParameters): ListenableWorker = when (workerClassName) {
+                    CompressWorker::class.java.name -> TestCompress(appContext, workerParameters)
+                    else -> FakeScan(appContext, workerParameters, scans, scanGate)
+                }
+            })
+            .build()
+        WorkManagerTestInitHelper.initializeTestWorkManager(app, configuration)
+    }
+
+    /** Work left running would keep the process-wide lock for the next test. */
+    @After
+    fun tearDown() {
+        scanGate.complete(Unit)
+        heat = null
+        runBlocking { withTimeout(10_000) { while (running()) yield() } }
+        CompressBatch.reset()
+    }
+
+    private fun works() = WorkManager.getInstance(app).run { getWorkInfosForUniqueWork(CompressBatch.WORK).get() + getWorkInfosByTag(Indexing.TAG).get() }
+
+    private fun running() = works().any { !it.state.isFinished }
+
+    private fun scanEnded() = runBlocking { withTimeout(10_000) { while (WorkManager.getInstance(app).getWorkInfosByTag(Indexing.TAG).get().any { !it.state.isFinished }) yield() } }
+
+    private fun photo(name: String, quality: Int = 100): ImageRef {
+        val image = File(camera, name).apply { writeBytes(encodedJpeg(800, 600, quality)) }.toImageRef()
+        runBlocking { index.record(image) }
+        return image
+    }
+
+    private fun start(vararg images: ImageRef) = assertTrue(CompressBatch.start(app, images.map { it.path }, CompressionLevel.HIGH))
+
+    private fun state(predicate: (BatchState) -> Boolean): BatchState = runBlocking { withTimeout(10_000) { CompressBatch.state.first(predicate) } }
+
+    private fun finished() = (state { it is BatchState.Finished } as BatchState.Finished).result
+
+    private fun waitFor(condition: () -> Boolean) = runBlocking { withTimeout(10_000) { while (!condition()) yield() } }
+
+    /** The title and text of the batch's notification, once its title is [title]: the worker posts it after the state. */
+    private fun notification(title: String): String? {
+        val manager = shadowOf(app.getSystemService(NotificationManager::class.java))
+        waitFor { manager.getNotification(CompressWorker.NOTIFICATION_ID)?.extras?.getString("android.title") == title }
+        return manager.getNotification(CompressWorker.NOTIFICATION_ID).extras.getString("android.text")
+    }
+
+    @Test
+    fun `the result counts the photos compressed, those refused and why, and the real saving`() {
+        val small = photo("a.jpg")
+        val notSmaller = photo("b.jpg", quality = 40)
+        val notIndexed = File(camera, "c.jpg").apply { writeBytes(encodedJpeg(800, 600, 100)) }.toImageRef()
+
+        start(small, notSmaller, notIndexed)
+        val result = finished()
+
+        assertEquals(listOf(small.path, notSmaller.path), started)
+        assertEquals(3, result.total)
+        assertEquals(1, result.compressed)
+        assertEquals(mapOf(Refusal.NOT_SMALLER to 1, Refusal.FAILED to 1), result.refused)
+        assertEquals(small.size - File(small.path).length(), result.savedBytes)
+        assertEquals(listOf(small), result.originals)
+        assertEquals(0, result.notReached)
+        assertEquals(listOf(small), runBlocking { trash.trashed() }.map { it.original })
+    }
+
+    @Test
+    fun `a second batch is refused while one runs`() {
+        val gate = CompletableDeferred<Unit>()
+        onPhoto = { gate.await() }
+        val image = photo("a.jpg")
+        start(image)
+        waitFor { started.isNotEmpty() }
+
+        assertFalse(CompressBatch.start(app, listOf(image.path), CompressionLevel.SMALLEST))
+
+        gate.complete(Unit)
+        assertEquals(1, finished().compressed)
+    }
+
+    @Test
+    fun `a batch asked for during a scan waits for it, and runs when it ends`() {
+        val image = photo("a.jpg")
+        Indexing.scanNow(app)
+        waitFor { scans.get() == 1 }
+
+        start(image)
+        state { it is BatchState.WaitingForScan }
+
+        assertEquals(BatchState.WaitingForScan(1), CompressBatch.state.value)
+        notification(app.getString(R.string.compress_waiting))
+        assertEquals(emptyList<String>(), started)
+        assertEquals(image, File(image.path).toImageRef())
+        scanGate.complete(Unit)
+        assertEquals(1, finished().compressed)
+    }
+
+    @Test
+    fun `a scan asked for while a batch runs does not start, and one asked for after it does`() {
+        val gate = CompletableDeferred<Unit>()
+        onPhoto = { gate.await() }
+        start(photo("a.jpg"))
+        waitFor { started.isNotEmpty() }
+
+        Indexing.scanNow(app)
+        scanEnded()
+
+        assertEquals(0, scans.get())
+        gate.complete(Unit)
+        assertEquals(1, finished().compressed)
+        waitFor { !running() }
+        Indexing.scanNow(app)
+        waitFor { scans.get() == 1 }
+    }
+
+    @Test
+    fun `when a batch and a scan are asked for at once, the batch goes first`() {
+        val image = photo("a.jpg")
+
+        start(image)
+        Indexing.scanNow(app)
+
+        assertEquals(1, finished().compressed)
+        scanEnded()
+        assertEquals(0, scans.get())
+        assertFalse(IndexWorker.running.isLocked)
+    }
+
+    @Test
+    fun `cancelling stops after the current photo, which stays compressed`() {
+        val inFirst = CompletableDeferred<Unit>()
+        val gate = CompletableDeferred<Unit>()
+        onPhoto = {
+            inFirst.complete(Unit)
+            gate.await()
+        }
+        val first = photo("a.jpg")
+        val others = listOf(photo("b.jpg"), photo("c.jpg"))
+        start(first, *others.toTypedArray())
+        runBlocking { withTimeout(10_000) { inFirst.await() } }
+
+        CompressBatch.cancel(app)
+        gate.complete(Unit)
+        val result = finished()
+
+        assertEquals(1, result.compressed)
+        assertEquals(2, result.notReached)
+        assertEquals(listOf(first), result.originals)
+        assertEquals(listOf(first.path), started)
+        others.forEach { assertEquals(it, File(it.path).toImageRef()) }
+        waitFor { !running() }
+        assertFalse(IndexWorker.running.isLocked)
+    }
+
+    @Test
+    fun `cancelling a batch that waits for a scan compresses nothing`() {
+        val image = photo("a.jpg")
+        Indexing.scanNow(app)
+        waitFor { scans.get() == 1 }
+        start(image)
+
+        CompressBatch.cancel(app)
+        val result = finished()
+        scanGate.complete(Unit)
+        scanEnded()
+
+        assertEquals(1, result.notReached)
+        assertEquals(emptyList<String>(), started)
+        assertEquals(image, File(image.path).toImageRef())
+    }
+
+    @Test
+    fun `undo puts every original back and its copy in the trash`() {
+        val images = listOf(photo("a.jpg"), photo("b.jpg"))
+        val bytes = images.map { File(it.path).readBytes() }
+        start(*images.toTypedArray())
+        val result = finished()
+        assertEquals(2, result.compressed)
+
+        val stayed = runBlocking { CompressBatch.undo(Review(index, trash), result) }
+
+        assertEquals(emptyList<ImageRef>(), stayed)
+        images.zip(bytes).forEach { (image, original) -> assertArrayEquals(original, File(image.path).readBytes()) }
+        val items = runBlocking { trash.trashed() }
+        assertEquals(images.map { it.path }.toSet(), items.map { it.original.path }.toSet())
+        assertTrue(items.none { it.original in images })
+        assertEquals(BatchState.Idle, CompressBatch.state.value)
+    }
+
+    @Test
+    fun `a severe heat pauses the batch between photos, and the notification says so`() {
+        val first = photo("a.jpg")
+        val second = photo("b.jpg")
+        onPhoto = { if (it == first) heat = HeatLevel.SEVERE }
+        start(first, second)
+
+        val paused = state { it is BatchState.Running && it.paused } as BatchState.Running
+
+        assertEquals(1, paused.done)
+        assertEquals(listOf(first.path), started)
+        assertTrue(notification("Compressing 2 of 2")!!.startsWith("Paused while the phone cools down · "))
+        heat = HeatLevel.MODERATE
+        assertEquals(2, finished().compressed)
+    }
+
+    @Test
+    fun `a batch first discards the copies a killed compression left`() {
+        val image = photo("a.jpg")
+        val orphan = copyFileFor(File(image.path)).apply { writeText("left by a killed compression") }
+
+        assertTrue(CompressBatch.start(app, emptyList(), CompressionLevel.HIGH))
+        finished()
+
+        assertFalse(orphan.exists())
+        assertEquals(listOf("a.jpg"), camera.list()!!.toList())
+    }
+}
