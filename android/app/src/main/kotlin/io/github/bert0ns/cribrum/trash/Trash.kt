@@ -20,11 +20,11 @@ import java.util.UUID
 /** Folder at the root of each storage volume. Hidden, and with a `.nomedia` so galleries skip it. */
 const val TRASH_FOLDER = ".cribrum-trash"
 
-/** Starts the name of a compressed copy while it is written. The scan skips `.pending-` files (§4). */
-private const val COPY_PREFIX = ".pending-cribrum-"
+/** Where to write a compressed copy of [original]: next to it, so moving it into place is a rename on the same volume. The scan skips `.pending-` files (§4). */
+fun copyFileFor(original: File): File = File(original.parentFile, ".pending-cribrum-${UUID.randomUUID()}.jpg")
 
-/** Where to write a compressed copy of [original]: next to it, so moving it into place is a rename on the same volume. */
-fun copyFileFor(original: File): File = File(original.parentFile, "$COPY_PREFIX${UUID.randomUUID()}.jpg")
+/** The names [copyFileFor] gives. */
+private val COPY_NAME = Regex("""^\.pending-cribrum-[0-9a-f-]{36}\.jpg$""")
 
 /** What [AppTrash.replaceWithCopy] did. The copy is discarded unless it is [Swapped]. */
 sealed interface Swap {
@@ -137,9 +137,15 @@ class AppTrash(
         Swap.Swapped(runCatching { target.toImageRef() }.getOrDefault(copyRef))
     }
 
-    /** Deletes a compressed copy that never took its original's place. Refuses any file [copyFileFor] did not name. */
-    fun discardCopy(copy: File) {
-        check(copy.name.startsWith(COPY_PREFIX)) { "not a compressed copy: $copy" }
+    /**
+     * Deletes a compressed copy that never took its original's place, and does nothing when it was never written.
+     * Refuses anything but a file named by [copyFileFor] outside the trash.
+     */
+    internal fun discardCopy(copy: File) {
+        check(COPY_NAME.matches(copy.name)) { "not a compressed copy: $copy" }
+        if (!copy.exists()) return
+        check(copy.isFile) { "not a file: $copy" }
+        check(generateSequence(copy.canonicalFile.parentFile) { it.parentFile }.none { it.name == TRASH_FOLDER }) { "inside the trash: $copy" }
         copy.delete()
     }
 
