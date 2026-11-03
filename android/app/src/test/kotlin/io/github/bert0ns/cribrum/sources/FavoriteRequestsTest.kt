@@ -20,6 +20,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -145,6 +146,17 @@ class FavoriteRequestsTest {
         assertEquals(listOf(2), FakeMediaStore.queries)
         assertTrue(FakeMediaStore.selections.single()!!.endsWith("IN (?, ?) AND ${MediaStore.MediaColumns.IS_FAVORITE} = 1"))
         assertEquals(emptySet<String>(), queryFavoritesAmong(context.contentResolver, emptyList()))
+    }
+
+    @Test
+    fun `a request that is not wanted any more by the time the rows are there is not queued`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", favorite = false))
+        var wanted = true
+
+        runBlocking { FavoriteRequests.ask(context, listOf("/p/a.jpg"), { asked += it }, { _, _ -> wanted = false }, { wanted }) }
+
+        assertEquals(null, runBlocking { withTimeoutOrNull(300) { FavoriteRequests.asks.first() } })
+        assertEquals(emptyList<Int>(), asked)
     }
 
     @Test

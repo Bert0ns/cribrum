@@ -64,7 +64,7 @@ suspend fun favoritePaths(resolver: ContentResolver): Set<String> = withContext(
  */
 object FavoriteRequests {
     /** [uris] are MediaStore rows without the mark. [onAnswer] gets how many photos stay without it: 0 once granted. */
-    class Ask(val uris: List<Uri>, val onAnswer: (lost: Int) -> Unit) {
+    class Ask(val uris: List<Uri>, val onAnswer: (lost: Int) -> Unit, val stillWanted: () -> Boolean = { true }) {
         /** The system dialog that marks all of [uris] at once. */
         fun intentSender(resolver: ContentResolver): IntentSender = MediaStore.createFavoriteRequest(resolver, uris, true).intentSender
     }
@@ -86,10 +86,18 @@ object FavoriteRequests {
      * the files. Nothing is asked, and [onAnswer] gets 0, when every photo has the mark or has no MediaStore row.
      * The mark only exists on a row, so a photo MediaStore does not index (a `.nomedia` folder) has none to lose.
      */
-    suspend fun ask(context: Context, paths: Collection<String>, onAnswer: (lost: Int) -> Unit = {}, scan: suspend (Context, Collection<String>) -> Unit = ::scanned) {
+    suspend fun ask(
+        context: Context,
+        paths: Collection<String>,
+        onAnswer: (lost: Int) -> Unit = {},
+        scan: suspend (Context, Collection<String>) -> Unit = ::scanned,
+        stillWanted: () -> Boolean = { true },
+    ) {
         scan(context, paths)
         val uris = unflaggedUris(context.contentResolver, paths)
-        if (uris.isEmpty()) onAnswer(0) else queue.send(Ask(uris, onAnswer))
+        // Not wanted any more, such as the copies of a batch the user undid meanwhile: they are in the trash now.
+        if (!stillWanted()) return
+        if (uris.isEmpty()) onAnswer(0) else queue.send(Ask(uris, onAnswer, stillWanted))
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -99,11 +107,17 @@ object FavoriteRequests {
      * the request is queued when the rows are there. The wait for the scan is bounded on its own (10 s), and a failure
      * only costs the request, which is logged.
      */
-    fun askAsync(context: Context, paths: Collection<String>, onAnswer: (lost: Int) -> Unit = {}, scan: suspend (Context, Collection<String>) -> Unit = ::scanned) {
+    fun askAsync(
+        context: Context,
+        paths: Collection<String>,
+        onAnswer: (lost: Int) -> Unit = {},
+        scan: suspend (Context, Collection<String>) -> Unit = ::scanned,
+        stillWanted: () -> Boolean = { true },
+    ) {
         val app = context.applicationContext
         scope.launch {
             try {
-                ask(app, paths, onAnswer, scan)
+                ask(app, paths, onAnswer, scan, stillWanted)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
