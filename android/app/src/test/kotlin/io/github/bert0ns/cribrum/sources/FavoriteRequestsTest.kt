@@ -16,8 +16,11 @@ import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.AppTrash
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -29,6 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.util.Collections
 
 /** A MediaStore with a few image rows, that records the system requests it is asked to build. */
 class FakeMediaStore : ContentProvider() {
@@ -90,7 +94,7 @@ class FavoriteRequestsTest {
     val folder = TemporaryFolder()
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
-    private val asked = mutableListOf<Int>()
+    private val asked: MutableList<Int> = Collections.synchronizedList(mutableListOf())
     private val noScan: suspend (Context, Collection<String>) -> Unit = { _, _ -> }
 
     @Before
@@ -190,10 +194,10 @@ class FavoriteRequestsTest {
     }
 
     /** A trash that trashed [name] while the gallery had it marked, and asks the way the app does when it is restored. */
-    private fun trashedFavorite(name: String): Pair<AppTrash, ImageRef> {
+    private fun trashedFavorite(name: String, scan: suspend (Context, Collection<String>) -> Unit = noScan): Pair<AppTrash, ImageRef> {
         val volume = folder.newFolder("storage")
         val image = File(volume, name).apply { writeText("photo") }.toImageRef()
-        val trash = AppTrash({ listOf(volume) }, favorites = { setOf(image.path) }, restoredFavorites = { FavoriteRequests.ask(context, it, { lost -> asked += lost }, noScan) })
+        val trash = AppTrash({ listOf(volume) }, favorites = { setOf(image.path) }, restoredFavorites = { FavoriteRequests.askAsync(context, it, { lost -> asked += lost }, scan) })
         runBlocking { trash.moveToTrash(listOf(image)) }
         return trash to image
     }
@@ -215,6 +219,23 @@ class FavoriteRequestsTest {
 
         runBlocking { trash.restore(listOf(image)) }
 
+        waitFor { asked.isNotEmpty() }
         assertEquals(listOf(0), asked)
     }
+
+    @Test
+    fun `a restore returns at once, while MediaStore's scan is still on, and the request is queued when it ends`() {
+        val gate = CompletableDeferred<Unit>()
+        val (trash, image) = trashedFavorite("a.jpg") { _, _ -> gate.await() }
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(7, image.path, favorite = false))
+
+        val restored = runBlocking { withTimeout(5_000) { trash.restore(listOf(image)) } }
+
+        assertEquals(listOf(image), restored)
+        assertEquals(emptyList<Int>(), asked)
+        gate.complete(Unit)
+        assertEquals(listOf(FakeMediaStore.uri(7)), next().uris)
+    }
+
+    private fun waitFor(condition: () -> Boolean) = runBlocking { withTimeout(5_000) { while (!condition()) yield() } }
 }

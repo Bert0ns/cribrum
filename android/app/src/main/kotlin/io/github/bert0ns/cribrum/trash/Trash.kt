@@ -4,12 +4,10 @@ package io.github.bert0ns.cribrum.trash
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.storage.StorageManager
-import android.util.Log
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.sources.FavoriteRequests
 import io.github.bert0ns.cribrum.sources.queryFavoritesAmong
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -96,8 +94,8 @@ class AppTrash(
     private val retention: () -> Duration = { TrashRetention.DEFAULT },
     /** Which of the paths MediaStore flags as favourites now, read on the IO dispatcher. A throw counts as none. */
     private val favorites: (Collection<String>) -> Set<String> = { emptySet() },
-    /** Told the paths of the restored images that were favourites, so the mark can be asked for again. */
-    private val restoredFavorites: suspend (List<String>) -> Unit = {},
+    /** Told the paths of the restored images that were favourites, so the mark can be asked for again. Must return at once: a restore waits for it. */
+    private val restoredFavorites: (List<String>) -> Unit = {},
     /** Told about every path that appeared or disappeared, so MediaStore can catch up. */
     private val changed: (List<String>) -> Unit = {},
 ) : Trash {
@@ -309,16 +307,7 @@ class AppTrash(
                 clock = clock,
                 retention = retention,
                 favorites = { queryFavoritesAmong(context.contentResolver, it) },
-                restoredFavorites = { paths ->
-                    try {
-                        FavoriteRequests.ask(context, paths)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        // The restore itself worked: only the mark stays missing.
-                        Log.w("trash", "Could not ask for the favourites of a restore", e)
-                    }
-                },
+                restoredFavorites = { paths -> FavoriteRequests.askAsync(context, paths) },
                 changed = { paths ->
                     if (paths.isNotEmpty()) MediaScannerConnection.scanFile(context, paths.toTypedArray(), null, null)
                 },

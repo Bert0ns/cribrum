@@ -8,13 +8,18 @@ import android.content.IntentSender
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.MediaStore
+import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -85,6 +90,27 @@ object FavoriteRequests {
         scan(context, paths)
         val uris = unflaggedUris(context.contentResolver, paths)
         if (uris.isEmpty()) onAnswer(0) else queue.send(Ask(uris, onAnswer))
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * [ask] from the app's own scope, so the caller does not wait for MediaStore's scan: a restore returns at once and
+     * the request is queued when the rows are there. The wait for the scan is bounded on its own (10 s), and a failure
+     * only costs the request, which is logged.
+     */
+    fun askAsync(context: Context, paths: Collection<String>, onAnswer: (lost: Int) -> Unit = {}, scan: suspend (Context, Collection<String>) -> Unit = ::scanned) {
+        val app = context.applicationContext
+        scope.launch {
+            try {
+                ask(app, paths, onAnswer, scan)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("favorites", "Could not ask for the favourites", e)
+                onAnswer(paths.size)
+            }
+        }
     }
 
     /** The activity launched [ask]; its answer comes to [answered]. */
