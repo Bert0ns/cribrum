@@ -37,6 +37,19 @@ fun queryFavoritePaths(resolver: ContentResolver): Set<String> {
     return paths
 }
 
+/** Which of [paths] MediaStore flags as favourites: one query for each 500 paths, not one for the whole library. Blocks. */
+fun queryFavoritesAmong(resolver: ContentResolver, paths: Collection<String>): Set<String> {
+    val flagged = HashSet<String>()
+    for (chunk in paths.chunked(500)) { // SQLite allows 999 arguments in one query
+        @Suppress("DEPRECATION") // DATA, as above
+        val selection = "${MediaStore.Images.Media.DATA} IN (${chunk.joinToString { "?" }}) AND ${MediaStore.MediaColumns.IS_FAVORITE} = 1"
+        resolver.query(IMAGES, arrayOf(MediaStore.Images.Media.DATA), selection, chunk.toTypedArray(), null)?.use { cursor ->
+            while (cursor.moveToNext()) cursor.getString(0)?.let(flagged::add)
+        }
+    }
+    return flagged
+}
+
 suspend fun favoritePaths(resolver: ContentResolver): Set<String> = withContext(Dispatchers.IO) { queryFavoritePaths(resolver) }
 
 /**

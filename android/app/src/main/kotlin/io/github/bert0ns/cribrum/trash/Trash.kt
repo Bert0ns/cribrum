@@ -8,7 +8,7 @@ import android.util.Log
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.sources.FavoriteRequests
-import io.github.bert0ns.cribrum.sources.queryFavoritePaths
+import io.github.bert0ns.cribrum.sources.queryFavoritesAmong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -94,8 +94,8 @@ class AppTrash(
     private val clock: Clock = Clock.systemUTC(),
     /** Read on every call, so a change applies to the images already in the trash. */
     private val retention: () -> Duration = { TrashRetention.DEFAULT },
-    /** The paths MediaStore flags as favourites now, read on the IO dispatcher. A throw counts as none. */
-    private val favorites: () -> Set<String> = { emptySet() },
+    /** Which of the paths MediaStore flags as favourites now, read on the IO dispatcher. A throw counts as none. */
+    private val favorites: (Collection<String>) -> Set<String> = { emptySet() },
     /** Told the paths of the restored images that were favourites, so the mark can be asked for again. */
     private val restoredFavorites: suspend (List<String>) -> Unit = {},
     /** Told about every path that appeared or disappeared, so MediaStore can catch up. */
@@ -108,7 +108,7 @@ class AppTrash(
     internal var mover: (File, File) -> Unit = { from, to -> Files.move(from.toPath(), to.toPath()) }
 
     override suspend fun moveToTrash(images: List<ImageRef>): List<ImageRef> = io {
-        val flagged = flagged()
+        val flagged = flagged(images.map { it.path })
         val moved = images.filter { move(it, favorite = it.path in flagged) != null }
         changed(moved.map { it.path })
         moved
@@ -127,12 +127,11 @@ class AppTrash(
     /** The images put back, and the paths among them that were favourites. */
     private fun restoreFiles(images: List<ImageRef>): Pair<List<ImageRef>, List<String>> {
         val byOriginal = items().associateBy { it.original }
-        val flagged = flagged()
         val restored = images.filter { image ->
             val item = byOriginal[image] ?: return@filter false
             val target = File(image.path)
             val copy = item.compressedCopy
-            val copyFolder = if (copy != null && target.exists()) move(copy, favorite = copy.path in flagged) ?: return@filter false else null
+            val copyFolder = if (copy != null && target.exists()) move(copy, favorite = flagged(listOf(copy.path)).isNotEmpty()) ?: return@filter false else null
             target.parentFile?.mkdirs()
             val moved = runCatching { mover(item.file, target) }.isSuccess
             if (moved) {
@@ -153,7 +152,7 @@ class AppTrash(
     suspend fun replaceWithCopy(original: ImageRef, copy: File): Swap = io {
         val target = File(original.path)
         val copyRef = runCatching { copy.toImageRef() }.getOrNull()?.let { ImageRef(original.path, it.size, it.mtimeNs) }
-        val favorite = original.path in flagged()
+        val favorite = flagged(listOf(original.path)).isNotEmpty()
         val folder = copyRef?.let { runCatching { move(original, it, favorite) }.getOrNull() }
         if (folder == null || runCatching { mover(copy, target) }.isFailure) {
             discardCopy(copy)
@@ -234,7 +233,7 @@ class AppTrash(
         return File(volume, TRASH_FOLDER)
     }
 
-    private fun flagged(): Set<String> = runCatching(favorites).getOrDefault(emptySet())
+    private fun flagged(paths: Collection<String>): Set<String> = runCatching { favorites(paths) }.getOrDefault(emptySet())
 
     private fun writeOrigin(folder: File, image: ImageRef, trashedAt: Instant, seenAt: Instant, compressedCopy: ImageRef?, favorite: Boolean) {
         val origin = Properties()
@@ -309,7 +308,7 @@ class AppTrash(
                 volumes = { storage.storageVolumes.mapNotNull { it.directory } },
                 clock = clock,
                 retention = retention,
-                favorites = { queryFavoritePaths(context.contentResolver) },
+                favorites = { queryFavoritesAmong(context.contentResolver, it) },
                 restoredFavorites = { paths ->
                     try {
                         FavoriteRequests.ask(context, paths)
