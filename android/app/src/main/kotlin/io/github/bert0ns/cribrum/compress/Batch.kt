@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.PowerManager
 import android.text.format.Formatter
 import android.util.Log
@@ -252,7 +253,9 @@ open class CompressWorker(context: Context, parameters: WorkerParameters) : Coro
         } else {
             builder.setContentTitle(context.getString(R.string.compress_waiting))
         }
-        return ForegroundInfo(NOTIFICATION_ID, builder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        // Media processing has a time budget of its own from API 35, so a long batch does not use up the scan's dataSync one.
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        return ForegroundInfo(NOTIFICATION_ID, builder.build(), type)
     }
 
     internal companion object {
