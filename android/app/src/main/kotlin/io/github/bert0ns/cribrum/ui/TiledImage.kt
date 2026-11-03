@@ -167,7 +167,7 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier) {
                 }
                 drawIntoCanvas { canvas ->
                     canvas.nativeCanvas.withMatrix(toView) {
-                        for ((tile, bitmap) in tiles) drawBitmap(bitmap, null, tile.rect.toAndroidRect(), tilePaint)
+                        for ((tile, bitmap) in tiles.entries.sortedByDescending { it.key.sample }) drawBitmap(bitmap, null, tile.rect.toAndroidRect(), tilePaint) // coarser first, under the finer
                     }
                 }
             }
@@ -203,7 +203,7 @@ internal class TileLoader(private val decoder: RegionDecoder, private val tiles:
     suspend fun load(views: Flow<List<Tile>>) {
         try {
             views.conflate().collect { wanted ->
-                tiles.keys.retainAll(wanted.toSet())
+                evict(wanted)
                 val missing = wanted.filter { it !in tiles }
                 if (missing.isEmpty()) return@collect
                 for (part in parts(missing, wanted)) {
@@ -213,11 +213,24 @@ internal class TileLoader(private val decoder: RegionDecoder, private val tiles:
                         return@collect
                     }
                     tiles.putAll(cut)
+                    evict(wanted)
                 }
             }
         } finally {
             decoder.close()
         }
+    }
+
+    /**
+     * Drops the tiles [wanted] does not hold. A tile of another sample stays, drawn under the new
+     * ones, until the tiles of [wanted] over it are loaded, so crossing a power of two never shows
+     * the base image in between. That holds up to about twice the tiles while the zoom switches.
+     */
+    private fun evict(wanted: List<Tile>) {
+        val keep = wanted.toSet()
+        val sample = wanted.firstOrNull()?.sample
+        val drop = tiles.keys.filter { old -> old !in keep && (old.sample == sample || wanted.none { it.rect.overlaps(old.rect) && it !in tiles }) }
+        tiles.keys.removeAll(drop.toSet())
     }
 
     /** [missing] as one box, or as its rows nearest the centre of [wanted] first when the box is too large. */

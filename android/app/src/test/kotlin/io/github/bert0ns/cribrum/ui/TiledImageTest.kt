@@ -129,9 +129,11 @@ class TiledImageTest {
         override val raw = photo200
         override val orientation = 1
         val events = mutableListOf<String>()
+        var during: () -> Unit = {}
 
         override fun decode(rect: IntRect, sample: Int): Bitmap? {
             events += "decode $rect at $sample"
+            during()
             if (failing) return null
             return Bitmap.createBitmap((rect.width + sample - 1) / sample, (rect.height + sample - 1) / sample, Bitmap.Config.ARGB_8888)
         }
@@ -181,6 +183,21 @@ class TiledImageTest {
                 decoder.events,
             )
             assertEquals(3, tiles.size)
+        }
+    }
+
+    @Test
+    fun `a coarser tile stays under the finer ones until they are loaded`() {
+        val decoder = FakeDecoder()
+        loading(decoder, grid(2, 0..0, 0..0)) { views, tiles, _ ->
+            var meanwhile = emptySet<Tile>()
+            decoder.during = { meanwhile = tiles.keys.toSet() }
+
+            views.value = grid(1, 0..1, 0..1)
+            runCurrent()
+
+            assertEquals(grid(2, 0..0, 0..0).toSet(), meanwhile)
+            assertEquals(grid(1, 0..1, 0..1).toSet(), tiles.keys)
         }
     }
 
