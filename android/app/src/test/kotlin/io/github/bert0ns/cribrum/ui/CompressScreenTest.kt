@@ -33,6 +33,7 @@ import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.model.ImageRef
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.Assert.assertEquals
@@ -55,6 +56,9 @@ class RecordingBatches(initial: BatchState = BatchState.Idle) : CompressBatches 
     val undone = mutableListOf<BatchResult>()
     var stayed: List<ImageRef> = emptyList()
 
+    /** Holds an undo until the test lets it go, as a running scan does. */
+    var undoGate: CompletableDeferred<Unit>? = null
+
     override fun start(paths: List<String>, level: CompressionLevel): Boolean {
         started += paths to level
         return true
@@ -66,6 +70,7 @@ class RecordingBatches(initial: BatchState = BatchState.Idle) : CompressBatches 
 
     override suspend fun undo(result: BatchResult): List<ImageRef> {
         undone += result
+        undoGate?.await()
         mutableState.value = BatchState.Idle
         return stayed
     }
@@ -351,6 +356,33 @@ class CompressScreenTest {
         awaitText("1 photo, largest first")
         assertEquals(listOf(result), batches.undone)
         assertEquals(listOf(HapticFeedbackType.SegmentTick), haptics.types)
+    }
+
+    @Test
+    fun `an undo that waits for a scan says so, cannot be asked twice, and ends with the list`() {
+        batches.undoGate = CompletableDeferred()
+        batches.mutableState.value = BatchState.Finished(BatchResult(1, 1, emptyMap(), 100, emptyList()))
+        show(model(big))
+        awaitText("1 photo compressed")
+
+        compose.onNodeWithText("Undo").performClick()
+
+        awaitText("Putting the originals back. This waits for a scan or a compression that is running, which can take minutes.")
+        compose.onNodeWithText("Undo").assertIsNotEnabled()
+        compose.onNodeWithText("Done").assertIsNotEnabled()
+        assertEquals(1, batches.undone.size)
+        batches.undoGate!!.complete(Unit)
+
+        awaitText("1 photo, largest first")
+        compose.onAllNodesWithText("Putting the originals back", substring = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun `a process that died mid-batch comes back to the list`() {
+        show(model(big))
+
+        awaitText("1 photo, largest first")
+        compose.onAllNodesWithText("Undo").assertCountEquals(0)
     }
 
     @Test

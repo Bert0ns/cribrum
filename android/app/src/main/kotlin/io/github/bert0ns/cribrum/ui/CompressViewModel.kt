@@ -18,6 +18,7 @@ import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +61,8 @@ data class CompressState(
     val dismissed: BatchResult? = null,
     /** Originals the last Undo could not put back, because a file other than the copy took their path. */
     val stayedInTrash: Int = 0,
+    /** An undo is on: it may be waiting for a scan or a batch to end. */
+    val undoing: Boolean = false,
     val retentionDays: Int = 30,
 ) {
     /** Largest first, as the batch runs them, whichever section a photo is in. */
@@ -174,11 +177,23 @@ class CompressViewModel @JvmOverloads constructor(
 
     fun dismissResult(result: BatchResult) = mutableState.update { it.copy(dismissed = result) }
 
-    /** Puts the originals of a finished batch back. The state goes to Idle, and the list is read again. */
+    /**
+     * Puts the originals of a finished batch back. The undo waits for a scan or a batch that runs, which can take
+     * minutes, so [CompressState.undoing] says so meanwhile. The state goes to Idle, and the list is read again.
+     */
     fun undo(result: BatchResult) {
+        if (mutableState.value.undoing) return
+        mutableState.update { it.copy(undoing = true) }
         viewModelScope.launch {
-            val stayed = batches.undo(result)
-            mutableState.update { it.copy(stayedInTrash = stayed.size) }
+            try {
+                // Not cancellable: a restore stopped halfway would leave originals in the trash.
+                val stayed = withContext(NonCancellable) { batches.undo(result) }
+                mutableState.update { it.copy(stayedInTrash = stayed.size) }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not undo the batch", e)
+            } finally {
+                mutableState.update { it.copy(undoing = false) }
+            }
             refresh()
         }
     }

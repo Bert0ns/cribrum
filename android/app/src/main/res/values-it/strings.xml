@@ -482,4 +482,5 @@
         <item quantity="many">%d di originali sono rimasti nel cestino, perché altri file hanno preso il loro posto. Ripristinali dal cestino.</item>
     </plurals>
     <string name="compress_scan_blocked">Una compressione è in corso. Scansiona ora torna quando finisce.</string>
+    <string name="compress_undoing">Rimetto a posto gli originali. Aspetta la fine di una scansione o di una compressione in corso, e può volerci qualche minuto.</string>
 </resources>
