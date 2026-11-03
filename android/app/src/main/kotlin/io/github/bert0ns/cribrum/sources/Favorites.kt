@@ -14,11 +14,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.getAndUpdate
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -69,16 +67,23 @@ object FavoriteRequests {
         fun intentSender(resolver: ContentResolver): IntentSender = MediaStore.createFavoriteRequest(resolver, uris, true).intentSender
     }
 
-    private val queue = Channel<Ask>(Channel.UNLIMITED)
-
-    /** The requests waiting for the activity, one at a time. */
-    val asks: Flow<Ask> = queue.receiveAsFlow()
+    // A receive that is cancelled just as it returns can lose its element: put that one back.
+    private val queue: Channel<Ask> = Channel(Channel.UNLIMITED) { undelivered -> queue.trySend(undelivered) }
 
     private val inFlight = MutableStateFlow<Ask?>(null)
 
-    /** Returns once no request is on screen, so a second one waits for the answer to the first. */
-    suspend fun awaitIdle() {
+    /**
+     * The next request for the activity to launch, once none is on screen. It waits for the screen to be free
+     * before it takes one off the queue, so a cancelled wait (a rotation, Home) leaves every request queued.
+     */
+    suspend fun next(): Ask {
         inFlight.first { it == null }
+        return queue.receive()
+    }
+
+    /** The activity is gone for good (not rotating) and no answer will come: later requests must not wait for it. */
+    fun abandon() {
+        inFlight.value = null
     }
 
     /**
