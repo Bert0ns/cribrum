@@ -30,8 +30,10 @@ import io.github.bert0ns.cribrum.sources.FilesystemImageSource
 import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Swap
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
+import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.emitAll
@@ -389,6 +391,28 @@ class PipelineTest {
         assertEquals(0, stats.forgotten)
         assertEquals(ReviewState.TRASHED, runBlocking { index.reviewState(image.path) })
         assertEquals(2, stats.images) // the scan went on over what is on disk
+    }
+
+    @Test
+    fun `a row whose original waits in the trash for its compressed copy is kept, so a restore finds it`() {
+        photos()
+        run()
+        val image = refOf("DCIM/Camera/a.png")
+        val other = refOf("WhatsApp/Media/a-copy.png")
+        runBlocking { index.setReviewState(image.path, ReviewState.KEPT) }
+        // As a process killed after the original went to the trash and before the copy took its path.
+        val copy = copyFileFor(File(image.path)).apply { writeText("small") }
+        trash.mover = { _, _ -> throw IOException("killed") }
+        assertEquals(Swap.LeftInTrash, runBlocking { trash.replaceWithCopy(image, copy) })
+        trash.mover = { from, to -> Files.move(from.toPath(), to.toPath()) }
+        File(other.path).delete()
+
+        val stats = run(Pipeline(index, trash = trash))
+
+        assertEquals(1, stats.forgotten)
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(image.path) })
+        assertEquals(listOf(image), runBlocking { Review(index, trash).restore(listOf(image)) })
+        assertEquals(ReviewState.KEPT, runBlocking { index.reviewState(image.path) })
     }
 
     @Test

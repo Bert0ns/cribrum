@@ -143,8 +143,8 @@ class Pipeline(
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
-     * the trashed ones the trash still holds: restoring them must find their review state and
-     * signals again (docs/design.md §9). A trashed row whose file is back on disk with no item in
+     * the trashed ones the trash still holds, and the rows whose original the trash holds for a
+     * compressed copy: restoring them must find their review state and signals again (docs/design.md §9). A trashed row whose file is back on disk with no item in
      * the trash becomes unreviewed, and one that is neither on disk nor in the trash leaves the index.
      * Only images under a root the source walked can be gone: an absent SD card or an unreadable
      * folder is not a deletion.
@@ -168,13 +168,16 @@ class Pipeline(
             flush()
         }
         // A trash that cannot be listed is a failure of this step. Its rows stay as they are until a scan can read it.
-        val inTrash = try {
-            trash?.trashed()?.mapTo(HashSet()) { it.original.path }
+        val items = try {
+            trash?.trashed()
         } catch (error: Exception) {
             if (error is CancellationException) throw error
             stats.failures += Failure("", "trash", failureMessage(error))
             null
         }
+        val inTrash = items?.mapTo(HashSet()) { it.original.path }
+        // A compression killed between its two moves leaves the original in the trash, its path empty and its row not TRASHED.
+        val compressedInTrash = items?.filter { it.compressedCopy != null }?.mapTo(HashSet()) { it.original.path }.orEmpty()
         val states = index.reviewStates()
         val walked = source.walkedRoots
         // A review action may have run during the walk: only a row in the state the walk began with is judged by it.
@@ -184,7 +187,7 @@ class Pipeline(
                 walked.any { root -> File(path).startsWith(root) } &&
                 !File(path).exists() &&
                 // a file that went and came back while the walk was in its folder is not gone
-                (state != ReviewState.TRASHED || (inTrash != null && path !in inTrash))
+                if (state == ReviewState.TRASHED) inTrash != null && path !in inTrash else path !in compressedInTrash
         }.keys
         index.forget(gone)
         if (inTrash != null) {
