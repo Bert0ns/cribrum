@@ -315,12 +315,17 @@ class Review(
      * Restoring from the trash is a decision to keep: the image is not suggested again for the same reasons.
      * Returns the images that came back; one whose path is taken stays in the trash. An image with no row
      * in the index, like after a reinstall (the trash survives it, the index does not), gets one, and stays
-     * unreviewed: it has no signals yet, so there is nothing to remember it was kept with.
+     * unreviewed: it has no signals yet, so there is nothing to remember it was kept with. A row that was not
+     * trashed belonged to the compressed copy that took the original's path: it keeps its state, and the kept
+     * signals of the original it still holds (docs/design.md §9).
      */
     suspend fun restore(images: List<ImageRef>): List<ImageRef> = withContext(NonCancellable) {
+        val before = images.associate { it.path to runCatching { index.reviewState(it.path) }.getOrNull() }
         val restored = trash.restore(images)
         restored.forEach {
             val fresh = index.record(it)
+            val state = before[it.path]
+            if (fresh && state != null && state != ReviewState.TRASHED) return@forEach
             index.setReviewState(it.path, if (fresh) ReviewState.UNREVIEWED else ReviewState.KEPT)
         }
         restored

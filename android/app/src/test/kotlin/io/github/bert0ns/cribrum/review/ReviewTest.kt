@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Swap
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.CompletableDeferred
@@ -721,17 +722,18 @@ class ReviewTest {
     }
 
     @Test
-    fun `restoring a compressed photo brings back the original's row unreviewed, and purging its copy keeps it`() = test {
+    fun `restoring a compressed photo keeps its review state, and purging its copy keeps the row`() = test {
         val image = image("a.jpg", blurry(0.9f))
+        index.setReviewState(image.path, ReviewState.KEPT)
         val copy = copyFileFor(File(image.path)).apply { writeText("small") }
-        val swapped = AppTrash({ listOf(volume) }).replaceWithCopy(image, copy)!!
+        val swapped = (AppTrash({ listOf(volume) }).replaceWithCopy(image, copy) as Swap.Swapped).copy
         index.record(swapped)
 
         assertEquals(listOf(image), restore(listOf(image)))
 
         assertEquals(listOf(image), index.images())
-        // The row changed since the trash took the original, so it has no signals to be kept with.
-        assertEquals(ReviewState.UNREVIEWED, index.reviewState(image.path))
+        assertEquals(ReviewState.KEPT, index.reviewState(image.path))
+        assertEquals(setOf(blurry(0.9f).identity), index.keptSignals(image.path))
         assertEquals(listOf(swapped), trashed().map { it.original })
         purge(listOf(swapped))
         assertEquals(listOf(image), index.images())
