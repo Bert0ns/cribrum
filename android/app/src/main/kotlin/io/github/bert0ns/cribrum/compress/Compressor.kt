@@ -203,6 +203,10 @@ internal fun copyExif(from: File, to: File, width: Int, height: Int) {
     val source = ExifInterface(from)
     val target = ExifInterface(to)
     for (tag in COPIED_TAGS) source.getAttribute(tag)?.let { target.setAttribute(tag, it) }
+    // ExifInterface drops this tag when the camera stored it in another TIFF format, and without it a depth reads as a height.
+    if (source.getAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF) == null) {
+        rawGpsAltitudeRef(from)?.let { target.setAttribute(ExifInterface.TAG_GPS_ALTITUDE_REF, it.toString()) }
+    }
     for ((tag, value) in listOf(
         ExifInterface.TAG_IMAGE_WIDTH to width,
         ExifInterface.TAG_IMAGE_LENGTH to height,
