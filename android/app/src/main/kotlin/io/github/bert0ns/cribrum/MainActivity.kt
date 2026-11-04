@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.bert0ns.cribrum.compress.BatchState
@@ -291,6 +292,9 @@ private fun AppContent(model: ReviewViewModel) {
                                 Screen.StorageMap -> state.storageMap.takeIf { it.size > 1 }?.last()?.name ?: stringResource(R.string.storage_map)
                                 Screen.Thresholds -> stringResource(R.string.settings_thresholds)
                             },
+                            // A folder's name is the user's, and can be long.
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     },
                     navigationIcon = {

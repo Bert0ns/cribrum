@@ -408,7 +408,7 @@ val scenes: List<Scene> = listOf(
         val model = app()
         openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
     },
-    Scene("map-zoomed", "Storage map, zoomed into Pictures", "Read the folder's name in the top bar, go back to the whole map, tap a subfolder to select it, or zoom further.", Variant.base) {
+    Scene("map-zoomed", "Storage map, zoomed into Pictures", "Read the folder's name in the top bar, go back to the whole map, tap a subfolder to select it, or zoom further.", Variant.base + Variant.italianLargeText) {
         world.library(others = true)
         world.commit()
         val model = app()
