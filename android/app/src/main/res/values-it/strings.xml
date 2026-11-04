@@ -88,7 +88,8 @@
     </plurals>
     <string name="back">Indietro</string>
     <string name="trash">Cestino</string>
-    <string name="review_hint">Le immagini segnate vanno nel cestino. Toccane una per tenerla, tienila premuta per vederla a schermo intero.</string>
+    <string name="review_hint">Le immagini segnate vanno nel cestino.</string>
+    <string name="review_hint_gestures">Toccane una per tenerla, tienila premuta per vederla a schermo intero.</string>
     <string name="review_done">Non ci sono altre immagini da controllare. Quelle saltate tornano quando riapri questa categoria.</string>
     <string name="best_copy">Migliore</string>
     <string name="apply">Cestina %1$d, tieni %2$d</string>

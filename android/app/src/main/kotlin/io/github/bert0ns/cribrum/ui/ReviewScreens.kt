@@ -329,8 +329,10 @@ fun CategoryScreen(
             }
             if (images.isEmpty()) {
                 Text(stringResource(R.string.review_done), style = MaterialTheme.typography.bodySmall)
-            } else if (showHint) {
-                Text(stringResource(R.string.review_hint), style = MaterialTheme.typography.bodySmall)
+            } else {
+                // What a mark means stays; how to tap and hold goes once the user has held a tile.
+                val hint = stringResource(R.string.review_hint)
+                Text(if (showHint) hint + " " + stringResource(R.string.review_hint_gestures) else hint, style = MaterialTheme.typography.bodySmall)
             }
         }
         // A new grouping reorders the page: start at its top instead of in the middle of it.

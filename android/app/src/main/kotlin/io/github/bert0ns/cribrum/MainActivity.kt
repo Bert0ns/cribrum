@@ -61,6 +61,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.bert0ns.cribrum.compress.BatchState
 import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.ranker.GROUP_CATEGORIES
+import io.github.bert0ns.cribrum.review.Decision
 import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.ui.AllFilesAccess
 import io.github.bert0ns.cribrum.ui.CategoryList
@@ -204,6 +205,21 @@ fun NotificationHint(onOpenSettings: () -> Unit, modifier: Modifier = Modifier) 
     }
 }
 
+/**
+ * What the snackbar after an applied page says. The size too: with no dialog before it, the snackbar is where the user
+ * reads what the page freed, and the space in "190 MB" does not break. A page with nothing marked was only kept; one
+ * whose moves all failed says that, and not "0 images kept".
+ */
+internal fun appliedMessage(context: Context, decision: Decision): String {
+    val resources = context.resources
+    val size = Formatter.formatShortFileSize(context, decision.trashed.sumOf { it.size }).replace(' ', '\u00A0')
+    return listOfNotNull(
+        decision.trashed.takeIf { it.isNotEmpty() }?.let { resources.getQuantityString(R.plurals.trashed_snackbar, it.size, it.size, size) },
+        if (decision.trashed.isEmpty() && decision.failed.isEmpty()) resources.getQuantityString(R.plurals.kept_snackbar, decision.kept.size, decision.kept.size) else null,
+        decision.failed.takeIf { it.isNotEmpty() }?.let { resources.getQuantityString(R.plurals.not_moved_snackbar, it.size, it.size) },
+    ).joinToString(". ")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppContent(
@@ -242,19 +258,7 @@ private fun AppContent(
         if (state.screen == Screen.Thresholds) model.reloadThresholds()
     }
     val decision = state.lastDecision
-    val trashedMessage = decision?.let {
-        // The size too: with no dialog before it, the snackbar is where the user reads what the page freed.
-        val trashed = if (it.trashed.isEmpty()) {
-            pluralStringResource(R.plurals.kept_snackbar, it.kept.size, it.kept.size)
-        } else {
-            pluralStringResource(R.plurals.trashed_snackbar, it.trashed.size, it.trashed.size, Formatter.formatShortFileSize(context, it.trashed.sumOf { image -> image.size }))
-        }
-        if (it.failed.isEmpty()) {
-            trashed
-        } else {
-            "$trashed. " + pluralStringResource(R.plurals.not_moved_snackbar, it.failed.size, it.failed.size)
-        }
-    }
+    val trashedMessage = decision?.let { appliedMessage(context, it) }
     val undo = stringResource(R.string.undo)
     LaunchedEffect(decision) {
         if (decision == null || trashedMessage == null) return@LaunchedEffect

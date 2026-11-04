@@ -62,7 +62,10 @@ fun TrashScreen(
     onSelect: (TrashedImage) -> Unit,
     onSelectAll: (List<TrashedImage>, Boolean) -> Unit,
     onRestore: () -> Unit,
-    /** Gets the original paths the user confirmed deleting for good: the selection, or the whole trash. */
+    /**
+     * Gets the trash items the user confirmed deleting for good, by their file in the trash: the selection, or the whole
+     * trash. An original and its compressed copy share a path, so the path cannot tell them apart.
+     */
     onDelete: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
@@ -70,7 +73,7 @@ fun TrashScreen(
     var confirmDelete by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<TrashedImage?>(null) }
     // With a selection the button deletes only it, and only an empty selection empties the trash.
-    val targets = if (selected.isEmpty()) trashed else trashed.filter { it.original.path in selected }
+    val targets = if (selected.isEmpty()) trashed else trashed.filter { it.file.path in selected }
     Column(modifier.fillMaxSize()) {
         if (trashed.isEmpty()) {
             Text(stringResource(R.string.trash_empty), Modifier.padding(16.dp))
@@ -83,7 +86,7 @@ fun TrashScreen(
         LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f)) {
             for ((title, section) in sections.filter { it.second.isNotEmpty() }) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "section-$title") {
-                    val all = section.all { it.original.path in selected }
+                    val all = section.all { it.file.path in selected }
                     Row(Modifier.padding(start = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(pluralStringResource(title, section.size, section.size), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                         TextButton({ onSelectAll(section, !all) }) {
@@ -103,15 +106,15 @@ fun TrashScreen(
         }
     }
     if (confirmDelete) {
-        val paths = targets.map { it.original.path }.toSet()
+        val files = targets.map { it.file.path }.toSet()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text(pluralStringResource(R.plurals.empty_trash_title, paths.size, paths.size)) },
+            title = { Text(pluralStringResource(R.plurals.empty_trash_title, targets.size, targets.size)) },
             text = { Text(stringResource(R.string.empty_trash_body, Formatter.formatShortFileSize(LocalContext.current, targets.sumOf { it.original.size }))) },
             confirmButton = {
                 TextButton({
                     confirmDelete = false
-                    onDelete(paths)
+                    onDelete(files)
                 }, colors = destructive()) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = { TextButton({ confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
@@ -124,7 +127,7 @@ fun TrashScreen(
     fullSize?.let { start ->
         FullSizeViewer(trashed.map { it.file.path }, start.file.path, onClose = { fullSize = null }) { page ->
             val item = trashed.getOrNull(page) ?: return@FullSizeViewer
-            FullSizeBar(item.original.path, favorite = false) {
+            FullSizeBar(item.original.path, item.favorite) {
                 Text(pluralStringResource(R.plurals.trash_tile_days_left, daysLeft(item).toInt(), daysLeft(item)), color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
         }
@@ -136,7 +139,7 @@ private fun daysLeft(item: TrashedImage) = ceil(Duration.between(Instant.now(), 
 private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<String>, onSelect: (TrashedImage) -> Unit, onHold: (TrashedImage) -> Unit) {
     items(trashed, key = { it.file.path }) { item ->
         val daysLeft = daysLeft(item)
-        val isSelected = item.original.path in selected
+        val isSelected = item.file.path in selected
         val open = stringResource(R.string.action_open_full_size)
         val daysText = stringResource(R.string.days_left, daysLeft)
         val spokenDays = pluralStringResource(R.plurals.trash_tile_days_left, daysLeft.toInt(), daysLeft)

@@ -1196,6 +1196,44 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `deleting one of two items with the same path purges only that one`() {
+        val original = ImageRef("/sdcard/a.jpg", 9_000, 1L)
+        val copy = ImageRef("/sdcard/a.jpg", 4_000, 2L)
+        val trash = ItemTrash(listOf(original, copy))
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.openTrash()
+        settle(model) { it.state.value.trashed.size == 2 }
+        val first = model.state.value.trashed[0]
+        model.select(first)
+        settle(model) { it.state.value.selected == setOf(first.file.path) }
+
+        model.deleteFromTrash(model.state.value.selected)
+        settle(model) { it.state.value.trashed.size == 1 }
+
+        assertEquals(listOf(listOf(original)), trash.purged)
+        assertEquals(listOf(copy), model.state.value.trashed.map { it.original })
+    }
+
+    /** A trash whose items each have a file of their own, as the real one does, so two may share an original path. */
+    private class ItemTrash(held: List<ImageRef>) : Trash {
+        private val inside = held.mapIndexed { i, image -> TrashedImage(image, Instant.EPOCH, File("/trash/$i/${File(image.path).name}"), Instant.EPOCH) }.toMutableList()
+        val purged = mutableListOf<List<ImageRef>>()
+
+        override suspend fun moveToTrash(images: List<ImageRef>) = images
+
+        override suspend fun restore(images: List<ImageRef>) = images
+
+        override suspend fun trashed() = inside.toList()
+
+        override suspend fun purge(images: List<ImageRef>) = images.also {
+            purged += it
+            for (image in it) inside.remove(inside.first { item -> item.original == image })
+        }
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
+    @Test
     fun `back from the trash returns to the destination it was opened from`() {
         val model = ReviewViewModel(app)
         for ((destination, screen) in listOf(Destination.Settings to Screen.Settings, Destination.Map to Screen.StorageMap, Destination.Compress to Screen.Compress, Destination.Clean to Screen.Home)) {

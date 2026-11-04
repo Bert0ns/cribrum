@@ -81,7 +81,7 @@ data class ReviewState(
     /** Paths marked for the trash on the current page. */
     val marked: Set<String> = emptySet(),
     val trashed: List<TrashedImage> = emptyList(),
-    /** Paths selected on the trash screen. */
+    /** Trash items selected on the trash screen, by their file in the trash: an original and its compressed copy share a path. */
     val selected: Set<String> = emptySet(),
     /** The last applied page, until the user undoes it or moves on. */
     val lastDecision: Decision? = null,
@@ -412,28 +412,29 @@ class ReviewViewModel @JvmOverloads constructor(
     fun dismissChangeFailed() = queue { it.copy(changeFailed = false) }
 
     fun select(item: TrashedImage) = queue {
-        val path = item.original.path
+        val path = item.file.path
         it.copy(selected = if (path in it.selected) it.selected - path else it.selected + path)
     }
 
     fun selectAll(items: List<TrashedImage>, select: Boolean) = queue {
-        val paths = items.map { item -> item.original.path }.toSet()
+        val paths = items.map { item -> item.file.path }.toSet()
         it.copy(selected = if (select) it.selected + paths else it.selected - paths)
     }
 
     fun restoreSelected() = load { state ->
-        val asked = state.trashed.filter { it.original.path in state.selected }.map { it.original }
+        val asked = state.trashed.filter { it.file.path in state.selected }.map { it.original }
         val stayed = asked - review.restore(asked).toSet()
-        state.copy(trashed = review.trashed(), selected = stayed.map { it.path }.toSet(), stayedInTrash = stayed)
+        val trashed = review.trashed()
+        state.copy(trashed = trashed, selected = trashed.filter { it.original in stayed }.map { it.file.path }.toSet(), stayedInTrash = stayed)
     }
 
     /**
-     * Deletes for good the trashed images at [paths], the ones the user confirmed: the selection, or the whole trash.
-     * The trash deletes them, and the others stay.
+     * Deletes for good the trash items whose files are [files], the ones the user confirmed: the selection, or the whole
+     * trash. The trash deletes one item for each, and the others stay, even one with the same original path.
      */
-    fun deleteFromTrash(paths: Set<String>) = load { state ->
-        review.purge(state.trashed.filter { it.original.path in paths }.map { it.original })
-        state.copy(trashed = review.trashed(), selected = state.selected - paths)
+    fun deleteFromTrash(files: Set<String>) = load { state ->
+        review.purge(state.trashed.filter { it.file.path in files }.map { it.original })
+        state.copy(trashed = review.trashed(), selected = state.selected - files)
     }
 
     /** The one way to read a page, so none forgets the skipped groups or the review order of the open category. */

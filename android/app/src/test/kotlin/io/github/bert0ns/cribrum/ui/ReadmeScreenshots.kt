@@ -98,7 +98,7 @@ class ReadmeScreenshots {
             val image = thumbnail("trash", index, blurry = index % 2 == 0)
             TrashedImage(image, now.minus(index.toLong(), ChronoUnit.DAYS), File(image.path), now.plus(30L - index, ChronoUnit.DAYS))
         }
-        TrashScreen(trashed, selected = setOf(trashed[1].original.path, trashed[4].original.path), onSelect = {}, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
+        TrashScreen(trashed, selected = setOf(trashed[1].file.path, trashed[4].file.path), onSelect = {}, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
     }
 
     @OptIn(ExperimentalMaterial3Api::class)

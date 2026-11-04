@@ -715,6 +715,31 @@ class AppTrashTest {
     }
 
     @Test
+    fun `purging an image deletes one item, even when the same image is in the trash twice`() = test {
+        val first = photo("DCIM/Camera/a.jpg")
+        moveToTrash(listOf(first))
+        val again = photo("DCIM/Camera/a.jpg")
+        moveToTrash(listOf(again))
+        assertEquals(first, again)
+        assertEquals(2, trashed().size)
+
+        assertEquals(listOf(first), purge(listOf(first)))
+
+        assertEquals(1, trashed().size)
+    }
+
+    @Test
+    fun `purging an original leaves its compressed copy, which has its path`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
+        moveToTrash(listOf(swapped))
+
+        purge(listOf(image))
+
+        assertEquals(listOf(swapped), trashed().map { it.original })
+    }
+
+    @Test
     fun `a purged path that another trash item still holds is not one to forget`() = test {
         val image = photo("DCIM/Camera/a.jpg", "the original photo")
         val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
