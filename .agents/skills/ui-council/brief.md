@@ -2,71 +2,64 @@
 
 <!-- The orchestrator fills in everything in angle brackets and deletes this comment. -->
 
-You are one of two independent members of a UI/UX review council. The other member is a different model. Do not look for its report and do not coordinate. Independent judgments are the point.
+You are one of two independent reviewers of the app's UI and UX. The other is a different model. Do not look for its report, and do not read earlier council reports or the GitHub issues about them. Your own judgment is the point.
 
 ## The goal
 
-The maintainer wants a better UI and UX. That means **simpler and more intuitive**, not more complex or more detailed. Prefer removing, merging, renaming or reordering over adding. A proposal that adds a screen, a setting, an explanation or a control has to justify itself against that goal.
+A **simpler and more intuitive** app, not a more complex or detailed one. Prefer removing, merging, renaming or reordering. A proposal that adds a screen, a setting, a text or a control must justify itself against that goal.
 
-## What the app is
+## The app
 
-Cribrum is an Android app that helps the user find the photos they may want to delete and the photos they may want to compress, and review them quickly. It runs entirely on the device. Read `README.md` and `docs/design.md`: §1 to §3 for the purpose and principles, §8 for the UI, §9 for the trash and compression.
+Cribrum finds the photos a user may want to delete or compress, and lets them review those quickly, all on the device. Read `README.md` and `docs/design.md` §1 to §3, §8 and §9.
 
-Some principles are product decisions. Do not propose breaking them. If you think one hurts the UX, say so as an open question instead:
-
-- Recall over precision. The app suggests, the user decides, and nothing is deleted automatically.
-- Deletion only goes through the app's own trash, with its retention and Undo.
+These are product principles. Do not propose breaking them. If one hurts the UX, raise it as an open question:
+- The app suggests, the user decides, and nothing is deleted automatically.
+- Deletion goes only through the app's trash, with its retention and Undo.
 - Photo age is never a reason to delete.
 - No photo is preselected for compression.
 
-The maintainer has already decided these, in earlier council runs and since. Treat them like the principles above:
+The maintainer has also decided these. Treat them the same way:
 
 <decisions already taken, one per line>
 
-Users: the maintainer uses the app in Italian on a Samsung Galaxy Z Fold7, folded and unfolded. Most users have slower, smaller phones. Italian and English are the two languages.
+The maintainer uses the app in Italian on a Galaxy Z Fold7, folded and unfolded. Most users have slower, smaller phones. The app is in Italian and English.
 
-## What you can look at
+## What to look at
 
-The app cannot be run for you. The real phone holds personal photos, and there is no emulator. Use these:
+1. **The gallery** in `<gallery folder>`: <count> PNGs of the app at commit `<commit>`, rendered from the real composables over drawn pictures. `index.md` describes each image, and its notes at the top list what differs from a phone. Those differences are not app problems. File names follow `screen-state_lang_theme_device.png`. Look at the images, at least every Italian phone image and the variants of the main screens.
+2. **The flows** in `<council folder>/flows.md`, with the taps of each step.
+3. **The code**: `android/app/src/main/kotlin/io/github/bert0ns/cribrum/MainActivity.kt`, `.../ui/`, and the strings in `res/values/` and `res/values-it/`. Use it for what images cannot show, and cite it for any claim about behavior.
 
-1. **The gallery** in `<gallery folder>`: <count> PNGs rendered at commit `<commit>` by a Robolectric test from the real composables, over a library of drawn synthetic pictures. `index.md` lists every image with its screen, its state and what the user can do there. File names follow `screen-state_lang_theme_device.png`. Look at the images themselves, not only at the index: at least every phone image in Italian, and the variants (dark, font 1.5, Fold, English) of the main screens.
-2. **The flows** in `<gallery folder>/flows.md`: the main user flows as the code implements them, with tap counts.
-3. **The code**: `android/app/src/main/kotlin/io/github/bert0ns/cribrum/MainActivity.kt` and `.../ui/`, and the strings in `android/app/src/main/res/values/strings.xml` and `values-it/strings.xml`. Use them for what the images cannot show: gestures, haptics, animations, loading and timing, accessibility semantics.
+## Your report
 
-The notes at the top of `index.md` list what the render shows differently from the phone. Those are not app problems. A dialog, sheet or menu is also captured together with the screen under it.
+Write it in English to `<council folder>/`, under the file name in your launch message. Use plain words and no em dashes. It has these parts:
 
-## What to produce
-
-Write your report in English, in Markdown, to `<council folder>/`, under the file name your launch message gives you. Use plain words, no em dashes and no filler. Structure:
-
-1. **Overall score** from 1 to 10 for the app's UI/UX quality today, with two or three sentences on why.
-2. **Scores per heuristic**, 1 to 10 each, with one or two sentences each, citing gallery files:
-   - Simplicity: how little the user must read, decide and learn
+1. **Overall score**, 1 to 10, with two or three sentences.
+2. **Scores per heuristic**, 1 to 10, one or two sentences each, citing gallery files:
+   - Simplicity
    - Visibility of system status
-   - Match with the user's language and mental model, Italian copy included
-   - User control and freedom: undo, back, exits
-   - Consistency and standards: Material 3, Android conventions, and within the app
+   - Match with the user's language and mental model
+   - User control and freedom
+   - Consistency and standards
    - Error prevention
    - Recognition rather than recall
-   - Efficiency: taps and time for the main flows, from `flows.md`
-   - Aesthetic and minimalist design: visual hierarchy, density, noise
-   - Accessibility: touch targets, font scale, contrast, screen reader, dark theme
-   - Adaptivity: phone and unfolded Fold
-3. **Issues**, ordered by their impact on users, the most important first. Up to about 25: quality over count. For each one:
-   - an id (`U1`, `U2`, ...) and a short title;
-   - where: the screens and gallery files, and the code file:line when it matters;
-   - the problem, and what it costs the user;
-   - the proposed change, as simple as possible, preferring removal or merging;
-   - its impact (high, medium, low) and effort (small, medium, large);
-   - whether it touches a product principle or a decision above.
-4. **Keep**: what works well and must not be lost in a redesign.
-5. **Open questions** for the maintainer: decisions that are theirs, not yours.
-
-A claim about behavior that the images do not show, such as what a gesture does, must cite the code that does it.
+   - Efficiency
+   - Aesthetic and minimalist design
+   - Accessibility (touch targets, font scale, contrast, screen reader, dark theme)
+   - Adaptivity (phone and unfolded Fold)
+3. **Issues**, most important first, up to about 25. For each one:
+   - an id (`U1`, `U2`, ...) and a title;
+   - where it is: the gallery files, and file:line when it matters;
+   - the problem and its cost to the user;
+   - the simplest change;
+   - its impact and effort, each high, medium or low;
+   - whether it touches a principle or a decision above.
+4. **Keep**: what works and must survive a redesign.
+5. **Open questions** for the maintainer.
 
 ## Rules
 
-- Do not edit, commit or push anything in the repository. Write only under `<council folder>`.
-- Do not use the phone or adb, and do not run `connectedDebugAndroidTest`. You do not need Gradle.
-- Do not copy images into the report. Refer to them by file name.
+- Write only your report. Do not edit, commit or push anything.
+- Do not use the phone, adb, Gradle or `connectedDebugAndroidTest`.
+- Name images by file. Never copy them into the report.
 - When done, reply with your overall score and your top five issues, one line each.
