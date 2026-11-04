@@ -176,14 +176,7 @@ val scenes: List<Scene> = listOf(
         awaitModel(model, "an empty index") { it.state.value.indexEmpty }
         awaitText(str(R.string.scan_empty))
     },
-    Scene("clean-first-run-notifications", "Clean, the first scan with notifications off", "Read the hint that scan progress notifications are off and open the system settings to turn them on, or watch the scan.", Variant.base) {
-        world.commit(scanned = false)
-        val model = app(notificationsGranted = false)
-        awaitModel(model, "an empty index") { it.state.value.indexEmpty }
-        scanRunning("scan", 1_230, 0)
-        awaitText(str(R.string.notification_hint))
-    },
-    Scene("clean-scanning", "Clean, a scan running in its detector phase", "Watch the phase, the count and the time left. Open a category that already has candidates, or leave the app while the scan goes on.", Variant.wide) {
+    Scene("clean-scanning", "Clean, a scan running in its detector phase", "Watch the phase, the count and the time left. Stop the scan, open a category that already has candidates, or leave the app while the scan goes on.", Variant.wide) {
         world.library()
         world.commit()
         val model = app()

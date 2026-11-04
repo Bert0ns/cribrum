@@ -284,8 +284,6 @@
         <item quantity="one">%1$s \u2022 %2$d image</item>
         <item quantity="other">%1$s \u2022 %2$d images</item>
     </plurals>
-    <string name="notification_hint">Scan progress notification is off</string>
-    <string name="notification_action_settings">Settings</string>
     <!-- Compress -->
     <string name="close">Close</string>
     <string name="action_select">Select</string>

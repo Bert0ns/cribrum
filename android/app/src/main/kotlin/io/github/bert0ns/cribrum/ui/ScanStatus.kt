@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -41,6 +42,7 @@ fun ScanStatus(
     progress: ScanProgress?,
     onScan: () -> Unit,
     modifier: Modifier = Modifier,
+    onStop: () -> Unit = {},
     indexEmpty: Boolean = false,
     heat: Heat? = null,
     compressing: Boolean = false,
@@ -70,6 +72,7 @@ fun ScanStatus(
                 Text(stringResource(R.string.scan_step_scan, progress.done))
                 LinearProgressIndicator(Modifier.fillMaxWidth())
                 HeatLine(heat)
+                StopButton(onStop)
             }
             else -> {
                 Text(Indexing.phaseText(LocalResources.current, progress.step))
@@ -78,9 +81,20 @@ fun ScanStatus(
                 // An empty line while the estimate is hidden, so the list below does not jump at each phase change.
                 Text(progress.leftMs?.let { Indexing.timeLeft(LocalResources.current, it) }.orEmpty())
                 HeatLine(heat)
+                StopButton(onStop)
             }
         }
     }
+}
+
+/** The same stop as the notification's, so a scan can be stopped with notifications off too. The index keeps what is done. */
+@Composable
+private fun StopButton(onStop: () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    OutlinedButton({
+        haptics.performHapticFeedback(Haptic.KEEP.type)
+        onStop()
+    }) { Text(stringResource(R.string.scan_stop)) }
 }
 
 /** A line only while the phone is hot enough to slow the scan down: at a moderate or severe level. */

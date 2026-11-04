@@ -58,6 +58,26 @@ class ScanStatusTest {
     }
 
     @Test
+    fun `a running scan can be stopped from the app, in every phase`() {
+        var stops = 0
+        var progress by mutableStateOf(ScanProgress("scan", 300, 0))
+        compose.setContent { ScanStatus(progress, onScan = {}, onStop = { stops++ }) }
+
+        compose.onNodeWithText("Stop scanning").performClick()
+        progress = ScanProgress("detectors", 12, 100)
+        compose.onNodeWithText("Stop scanning").performClick()
+
+        assertEquals(2, stops)
+    }
+
+    @Test
+    fun `no stop shows while no scan runs`() {
+        compose.setContent { ScanStatus(progress = null, onScan = {}) }
+
+        compose.onNodeWithText("Stop scanning").assertDoesNotExist()
+    }
+
+    @Test
     fun `a running scan says which phase it is in out of the total`() {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}) }
 
