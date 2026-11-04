@@ -48,6 +48,7 @@
     <string name="scan_progress">%1$d di %2$d</string>
     <string name="scan_progress_open">finora %1$d</string>
     <string name="scan_now">Scansiona ora</string>
+    <string name="scan_stop">Interrompi la scansione</string>
     <string name="scan_empty">Nessuna immagine trovata finora. Tocca Scansiona ora per cercarle.</string>
     <string name="scan_last">Ultima scansione: %1$s</string>
     <string name="scan_step_scan">Ricerca delle immagini: finora %1$d</string>
@@ -231,12 +232,12 @@
         <item quantity="many">La prossima scansione elimina %1$d di immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
     </plurals>
     <string name="settings_trash_retention_applies">Vale anche per le immagini già nel cestino.</string>
-    <string name="settings_uninstall_warning">Se disinstalli l\'app, la cartella del cestino resta sul telefono. Svuota il cestino prima di disinstallare, così le immagini cestinate non continuano a occupare spazio senza che tu lo veda.</string>
+    <string name="settings_uninstall_warning">Disinstallando l\'app la cartella del cestino resta, quindi svuotalo prima.</string>
     <string name="settings_haptics">Feedback tattile</string>
     <string name="settings_haptics_hint">Una breve vibrazione quando selezioni, salti, tieni o cestini le immagini. Segue anche l\'impostazione del feedback al tocco del telefono.</string>
     <string name="settings_language">Lingua</string>
     <string name="settings_thresholds">Soglie di rilevamento</string>
-    <string name="thresholds_intro">Una categoria elenca un\'immagine quando uno dei suoi punteggi raggiunge la soglia. Le modifiche si applicano subito e non richiedono una nuova scansione. Le immagini che hai tenuto o cestinato restano come sono.</string>
+    <string name="thresholds_intro">Una categoria elenca un\'immagine quando uno dei suoi punteggi raggiunge la soglia, e una modifica vale subito.</string>
     <string name="thresholds_raising">Alzare una soglia toglie immagini dagli elenchi, quindi potresti non vedere alcune immagini che avresti eliminato.</string>
     <plurals name="thresholds_more">
         <item quantity="one">%d immagine in più rispetto al valore predefinito</item>
@@ -251,8 +252,6 @@
     <string name="thresholds_reset">Ripristina i valori predefiniti</string>
     <string name="settings_excluded_folders">Cartelle escluse</string>
     <string name="settings_no_excluded_folders">Nessuna cartella è esclusa. Escludine una dalla mappa dell\'archiviazione o da un\'immagine a schermo intero.</string>
-    <string name="settings_add_excluded_folder">Aggiungi cartella</string>
-    <string name="settings_storage">Archiviazione</string>
     <string name="settings_storage_app">App</string>
     <string name="settings_storage_index">Dati della scansione</string>
     <string name="settings_storage_index_size">%s, senza i dati dell\'analisi</string>
@@ -271,8 +270,7 @@
     <string name="settings_delete_embeddings_confirm">Cribrum salva i dati dell\'analisi di ogni immagine per trovare copie, documenti e immagini inoltrate. La prossima scansione li calcola di nuovo, in circa 15–20 minuti per 10.000 immagini. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
     <string name="exclude_folder">Non suggerire mai questa cartella né le sue sottocartelle</string>
     <!-- Stato della scansione nelle impostazioni -->
-    <string name="settings_scan_status">Stato della scansione</string>
-    <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i dati dell\'analisi, i documenti e le immagini inoltrate, che li saltano.</string>
+    <string name="settings_scan_status_hint">Immagini analizzate, su quelle che servono a ogni passaggio</string>
     <string name="settings_scan_status_last">Ultima scansione completata</string>
     <string name="settings_scan_status_none">Nessuna scansione completata con questa versione.</string>
     <string name="settings_scan_status_duration">Durata: %1$s</string>
@@ -303,9 +301,9 @@
         <item quantity="many">e altri %1$d</item>
     </plurals>
     <plurals name="settings_scan_status_row">
-        <item quantity="one">%1$d di %2$d immagine analizzata \u2022 versione %3$d</item>
-        <item quantity="other">%1$d di %2$d immagini analizzate \u2022 versione %3$d</item>
-        <item quantity="many">%1$d di %2$d di immagini analizzate \u2022 versione %3$d</item>
+        <item quantity="one">%1$d di %2$d immagine analizzata</item>
+        <item quantity="other">%1$d di %2$d immagini analizzate</item>
+        <item quantity="many">%1$d di %2$d di immagini analizzate</item>
     </plurals>
     <plurals name="settings_scan_status_row_failed">
         <item quantity="one">%1$d non analizzata nell\'ultima scansione</item>
@@ -318,7 +316,6 @@
     <string name="remove">Rimuovi</string>
     <string name="nav_clean">Pulisci</string>
     <string name="nav_compress">Comprimi</string>
-    <string name="nav_map">Mappa</string>
     <string name="nav_settings">Opzioni</string>
     <string name="compress_channel">Compressione delle foto</string>
     <string name="compress_progress">Compressione %1$d di %2$d</string>
@@ -331,6 +328,9 @@
     <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>
     <string name="storage_map_root">Tutte le cartelle esplorate</string>
     <string name="storage_map_exclude">Escludi questa cartella</string>
+    <string name="storage_map_open">Apri la cartella</string>
+    <string name="settings_storage_map_hint">Dove le immagini occupano spazio, cartella per cartella. Da lì puoi escludere una cartella.</string>
+    <string name="settings_details">Scansioni e archiviazione</string>
     <string name="storage_map_empty">Nessuna immagine trovata finora</string>
     <string name="storage_map_no_subfolders">Nessuna sottocartella</string>
     <plurals name="storage_map_summary">

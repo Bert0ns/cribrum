@@ -49,7 +49,7 @@ class SettingsScreenTest {
 
     @Test
     @Config(sdk = [36], qualifiers = "w411dp-h891dp") // the bar takes room from the list
-    fun `settings screen opens from home and shows version and uninstall warning`() {
+    fun `settings opens from home with what the user changes first and About last`() {
         compose.setContent {
             App()
         }
@@ -57,14 +57,15 @@ class SettingsScreenTest {
         compose.onNodeWithText("Settings").performClick()
 
         // The view model changes screen on its own scope, after it has read the retention.
-        compose.waitUntil(5_000) { compose.onAllNodesWithText("Version", substring = true).fetchSemanticsNodes().isNotEmpty() }
-        // The release workflow sets the version, so it can't be a literal here.
-        val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-        compose.onNodeWithText("Version $version").assertIsDisplayed()
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Keep trashed images for").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Keep trashed images for").assertIsDisplayed()
         compose.onNodeWithText("30 days").assertIsDisplayed()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen."))
-        compose.onNodeWithText("Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.").assertIsDisplayed()
+        // The uninstall note is supporting text of the retention.
+        compose.onNodeWithText("Uninstalling keeps the trash folder, so empty it first.").assertIsDisplayed()
+        // The release workflow sets the version, so it can't be a literal here.
+        val version = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Version $version"))
+        compose.onNodeWithText("Version $version").assertIsDisplayed()
 
         compose.onNodeWithText("Clean").performClick()
         // Leaving settings reloads the home screen on the view model's own scope.
@@ -168,9 +169,12 @@ class SettingsScreenTest {
             }
         }
 
+        // About comes last.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("https://cribrum.bertons.me"))
         compose.onNodeWithText("https://cribrum.bertons.me").performClick()
         assertEquals(listOf("https://cribrum.bertons.me"), opened)
 
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("https://github.com/Bert0ns/cribrum"))
         compose.onNodeWithText("https://github.com/Bert0ns/cribrum").performClick()
         assertEquals(listOf("https://cribrum.bertons.me", "https://github.com/Bert0ns/cribrum"), opened)
     }
@@ -199,12 +203,12 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `add folder opens the storage map`() {
+    fun `the storage map opens from settings`() {
         var opened = false
         compose.setContent { SettingsScreen(onOpenStorageMap = { opened = true }) }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Add folder"))
-        compose.onNodeWithText("Add folder").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
+        compose.onNodeWithText("Storage map").performClick()
 
         assertEquals(true, opened)
     }
@@ -249,15 +253,12 @@ class SettingsScreenTest {
     fun `settings lists the four sizes and the embeddings next to their delete item`() {
         compose.setContent { SettingsScreen(storage = StorageUse(app = 20_000_000, cache = 3_000_000, index = 1_000_000, embeddings = 5_000_000, trash = 42_000_000), embeddingCount = 3) }
 
+        for ((label, bytes) in listOf("App" to 20_000_000L, "Cache" to 3_000_000L, "Scan data" to 1_000_000L, "Files in the trash" to 42_000_000L)) {
+            compose.onNode(hasScrollAction()).performScrollToNode(hasText(label))
+            compose.onNodeWithText(label).assertExists()
+            compose.onNodeWithText(Formatter.formatShortFileSize(context, bytes), substring = true).assertExists()
+        }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
-        compose.onNodeWithText("App").assertExists()
-        compose.onNodeWithText(Formatter.formatShortFileSize(context, 20_000_000)).assertExists()
-        compose.onNodeWithText("Cache").assertExists()
-        compose.onNodeWithText(Formatter.formatShortFileSize(context, 3_000_000)).assertExists()
-        compose.onNodeWithText("Scan data").assertExists()
-        compose.onNodeWithText(Formatter.formatShortFileSize(context, 1_000_000), substring = true).assertExists()
-        compose.onNodeWithText("Files in the trash").assertExists()
-        compose.onNodeWithText(Formatter.formatShortFileSize(context, 42_000_000)).assertExists()
         compose.onNodeWithText("Analysis data for 3 images. Deleting it frees space, and the images stay.").assertExists()
         compose.onNodeWithText(Formatter.formatShortFileSize(context, 5_000_000), substring = true).assertExists()
     }

@@ -482,9 +482,24 @@ class ReviewViewModelTest {
     }
 
     @Test
-    fun `Back from compress, the map and settings goes to clean`() {
+    fun `the map opens from settings, belongs to it, and Back at its root returns to settings`() {
         val model = ReviewViewModel(app)
-        for (destination in listOf(Destination.Compress, Destination.Map, Destination.Settings)) {
+        model.selectDestination(Destination.Settings)
+        settle(model) { it.state.value.screen == Screen.Settings }
+
+        model.openStorageMap()
+        settle(model) { it.state.value.screen == Screen.StorageMap }
+        assertEquals(Destination.Settings, model.state.value.screen.destination)
+        assertTrue(model.state.value.screen.coversNavigation)
+
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Settings }
+    }
+
+    @Test
+    fun `Back from compress and settings goes to clean`() {
+        val model = ReviewViewModel(app)
+        for (destination in listOf(Destination.Compress, Destination.Settings)) {
             model.selectDestination(destination)
             settle(model) { it.state.value.screen.destination == destination }
 
@@ -546,7 +561,7 @@ class ReviewViewModelTest {
 
         model.selectDestination(Destination.Clean)
         settle(model) { it.state.value.screen == Screen.Home }
-        model.selectDestination(Destination.Map)
+        model.openStorageMap()
         settle(model) { it.state.value.screen == Screen.StorageMap }
 
         assertEquals(2, model.state.value.storageMap.size)
@@ -1236,7 +1251,7 @@ class ReviewViewModelTest {
     @Test
     fun `back from the trash returns to the destination it was opened from`() {
         val model = ReviewViewModel(app)
-        for ((destination, screen) in listOf(Destination.Settings to Screen.Settings, Destination.Map to Screen.StorageMap, Destination.Compress to Screen.Compress, Destination.Clean to Screen.Home)) {
+        for ((destination, screen) in listOf(Destination.Settings to Screen.Settings, Destination.Compress to Screen.Compress, Destination.Clean to Screen.Home)) {
             model.selectDestination(destination)
             settle(model) { it.state.value.screen == screen }
             model.openTrash()

@@ -311,6 +311,9 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             .setContentText(text)
             .setOngoing(true)
             .setSilent(true)
+            // As the compression batch can: a scan takes minutes and heats the phone. The index keeps what is done,
+            // so the next scan resumes from there.
+            .addAction(0, applicationContext.getString(R.string.scan_stop), WorkManager.getInstance(applicationContext).createCancelPendingIntent(id))
             .build()
         return ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
     }

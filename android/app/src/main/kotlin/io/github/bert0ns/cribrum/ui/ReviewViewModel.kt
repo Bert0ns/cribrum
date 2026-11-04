@@ -38,7 +38,7 @@ import java.time.temporal.WeekFields
 private const val TAG = "review"
 
 /** The top-level places of the navigation bar, in the order it shows them. */
-enum class Destination { Clean, Compress, Map, Settings }
+enum class Destination { Clean, Compress, Settings }
 
 sealed interface Screen {
     data object Home : Screen
@@ -58,12 +58,11 @@ val Screen.destination: Destination
         Screen.Home, is Screen.Category -> Destination.Clean
         is Screen.Trash -> from
         Screen.Compress -> Destination.Compress
-        Screen.StorageMap -> Destination.Map
-        Screen.Settings, Screen.Thresholds -> Destination.Settings
+        Screen.Settings, Screen.Thresholds, Screen.StorageMap -> Destination.Settings
     }
 
 /** A full screen view covers the navigation bar. */
-val Screen.coversNavigation: Boolean get() = this is Screen.Category || this is Screen.Trash || this == Screen.Thresholds
+val Screen.coversNavigation: Boolean get() = this is Screen.Category || this is Screen.Trash || this == Screen.Thresholds || this == Screen.StorageMap
 
 /** A lower retention that would purge [expiring] trashed images at the next scan, waiting for the user's confirmation. */
 data class RetentionChange(val days: Int, val expiring: Int)
@@ -325,7 +324,6 @@ class ReviewViewModel @JvmOverloads constructor(
         when (destination) {
             Destination.Clean -> showHome()
             Destination.Compress -> load { it.copy(screen = Screen.Compress) }
-            Destination.Map -> openStorageMap()
             Destination.Settings -> openSettings()
         }
     }
@@ -349,11 +347,11 @@ class ReviewViewModel @JvmOverloads constructor(
         when {
             state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
                 state.copy(storageMap = state.storageMap.dropLast(1))
-            state.screen == Screen.Thresholds ->
-                state.copy(screen = Screen.Settings)
+            // The map and the thresholds open from Settings, and go back to it.
+            state.screen == Screen.Thresholds || state.screen == Screen.StorageMap ->
+                state.copy(screen = Screen.Settings, excludedFolders = app.index.excludedFolders())
             // The trash opens from the top bar of every destination, and goes back to it.
             state.screen == Screen.Trash(Destination.Compress) -> state.copy(screen = Screen.Compress)
-            state.screen == Screen.Trash(Destination.Map) -> state.copy(screen = Screen.StorageMap)
             state.screen == Screen.Trash(Destination.Settings) -> state.copy(screen = Screen.Settings)
             else -> state.home()
         }

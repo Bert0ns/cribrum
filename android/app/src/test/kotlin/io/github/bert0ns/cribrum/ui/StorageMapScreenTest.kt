@@ -1,14 +1,21 @@
 package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.testing.WorkManagerTestInitHelper
@@ -159,12 +166,15 @@ class StorageMapScreenTest {
     }
 
     private fun openStorageMapFromTheBar() {
-        compose.onNodeWithText("Map").performClick()
+        compose.onNodeWithText("Settings").performClick()
+        awaitText("Keep trashed images for")
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Storage map"))
+        compose.onNodeWithText("Storage map").performClick()
         awaitText("DCIM")
     }
 
     @Test
-    fun `storage map opens from the bar and displays indexed folders`() = runBlocking<Unit> {
+    fun `storage map opens from settings and displays indexed folders`() = runBlocking<Unit> {
         app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
         app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
         app.index.record(ImageRef("/storage/emulated/0/Old/gone.jpg", 5_000_000L, 1L))
@@ -180,12 +190,12 @@ class StorageMapScreenTest {
 
         compose.onNodeWithText("DCIM").assertIsDisplayed()
         compose.onNodeWithText("Pictures").assertIsDisplayed()
-        compose.onNodeWithText("/storage/emulated/0").assertIsDisplayed()
+        compose.onNodeWithText("All explored folders").assertIsDisplayed()
         compose.onNodeWithText("Old").assertDoesNotExist()
     }
 
     @Test
-    fun `back button zooms out of folder before leaving storage map`() = runBlocking<Unit> {
+    fun `back zooms out of a folder, then returns to settings`() = runBlocking<Unit> {
         app.index.record(ImageRef("/storage/emulated/0/DCIM/Camera/IMG_001.jpg", 10_000_000L, 1L))
         app.index.record(ImageRef("/storage/emulated/0/Pictures/vacation.jpg", 5_000_000L, 1L))
 
@@ -208,7 +218,32 @@ class StorageMapScreenTest {
         compose.onNodeWithText("DCIM").assertIsDisplayed()
         compose.onNodeWithText("Pictures").assertIsDisplayed()
 
-        // At the root the bar leads away, so there is no Back arrow
-        compose.onNodeWithContentDescription("Back").assertDoesNotExist()
+        // At the root Back returns to Settings, which the map belongs to.
+        compose.onNodeWithContentDescription("Back").performClick()
+        awaitText("Excluded folders")
+        assertEquals(Screen.Settings, model.state.value.screen)
+    }
+
+    @Test
+    fun `the card names the selected folder and opens it with a button`() {
+        var zoomed: Folder? = null
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = { zoomed = it }, atRoot = true) }
+
+        compose.onNodeWithText("Open folder").assertDoesNotExist()
+        compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
+        compose.onAllNodesWithText("DCIM").assertCountEquals(2) // the card and the list
+        compose.onNodeWithText("Open folder").performClick()
+
+        assertEquals("DCIM", zoomed?.name)
+    }
+
+    @Test
+    fun `a screen reader finds each top-level block and selects it`() {
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = {}, atRoot = true) }
+
+        compose.onNodeWithContentDescription("Pictures", substring = true).performSemanticsAction(SemanticsActions.OnClick)
+
+        compose.onNodeWithContentDescription("Pictures", substring = true).assertIsSelected()
+        compose.onNodeWithText("Open folder").assertIsDisplayed()
     }
 }

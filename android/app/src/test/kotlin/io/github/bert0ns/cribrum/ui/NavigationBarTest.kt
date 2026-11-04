@@ -45,11 +45,12 @@ class NavigationBarTest {
     }
 
     @Test
-    fun `the bar lists clean, compress, map and settings and compress opens its page`() {
+    fun `the bar lists clean, compress and settings and compress opens its page`() {
         val model = ReviewViewModel(app)
         compose.setContent { App(model) }
 
-        for (label in listOf("Clean", "Compress", "Map", "Settings")) compose.onNodeWithText(label).assertIsDisplayed()
+        for (label in listOf("Clean", "Compress", "Settings")) compose.onNodeWithText(label).assertIsDisplayed()
+        compose.onNodeWithText("Map").assertDoesNotExist()
 
         compose.onNodeWithText("Compress").performClick()
         awaitText("No photos to compress. They show up here after a scan.")

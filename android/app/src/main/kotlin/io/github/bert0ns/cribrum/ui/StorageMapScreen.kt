@@ -9,8 +9,10 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +36,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -42,9 +45,16 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
+import kotlin.math.roundToInt
 
 private const val SATURATION = 0.6f
 private const val DIMMED_ALPHA = 0.35f
@@ -85,7 +95,8 @@ fun StorageMapScreen(
                 val targetFolder = selected?.folder ?: currentFolder
                 val isDirectFiles = selected != null && selected.isDirectFiles
 
-                val headline = targetFolder.path.ifEmpty { stringResource(R.string.storage_map_root) }
+                // The name, as the blocks and the list say it: the path took lines and told little more.
+                val headline = if (targetFolder.path.isEmpty() || (atRoot && selected == null)) stringResource(R.string.storage_map_root) else targetFolder.name
                 val size = if (isDirectFiles) targetFolder.directSize else targetFolder.size
                 val count = if (isDirectFiles) targetFolder.directImageCount else targetFolder.imageCount
                 val summary = summary(size, count)
@@ -106,9 +117,15 @@ fun StorageMapScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // The direct files block has no folder of its own: excluding it would hide the subfolders too.
-                if (targetFolder.path.isNotEmpty() && !isDirectFiles && !(atRoot && selected == null)) {
-                    TextButton({ onExclude(targetFolder) }) { Text(stringResource(R.string.storage_map_exclude)) }
+                Row {
+                    // The visible way in, beside the second tap on a block.
+                    if (selected != null && !isDirectFiles && selected.folder != currentFolder) {
+                        TextButton({ onZoomIn(selected.folder) }) { Text(stringResource(R.string.storage_map_open)) }
+                    }
+                    // The direct files block has no folder of its own: excluding it would hide the subfolders too.
+                    if (targetFolder.path.isNotEmpty() && !isDirectFiles && !(atRoot && selected == null)) {
+                        TextButton({ onExclude(targetFolder) }) { Text(stringResource(R.string.storage_map_exclude)) }
+                    }
                 }
             }
         }
@@ -197,6 +214,11 @@ fun StorageMapScreen(
                         )
                     }
                 }
+                // A node for each top-level block, over the drawing: its name when the block has room for it, and what a
+                // screen reader says and taps, since a Canvas has no nodes of its own. They take no touch, so the map's taps pass.
+                for (block in blocks.filter { it.depth == 0 }) {
+                    BlockLabel(block, selected = block.isSameBlockAs(selectedBlock)) { selectedBlock = block }
+                }
             }
 
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
@@ -237,3 +259,36 @@ fun StorageMapScreen(
         }
     }
 }
+
+/** The name of [block] where it is drawn, when it fits, and its node for a screen reader, which selects it on a tap. */
+@Composable
+private fun BlockLabel(block: TreemapBlock, selected: Boolean, onSelect: () -> Unit) {
+    val density = LocalDensity.current
+    val rect = block.rect
+    val width = with(density) { rect.width.toFloat().toDp() }
+    val height = with(density) { rect.height.toFloat().toDp() }
+    val size = summary(if (block.isDirectFiles) block.folder.directSize else block.folder.size, if (block.isDirectFiles) block.folder.directImageCount else block.folder.imageCount)
+    val name = if (block.isDirectFiles) stringResource(R.string.storage_map_card_details_direct, size) else block.folder.name
+    val description = if (block.isDirectFiles) name else stringResource(R.string.scan_joined, name, size)
+    Box(
+        Modifier
+            .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
+            .size(width, height)
+            .clearAndSetSemantics {
+                contentDescription = description
+                this.selected = selected
+                onClick {
+                    onSelect()
+                    true
+                }
+            }
+            .padding(4.dp),
+    ) {
+        if (!block.isDirectFiles && width >= LABEL_MIN_WIDTH && height >= LABEL_MIN_HEIGHT) {
+            Text(block.folder.name, color = Color.White, style = MaterialTheme.typography.labelMedium.copy(shadow = Shadow(Color.Black, blurRadius = 4f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+private val LABEL_MIN_WIDTH = 56.dp
+private val LABEL_MIN_HEIGHT = 28.dp

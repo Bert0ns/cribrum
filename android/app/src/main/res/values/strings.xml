@@ -16,6 +16,7 @@
     <string name="scan_progress">%1$d of %2$d</string>
     <string name="scan_progress_open">%1$d so far</string>
     <string name="scan_now">Scan now</string>
+    <string name="scan_stop">Stop scanning</string>
     <string name="scan_empty">No images found yet. Tap Scan now to look for them.</string>
     <string name="scan_last">Last scan: %1$s</string>
     <string name="scan_step_scan">Finding images: %1$d so far</string>
@@ -184,12 +185,12 @@
         <item quantity="other">The next scan deletes the %1$d images that have been in the trash for more than %2$d days. This cannot be undone.</item>
     </plurals>
     <string name="settings_trash_retention_applies">Applies to the images already in the trash too.</string>
-    <string name="settings_uninstall_warning">Uninstalling leaves the trash folder on the phone. Empty the trash before uninstalling so trashed images do not keep taking space unseen.</string>
+    <string name="settings_uninstall_warning">Uninstalling keeps the trash folder, so empty it first.</string>
     <string name="settings_haptics">Haptic feedback</string>
     <string name="settings_haptics_hint">A short vibration when you select, skip, keep or trash images. It also follows the phone\'s touch feedback setting.</string>
     <string name="settings_language">Language</string>
     <string name="settings_thresholds">Detection thresholds</string>
-    <string name="thresholds_intro">A category lists an image when one of its scores reaches the threshold. Changes apply at once and need no new scan. Images you kept or trashed stay as they are.</string>
+    <string name="thresholds_intro">A category lists an image when one of its scores reaches the threshold, and a change applies at once.</string>
     <string name="thresholds_raising">Raising a threshold takes images out of the lists, so you may miss some you would have deleted.</string>
     <plurals name="thresholds_more">
         <item quantity="one">%d image more than at the default</item>
@@ -202,8 +203,6 @@
     <string name="thresholds_reset">Reset to defaults</string>
     <string name="settings_excluded_folders">Excluded folders</string>
     <string name="settings_no_excluded_folders">No folders are excluded. Exclude one from the storage map, or from an image at full size.</string>
-    <string name="settings_add_excluded_folder">Add folder</string>
-    <string name="settings_storage">Storage</string>
     <string name="settings_storage_app">App</string>
     <string name="settings_storage_index">Scan data</string>
     <string name="settings_storage_index_size">%s, without the analysis data</string>
@@ -221,8 +220,7 @@
     <string name="settings_delete_embeddings_confirm">Cribrum keeps analysis data for each image to find copies, documents and forwarded images. The next scan computes it again, which takes about 15 to 20 minutes for 10,000 images. Your images, the trash and your decisions stay as they are.</string>
     <string name="exclude_folder">Never suggest this folder or its subfolders</string>
     <!-- Scan status in settings -->
-    <string name="settings_scan_status">Scan status</string>
-    <string name="settings_scan_status_hint">Images analysed out of the images each step needs. Images in the trash are not counted, and neither are stickers for the analysis data, documents and forwarded images, which skip them.</string>
+    <string name="settings_scan_status_hint">Images analysed, out of those each step needs</string>
     <string name="settings_scan_status_last">Last finished scan</string>
     <string name="settings_scan_status_none">No scan has finished since this version.</string>
     <string name="settings_scan_status_duration">Took %1$s</string>
@@ -251,8 +249,8 @@
         <item quantity="other">and %1$d more</item>
     </plurals>
     <plurals name="settings_scan_status_row">
-        <item quantity="one">%1$d of %2$d image analysed \u2022 version %3$d</item>
-        <item quantity="other">%1$d of %2$d images analysed \u2022 version %3$d</item>
+        <item quantity="one">%1$d of %2$d image analysed</item>
+        <item quantity="other">%1$d of %2$d images analysed</item>
     </plurals>
     <plurals name="settings_scan_status_row_failed">
         <item quantity="one">%1$d failed in the last scan</item>
@@ -264,7 +262,6 @@
     <string name="remove">Remove</string>
     <string name="nav_clean">Clean</string>
     <string name="nav_compress">Compress</string>
-    <string name="nav_map">Map</string>
     <!-- The label in the bar, apart from the title: Italian needs a shorter word there, which stays on one line at a large font size. -->
     <string name="nav_settings">Settings</string>
     <string name="compress_channel">Compressing photos</string>
@@ -278,6 +275,9 @@
     <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s \u2022 image sizes</string>
     <string name="storage_map_root">All explored folders</string>
     <string name="storage_map_exclude">Exclude this folder</string>
+    <string name="storage_map_open">Open folder</string>
+    <string name="settings_storage_map_hint">Where the images take space, folder by folder. Exclude a folder from there.</string>
+    <string name="settings_details">Scans and storage</string>
     <string name="storage_map_empty">No images found yet</string>
     <string name="storage_map_no_subfolders">No subfolders</string>
     <plurals name="storage_map_summary">

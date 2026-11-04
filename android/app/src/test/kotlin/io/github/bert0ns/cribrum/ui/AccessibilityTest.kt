@@ -117,7 +117,7 @@ class AccessibilityTest {
         compose.setContent { SettingsScreen(excludedFolders = listOf("/sdcard/Download"), embeddingCount = 3) }
 
         assertTouchTargets("settings")
-        for (item in listOf("Detection thresholds", "Add folder", "Delete the analysis data")) {
+        for (item in listOf("Detection thresholds", "Storage map", "Delete the analysis data")) {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText(item))
             assertTouchTargets("settings, at $item")
         }

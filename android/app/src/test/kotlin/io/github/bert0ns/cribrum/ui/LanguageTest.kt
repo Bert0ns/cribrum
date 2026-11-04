@@ -76,7 +76,7 @@ class LanguageTest {
         val report = ScanReport(1_700_000_000_000, unreadable = 1, failures = mapOf("embedding" to 2), files = listOf(FailedFile("embedding", "a.jpg")))
         compose.setContent { SettingsScreen(coverage = coverage, lastScan = report) }
 
-        for (text in listOf("Stato della scansione", "1 file illeggibile", "2 errori nell'ultima scansione", "Dati dell'analisi", "90 di 100 immagini analizzate • versione 1", "Sfocate", "1 di 1 immagine analizzata • versione 1", "Volti", "2 non analizzate nell'ultima scansione")) {
+        for (text in listOf("Scansioni e archiviazione", "1 file illeggibile", "2 errori nell'ultima scansione", "Dati dell'analisi", "90 di 100 immagini analizzate", "Sfocate", "1 di 1 immagine analizzata", "Volti", "2 non analizzate nell'ultima scansione")) {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
             compose.onNodeWithText(text).assertExists()
         }
