@@ -31,7 +31,7 @@ const val NOTES = "Notes: every picture is drawn in code and the numbers are mad
     "Paths in the full size view and on the map start with a temporary folder of the test, not the phone's, and its name changes at each image. " +
     "The test window has no status bar or gesture bar, so the top bar starts at the top edge. " +
     "A dialog sits at the top edge and is as wide as the screen, where the phone centers it with a margin on each side. " +
-    "The dark images are the app in night mode: the app has no dark color scheme, so they match the light ones."
+    "The dark images are the app in night mode, with its dark color scheme."
 
 private fun Gallery.awaitModel(model: ReviewViewModel, what: String, condition: (ReviewViewModel) -> Boolean) = await(what) { !model.state.value.loading && condition(model) }
 

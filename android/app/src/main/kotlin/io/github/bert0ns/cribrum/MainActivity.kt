@@ -66,6 +66,7 @@ import io.github.bert0ns.cribrum.ui.CategoryList
 import io.github.bert0ns.cribrum.ui.CategoryScreen
 import io.github.bert0ns.cribrum.ui.CompressScreen
 import io.github.bert0ns.cribrum.ui.CompressViewModel
+import io.github.bert0ns.cribrum.ui.CribrumTheme
 import io.github.bert0ns.cribrum.ui.Destination
 import io.github.bert0ns.cribrum.ui.FavoriteRequestHost
 import io.github.bert0ns.cribrum.ui.Folder
@@ -123,7 +124,7 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         setContent {
-            MaterialTheme {
+            CribrumTheme {
                 if (hasAllFilesAccess) {
                     App(
                         model = model,

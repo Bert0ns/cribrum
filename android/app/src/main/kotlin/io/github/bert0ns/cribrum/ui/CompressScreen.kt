@@ -517,7 +517,7 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
         // As in the review: the heart sits at the bottom right, and at the top right once selected, beside the check.
         Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (selected) {
-                Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small))
+                Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small))
                 if (favorite) FavoriteHeart(Modifier.clearAndSetSemantics {})
             }
         }
