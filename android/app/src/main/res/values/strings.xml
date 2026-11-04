@@ -101,10 +101,7 @@
     <string name="favorite_appeared_snackbar">An image became a favourite meanwhile. Check the page.</string>
     <string name="undo">Undo</string>
     <string name="trash_empty">The trash is empty.</string>
-    <plurals name="trash_hint">
-        <item quantity="one">Tap images to select them. They are deleted for good %d day after they were trashed.</item>
-        <item quantity="other">Tap images to select them. They are deleted for good %d days after they were trashed.</item>
-    </plurals>
+    <string name="trash_hint">Tap to select, hold to see full size.</string>
     <string name="days_left">%1$dd left</string>
     <!-- Spoken form of days_left: a screen reader would spell out "26d". -->
     <plurals name="trash_tile_days_left">
@@ -337,7 +334,7 @@
     </plurals>
     <string name="compress_tile_description">%1$s, %2$s pixels, %3$s</string>
     <string name="compress_tile_before">Compressed before at %1$s</string>
-    <string name="compress_tile_selected">Selected</string>
+    <string name="tile_selected">Selected</string>
     <string name="compress_tile_not_selected">Not selected</string>
     <string name="compress_heat_pause">Paused while the phone cools down.</string>
     <string name="compress_waiting_scan">Waiting for the scan to finish. The compression starts by itself afterwards.</string>

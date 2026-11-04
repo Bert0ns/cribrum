@@ -2,6 +2,7 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.text.format.Formatter
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -19,7 +20,9 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -46,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.folders.isStickerFolder
-import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import java.io.File
 import java.time.Duration
@@ -68,7 +70,6 @@ fun TrashScreen(
      */
     onDelete: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
-    retentionDays: Int = TrashRetention.DEFAULT_DAYS,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<TrashedImage?>(null) }
@@ -79,7 +80,8 @@ fun TrashScreen(
             Text(stringResource(R.string.trash_empty), Modifier.padding(16.dp))
             return@Column
         }
-        Text(pluralStringResource(R.plurals.trash_hint, retentionDays, retentionDays), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+        // How long the trash keeps images is in Settings. Here the hint says how to look before restoring.
+        Text(stringResource(R.string.trash_hint), Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
         // Stickers apart, as in the review: thousands of them would bury the photos.
         val (stickers, others) = trashed.partition { isStickerFolder(it.original.path) }
         val sections = listOf(R.plurals.trash_section_images to others, R.plurals.trash_section_stickers to stickers)
@@ -97,11 +99,19 @@ fun TrashScreen(
                 trashItems(section, selected, onSelect) { fullSize = it }
             }
         }
-        // Deleting for good weighs less than Restore: a text button, in the error color.
-        Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
-            Button(onRestore, enabled = selected.isNotEmpty()) { Text(stringResource(R.string.restore, selected.size)) }
-            TextButton({ confirmDelete = true }, colors = destructive()) {
-                Text(if (selected.isEmpty()) stringResource(R.string.empty_trash) else stringResource(R.string.delete_selected, selected.size))
+        // With nothing selected, emptying the trash is the only action. With a selection, deleting it for good weighs
+        // less than Restore: a text button, in the error color.
+        if (selected.isEmpty()) {
+            OutlinedButton(
+                { confirmDelete = true },
+                Modifier.fillMaxWidth().padding(16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+            ) { Text(stringResource(R.string.empty_trash)) }
+        } else {
+            Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
+                Button(onRestore) { Text(stringResource(R.string.restore, selected.size)) }
+                TextButton({ confirmDelete = true }, colors = destructive()) { Text(stringResource(R.string.delete_selected, selected.size)) }
             }
         }
     }
@@ -127,6 +137,7 @@ fun TrashScreen(
     fullSize?.let { start ->
         FullSizeViewer(trashed.map { it.file.path }, start.file.path, onClose = { fullSize = null }) { page ->
             val item = trashed.getOrNull(page) ?: return@FullSizeViewer
+            FullSizeToggle(item.file.path in selected, stringResource(R.string.tile_selected), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) { onSelect(item) }
             FullSizeBar(item.original.path, item.favorite) {
                 Text(pluralStringResource(R.plurals.trash_tile_days_left, daysLeft(item).toInt(), daysLeft(item)), color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
@@ -160,6 +171,7 @@ private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<
                 },
         ) {
             AsyncImage(File(item.file.path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            if (isSelected) SelectedCheck(Modifier.align(Alignment.TopEnd).padding(4.dp))
             Text(
                 daysText,
                 color = Color.White,

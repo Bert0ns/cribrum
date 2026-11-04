@@ -399,7 +399,6 @@ private fun AppContent(
                             model::selectAll,
                             model::restoreSelected,
                             model::deleteFromTrash,
-                            retentionDays = state.retentionDays,
                         )
                         Screen.Settings -> SettingsScreen(
                             modifier = Modifier.readableWidth(),

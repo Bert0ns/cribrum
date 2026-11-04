@@ -44,7 +44,7 @@ private fun Gallery.openCategory(model: ReviewViewModel, name: Int) {
     awaitText(applyText(model))
 }
 
-/** The text of the button under the grid: how many images the page trashes and how many it keeps. */
+/** The text of the button under the grid: how many images the page trashes and how many candidates it keeps. */
 private fun Gallery.applyText(model: ReviewViewModel): String {
     val state = model.state.value
     return str(R.string.apply, state.marked.size, state.page.sumOf { group -> group.images.count { it.suggestTrash && it.image.path !in state.marked } })
@@ -290,7 +290,7 @@ val scenes: List<Scene> = listOf(
         openTrash(model)
         awaitText(str(R.string.trash_empty))
     },
-    Scene("trash-items", "Trash with photos, screenshots and stickers", "Select photos to bring them back, select all, hold one to see it full size, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.full) {
+    Scene("trash-items", "Trash with photos, screenshots and stickers, nothing selected", "Select photos to bring them back, select all, hold one to see it full size, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.full) {
         val model = app(trashed(this))
         openTrash(model)
         awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }
@@ -310,7 +310,7 @@ val scenes: List<Scene> = listOf(
         val count = model.state.value.trashed.size
         awaitText(plural(R.plurals.empty_trash_title, count, count))
     },
-    Scene("trash-full-size", "Trash, a photo at full size", "Look at a trashed photo before restoring it or deleting it for good, read its folder and its days left, swipe to the next one, or close the view.", Variant.base) {
+    Scene("trash-full-size", "Trash, a photo at full size", "Look at a trashed photo before restoring it or deleting it for good, tick the checkbox to select it, read its folder and its days left, swipe to the next one, or close the view.", Variant.base) {
         val model = app(trashed(this))
         openTrash(model)
         awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }

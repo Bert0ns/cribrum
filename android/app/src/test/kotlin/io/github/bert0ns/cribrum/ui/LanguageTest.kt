@@ -5,7 +5,6 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasScrollAction
@@ -24,7 +23,6 @@ import io.github.bert0ns.cribrum.ranker.THRESHOLDS
 import io.github.bert0ns.cribrum.review.CategorySummary
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewItem
-import io.github.bert0ns.cribrum.trash.TrashedImage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -33,9 +31,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.io.File
-import java.time.Duration
-import java.time.Instant
 
 /** The two languages (docs/design.md §8): Italian from `values-it`, and the entry that opens the system's language page. */
 @RunWith(RobolectricTestRunner::class)
@@ -98,29 +93,17 @@ class LanguageTest {
 
     @Test
     @Config(qualifiers = "it")
-    fun `the favourite dialog and the trash hint give the chosen retention in Italian`() {
+    fun `the favourite dialog gives the chosen retention in Italian`() {
         val image = ImageRef("/sdcard/DCIM/a.jpg", 1, 0)
         val page = listOf(ReviewGroup("a", listOf(ReviewItem(image, suggestTrash = true, isFavorite = true))))
-        val trashedAt = Instant.now()
-        val trashed = listOf(TrashedImage(image, trashedAt, File("/sdcard/.cribrum-trash/x/a.jpg"), trashedAt + Duration.ofDays(1)))
         var days by mutableIntStateOf(1)
-        var showTrash by mutableStateOf(false)
-        compose.setContent {
-            if (showTrash) {
-                TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}, retentionDays = days)
-            } else {
-                CategoryScreen(page, 1, setOf(image.path), false, {}, { _, _ -> }, {}, retentionDays = days)
-            }
-        }
+        compose.setContent { CategoryScreen(page, 1, setOf(image.path), false, {}, { _, _ -> }, {}, retentionDays = days) }
 
         for ((count, unit) in listOf(1 to "1 giorno", 7 to "7 giorni")) {
             days = count
-            showTrash = false
             compose.onNodeWithText("Cestina 1, tieni 0").performClick()
             compose.onNodeWithText("per $unit.", substring = true).assertExists()
             compose.onNodeWithText("Annulla").performClick()
-            showTrash = true
-            compose.onNodeWithText("$unit dopo essere finite nel cestino", substring = true).assertExists()
         }
     }
 

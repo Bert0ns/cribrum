@@ -143,11 +143,7 @@
     <string name="favorite_appeared_snackbar">Un\'immagine è diventata preferita nel frattempo. Controlla la pagina.</string>
     <string name="undo">Annulla</string>
     <string name="trash_empty">Il cestino è vuoto.</string>
-    <plurals name="trash_hint">
-        <item quantity="one">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d giorno dopo essere finite nel cestino.</item>
-        <item quantity="other">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d giorni dopo essere finite nel cestino.</item>
-        <item quantity="many">Tocca le immagini per selezionarle. Vengono eliminate definitivamente %d di giorni dopo essere finite nel cestino.</item>
-    </plurals>
+    <string name="trash_hint">Tocca per selezionare, tieni premuto per vedere a schermo intero.</string>
     <string name="days_left">%1$d gg</string>
     <plurals name="trash_tile_days_left">
         <item quantity="one">%d giorno rimasto</item>
@@ -394,7 +390,7 @@
     </plurals>
     <string name="compress_tile_description">%1$s, %2$s pixel, %3$s</string>
     <string name="compress_tile_before">Già compressa con %1$s</string>
-    <string name="compress_tile_selected">Selezionata</string>
+    <string name="tile_selected">Selezionata</string>
     <string name="compress_tile_not_selected">Non selezionata</string>
     <string name="compress_heat_pause">In pausa finché il telefono non si raffredda.</string>
     <string name="compress_waiting_scan">In attesa che la scansione finisca. La compressione parte da sola dopo.</string>
