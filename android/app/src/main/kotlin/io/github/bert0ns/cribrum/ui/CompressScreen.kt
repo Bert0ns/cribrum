@@ -10,6 +10,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
@@ -195,6 +196,9 @@ fun CompressContent(
     if (!busy) state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
 }
 
+/** The room under the grid for the floating Continue button: its 16 dp margins around a 40 dp button, and some slack for a large font. */
+private val CONTINUE_CLEARANCE = 96.dp
+
 @Composable
 private fun Picker(
     state: CompressState,
@@ -226,8 +230,9 @@ private fun Picker(
         change(page)
         scope.launch { grid.scrollToItem(at) }
     }
-    Column(modifier.fillMaxSize()) {
-        LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.weight(1f), grid) {
+    // The button floats over the grid with nothing behind it. The grid keeps room under its last row so the pager buttons scroll clear of it.
+    Box(modifier.fillMaxSize()) {
+        LazyVerticalGrid(GridCells.Adaptive(110.dp), Modifier.fillMaxSize(), grid, contentPadding = PaddingValues(bottom = CONTINUE_CLEARANCE)) {
             if (state.stayedInTrash > 0) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "stayed") {
                     Text(
@@ -279,10 +284,8 @@ private fun Picker(
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onOpenSummary, Modifier.fillMaxWidth(), enabled = selection.isNotEmpty()) {
-                Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
-            }
+        Button(onOpenSummary, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp), enabled = selection.isNotEmpty()) {
+            Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
         }
     }
     // A scan or a batch can take the photo off the page while it is open.
