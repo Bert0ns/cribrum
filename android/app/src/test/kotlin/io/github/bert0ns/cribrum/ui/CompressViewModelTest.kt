@@ -129,6 +129,32 @@ class CompressViewModelTest {
         assertEquals(null, model.state.value.summary)
     }
 
+    @Test
+    fun `a level changed on the summary makes the previews again at that level`() {
+        val model = loaded()
+        model.toggle(a.path)
+        model.openSummary()
+        settle(model, ::ready)
+
+        model.chooseLevel(CompressionLevel.HIGH)
+        settle(model) { it.summary?.level == CompressionLevel.HIGH && ready(it) }
+
+        assertEquals(listOf(File(a.path) to CompressionLevel.BALANCED, File(a.path) to CompressionLevel.HIGH), previewed)
+        assertEquals(CompressionLevel.HIGH, model.state.value.level)
+    }
+
+    @Test
+    fun `a level changed on the list makes no preview`() {
+        val model = loaded()
+        model.toggle(a.path)
+
+        model.chooseLevel(CompressionLevel.HIGH)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(emptyList<Pair<File, CompressionLevel>>(), previewed)
+        assertEquals(null, model.state.value.summary)
+    }
+
     private fun photos(count: Int) = List(count) { CompressibleImage("/p/$it.jpg", 1_000_000L - it, 4000, 3000, JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) }
 
     private fun compared(count: Int): List<String> {

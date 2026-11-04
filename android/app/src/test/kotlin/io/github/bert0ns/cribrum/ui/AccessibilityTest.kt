@@ -262,7 +262,7 @@ class AccessibilityTest {
         // The button is pinned below the list, so it needs no scroll.
         compose.onNodeWithText("Continue with 1 photo").assertIsDisplayed().performClick()
         assertEquals(1, opened)
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("JPEG 85, up to 50 MP"))
-        compose.onNodeWithText("JPEG 85, up to 50 MP").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Balanced"))
+        compose.onNodeWithText("Balanced").assertIsDisplayed()
     }
 }

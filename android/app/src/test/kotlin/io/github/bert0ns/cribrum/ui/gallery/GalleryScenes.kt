@@ -107,7 +107,8 @@ private fun Gallery.cameraRoll(): CompressSetup {
 
 private fun Gallery.openCompress(model: ReviewViewModel, setup: CompressSetup) {
     goTo(model, R.string.nav_compress) { it.state.value.screen == Screen.Compress }
-    awaitText(str(R.string.compress_formats), substring = true)
+    if (setup.photos.isEmpty()) return
+    awaitText(plural(R.plurals.compress_photos_heading, setup.photos.count { it.info.marker == null }, setup.photos.count { it.info.marker == null }))
     val first = setup.photos.firstOrNull { it.info.marker == null } ?: return
     await("the photos") { described(File(first.path).name).fetchSemanticsNodes().isNotEmpty() }
 }
@@ -300,14 +301,14 @@ val scenes: List<Scene> = listOf(
         awaitTag("fullSize")
     },
     // Compress
-    Scene("compress-empty", "Compress, nothing to compress", "Read why the list is empty, see which formats are supported, or scan again.", Variant.base) {
+    Scene("compress-empty", "Compress, nothing to compress", "Read why the list is empty, or open the sheet of what can be compressed.", Variant.base) {
         world.commit(scanned = false)
         val setup = CompressSetup()
         val model = app(compress = setup)
         openCompress(model, setup)
         awaitText(str(R.string.compress_none))
     },
-    Scene("compress-list", "Compress, the list with nothing selected", "Pick photos, change the level, read the formats, see the photos compressed before, or open the trash from the top bar.", Variant.full) {
+    Scene("compress-list", "Compress, the list with nothing selected", "Pick photos, change the level, open what can be compressed from the info icon, see the photos compressed before, or open the trash from the top bar.", Variant.full) {
         val setup = cameraRoll()
         val model = app(compress = setup)
         openCompress(model, setup)
@@ -319,14 +320,14 @@ val scenes: List<Scene> = listOf(
         select(setup, 0, 1, 3)
         awaitText(plural(R.plurals.compress_continue, 3, 3))
     },
-    Scene("compress-formats", "Compress, the sheet about supported formats", "Read which photos are compressed and which are not, and why. Close the sheet to go on.", Variant.base) {
+    Scene("compress-formats", "Compress, the sheet about supported formats", "Read the two short lists of what is compressed and what is not. Close the sheet to go on.", Variant.base) {
         val setup = cameraRoll()
         val model = app(compress = setup)
         openCompress(model, setup)
-        click(str(R.string.compress_formats))
+        clickDescription(str(R.string.compress_formats_open))
         awaitText(str(R.string.compress_sheet_title))
     },
-    Scene("compress-summary", "Compress, the summary with the before and after slider", "Drag the line to compare the original and the compressed copy, pinch to zoom, read the saving, then compress or cancel.", Variant.full) {
+    Scene("compress-summary", "Compress, the summary with the level and the before and after slider", "Change the level and see the previews made again, drag the line to compare the original and the compressed copy, pinch to zoom, read the saving, then compress or cancel.", Variant.full) {
         val setup = cameraRoll()
         summary(setup, app(compress = setup))
     },
@@ -348,13 +349,16 @@ val scenes: List<Scene> = listOf(
         goTo(model, R.string.nav_compress) { it.state.value.screen == Screen.Compress }
         awaitText(str(R.string.compress_screen_cancel))
     },
-    Scene("compress-waiting-scan", "Compress, a batch waiting for the scan to end", "Read that the batch starts when the scan ends, or cancel it.", Variant.base) {
+    Scene("compress-waiting-scan", "Compress, a batch waiting for the scan to end", "Read that the batch starts when the scan ends and which phase the scan is in, or cancel it.", Variant.base) {
         val setup = CompressSetup(cameraRoll().photos, GalleryBatches(BatchState.WaitingForScan(total = 12)))
         val model = app(compress = setup)
         goTo(model, R.string.nav_compress) { it.state.value.screen == Screen.Compress }
+        RunningScanWorker.progress = ScanProgress("embeddings", 840, 1_900, 4 * 60_000L)
+        Indexing.scanNow(app)
         awaitText(str(R.string.compress_waiting_scan))
+        awaitText(str(R.string.scan_phase_embeddings), substring = true)
     },
-    Scene("compress-result", "Compress, the result of a batch with Undo", "Read how many photos were compressed and how much space they saved, undo the batch to bring the originals back, or close the result.", Variant.wide) {
+    Scene("compress-result", "Compress, the result of a batch with Undo", "Read how many photos were compressed and how much space they saved, close the result with Done, or undo the batch to bring the originals back.", Variant.wide) {
         val roll = cameraRoll()
         val result = BatchResult(12, 10, mapOf(Refusal.NOT_SMALLER to 2), 96_400_000, emptyList())
         val model = app(compress = CompressSetup(roll.photos, GalleryBatches(BatchState.Finished(result))))
@@ -377,12 +381,6 @@ val scenes: List<Scene> = listOf(
         click(heading)
         awaitText(str(R.string.compress_already_hint))
         scrollToEnd()
-    },
-    Scene("compress-scanning", "Compress, a scan running above the list", "Watch the scan and pick photos meanwhile. A batch waits for the scan to end.", Variant.base) {
-        val setup = cameraRoll()
-        val model = app(compress = setup)
-        openCompress(model, setup)
-        scanRunning("embeddings", 840, 1_900, 4 * 60_000L)
     },
     // Map
     Scene("map-root", "Map, the treemap of the whole library", "Tap a folder to select it and read its size, tap it again to zoom in, or exclude it.", Variant.wide) {

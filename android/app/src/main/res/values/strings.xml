@@ -290,18 +290,17 @@
     <string name="close">Close</string>
     <string name="action_select">Select</string>
     <string name="action_deselect">Deselect</string>
-    <string name="compress_formats">Supported formats: JPEG. Motion Photos are not compressed.</string>
-    <string name="compress_formats_no_hdr">HDR photos are not compressed.</string>
-    <string name="compress_formats_open">Show what is supported</string>
+    <string name="compress_formats_open">What can be compressed</string>
     <string name="compress_sheet_title">What Cribrum compresses</string>
     <string name="compress_sheet_supported">Compressed</string>
-    <string name="compress_sheet_jpeg">JPEG photos. Ultra HDR photos too, on Android 14 and later.</string>
-    <string name="compress_sheet_again">Photos Cribrum already compressed, if you choose to compress them again.</string>
+    <string name="compress_sheet_jpeg">JPEG photos</string>
+    <string name="compress_sheet_hdr_yes">Ultra HDR photos</string>
+    <string name="compress_sheet_again">Photos compressed before, if you pick them again</string>
     <string name="compress_sheet_unsupported">Not compressed</string>
-    <string name="compress_sheet_motion">Motion Photos. The video inside them would be lost.</string>
-    <string name="compress_sheet_hdr">HDR photos on Android 13 and earlier. The phone\'s encoder writes them without their HDR.</string>
-    <string name="compress_sheet_extra">JPEGs with other data after the image, such as depth photos from some phones. That data would be lost.</string>
-    <string name="compress_sheet_other">Other formats, such as HEIC, PNG, WebP and RAW, and 12-bit JPEGs.</string>
+    <string name="compress_sheet_motion">Motion Photos, whose video would be lost</string>
+    <string name="compress_sheet_hdr">HDR photos, on this version of Android</string>
+    <string name="compress_sheet_extra">JPEGs with other data after the image, such as depth photos</string>
+    <string name="compress_sheet_other">HEIC, PNG, WebP, RAW and 12-bit JPEGs</string>
     <string name="compress_level_heading">Level</string>
     <string name="compress_level_high">High quality</string>
     <string name="compress_level_balanced">Balanced</string>
@@ -375,15 +374,10 @@
         <item quantity="one">Compress %d photo?</item>
         <item quantity="other">Compress %d photos?</item>
     </plurals>
-    <string name="compress_summary_level" translatable="false">%1$s: %2$s</string>
-    <string name="compress_summary_saving">Estimated saving: about %1$s</string>
-    <string name="compress_summary_saving_detail">From %1$s to about %2$s. This is an estimate: the real saving shows when it is done.</string>
     <plurals name="compress_summary_confirm">
         <item quantity="one">Compress %d photo</item>
         <item quantity="other">Compress %d photos</item>
     </plurals>
-    <string name="compress_preview_heading">Before and after</string>
-    <string name="compress_preview_heading_some">Before and after, on the largest, the middle one and the smallest selected photo</string>
     <string name="compress_preview_before">Original \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_after">Compressed \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_loading">Compressing this photo for the preview\u2026</string>

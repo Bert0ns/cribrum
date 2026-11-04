@@ -105,7 +105,8 @@ class RecordingBatches(initial: BatchState = BatchState.Idle) : CompressBatches 
 
 private fun jpeg(path: String, size: Long, width: Int = 4000, height: Int = 3000, info: JpegInfo = JpegInfo(JpegStatus.ELIGIBLE, quality = 92)) = CompressibleImage(path, size, width, height, info)
 
-private const val COMPARE = "Original on the left, compressed at the chosen level on the right"
+// The gesture text is the image's description: on screen the handle shows it.
+private const val COMPARE = "Original on the left, compressed at the chosen level on the right. Drag the handle to move the line. Pinch to zoom, drag to move the photo, double tap to see the whole photo."
 private const val SLIDER = "Comparison line. The original is on its left, the compressed copy on its right."
 
 @RunWith(RobolectricTestRunner::class)
@@ -140,10 +141,9 @@ class CompressScreenTest {
     )
 
     private var progress by mutableStateOf<ScanProgress?>(null)
-    private var scans = 0
 
     private fun show(model: CompressViewModel) {
-        compose.setContent { CompositionLocalProvider(LocalHapticFeedback provides haptics) { CompressScreen(model, progress, onScan = { scans++ }, heat = null) } }
+        compose.setContent { CompositionLocalProvider(LocalHapticFeedback provides haptics) { CompressScreen(model, progress) } }
     }
 
     private fun awaitText(text: String, substring: Boolean = false) = compose.waitUntil(5_000) {
@@ -182,12 +182,13 @@ class CompressScreenTest {
     private fun stateDescription() = slider().fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
 
     @Test
-    fun `the level starts on Balanced, with the ends labelled and the numbers of the stop shown`() {
+    fun `the level starts on Balanced, with the ends labelled and the numbers for a screen reader only`() {
         show(model(big))
         awaitText("1 photo, largest first")
 
         assertEquals("Balanced, JPEG 85, up to 50 MP", stateDescription())
-        compose.onNodeWithText("JPEG 85, up to 50 MP").assertExists()
+        compose.onNodeWithText("Balanced").assertExists()
+        compose.onNodeWithText("JPEG 85", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Better quality").assertExists()
         compose.onNodeWithText("Smaller files").assertExists()
         assertTrue(compose.onNodeWithText("Better quality").fetchSemanticsNode().boundsInRoot.left < compose.onNodeWithText("Smaller files").fetchSemanticsNode().boundsInRoot.left)
@@ -206,12 +207,12 @@ class CompressScreenTest {
         stop(0)
         compose.waitForIdle()
         assertEquals("High quality, JPEG 90, full resolution", stateDescription())
-        compose.onNodeWithText("JPEG 90, full resolution").assertExists()
+        compose.onNodeWithText("High quality").assertExists()
         assertEquals(CompressionLevel.HIGH, model.state.value.level)
         stop(2)
         compose.waitForIdle()
         assertEquals("Smallest, JPEG 80, up to 12 MP", stateDescription())
-        compose.onNodeWithText("JPEG 80, up to 12 MP").assertExists()
+        compose.onNodeWithText("Smallest").assertExists()
         assertEquals(CompressionLevel.SMALLEST, model.state.value.level)
     }
 
@@ -251,7 +252,7 @@ class CompressScreenTest {
         val model = model(big)
         var generation by mutableIntStateOf(0)
         compose.setContent {
-            CompositionLocalProvider(LocalHapticFeedback provides haptics) { key(generation) { CompressScreen(model, progress, onScan = { scans++ }, heat = null) } }
+            CompositionLocalProvider(LocalHapticFeedback provides haptics) { key(generation) { CompressScreen(model, progress) } }
         }
         awaitText("1 photo, largest first")
         stop(2)
@@ -312,22 +313,43 @@ class CompressScreenTest {
     }
 
     @Test
-    fun `the supported formats line opens a sheet that says what is not supported and why`() {
-        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
-        compose.onNodeWithText("Supported formats: JPEG. Motion Photos are not compressed.").assertExists()
-        compose.onAllNodesWithText("HDR photos are not compressed.", substring = true).assertCountEquals(0)
+    fun `an info icon beside the count opens two short lists of what is compressed and what is not`() {
+        compose.setContent { CompressContent(CompressState(loaded = true, photos = listOf(big)), BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
 
-        compose.onNodeWithText("Supported formats", substring = true).performClick()
+        compose.onNodeWithContentDescription("What can be compressed").performClick()
 
-        compose.onNodeWithText("Motion Photos. The video inside them would be lost.").assertExists()
-        compose.onNodeWithText("JPEGs with other data after the image", substring = true).assertExists()
+        compose.onNodeWithText("• JPEG photos").assertExists()
+        compose.onNodeWithText("• Ultra HDR photos").assertExists()
+        compose.onNodeWithText("• Motion Photos, whose video would be lost").assertExists()
+        compose.onNodeWithText("HDR photos, on this version", substring = true).assertDoesNotExist()
     }
 
     @Test
-    fun `below Android 14 the line also says HDR photos are not compressed`() {
-        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+    fun `below Android 14 the sheet says HDR photos are not compressed`() {
+        compose.setContent { CompressContent(CompressState(loaded = true, photos = listOf(big)), BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
 
-        compose.onNodeWithText("Supported formats: JPEG. Motion Photos are not compressed. HDR photos are not compressed.").assertExists()
+        compose.onNodeWithContentDescription("What can be compressed").performClick()
+
+        compose.onNodeWithText("• HDR photos, on this version of Android").assertExists()
+        compose.onNodeWithText("• Ultra HDR photos").assertDoesNotExist()
+    }
+
+    @Test
+    fun `an empty page shows only why and the link to what is supported`() {
+        compose.setContent { CompressContent(CompressState(loaded = true), BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+
+        compose.onNodeWithText("No photos to compress. They show up here after a scan.").assertExists()
+        compose.onNodeWithContentDescription("Level").assertDoesNotExist()
+        compose.onNodeWithText("photos, largest first", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("What can be compressed").performClick()
+        compose.onNodeWithText("• JPEG photos").assertExists()
+    }
+
+    @Test
+    fun `a tile shows the size only`() {
+        compose.setContent { CompressContent(CompressState(loaded = true, photos = listOf(big)), BatchState.Idle, hdrSupported = true, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}) }
+
+        compose.onNodeWithText("16320 × 12240", substring = true, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -347,8 +369,9 @@ class CompressScreenTest {
         compose.onAllNodesWithText("Content credentials", substring = true).assertCountEquals(0)
         compose.onNodeWithText("• The shooting mode info").assertExists()
         compose.onNodeWithText("All of it comes back only by restoring the original from the Cribrum trash, within 30 days.").assertExists()
-        compose.onNodeWithText("Smallest: JPEG 80, up to 12 MP").assertExists()
-        compose.onNodeWithText("Estimated saving: about", substring = true).assertExists()
+        // The level and its saving on one line, and the slider to change it.
+        compose.onAllNodesWithText("Smallest").assertCountEquals(2)
+        compose.onAllNodesWithText("Saves about", substring = true).assertCountEquals(2)
         // The largest selected photo, compressed for real: the preview is its size 24 MB / 1.5 kB and the level's resolution.
         awaitText("Compressed • ${size(1500)} • 4000 × 3000")
         compose.onNodeWithText("Original • ${size(24_000_000)} • 16320 × 12240").assertExists()
@@ -398,7 +421,7 @@ class CompressScreenTest {
 
         awaitText("Compressed • ${size(1500)} • 8160 × 6120")
         compose.onNodeWithText("Original • ${size(24_000_000)} • 16320 × 12240").assertExists()
-        compose.onNodeWithText("Before and after").assertExists()
+        compose.onNodeWithText("Before and after").assertDoesNotExist()
         for ((index, bytes) in listOf(24_000_000L, 6_200_000L, 4_100_000L).withIndex()) {
             compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo ${index + 1} of 3: ${size(bytes)} before, ${size(1500)} after").fetchSemanticsNodes().isNotEmpty() }
         }
@@ -431,7 +454,6 @@ class CompressScreenTest {
         compose.onNodeWithText("Select all on this page").performClick()
         compose.onNodeWithText("Continue with 5 photos").performClick()
 
-        awaitText("Before and after, on the largest, the middle one and the smallest selected photo")
         for (index in 1..3) compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo $index of 3", substring = true).fetchSemanticsNodes().isNotEmpty() }
         compose.onAllNodesWithContentDescription("Photo 4", substring = true).assertCountEquals(0)
         tab("Photo 3 of 3: ${size(photos[4].size)} before, ${size(1500)} after").performClick()
@@ -743,50 +765,26 @@ class CompressScreenTest {
     }
 
     @Test
-    fun `Scan now sits on the page and starts a scan`() {
-        show(model(big))
-        awaitText("1 photo, largest first")
-
-        compose.onNodeWithText("Scan now").performClick()
-
-        assertEquals(1, scans)
-    }
-
-    @Test
-    fun `a running scan shows its status on the page in place of the button`() {
+    fun `the page has no Scan now and no scan status, which live on Clean`() {
         show(model(big))
         awaitText("1 photo, largest first")
 
         progress = ScanProgress("detectors", 12, 100)
 
-        compose.onNodeWithText("Analyzing the images: 12 of 100").assertExists()
         compose.onNodeWithText("Scan now").assertDoesNotExist()
+        compose.onNodeWithText("12 of 100", substring = true).assertDoesNotExist()
         tile("IMG_1.jpg").assertExists()
     }
 
     @Test
-    fun `a batch that waits or runs replaces Scan now with the line that says a compression is running`() {
-        batches.mutableState.value = BatchState.WaitingForScan(2)
-        show(model(big))
-        val line = "A compression is running. Scan now comes back when it ends."
-        awaitText(line)
-        compose.onNodeWithText("Scan now").assertDoesNotExist()
-
-        batches.mutableState.value = BatchState.Running(1, 2, 1_000_000, paused = false)
-
-        compose.onNodeWithText(line).assertExists()
-        compose.onNodeWithText("Scan now").assertDoesNotExist()
-    }
-
-    @Test
-    fun `a scan running while a batch waits for it shows the scan, not the line`() {
+    fun `a batch waiting for a scan shows the scan's phase, and nothing that contradicts it`() {
         batches.mutableState.value = BatchState.WaitingForScan(2)
         progress = ScanProgress("detectors", 12, 100)
         show(model(big))
 
-        awaitText("12 of 100", substring = true)
-        compose.onNodeWithText("A compression is running. Scan now comes back when it ends.").assertDoesNotExist()
-        compose.onNodeWithText("Scan now").assertDoesNotExist()
+        awaitText("Waiting for the scan to finish. The compression starts by itself afterwards.")
+        compose.onNodeWithText("Phase 3 of 6 · Analyzing the images").assertExists()
+        compose.onNodeWithText("A compression is running", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -824,6 +822,17 @@ class CompressScreenTest {
         awaitText("2 photos lost their favourite flag, because the request to mark them again was declined")
         batches.mutableState.value = BatchState.Finished(result, favoritesLost = 1)
         awaitText("1 photo lost its favourite flag, because the request to mark it again was declined")
+    }
+
+    @Test
+    fun `Done comes first on the result, with Undo after it`() {
+        batches.mutableState.value = BatchState.Finished(BatchResult(3, 3, emptyMap(), 1_000_000, emptyList()))
+        show(model(big))
+        awaitText("3 photos compressed")
+
+        val done = compose.onNodeWithText("Done").fetchSemanticsNode().boundsInRoot
+        val undo = compose.onNodeWithText("Undo").fetchSemanticsNode().boundsInRoot
+        assertTrue("$done before $undo", done.right <= undo.left || done.bottom <= undo.top)
     }
 
     @Test

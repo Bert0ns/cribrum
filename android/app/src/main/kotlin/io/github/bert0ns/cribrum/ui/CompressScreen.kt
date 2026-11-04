@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -103,6 +104,7 @@ import io.github.bert0ns.cribrum.compress.Losses
 import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.compress.target
+import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.pipeline.ScanProgress
 import kotlinx.coroutines.launch
 import java.io.File
@@ -129,7 +131,7 @@ private fun fileSize(bytes: Long) = Formatter.formatShortFileSize(LocalContext.c
 
 /** The stateful page: reads the list when it opens, after a scan and when a batch ends. */
 @Composable
-fun CompressScreen(model: CompressViewModel, progress: ScanProgress?, onScan: () -> Unit, heat: Heat?, modifier: Modifier = Modifier) {
+fun CompressScreen(model: CompressViewModel, progress: ScanProgress?, modifier: Modifier = Modifier) {
     val state by model.state.collectAsStateWithLifecycle()
     val batch by model.batches.state.collectAsStateWithLifecycle()
     val busy = batch is BatchState.Running || batch is BatchState.WaitingForScan
@@ -151,8 +153,6 @@ fun CompressScreen(model: CompressViewModel, progress: ScanProgress?, onScan: ()
         onUndo = model::undo,
         onDismissResult = model::dismissResult,
         progress = progress,
-        onScan = onScan,
-        heat = heat,
         modifier = modifier,
     )
 }
@@ -175,23 +175,20 @@ fun CompressContent(
     onUndo: (BatchResult) -> Unit,
     onDismissResult: (BatchResult) -> Unit,
     modifier: Modifier = Modifier,
+    /** The running scan, which a waiting batch shows: scanning itself lives on Clean. */
     progress: ScanProgress? = null,
-    onScan: () -> Unit = {},
-    heat: Heat? = null,
 ) {
     val busy = batch is BatchState.WaitingForScan || batch is BatchState.Running
     Column(modifier) {
-        // The list only changes after a scan, so the control sits above every state of the page; a batch swaps the button for its line.
-        ScanStatus(progress, onScan, heat = heat, compressing = busy)
         val body = Modifier.weight(1f)
         when {
-            busy -> BatchProgress(batch, onCancelBatch, body)
+            busy -> BatchProgress(batch, progress, onCancelBatch, body)
             batch is BatchState.Finished && batch.result != state.dismissed -> BatchResultPanel(batch.result, batch.favoritesLost, state.retentionDays, state.undoing, { onUndo(batch.result) }, { onDismissResult(batch.result) }, body)
             else -> Picker(state, hdrSupported, onToggle, onSelectAll, onPage, onCompressedPage, onLevel, onToggleCompressed, onOpenSummary, body)
         }
     }
     // A summary is never over a batch: its preview is a second full decode next to the batch's.
-    if (!busy) state.summary?.let { SummaryDialog(it, state, onCloseSummary, onConfirm) }
+    if (!busy) state.summary?.let { SummaryDialog(it, state, onLevel, onCloseSummary, onConfirm) }
 }
 
 /** The room under the grid for the floating Continue button: its 16 dp margins around a 40 dp button, and some slack for a large font. */
@@ -222,7 +219,7 @@ private fun Picker(
     val pages = compressPageCount(state.photos.size)
     val compressedPages = compressPageCount(state.compressed.size)
     // A new page starts at the top of its section. The indices count the grid's items above it.
-    val photosAt = (if (state.stayedInTrash > 0) 1 else 0) + 2
+    val photosAt = (if (state.stayedInTrash > 0) 1 else 0) + 1
     val compressedAt = photosAt + 1 + (if (state.loaded && state.photos.isEmpty()) 1 else 0) + shown.size + (if (pages > 1) 2 else 0)
     fun goTo(at: Int, change: (Int) -> Unit): (Int) -> Unit = { page ->
         tick()
@@ -241,9 +238,18 @@ private fun Picker(
                     )
                 }
             }
-            item(span = { GridItemSpan(maxLineSpan) }, key = "formats") { SupportedFormats(hdrSupported) }
+            // Nothing to act on: the reason, and the way to read what is supported.
+            if (state.loaded && state.photos.isEmpty() && state.compressed.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "none") {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.compress_none))
+                        SupportedFormats(hdrSupported) { open -> TextButton(open) { Text(stringResource(R.string.compress_formats_open)) } }
+                    }
+                }
+                return@LazyVerticalGrid
+            }
             item(span = { GridItemSpan(maxLineSpan) }, key = "levels") {
-                LevelSlider(state.level, selection.takeIf { it.isNotEmpty() }?.let { state.estimatedSaving(state.level) }) {
+                LevelSlider(state.level, selection.takeIf { it.isNotEmpty() }?.let { state.estimatedSaving(state.level) }, Modifier.padding(horizontal = 16.dp)) {
                     tick()
                     onLevel(it)
                 }
@@ -253,7 +259,12 @@ private fun Picker(
                 val all = shown.isNotEmpty() && shown.all { it.path in state.selected }
                 // The button goes under the count when both do not fit on one line, as with a large font.
                 FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.CenterVertically) {
-                    Text(pluralStringResource(R.plurals.compress_photos_heading, state.photos.size, state.photos.size), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(pluralStringResource(R.plurals.compress_photos_heading, state.photos.size, state.photos.size), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                        SupportedFormats(hdrSupported) { open ->
+                            IconButton(open) { Icon(Icons.Filled.Info, stringResource(R.string.compress_formats_open), tint = MaterialTheme.colorScheme.primary) }
+                        }
+                    }
                     if (shown.isNotEmpty()) {
                         TextButton({
                             tick()
@@ -352,34 +363,27 @@ private fun PageControls(page: Int, total: Int, onPage: (Int) -> Unit) {
     }
 }
 
-/** The fixed line under the title. It opens the sheet that says what is supported, and why the rest is not. */
+/**
+ * The sheet that says what is compressed and what is not, in two short lists, behind the control [opener] draws: an
+ * info icon beside the count, or a link on an empty page. The HDR line names the phone's case only.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SupportedFormats(hdrSupported: Boolean) {
+private fun SupportedFormats(hdrSupported: Boolean, opener: @Composable (open: () -> Unit) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val line = stringResource(R.string.compress_formats) + if (hdrSupported) "" else " " + stringResource(R.string.compress_formats_no_hdr)
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            .clickable(onClickLabel = stringResource(R.string.compress_formats_open), role = Role.Button) { open = true }
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Text(line, style = MaterialTheme.typography.bodyMedium)
-    }
+    opener { open = true }
     if (open) {
         ModalBottomSheet({ open = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(stringResource(R.string.compress_sheet_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
-                Text(stringResource(R.string.compress_sheet_supported), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-                Text(stringResource(R.string.compress_sheet_jpeg))
-                Text(stringResource(R.string.compress_sheet_again))
-                Text(stringResource(R.string.compress_sheet_unsupported), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-                Text(stringResource(R.string.compress_sheet_motion))
-                Text(stringResource(R.string.compress_sheet_hdr))
-                Text(stringResource(R.string.compress_sheet_extra))
-                Text(stringResource(R.string.compress_sheet_other))
+                Text(stringResource(R.string.compress_sheet_supported), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
+                for (line in listOfNotNull(R.string.compress_sheet_jpeg, R.string.compress_sheet_hdr_yes.takeIf { hdrSupported }, R.string.compress_sheet_again)) {
+                    Text("• " + stringResource(line))
+                }
+                Text(stringResource(R.string.compress_sheet_unsupported), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
+                for (line in listOfNotNull(R.string.compress_sheet_motion, R.string.compress_sheet_hdr.takeIf { !hdrSupported }, R.string.compress_sheet_extra, R.string.compress_sheet_other)) {
+                    Text("• " + stringResource(line))
+                }
                 TextButton({ open = false }, Modifier.align(Alignment.End)) { Text(stringResource(R.string.close)) }
             }
         }
@@ -392,17 +396,14 @@ private fun SupportedFormats(hdrSupported: Boolean) {
  * decrement send, and a state description that names the level.
  */
 @Composable
-private fun LevelSlider(level: CompressionLevel, saving: Long?, onLevel: (CompressionLevel) -> Unit) {
+private fun LevelSlider(level: CompressionLevel, saving: Long?, modifier: Modifier = Modifier, onLevel: (CompressionLevel) -> Unit) {
     val heading = stringResource(R.string.compress_level_heading)
     val state = stringResource(R.string.compress_level_state, level.title(), level.detail())
-    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(heading, style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+    // The level's name and the saving on one line, then the slider: the JPEG numbers are for the screen reader only.
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Column(Modifier.weight(1f)) {
-                Text(level.title(), style = MaterialTheme.typography.bodyLarge)
-                Text(level.detail(), style = MaterialTheme.typography.bodySmall)
-            }
-            if (saving != null) Text(stringResource(R.string.compress_level_saving, fileSize(saving)), style = MaterialTheme.typography.labelMedium)
+            Text(level.title(), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            if (saving != null) Text(stringResource(R.string.compress_level_saving, fileSize(saving)), style = MaterialTheme.typography.bodyMedium)
         }
         Slider(
             value = level.ordinal.toFloat(),
@@ -454,7 +455,7 @@ private fun LazyGridScope.section(
     if (paged) item(span = { GridItemSpan(maxLineSpan) }, key = "$key-pages-bottom") { PageControls(page, total, onPage) }
 }
 
-/** A thumbnail with its size and resolution. A tap selects it and a long press opens it full screen. A marker adds the level it was compressed at. */
+/** A thumbnail with its size. A tap selects it and a long press opens it full screen. A marker adds the level it was compressed at. */
 @Composable
 private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boolean, onHold: () -> Unit, onToggle: () -> Unit) {
     val name = File(photo.path).name
@@ -491,10 +492,8 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
     ) {
         AsyncImage(File(photo.path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
         // The description says all of this, so the visible texts stay out of the screen reader's way.
-        Column(Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp).clearAndSetSemantics {}) {
-            Text(size, color = Color.White, style = MaterialTheme.typography.labelSmall)
-            Text(resolution, color = Color.White, style = MaterialTheme.typography.labelSmall)
-        }
+        // The size only: the resolution is in the full size view and the summary.
+        Text(size, Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp).clearAndSetSemantics {}, color = Color.White, style = MaterialTheme.typography.labelSmall)
         if (before != null) {
             Text(
                 before,
@@ -515,9 +514,9 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
 }
 
 @Composable
-private fun BatchProgress(batch: BatchState, onCancel: () -> Unit, modifier: Modifier) {
+private fun BatchProgress(batch: BatchState, progress: ScanProgress?, onCancel: () -> Unit, modifier: Modifier) {
     val haptics = LocalHapticFeedback.current
-    Column(modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)) {
+    Column(modifier.fillMaxSize().readableWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when (batch) {
                 is BatchState.Running -> {
@@ -529,7 +528,8 @@ private fun BatchProgress(batch: BatchState, onCancel: () -> Unit, modifier: Mod
                 }
                 else -> {
                     Text(stringResource(R.string.compress_waiting_scan), style = MaterialTheme.typography.titleMedium)
-                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    // What the batch waits for: the scan's phase, which says how far it is.
+                    if (progress != null) Text(Indexing.phaseText(LocalResources.current, progress.step) + " · " + stringResource(Indexing.phaseTitle(progress.step)))
                 }
             }
         }
@@ -544,7 +544,7 @@ private fun BatchProgress(batch: BatchState, onCancel: () -> Unit, modifier: Mod
 @Composable
 private fun BatchResultPanel(result: BatchResult, favoritesLost: Int, retentionDays: Int, undoing: Boolean, onUndo: () -> Unit, onDone: () -> Unit, modifier: Modifier) {
     val haptics = LocalHapticFeedback.current
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).readableWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.semantics { liveRegion = LiveRegionMode.Polite }, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(pluralStringResource(R.plurals.compress_result_compressed, result.compressed, result.compressed), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.compress_result_saved, fileSize(result.savedBytes)))
@@ -567,12 +567,17 @@ private fun BatchResultPanel(result: BatchResult, favoritesLost: Int, retentionD
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
             }
-            Button({
-                haptics.performHapticFeedback(Haptic.TICK.type)
-                onUndo()
-            }, Modifier.fillMaxWidth(), enabled = !undoing) { Text(stringResource(R.string.undo)) }
         }
-        OutlinedButton(onDone, Modifier.fillMaxWidth(), enabled = !undoing) { Text(stringResource(R.string.compress_result_done)) }
+        // Done is the filled button: in Italian "Annulla" also reads as Cancel, and undoing the batch is the rare choice.
+        Buttons(Modifier.fillMaxWidth()) {
+            Button(onDone, enabled = !undoing) { Text(stringResource(R.string.compress_result_done)) }
+            if (result.compressed > 0) {
+                OutlinedButton({
+                    haptics.performHapticFeedback(Haptic.TICK.type)
+                    onUndo()
+                }, enabled = !undoing) { Text(stringResource(R.string.undo)) }
+            }
+        }
     }
 }
 
@@ -586,20 +591,20 @@ private fun Refusal.plural() = when (this) {
 
 /** The summary before confirming (§8): the saving, a real before and after, and what the copy loses. */
 @Composable
-private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () -> Unit, onConfirm: () -> Unit) {
+private fun SummaryDialog(summary: Summary, state: CompressState, onLevel: (CompressionLevel) -> Unit, onClose: () -> Unit, onConfirm: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val count = state.selectedPhotos.size
-    val total = state.selectedPhotos.sumOf { it.size }
-    val saving = state.estimatedSaving(summary.level)
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).readableWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(pluralStringResource(R.plurals.compress_summary_title, count, count), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                    Text(stringResource(R.string.compress_summary_level, summary.level.title(), summary.level.detail()))
-                    Text(stringResource(R.string.compress_summary_saving, fileSize(saving)), fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.compress_summary_saving_detail, fileSize(total), fileSize(total - saving)), style = MaterialTheme.typography.bodySmall)
-                    BeforeAfter(summary, count)
+                    // The level can change here too, next to its effect: a new level makes the previews again.
+                    LevelSlider(summary.level, state.estimatedSaving(summary.level)) {
+                        haptics.performHapticFeedback(Haptic.TICK.type)
+                        onLevel(it)
+                    }
+                    BeforeAfter(summary)
                     LossWarning(state, state.lossCounts())
                 }
                 Buttons(Modifier.readableWidth().padding(16.dp)) {
@@ -617,7 +622,7 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () ->
 
 /** The original and a real compression of it at the chosen level, under one draggable line, for each photo the summary compares. */
 @Composable
-private fun BeforeAfter(summary: Summary, selected: Int) {
+private fun BeforeAfter(summary: Summary) {
     val haptics = LocalHapticFeedback.current
     val samples = summary.samples
     var tab by rememberSaveable { mutableIntStateOf(0) }
@@ -631,7 +636,6 @@ private fun BeforeAfter(summary: Summary, selected: Int) {
     val after = target(photo.width, photo.height, summary.level)
     val ratio = (photo.width.toFloat() / photo.height).coerceIn(0.5f, 2f)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(if (selected > samples.size) R.string.compress_preview_heading_some else R.string.compress_preview_heading), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
         if (samples.size > 1) {
             PrimaryTabRow(current) {
                 samples.forEachIndexed { index, item ->
@@ -666,9 +670,6 @@ private fun BeforeAfter(summary: Summary, selected: Int) {
         }
         // Tiles wait until every preview is made: a zoom decoding next to an encode would slow it, and take memory its check counts on.
         CompareSlider(File(photo.path), (sample.preview as? SampleResult.Ready)?.file, zoom, line, ratio, tiled = samples.none { it.preview is SampleResult.Loading })
-        // The image already reads the zoom to a screen reader.
-        Text(zoomLabel(zoom), style = MaterialTheme.typography.labelMedium, modifier = Modifier.clearAndSetSemantics {})
-        Text(stringResource(R.string.compress_preview_hint), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -686,17 +687,17 @@ private fun LossWarning(state: CompressState, counts: LossCounts) {
             Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
             Text(stringResource(R.string.compress_loss_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
         }
-        Text(stringResource(R.string.compress_loss_kept))
+        Text(stringResource(R.string.compress_loss_kept), style = MaterialTheme.typography.bodyMedium)
         for ((count, plural) in listOf(
             counts.reEdit to R.plurals.compress_loss_re_edit,
             counts.depthMap to R.plurals.compress_loss_depth_map,
             counts.xmp to R.plurals.compress_loss_xmp,
             counts.c2pa to R.plurals.compress_loss_c2pa,
         )) {
-            if (count > 0) Text("• " + pluralStringResource(plural, count, count))
+            if (count > 0) Text("• " + pluralStringResource(plural, count, count), style = MaterialTheme.typography.bodyMedium)
         }
-        Text("• " + stringResource(R.string.compress_loss_shooting_mode))
-        Text(pluralStringResource(R.plurals.compress_loss_restore, state.retentionDays, state.retentionDays), fontWeight = FontWeight.Bold)
+        Text("• " + stringResource(R.string.compress_loss_shooting_mode), style = MaterialTheme.typography.bodyMedium)
+        Text(pluralStringResource(R.plurals.compress_loss_restore, state.retentionDays, state.retentionDays), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -722,13 +723,6 @@ private fun CompressPreview() {
         compressedExpanded = true,
     )
     CompressContent(state, BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
-}
-
-@Preview(name = "Scanning, narrow Italian large font", widthDp = 280, locale = "it", fontScale = 1.5f, showBackground = true)
-@Composable
-private fun ScanningPreview() {
-    val state = CompressState(loaded = true, photos = previewPhotos.take(2), selected = setOf(previewPhotos[0].path), level = CompressionLevel.BALANCED)
-    CompressContent(state, BatchState.Idle, hdrSupported = false, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, progress = ScanProgress("detectors", 1200, 10220, leftMs = 3 * 60_000L), heat = Heat(HeatLevel.MODERATE, 12))
 }
 
 @Preview(name = "Second page", showBackground = true)
@@ -760,7 +754,7 @@ private fun SummaryPreview() {
 @Composable
 private fun BatchPreview() {
     Column {
-        BatchProgress(BatchState.Running(3, 12, 412_000_000, paused = true), {}, Modifier.heightIn(max = 300.dp))
+        BatchProgress(BatchState.Running(3, 12, 412_000_000, paused = true), null, {}, Modifier.heightIn(max = 300.dp))
         BatchResultPanel(BatchResult(12, 10, mapOf(Refusal.NOT_SMALLER to 2), 1_300_000_000, emptyList()), 0, 30, false, {}, {}, Modifier.heightIn(max = 300.dp))
     }
 }

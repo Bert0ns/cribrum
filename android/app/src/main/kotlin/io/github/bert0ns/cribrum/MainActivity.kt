@@ -432,7 +432,7 @@ private fun AppContent(
                             onExclude = { model.excludeFolder(it.path) },
                             atRoot = state.storageMap.size <= 1,
                         )
-                        Screen.Compress -> CompressScreen(compressModel, progress, onScan = { Indexing.scanNow(context) }, heat = rememberHeat(running = progress != null))
+                        Screen.Compress -> CompressScreen(compressModel, progress)
                     }
                 }
                 // Each destination keeps its scroll positions while the user is elsewhere.

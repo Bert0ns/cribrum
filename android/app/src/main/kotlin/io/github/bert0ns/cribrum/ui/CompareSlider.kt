@@ -65,7 +65,8 @@ internal fun moveLine(line: MutableFloatState, target: Float, haptics: HapticFee
 @Composable
 internal fun CompareSlider(original: File, copy: File?, zoom: Zoom, line: MutableFloatState, ratio: Float, tiled: Boolean, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
-    val description = stringResource(if (copy == null) R.string.compress_preview_before_description else R.string.compress_compare_image)
+    // The gestures are told to a screen reader only: on screen the handle shows them.
+    val description = if (copy == null) stringResource(R.string.compress_preview_before_description) else stringResource(R.string.compress_compare_image) + ". " + stringResource(R.string.compress_preview_hint)
     val state = zoomLabel(zoom)
     Box(
         modifier.fillMaxWidth().aspectRatio(ratio).clipToBounds().zoomGestures(zoom).dragLine(line, haptics, enabled = copy != null).semantics {
