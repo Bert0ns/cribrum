@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -49,14 +50,14 @@ class TrashScreenTest {
         var restored = emptySet<String>()
         compose.setContent {
             var selected by remember { mutableStateOf(emptySet<String>()) }
-            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = { restored = selected }, onDelete = {})
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.file.path }, onSelectAll = { _, _ -> }, onRestore = { restored = selected }, onDelete = {})
         }
 
         compose.onNodeWithText("Restore 0").assertIsNotEnabled()
         compose.onNodeWithContentDescription("a.jpg. 27 days left").performClick()
         compose.onNodeWithText("Restore 1").performClick()
 
-        assertEquals(setOf("/sdcard/DCIM/a.jpg"), restored)
+        assertEquals(setOf("/sdcard/.cribrum-trash/x/a.jpg"), restored)
     }
 
     @Test
@@ -70,7 +71,7 @@ class TrashScreenTest {
     fun `a screen reader hears which images are selected`() {
         compose.setContent {
             var selected by remember { mutableStateOf(emptySet<String>()) }
-            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.file.path }, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
         }
 
         compose.onNodeWithContentDescription("a.jpg. 27 days left").assertIsNotSelected()
@@ -116,20 +117,61 @@ class TrashScreenTest {
         compose.onNodeWithText("This frees 2 B and cannot be undone.").assertExists()
         compose.onNodeWithText("Delete").performClick()
 
-        assertEquals(trashed.map { it.original.path }.toSet(), deleted)
+        assertEquals(trashed.map { it.file.path }.toSet(), deleted)
     }
 
     @Test
     fun `with a selection the button deletes only the selected images`() {
         var deleted: Set<String>? = null
-        compose.setContent { TrashScreen(trashed, setOf(trashed[1].original.path), {}, { _, _ -> }, {}, onDelete = { deleted = it }) }
+        compose.setContent { TrashScreen(trashed, setOf(trashed[1].file.path), {}, { _, _ -> }, {}, onDelete = { deleted = it }) }
 
         compose.onNodeWithText("Empty trash").assertDoesNotExist()
         compose.onNodeWithText("Delete 1").performClick()
         compose.onNodeWithText("Delete 1 image for good?").assertExists()
         compose.onNodeWithText("Delete").performClick()
 
-        assertEquals(setOf(trashed[1].original.path), deleted)
+        assertEquals(setOf(trashed[1].file.path), deleted)
+    }
+
+    @Test
+    fun `two items with the same path are selected and deleted one by one`() {
+        val at = Instant.now() - Duration.ofDays(3)
+        val original = TrashedImage(ImageRef("/sdcard/DCIM/a.jpg", 9, 0), at, File("/sdcard/.cribrum-trash/1/a.jpg"), at + Duration.ofDays(30))
+        val copy = TrashedImage(ImageRef("/sdcard/DCIM/a.jpg", 4, 1), at, File("/sdcard/.cribrum-trash/2/a.jpg"), at + Duration.ofDays(30))
+        var deleted: Set<String>? = null
+        compose.setContent {
+            var selected by remember { mutableStateOf(emptySet<String>()) }
+            TrashScreen(listOf(original, copy), selected, onSelect = { selected = selected + it.file.path }, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = { deleted = it })
+        }
+
+        compose.onAllNodesWithContentDescription("a.jpg", substring = true)[0].performClick()
+        compose.onNodeWithText("Delete 1").performClick()
+        compose.onNodeWithText("Delete 1 image for good?").assertExists()
+        compose.onNodeWithText("Delete").performClick()
+
+        assertEquals(setOf(original.file.path), deleted)
+    }
+
+    @Test
+    fun `emptying the trash counts every item, also two with the same path`() {
+        val at = Instant.now() - Duration.ofDays(3)
+        val items = listOf(9L to 0L, 4L to 1L).mapIndexed { i, (size, mtime) -> TrashedImage(ImageRef("/sdcard/DCIM/a.jpg", size, mtime), at, File("/sdcard/.cribrum-trash/$i/a.jpg"), at + Duration.ofDays(30)) }
+        compose.setContent { TrashScreen(items, emptySet(), {}, { _, _ -> }, {}, {}) }
+
+        compose.onNodeWithText("Empty trash").performClick()
+
+        compose.onNodeWithText("Delete 2 images for good?").assertExists()
+    }
+
+    @Test
+    fun `a favourite shows its heart at full size`() {
+        val at = Instant.now() - Duration.ofDays(3)
+        val favourite = TrashedImage(ImageRef("/sdcard/DCIM/a.jpg", 1, 0), at, File("/sdcard/.cribrum-trash/x/a.jpg"), at + Duration.ofDays(30), favorite = true)
+        compose.setContent { TrashScreen(listOf(favourite), emptySet(), {}, { _, _ -> }, {}, {}) }
+
+        compose.onNodeWithContentDescription("a.jpg", substring = true).performTouchInput { longClick() }
+
+        compose.onNodeWithContentDescription("Favourite").assertExists()
     }
 
     @Test

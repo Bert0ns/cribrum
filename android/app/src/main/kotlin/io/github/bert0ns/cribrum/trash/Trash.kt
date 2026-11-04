@@ -64,7 +64,10 @@ interface Trash {
 
     suspend fun trashed(): List<TrashedImage>
 
-    /** Deletes images from the trash for good. Returns the ones deleted: a file the system would not delete is still in the trash. */
+    /**
+     * Deletes images from the trash for good, one item for each entry of [images], so two items that are the same image
+     * go only when it is listed twice. Returns the ones deleted: a file the system would not delete is still in the trash.
+     */
     suspend fun purge(images: List<ImageRef>): List<ImageRef>
 
     /** Deletes what has been in the trash for longer than the retention the user chose. Returns what it deleted. */
@@ -185,8 +188,11 @@ class AppTrash(
     override suspend fun trashed(): List<TrashedImage> = io { items() }
 
     override suspend fun purge(images: List<ImageRef>): List<ImageRef> = io {
-        val wanted = images.toSet()
-        items().filter { it.original in wanted && deleteItem(it.file.parentFile!!) }.map { it.original }
+        val wanted = images.groupingBy { it }.eachCount().toMutableMap()
+        items().filter { item ->
+            val left = wanted[item.original] ?: 0
+            left > 0 && deleteItem(item.file.parentFile!!).also { if (it) wanted[item.original] = left - 1 }
+        }.map { it.original }
     }
 
     override suspend fun purgeExpired(): List<ImageRef> = io {

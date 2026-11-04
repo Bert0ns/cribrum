@@ -202,7 +202,7 @@ class AccessibilityTest {
         val at = Instant.now() - Duration.ofDays(3)
         val trashed = listOf(TrashedImage(images[0], at, File("/sdcard/.cribrum-trash/x/img1.jpg"), at + Duration.ofDays(30)))
         var restored = 0
-        compose.setContent { TrashScreen(trashed, trashed.map { it.original.path }.toSet(), {}, { _, _ -> }, { restored++ }, {}) }
+        compose.setContent { TrashScreen(trashed, trashed.map { it.file.path }.toSet(), {}, { _, _ -> }, { restored++ }, {}) }
 
         // Both buttons stay on the screen, and nothing is hidden.
         val screen = compose.onRoot().fetchSemanticsNode().boundsInRoot

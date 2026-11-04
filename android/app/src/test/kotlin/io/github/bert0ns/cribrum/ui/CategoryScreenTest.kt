@@ -471,6 +471,8 @@ class CategoryScreenTest {
         compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, showHint = false) }
 
         compose.onNodeWithText("Tap one to keep it", substring = true).assertDoesNotExist()
+        // What a mark means stays.
+        compose.onNodeWithText("Marked images go to the trash.").assertExists()
     }
 
     private val favoritePage = images.mapIndexed { i, image -> ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true, isFavorite = i < 2))) }
