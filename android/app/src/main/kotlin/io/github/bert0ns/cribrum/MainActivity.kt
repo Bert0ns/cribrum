@@ -107,7 +107,6 @@ class MainActivity : ComponentActivity() {
 
     /** Checked again on every resume: the user grants it in the system settings, outside the app. */
     private var hasAllFilesAccess by mutableStateOf(false)
-    private var notificationsGranted by mutableStateOf(true)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -118,11 +117,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             CribrumTheme {
                 if (hasAllFilesAccess) {
-                    App(
-                        model = model,
-                        notificationsGranted = notificationsGranted,
-                        onNotificationResult = { notificationsGranted = it },
-                    )
+                    App(model = model)
                 } else {
                     Scaffold { padding ->
                         AllFilesAccess({ startActivity(allFilesAccessSettings(this)) }, Modifier.padding(padding))
@@ -139,7 +134,6 @@ class MainActivity : ComponentActivity() {
             model.refreshAfterAccessGranted()
         }
         hasAllFilesAccess = granted
-        notificationsGranted = permissions.hasNotificationPermission(this)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -158,18 +152,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun App(
-    model: ReviewViewModel = viewModel(),
-    notificationsGranted: Boolean = true,
-    onNotificationResult: (Boolean) -> Unit = {},
-) {
+fun App(model: ReviewViewModel = viewModel()) {
     val state by model.state.collectAsStateWithLifecycle()
     WithHaptics(state.hapticsEnabled) {
-        AppContent(
-            model = model,
-            notificationsGranted = notificationsGranted,
-            onNotificationResult = onNotificationResult,
-        )
+        AppContent(model = model)
     }
 }
 
@@ -190,11 +176,7 @@ internal fun appliedMessage(context: Context, decision: Decision): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppContent(
-    model: ReviewViewModel,
-    notificationsGranted: Boolean,
-    onNotificationResult: (Boolean) -> Unit,
-) {
+private fun AppContent(model: ReviewViewModel) {
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val state by model.state.collectAsStateWithLifecycle()
@@ -204,16 +186,14 @@ private fun AppContent(
     val progress by remember { Indexing.progress(context) }.collectAsStateWithLifecycle(null)
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        onNotificationResult(granted)
-    }
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     FavoriteRequestHost()
     val app = context.applicationContext as CribrumApp
     // Opening the app starts no scan: the nightly one and "Scan now" do (design §4).
     LaunchedEffect(Unit) {
         Indexing.schedulePeriodic(context)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (!notificationsGranted && !app.notificationPreferences.permissionRequested) {
+            if (!MainActivity.permissions.hasNotificationPermission(context) && !app.notificationPreferences.permissionRequested) {
                 app.notificationPreferences.permissionRequested = true
                 notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
