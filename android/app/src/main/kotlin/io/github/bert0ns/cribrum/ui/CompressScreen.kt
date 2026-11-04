@@ -14,15 +14,12 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -34,7 +31,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
@@ -331,20 +327,9 @@ private fun FullSize(photos: List<CompressibleImage>, start: CompressibleImage, 
         val selected = photo.path in state.selected
         val favorite = photo.path in state.favorites
         val before = photo.info.marker?.let { marker -> CompressionLevel.entries.firstOrNull { it.id == marker.level }?.title() }
-        if (favorite && selected) FavoriteHeart(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp))
-        FullSizeMark(
-            if (selected) Icons.Filled.Check else Icons.Filled.Add,
-            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-            if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondary,
-            stringResource(if (selected) R.string.compress_tile_selected else R.string.compress_tile_not_selected),
-            stringResource(if (selected) R.string.action_deselect else R.string.action_select),
-        ) { onToggle(photo.path) }
-        FullSizeBar {
-            Text(photo.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                Text("${photo.width} × ${photo.height} • ${fileSize(photo.size)}" + if (before != null) " • " + stringResource(R.string.compress_tile_before, before) else "", Modifier.weight(1f), color = Color.White, style = MaterialTheme.typography.bodyMedium)
-                if (favorite && !selected) FavoriteHeart()
-            }
+        FullSizeToggle(selected, stringResource(R.string.compress_tile_selected), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) { onToggle(photo.path) }
+        FullSizeBar(photo.path, favorite) {
+            Text("${photo.width} × ${photo.height} • ${fileSize(photo.size)}" + if (before != null) " • " + stringResource(R.string.compress_tile_before, before) else "", color = Color.White, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

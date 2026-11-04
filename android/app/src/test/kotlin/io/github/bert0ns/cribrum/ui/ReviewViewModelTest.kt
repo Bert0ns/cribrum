@@ -1002,6 +1002,25 @@ class ReviewViewModelTest {
         override suspend fun purgeExpired() = emptyList<ImageRef>()
     }
 
+    /** A trash that remembers what it was asked to purge, and purges it. */
+    private class PurgingTrash(held: List<ImageRef>) : Trash {
+        private val inside = held.toMutableList()
+        val purged = mutableListOf<List<ImageRef>>()
+
+        override suspend fun moveToTrash(images: List<ImageRef>) = images
+
+        override suspend fun restore(images: List<ImageRef>) = images
+
+        override suspend fun trashed() = inside.map { TrashedImage(it, Instant.EPOCH, File(it.path), Instant.EPOCH) }
+
+        override suspend fun purge(images: List<ImageRef>) = images.also {
+            purged += it
+            inside.removeAll(it)
+        }
+
+        override suspend fun purgeExpired() = emptyList<ImageRef>()
+    }
+
     @Test
     fun `restoring from the trash keeps only what came back and shows what is left`() {
         val one = ImageRef("/sdcard/one.jpg", 1_000, 1L)
@@ -1152,11 +1171,55 @@ class ReviewViewModelTest {
         settle(model) { it.state.value.trashed.size == 2 }
         model.select(model.state.value.trashed[0])
 
-        model.emptyTrash()
+        model.deleteFromTrash(setOf(one.path, two.path))
         settle(model) { it.state.value.trashed.size == 1 }
 
         assertEquals(listOf(two), model.state.value.trashed.map { it.original })
         assertTrue(model.state.value.selected.isEmpty())
+    }
+
+    @Test
+    fun `deleting the selection purges only the selected images, through the trash`() {
+        val images = listOf("one", "two", "three").map { ImageRef("/sdcard/$it.jpg", 1_000, 1L) }
+        val trash = PurgingTrash(images)
+        val model = ReviewViewModel(app, Review(app.index, trash))
+        model.openTrash()
+        settle(model) { it.state.value.trashed.size == 3 }
+        model.select(model.state.value.trashed[1])
+
+        model.deleteFromTrash(setOf(images[1].path))
+        settle(model) { it.state.value.trashed.size == 2 }
+
+        assertEquals(listOf(listOf(images[1])), trash.purged)
+        assertEquals(listOf(images[0], images[2]), model.state.value.trashed.map { it.original })
+        assertTrue(model.state.value.selected.isEmpty())
+    }
+
+    @Test
+    fun `back from the trash returns to the destination it was opened from`() {
+        val model = ReviewViewModel(app)
+        for ((destination, screen) in listOf(Destination.Settings to Screen.Settings, Destination.Map to Screen.StorageMap, Destination.Compress to Screen.Compress, Destination.Clean to Screen.Home)) {
+            model.selectDestination(destination)
+            settle(model) { it.state.value.screen == screen }
+            model.openTrash()
+            settle(model) { it.state.value.screen == Screen.Trash(destination) }
+
+            model.back()
+            settle(model) { it.state.value.screen == screen }
+        }
+    }
+
+    @Test
+    fun `the tap and hold hint is gone for good once a tile was held`() {
+        val model = ReviewViewModel(app)
+        settle(model) { !it.state.value.reviewHintUsed }
+
+        model.fullSizeUsed()
+        settle(model) { it.state.value.reviewHintUsed }
+
+        assertTrue(app.reviewHint.used)
+        val next = ReviewViewModel(app)
+        settle(next) { it.state.value.reviewHintUsed }
     }
 
     @Test

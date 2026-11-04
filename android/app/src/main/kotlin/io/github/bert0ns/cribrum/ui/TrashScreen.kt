@@ -1,8 +1,10 @@
 // The trash (docs/design.md §9): what is in it, how long it stays, and the way back.
 package io.github.bert0ns.cribrum.ui
 
+import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,14 +17,13 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,11 +32,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -57,11 +62,15 @@ fun TrashScreen(
     onSelect: (TrashedImage) -> Unit,
     onSelectAll: (List<TrashedImage>, Boolean) -> Unit,
     onRestore: () -> Unit,
-    onEmpty: () -> Unit,
+    /** Gets the original paths the user confirmed deleting for good: the selection, or the whole trash. */
+    onDelete: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
 ) {
-    var confirmEmpty by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var fullSize by remember { mutableStateOf<TrashedImage?>(null) }
+    // With a selection the button deletes only it, and only an empty selection empties the trash.
+    val targets = if (selected.isEmpty()) trashed else trashed.filter { it.original.path in selected }
     Column(modifier.fillMaxSize()) {
         if (trashed.isEmpty()) {
             Text(stringResource(R.string.trash_empty), Modifier.padding(16.dp))
@@ -82,42 +91,70 @@ fun TrashScreen(
                         }
                     }
                 }
-                trashItems(section, selected, onSelect)
+                trashItems(section, selected, onSelect) { fullSize = it }
             }
         }
+        // Deleting for good weighs less than Restore: a text button, in the error color.
         Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
             Button(onRestore, enabled = selected.isNotEmpty()) { Text(stringResource(R.string.restore, selected.size)) }
-            OutlinedButton({ confirmEmpty = true }) { Text(stringResource(R.string.empty_trash)) }
+            TextButton({ confirmDelete = true }, colors = destructive()) {
+                Text(if (selected.isEmpty()) stringResource(R.string.empty_trash) else stringResource(R.string.delete_selected, selected.size))
+            }
         }
     }
-    if (confirmEmpty) {
+    if (confirmDelete) {
+        val paths = targets.map { it.original.path }.toSet()
         AlertDialog(
-            onDismissRequest = { confirmEmpty = false },
-            title = { Text(pluralStringResource(R.plurals.empty_trash_title, trashed.size, trashed.size)) },
-            text = { Text(stringResource(R.string.empty_trash_body)) },
+            onDismissRequest = { confirmDelete = false },
+            title = { Text(pluralStringResource(R.plurals.empty_trash_title, paths.size, paths.size)) },
+            text = { Text(stringResource(R.string.empty_trash_body, Formatter.formatShortFileSize(LocalContext.current, targets.sumOf { it.original.size }))) },
             confirmButton = {
                 TextButton({
-                    confirmEmpty = false
-                    onEmpty()
+                    confirmDelete = false
+                    onDelete(paths)
                 }, colors = destructive()) { Text(stringResource(R.string.delete)) }
             },
-            dismissButton = { TextButton({ confirmEmpty = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton({ confirmDelete = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+    // A restore or a delete can take the image out of the trash while it is open.
+    LaunchedEffect(trashed, fullSize) {
+        if (fullSize != null && fullSize !in trashed) fullSize = null
+    }
+    fullSize?.let { start ->
+        FullSizeViewer(trashed.map { it.file.path }, start.file.path, onClose = { fullSize = null }) { page ->
+            val item = trashed.getOrNull(page) ?: return@FullSizeViewer
+            FullSizeBar(item.original.path, favorite = false) {
+                Text(pluralStringResource(R.plurals.trash_tile_days_left, daysLeft(item).toInt(), daysLeft(item)), color = Color.White, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 
-private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<String>, onSelect: (TrashedImage) -> Unit) {
+private fun daysLeft(item: TrashedImage) = ceil(Duration.between(Instant.now(), item.purgeAt).toMillis() / MILLIS_PER_DAY).toLong().coerceAtLeast(0)
+
+private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<String>, onSelect: (TrashedImage) -> Unit, onHold: (TrashedImage) -> Unit) {
     items(trashed, key = { it.file.path }) { item ->
-        val daysLeft = ceil(Duration.between(Instant.now(), item.purgeAt).toMillis() / MILLIS_PER_DAY).toLong().coerceAtLeast(0)
+        val daysLeft = daysLeft(item)
         val isSelected = item.original.path in selected
+        val open = stringResource(R.string.action_open_full_size)
         val daysText = stringResource(R.string.days_left, daysLeft)
         val spokenDays = pluralStringResource(R.plurals.trash_tile_days_left, daysLeft.toInt(), daysLeft)
         val description = stringResource(R.string.tile_description, File(item.original.path).name, spokenDays)
         Box(
             Modifier.aspectRatio(1f).padding(2.dp)
                 .border(if (isSelected) 3.dp else 0.dp, if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
-                .selectable(isSelected, role = Role.Checkbox) { onSelect(item) }
-                .semantics { contentDescription = description },
+                .combinedClickable(role = Role.Checkbox, onClick = { onSelect(item) }, onLongClick = { onHold(item) }, onLongClickLabel = open)
+                .semantics {
+                    contentDescription = description
+                    this.selected = isSelected
+                    customActions = listOf(
+                        CustomAccessibilityAction(open) {
+                            onHold(item)
+                            true
+                        },
+                    )
+                },
         ) {
             AsyncImage(File(item.file.path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             Text(

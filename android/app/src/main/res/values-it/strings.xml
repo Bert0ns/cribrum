@@ -77,14 +77,14 @@
         <item quantity="many">%d di immagini</item>
     </plurals>
     <plurals name="page_more">
-        <item quantity="one">%1$d di %2$d immagine da controllare. Conferma queste per vedere le successive.</item>
-        <item quantity="other">%1$d di %2$d immagini da controllare. Conferma queste per vedere le successive.</item>
-        <item quantity="many">%1$d di %2$d di immagini da controllare. Conferma queste per vedere le successive.</item>
+        <item quantity="one">%1$d di %2$d immagine</item>
+        <item quantity="other">%1$d di %2$d immagini</item>
+        <item quantity="many">%1$d di %2$d di immagini</item>
     </plurals>
     <plurals name="page_last">
-        <item quantity="one">L\'ultima immagine da controllare.</item>
-        <item quantity="other">Le ultime %2$d immagini da controllare.</item>
-        <item quantity="many">Le ultime %2$d di immagini da controllare.</item>
+        <item quantity="one">L\'ultima immagine</item>
+        <item quantity="other">Le ultime %2$d immagini</item>
+        <item quantity="many">Le ultime %2$d di immagini</item>
     </plurals>
     <string name="back">Indietro</string>
     <string name="trash">Cestino</string>
@@ -94,7 +94,7 @@
     <string name="apply">Cestina %1$d, tieni %2$d</string>
     <string name="skip">Salta</string>
     <string name="review_order">Raggruppa per data o ordina per dimensione</string>
-    <string name="review_order_off">Nessuno</string>
+    <string name="review_order_off">Ordine suggerito</string>
     <string name="review_order_day">Giorno</string>
     <string name="review_order_week">Settimana</string>
     <string name="review_order_month">Mese</string>
@@ -109,7 +109,6 @@
         <item quantity="other">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per %2$d giorni.</item>
         <item quantity="many">Occupano %1$s. Le altre immagini di questa pagina verranno tenute. Puoi ripristinare qualsiasi cosa dal cestino per %2$d di giorni.</item>
     </plurals>
-    <string name="summary_confirm">Sposta nel cestino</string>
     <plurals name="summary_favorites">
         <item quantity="one">%d di queste è tra i preferiti della galleria. Spostarla comunque nel cestino?</item>
         <item quantity="other">%d di queste sono tra i preferiti della galleria. Spostarle comunque nel cestino?</item>
@@ -119,9 +118,14 @@
     <string name="favorite">Preferita</string>
     <string name="cancel">Annulla</string>
     <plurals name="trashed_snackbar">
-        <item quantity="one">%d immagine spostata nel cestino</item>
-        <item quantity="other">%d immagini spostate nel cestino</item>
-        <item quantity="many">%d di immagini spostate nel cestino</item>
+        <item quantity="one">%1$d immagine spostata nel cestino, %2$s</item>
+        <item quantity="other">%1$d immagini spostate nel cestino, %2$s</item>
+        <item quantity="many">%1$d di immagini spostate nel cestino, %2$s</item>
+    </plurals>
+    <plurals name="kept_snackbar">
+        <item quantity="one">%d immagine tenuta</item>
+        <item quantity="other">%d immagini tenute</item>
+        <item quantity="many">%d di immagini tenute</item>
     </plurals>
     <plurals name="not_moved_snackbar">
         <item quantity="one">%d immagine è cambiata dopo la scansione ed è rimasta dov\'era</item>
@@ -166,8 +170,9 @@
         <item quantity="other">Eliminare %d immagini definitivamente?</item>
         <item quantity="many">Eliminare %d di immagini definitivamente?</item>
     </plurals>
-    <string name="empty_trash_body">Questa azione non si può annullare.</string>
+    <string name="empty_trash_body">Libera %1$s e non si può annullare.</string>
     <string name="delete">Elimina</string>
+    <string name="delete_selected">Elimina %1$d</string>
     <string name="selected_for_trash">Segnata per il cestino</string>
     <string name="kept">Tenuta</string>
     <string name="kept_best_copy">Copia migliore, tenuta</string>

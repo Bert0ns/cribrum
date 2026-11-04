@@ -67,15 +67,16 @@ private fun Gallery.keep(vararg positions: Int) {
     for (position in positions) described(str(R.string.selected_for_trash))[position].performClick()
 }
 
-private fun Gallery.apply(model: ReviewViewModel) {
-    click(applyText(model))
+/** Taps the button under the grid with a favourite marked, which asks first. */
+private fun Gallery.applyWithFavorite(model: ReviewViewModel) {
     val trash = model.state.value.marked.size
+    click(applyText(model))
     awaitText(plural(R.plurals.summary_title, trash, trash))
 }
 
+/** Taps the button under the grid, which applies the page at once (D6). */
 private fun Gallery.confirmApply(model: ReviewViewModel) {
-    apply(model)
-    click(str(R.string.summary_confirm))
+    click(applyText(model))
     awaitText(str(R.string.undo))
 }
 
@@ -223,21 +224,13 @@ val scenes: List<Scene> = listOf(
         click(str(R.string.review_order_day))
         awaitModel(model, "the day order") { it.state.value.reviewOrder == ReviewOrder.DAY && it.state.value.page.isNotEmpty() }
     },
-    Scene("review-full-size", "Review, a photo at full size with why it is a candidate", "Swipe to the next photo, pinch to zoom, mark or keep this photo, never suggest its folder again, or tap to close.", Variant.base) {
+    Scene("review-full-size", "Review, a photo at full size with why it is a candidate", "Swipe to the next photo, pinch to zoom, tick or untick the checkbox that marks it for the trash, read its folder, never suggest the folder again, or close the view.", Variant.base) {
         world.library(pictures = setOf(Category.BLURRY))
         world.commit()
         val model = app()
         openCategory(model, R.string.category_blurry)
         described(str(R.string.selected_for_trash))[1].performTouchInput { longClick() }
         awaitTag("fullSize")
-    },
-    Scene("review-summary", "Review, the confirmation before trashing a page", "Read how many images go to the trash, how much space that frees and how long they stay there, then confirm or cancel.", Variant.base) {
-        world.library(pictures = setOf(Category.BLURRY))
-        world.commit()
-        val model = app()
-        openCategory(model, R.string.category_blurry)
-        keep(2, 5, 8)
-        apply(model)
     },
     Scene("review-favorites", "Review of Too dark or too bright photos, favourites kept at the end", "Find the gallery favourites, which start kept with a heart, and decide whether to trash them anyway.", Variant.base) {
         world.library(pictures = setOf(Category.BAD_EXPOSURE))
@@ -253,9 +246,9 @@ val scenes: List<Scene> = listOf(
         openCategory(model, R.string.category_bad_exposure)
         scrollToEnd()
         described(str(R.string.favorite))[0].performClick()
-        apply(model)
+        applyWithFavorite(model)
     },
-    Scene("review-snackbar-undo", "Review, the next page with the Undo snackbar after trashing", "Undo the last page from the snackbar, or go on with the next page.", Variant.base) {
+    Scene("review-snackbar-undo", "Review, the next page with the Undo snackbar right after tapping the trash button", "Read how many images went to the trash and how much space they take, undo the last page from the snackbar, or go on with the next page.", Variant.base) {
         world.library(pictures = setOf(Category.BLURRY))
         world.commit()
         val model = app()
@@ -279,24 +272,32 @@ val scenes: List<Scene> = listOf(
         openTrash(model)
         awaitText(str(R.string.trash_empty))
     },
-    Scene("trash-items", "Trash with photos, screenshots and stickers", "Select photos to bring them back, select all, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.full) {
+    Scene("trash-items", "Trash with photos, screenshots and stickers", "Select photos to bring them back, select all, hold one to see it full size, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.full) {
         val model = app(trashed(this))
         openTrash(model)
         awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }
     },
-    Scene("trash-selected", "Trash with three photos selected", "Restore the selected photos to their folders, or select more.", Variant.base) {
+    Scene("trash-selected", "Trash with three photos selected", "Restore the selected photos to their folders, delete only those for good, or select more.", Variant.base) {
         val model = app(trashed(this))
         openTrash(model)
         awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }
         for (position in listOf(0, 2, 5)) described("IMG_")[position].performClick()
         awaitText(str(R.string.restore, 3))
     },
-    Scene("trash-empty-confirm", "Trash, the confirmation before emptying it", "Read that deleting is permanent, then delete everything or cancel.", Variant.base) {
+    Scene("trash-empty-confirm", "Trash, the confirmation before emptying it", "Read how much space deleting frees and that it is permanent, then delete everything or cancel.", Variant.base) {
         val model = app(trashed(this))
         openTrash(model)
         awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }
         click(str(R.string.empty_trash))
-        awaitText(str(R.string.empty_trash_body))
+        val count = model.state.value.trashed.size
+        awaitText(plural(R.plurals.empty_trash_title, count, count))
+    },
+    Scene("trash-full-size", "Trash, a photo at full size", "Look at a trashed photo before restoring it or deleting it for good, read its folder and its days left, swipe to the next one, or close the view.", Variant.base) {
+        val model = app(trashed(this))
+        openTrash(model)
+        awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }
+        described("IMG_")[0].performTouchInput { longClick() }
+        awaitTag("fullSize")
     },
     // Compress
     Scene("compress-empty", "Compress, nothing to compress", "Read why the list is empty, see which formats are supported, or scan again.", Variant.base) {

@@ -156,8 +156,7 @@ class AccessibilityTest {
         compose.onNodeWithText("Marked images go to the trash", substring = true).assertIsDisplayed()
         compose.onNodeWithContentDescription("img1.jpg", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Trash 3, keep 0").performClick()
-        compose.onNodeWithText("Move 3 images to the trash?").assertIsDisplayed()
-        assertEquals(0, applied)
+        assertEquals(1, applied)
     }
 
     @Test
@@ -205,16 +204,15 @@ class AccessibilityTest {
         var restored = 0
         compose.setContent { TrashScreen(trashed, trashed.map { it.original.path }.toSet(), {}, { _, _ -> }, { restored++ }, {}) }
 
-        // Both buttons stay on the screen, side by side, and nothing is hidden.
+        // Both buttons stay on the screen, and nothing is hidden.
         val screen = compose.onRoot().fetchSemanticsNode().boundsInRoot
-        val restore = compose.onNodeWithText("Restore 1").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        val empty = compose.onNodeWithText("Empty trash").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
-        assertTrue("$empty right of $restore", empty.left >= restore.right)
-        assertTrue("$empty inside the screen", empty.right <= screen.right)
+        compose.onNodeWithText("Restore 1").assertIsDisplayed()
+        val delete = compose.onNodeWithText("Delete 1").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue("$delete inside the screen", delete.right <= screen.right)
         compose.onNodeWithContentDescription("img1.jpg", substring = true).assertIsDisplayed()
         compose.onNodeWithText("Restore 1").performClick()
         assertEquals(1, restored)
-        compose.onNodeWithText("Empty trash").performClick()
+        compose.onNodeWithText("Delete 1").performClick()
         compose.onNodeWithText("Delete 1 image for good?").assertIsDisplayed()
     }
 

@@ -14,6 +14,8 @@ import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -57,7 +59,8 @@ class CategoryScreenTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private val images = (1..3).map { ImageRef("/sdcard/DCIM/img$it.jpg", 1_000_000, 0) }
+    // One folder each, so the full size view, which names the folder, says which image it shows.
+    private val images = (1..3).map { ImageRef("/sdcard/Album$it/img$it.jpg", 1_000_000, 0) }
     private val page = images.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
 
     @Test
@@ -136,7 +139,7 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `every candidate starts marked, a tap keeps it, and nothing moves before the summary is confirmed`() {
+    fun `every candidate starts marked, a tap keeps it, and the button applies the page at once`() {
         var applied = 0
         compose.setContent {
             var marked by remember { mutableStateOf(images.map { it.path }.toSet()) }
@@ -145,14 +148,14 @@ class CategoryScreenTest {
             }, onApply = { _, _ -> applied++ }, onSkip = {})
         }
 
-        compose.onNodeWithText("3 of 100 images to review. Confirm these to see the next ones.").assertExists()
+        compose.onNodeWithText("3 of 100 images").assertExists()
         compose.onNodeWithText("Trash 3, keep 0").assertExists()
         tile("img1.jpg").performClick()
+        assertEquals(0, applied)
         compose.onNodeWithText("Trash 2, keep 1").performClick()
 
-        compose.onNodeWithText("Move 2 images to the trash?").assertExists()
-        assertEquals(0, applied)
-        compose.onNodeWithText("Move to trash").performClick()
+        // The button and its counts are the confirmation (D6): no dialog asks again.
+        compose.onNodeWithText("Move 2 images to the trash?").assertDoesNotExist()
         assertEquals(1, applied)
     }
 
@@ -164,22 +167,21 @@ class CategoryScreenTest {
         }
 
         compose.onNodeWithText("Trash 2, keep 1").performClick()
-        compose.onNodeWithText("Move to trash").performClick()
 
         assertEquals(setOf(images[0].path, images[2].path) to setOf(images[1].path), confirmed)
     }
 
     @Test
-    fun `the trash button and the summary confirm are off while a change loads`() {
+    fun `the trash button and the favourite confirm are off while a change loads`() {
         var applied = 0
         var loading by mutableStateOf(false)
         compose.setContent {
-            CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}, loading = loading)
+            CategoryScreen(favoritePage, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}, loading = loading)
         }
-        compose.onNodeWithText("Trash 3, keep 0").performClick() // opens the summary before the load starts
+        compose.onNodeWithText("Trash 3, keep 0").performClick() // opens the dialog before the load starts
         loading = true
 
-        compose.onNodeWithText("Move to trash").assertIsNotEnabled().performClick()
+        compose.onNodeWithText("Move to trash anyway").assertIsNotEnabled().performClick()
         assertEquals(0, applied)
         compose.onNodeWithText("Cancel").performClick()
         compose.onNodeWithText("Trash 3, keep 0").assertIsNotEnabled()
@@ -226,7 +228,6 @@ class CategoryScreenTest {
 
         assertEquals(images.map { it.path }.toSet(), skipped)
         assertEquals(0, applied)
-        compose.onNodeWithText("Move 3 images to the trash?").assertDoesNotExist()
     }
 
     @Test
@@ -292,7 +293,7 @@ class CategoryScreenTest {
 
         compose.onNodeWithText("Week").assertDoesNotExist()
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
-        listOf("Off", "Day", "Week", "Month", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
+        listOf("Suggested order", "Day", "Week", "Month", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
         compose.onNodeWithText("Week").performClick()
 
         assertEquals(ReviewOrder.WEEK, chosen)
@@ -305,7 +306,7 @@ class CategoryScreenTest {
 
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
 
-        listOf("Off", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
+        listOf("Suggested order", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
         listOf("Day", "Week", "Month").forEach { compose.onNodeWithText(it).assertDoesNotExist() }
     }
 
@@ -316,15 +317,15 @@ class CategoryScreenTest {
         compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}) }
 
         openFullSize("img1.jpg")
-        compose.onNodeWithText(images[0].path).assertExists()
+        compose.onNodeWithText("Album1").assertExists()
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
-        compose.onNodeWithText(images[1].path).assertExists()
+        compose.onNodeWithText("Album2").assertExists()
         compose.onNodeWithTag("fullSize").performTouchInput { swipeRight() }
-        compose.onNodeWithText(images[0].path).assertExists()
+        compose.onNodeWithText("Album1").assertExists()
     }
 
     @Test
-    fun `the full size chip follows the mark, including the user's taps`() {
+    fun `the full size checkbox follows the mark, including the user's taps`() {
         val best = ReviewGroup("g", listOf(ReviewItem(images[0], suggestTrash = false, isBest = true), ReviewItem(images[1], suggestTrash = true)))
         compose.setContent {
             var marked by remember { mutableStateOf(setOf(images[1].path)) }
@@ -334,17 +335,17 @@ class CategoryScreenTest {
         }
 
         openFullSize("img1.jpg")
-        compose.onNodeWithText("Best copy, kept").assertExists()
+        toggle().assertIsOff()
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
-        compose.onNodeWithText("Marked for the trash").assertExists()
-        compose.onNodeWithTag("fullSize").performTouchInput { click() }
+        toggle().assertIsOn()
+        compose.onNodeWithContentDescription("Close").performClick()
         tile("img2.jpg").performClick()
         openFullSize("img2.jpg")
-        compose.onNodeWithText("Kept").assertExists()
+        toggle().assertIsOff()
     }
 
     @Test
-    fun `tapping the status button in full size toggles the mark`() {
+    fun `tapping the checkbox in full size toggles the mark`() {
         var marked by mutableStateOf(setOf(images[0].path))
         compose.setContent {
             CategoryScreen(page, 3, marked, false, { image ->
@@ -353,23 +354,21 @@ class CategoryScreenTest {
         }
 
         openFullSize("img1.jpg")
-        compose.onNodeWithText("Marked for the trash").performClick()
-        compose.onNodeWithText("Kept").assertExists()
+        toggle().performClick().assertIsOff()
         assertEquals(emptySet<String>(), marked)
 
-        compose.onNodeWithText("Kept").performClick()
-        compose.onNodeWithText("Marked for the trash").assertExists()
+        toggle().performClick().assertIsOn()
         assertEquals(setOf(images[0].path), marked)
     }
 
     @Test
-    fun `the status button in full size tells a screen reader what a tap does`() {
-        compose.setContent { CategoryScreen(page, 3, setOf(images[0].path), false, {}, { _, _ -> }, {}) }
+    fun `the full size view has a visible close button`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}) }
 
         openFullSize("img1.jpg")
-        assertEquals("Keep", compose.onNodeWithText("Marked for the trash").fetchSemanticsNode().config[SemanticsActions.OnClick].label)
-        compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
-        assertEquals("Mark for the trash", compose.onNodeWithText("Kept").fetchSemanticsNode().config[SemanticsActions.OnClick].label)
+        compose.onNodeWithContentDescription("Close").performClick()
+
+        compose.onNodeWithTag("fullSize").assertDoesNotExist()
     }
 
     @Test
@@ -383,11 +382,10 @@ class CategoryScreenTest {
         }
 
         openFullSize("img1.jpg")
-        compose.onNodeWithText("Marked for the trash").performClick()
+        toggle().performClick()
         compose.onNodeWithTag("fullSize").performTouchInput { click() }
         compose.onNodeWithContentDescription("img1.jpg. Kept").assertExists()
         compose.onNodeWithText("Trash 2, keep 1").performClick()
-        compose.onNodeWithText("Move to trash").performClick()
 
         assertEquals(setOf(images[1].path, images[2].path) to setOf(images[0].path), confirmed)
     }
@@ -430,7 +428,7 @@ class CategoryScreenTest {
         }
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
 
-        compose.onNodeWithText(images[0].path).assertExists()
+        compose.onNodeWithText("Album1").assertExists()
     }
 
     @Test
@@ -450,15 +448,29 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `cancelling the summary trashes nothing`() {
-        var applied = 0
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> applied++ }, {}) }
+    fun `the last page says so on one short line`() {
+        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> }, {}) }
 
-        compose.onNodeWithText("The last 3 images to review.").assertExists()
-        compose.onNodeWithText("Trash 3, keep 0").performClick()
-        compose.onNodeWithText("Cancel").performClick()
+        compose.onNodeWithText("The last 3 images").assertExists()
+    }
 
-        assertEquals(0, applied)
+    @Test
+    fun `the tap and hold hint shows until the user has held a tile once`() {
+        var used = false
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, showHint = !used, onFullSize = { used = true }) }
+        val hint = "Marked images go to the trash. Tap one to keep it, hold it to see it full size."
+        compose.onNodeWithText(hint).assertExists()
+
+        openFullSize("img1.jpg")
+
+        assertTrue(used)
+    }
+
+    @Test
+    fun `no hint once it was used`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, showHint = false) }
+
+        compose.onNodeWithText("Tap one to keep it", substring = true).assertDoesNotExist()
     }
 
     private val favoritePage = images.mapIndexed { i, image -> ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true, isFavorite = i < 2))) }
@@ -505,18 +517,19 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `a favourite kept on the page asks nothing`() {
-        compose.setContent { CategoryScreen(favoritePage, 3, setOf(images[2].path), false, {}, { _, _ -> }, {}) }
+    fun `a favourite kept on the page asks nothing and applies at once`() {
+        var applied = 0
+        compose.setContent { CategoryScreen(favoritePage, 3, setOf(images[2].path), false, {}, { _, _ -> applied++ }, {}) }
 
         compose.onNodeWithText("Trash 1, keep 2").performClick()
 
         compose.onAllNodesWithText("favourites in your gallery", substring = true).assertCountEquals(0)
-        compose.onNodeWithText("Move to trash").assertExists()
+        assertEquals(1, applied)
     }
 
     @Test
-    fun `the summary promises the retention the user chose`() {
-        compose.setContent { CategoryScreen(page, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> }, {}, retentionDays = 7) }
+    fun `the favourite dialog promises the retention the user chose`() {
+        compose.setContent { CategoryScreen(favoritePage, 3, images.map { it.path }.toSet(), false, {}, { _, _ -> }, {}, retentionDays = 7) }
 
         compose.onNodeWithText("Trash 3, keep 0").performClick()
 
@@ -533,8 +546,6 @@ class CategoryScreenTest {
         val message = compose.onNodeWithText("3 images moved to the trash").fetchSemanticsNode().boundsInRoot
         val button = compose.onNodeWithText("Trash 3, keep 0").fetchSemanticsNode().boundsInRoot
         assertTrue("$message over $button", message.bottom <= button.top)
-        compose.onNodeWithText("Trash 3, keep 0").performClick()
-        compose.onNodeWithText("Move 3 images to the trash?").assertExists()
     }
 
     private fun haptics(page: List<ReviewGroup>, marked: Set<String>, act: () -> Unit): List<HapticFeedbackType> {
@@ -567,10 +578,9 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `opening the summary gives nothing, and trashing is a strong pulse`() {
+    fun `trashing is a strong pulse`() {
         val given = haptics(page, images.map { it.path }.toSet()) {
             compose.onNodeWithText("Trash 3, keep 0").performClick()
-            compose.onNodeWithText("Move to trash").performClick()
         }
 
         assertEquals(listOf(Haptic.TRASH.type), given)
@@ -580,7 +590,6 @@ class CategoryScreenTest {
     fun `confirming a page with nothing to trash is a lighter confirm`() {
         val given = haptics(page, emptySet()) {
             compose.onNodeWithText("Trash 0, keep 3").performClick()
-            compose.onNodeWithText("Move to trash").performClick()
         }
 
         assertEquals(listOf(Haptic.KEEP.type), given)
@@ -598,10 +607,10 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `tapping the status button in full size gives tick feedback`() {
+    fun `tapping the checkbox in full size gives tick feedback`() {
         val given = haptics(page, setOf(images[0].path)) {
             tile("img1.jpg").performTouchInput { longClick() }
-            compose.onNodeWithText("Marked for the trash").performClick()
+            toggle().performClick()
         }
 
         assertEquals(listOf(HapticFeedbackType.LongPress, Haptic.TICK.type), given)
@@ -609,6 +618,9 @@ class CategoryScreenTest {
 
     /** A tile is found by what a screen reader says of it, which starts with the file name when nothing tells why it is here. */
     private fun tile(name: String) = compose.onAllNodesWithContentDescription(name, substring = true)[0]
+
+    /** The checkbox of the full size view, whose label says what a tick means. */
+    private fun toggle() = compose.onNodeWithText("Marked for the trash")
 
     private fun customActions(tile: SemanticsNodeInteraction) = tile.fetchSemanticsNode().config[SemanticsActions.CustomActions]
 
@@ -665,7 +677,7 @@ class CategoryScreenTest {
 
         perform(tile("img2.jpg"), "Open full size")
 
-        compose.onNodeWithText(images[1].path).assertExists()
+        compose.onNodeWithText("Album2").assertExists()
     }
 
     @Test

@@ -92,6 +92,8 @@ data class ReviewState(
     val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     val pendingRetention: RetentionChange? = null,
     val hapticsEnabled: Boolean = true,
+    /** The user has held a tile once, so the review no longer says how. */
+    val reviewHintUsed: Boolean = false,
     /** How the open category is grouped by date or sorted by size. Off until the user picks one. */
     val reviewOrder: ReviewOrder = ReviewOrder.OFF,
     /** Folders the user asked never to be suggested again, shown in settings. */
@@ -137,7 +139,7 @@ class ReviewViewModel @JvmOverloads constructor(
     init {
         // The first read of the preferences can block, so it stays off the main thread.
         load {
-            withContext(Dispatchers.IO) { it.copy(retentionDays = app.trashRetention.days, hapticsEnabled = app.haptics.enabled) }
+            withContext(Dispatchers.IO) { it.copy(retentionDays = app.trashRetention.days, hapticsEnabled = app.haptics.enabled, reviewHintUsed = app.reviewHint.used) }
         }
     }
 
@@ -273,6 +275,13 @@ class ReviewViewModel @JvmOverloads constructor(
 
     fun confirmRetention() = load { state -> state.pendingRetention?.let { state.withRetention(it.days) } ?: state }
 
+    /** The user held a tile to see it full size: the hint that says how has done its job. */
+    fun fullSizeUsed() {
+        if (state.value.reviewHintUsed) return
+        app.reviewHint.used = true
+        queue { it.copy(reviewHintUsed = true) }
+    }
+
     fun setHaptics(enabled: Boolean) {
         app.haptics.enabled = enabled
         queue { it.copy(hapticsEnabled = enabled) }
@@ -342,8 +351,10 @@ class ReviewViewModel @JvmOverloads constructor(
                 state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
-            state.screen == Screen.Trash(Destination.Compress) ->
-                state.copy(screen = Screen.Compress)
+            // The trash opens from the top bar of every destination, and goes back to it.
+            state.screen == Screen.Trash(Destination.Compress) -> state.copy(screen = Screen.Compress)
+            state.screen == Screen.Trash(Destination.Map) -> state.copy(screen = Screen.StorageMap)
+            state.screen == Screen.Trash(Destination.Settings) -> state.copy(screen = Screen.Settings)
             else -> state.home()
         }
     }
@@ -416,9 +427,13 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(trashed = review.trashed(), selected = stayed.map { it.path }.toSet(), stayedInTrash = stayed)
     }
 
-    fun emptyTrash() = load { state ->
-        review.purge(state.trashed.map { it.original })
-        state.copy(trashed = review.trashed(), selected = emptySet())
+    /**
+     * Deletes for good the trashed images at [paths], the ones the user confirmed: the selection, or the whole trash.
+     * The trash deletes them, and the others stay.
+     */
+    fun deleteFromTrash(paths: Set<String>) = load { state ->
+        review.purge(state.trashed.filter { it.original.path in paths }.map { it.original })
+        state.copy(trashed = review.trashed(), selected = state.selected - paths)
     }
 
     /** The one way to read a page, so none forgets the skipped groups or the review order of the open category. */
