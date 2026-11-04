@@ -11,7 +11,6 @@ import io.github.bert0ns.cribrum.compress.CompressibleImage
 import io.github.bert0ns.cribrum.compress.JpegInfo
 import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.compress.Losses
-import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.mobileclip.MODEL_ID
 import io.github.bert0ns.cribrum.mobileclip.MODEL_VERSION
 import io.github.bert0ns.cribrum.model.Category
@@ -171,7 +170,6 @@ class GalleryWorld(val app: CribrumApp, val root: File) {
 
     companion object {
         const val EMBEDDED = 1_500
-        val earlier = Marker(1, "balanced", "2026-10-02T21:14:00Z")
         val reEdited = Losses(reEdit = true, xmp = true)
     }
 }

@@ -37,6 +37,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Configuration
+import androidx.work.WorkManager
 import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import io.github.bert0ns.cribrum.App
@@ -87,7 +88,11 @@ class UiGallery(private val shot: Shot) {
                 try {
                     base.evaluate()
                 } catch (e: Throwable) {
-                    val closed = generateSequence(e) { it.cause }.any { it is SQLException && it.message.orEmpty().contains("connection is closed") }
+                    val closed = generateSequence(e) { it.cause }.any { cause ->
+                        cause is SQLException &&
+                            cause.message.orEmpty().contains("connection is closed") &&
+                            cause.stackTrace.any { it.className.startsWith("androidx.work.") }
+                    }
                     if (!written || !closed) throw e
                 }
             }
@@ -147,11 +152,16 @@ class UiGallery(private val shot: Shot) {
         @JvmStatic
         fun clear() {
             val dir = outputDir ?: return
-            val run = File(File(dir, META).also { it.mkdirs() }, "run")
+            require(dir.isAbsolute && dir.parentFile != null) { "-PuiGallery needs an absolute folder other than the root, not '$dir'" }
+            val meta = File(dir, META).also { it.mkdirs() }
+            val run = File(meta, "run")
             val started = ProcessHandle.current().info().startInstant().toString()
             if (run.exists() && run.readText() == started) return
-            dir.listFiles { file -> file.extension == "png" || file.name == "index.md" }?.forEach { it.delete() }
-            File(dir, META).listFiles()?.forEach { it.delete() }
+            // Only the images an earlier run wrote, each named by its entry: nothing else in the folder is touched.
+            meta.listFiles { file -> file.extension == "txt" }?.forEach { entry ->
+                File(dir, entry.nameWithoutExtension).delete()
+                entry.delete()
+            }
             run.writeText(started)
         }
 
@@ -209,6 +219,7 @@ class Gallery(val compose: ComposeTestRule, val app: CribrumApp, val world: Gall
 
     fun close() {
         scenario?.close()
+        WorkManager.getInstance(app).cancelAllWork()
         // WorkManager's threads from this scene must end before Robolectric closes its database, or they fail the next scene.
         shadowOf(Looper.getMainLooper()).idle()
         Thread.sleep(300)

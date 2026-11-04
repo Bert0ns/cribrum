@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.RadialGradient
 import android.graphics.RectF
 import android.graphics.Shader
 import java.io.ByteArrayOutputStream
@@ -102,33 +101,6 @@ object GalleryPictures {
         return bitmap
     }
 
-    /** A page of text lines, a heading and a table, as a photographed document. */
-    fun document(seed: Int, width: Int = 360, height: Int = 480): Bitmap {
-        val random = Random(seed)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        canvas.drawColor(Color.rgb(96, 88, 80))
-        paint.color = Color.rgb(250, 250, 246)
-        canvas.drawRect(RectF(26f, 18f, width - 26f, height - 18f), paint)
-        paint.color = Color.rgb(40, 52, 90)
-        canvas.drawRoundRect(RectF(48f, 40f, width * 0.65f, 56f), 4f, 4f, paint)
-        paint.color = Color.rgb(90, 90, 96)
-        var y = 80f
-        while (y < height - 150f) {
-            val end = width - 48f - random.nextFloat() * 60f
-            canvas.drawRoundRect(RectF(48f, y, end, y + 6f), 3f, 3f, paint)
-            y += 16f
-        }
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2f
-        paint.color = Color.rgb(120, 120, 126)
-        canvas.drawRect(RectF(48f, height - 140f, width - 48f, height - 50f), paint)
-        canvas.drawLine(48f, height - 110f, width - 48f, height - 110f, paint)
-        canvas.drawLine(width / 2f, height - 140f, width / 2f, height - 50f, paint)
-        return bitmap
-    }
-
     /** A flat-colored round face on a plain background: what a messaging sticker looks like. */
     fun sticker(seed: Int, size: Int = 256): Bitmap {
         val random = Random(seed)
@@ -148,41 +120,11 @@ object GalleryPictures {
         return bitmap
     }
 
-    /** A picture with a caption block, like the ones that come through a messaging app. */
-    fun forwarded(seed: Int): Bitmap {
-        val base = scene(seed, 360, 360)
-        val canvas = Canvas(base)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.color = Color.argb(190, 0, 0, 0)
-        canvas.drawRect(0f, 270f, 360f, 360f, paint)
-        paint.color = Color.WHITE
-        canvas.drawRoundRect(RectF(24f, 290f, 320f, 304f), 6f, 6f, paint)
-        canvas.drawRoundRect(RectF(24f, 316f, 220f, 330f), 6f, 6f, paint)
-        return base
-    }
-
     /** A dark or washed out frame: a scene with a flat, almost uniform tone. */
     fun exposure(seed: Int, dark: Boolean): Bitmap {
         val bitmap = scene(seed, brightness = if (dark) 0.22f else 1f)
         if (!dark) {
             Canvas(bitmap).drawColor(Color.argb(170, 255, 255, 255))
-        }
-        return bitmap
-    }
-
-    /** A soft glow on a gradient: the "before" of a blurry photo with no scene in it. */
-    fun glow(seed: Int, width: Int = 480, height: Int = 360): Bitmap {
-        val random = Random(seed)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(hsv(random.nextFloat() * 360f, 0.4f, 0.5f))
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        repeat(4) {
-            val x = width * random.nextFloat()
-            val y = height * random.nextFloat()
-            val radius = height * (0.2f + random.nextFloat() * 0.3f)
-            paint.shader = RadialGradient(x, y, radius, hsv(random.nextFloat() * 360f, 0.7f, 1f), Color.TRANSPARENT, Shader.TileMode.CLAMP)
-            canvas.drawCircle(x, y, radius, paint)
         }
         return bitmap
     }

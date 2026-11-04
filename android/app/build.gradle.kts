@@ -91,7 +91,7 @@ android {
             // given as -PuiGallery=<folder> (android/README.md).
             val gallery = providers.gradleProperty("uiGallery")
             if (gallery.isPresent) {
-                it.systemProperty("cribrum.gallery.dir", gallery.get().ifEmpty { "/tmp/cribrum-ui-gallery" })
+                it.systemProperty("cribrum.gallery.dir", gallery.get().ifBlank { "/tmp/cribrum-ui-gallery" })
                 it.outputs.upToDateWhen { false }
             } else {
                 it.exclude("**/UiGallery*")
