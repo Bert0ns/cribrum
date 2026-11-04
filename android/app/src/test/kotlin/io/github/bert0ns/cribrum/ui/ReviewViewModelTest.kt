@@ -497,6 +497,23 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `back from the map reads settings again, the analysis data included`() {
+        val model = ReviewViewModel(app)
+        model.selectDestination(Destination.Settings)
+        settle(model) { it.state.value.screen == Screen.Settings && it.state.value.embeddingCount == 0 }
+        model.openStorageMap()
+        settle(model) { it.state.value.screen == Screen.StorageMap }
+        runBlocking {
+            app.index.record(ImageRef("/sdcard/a.jpg", 1, 1L))
+            app.index.setEmbeddings("clip", 1, mapOf("/sdcard/a.jpg" to floatArrayOf(1f)))
+        }
+
+        model.back()
+
+        settle(model) { it.state.value.screen == Screen.Settings && it.state.value.embeddingCount == 1 }
+    }
+
+    @Test
     fun `Back from compress and settings goes to clean`() {
         val model = ReviewViewModel(app)
         for (destination in listOf(Destination.Compress, Destination.Settings)) {

@@ -270,7 +270,9 @@
     <string name="settings_delete_embeddings_confirm">Cribrum salva i dati dell\'analisi di ogni immagine per trovare copie, documenti e immagini inoltrate. La prossima scansione li calcola di nuovo, in circa 15–20 minuti per 10.000 immagini. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
     <string name="exclude_folder">Non suggerire mai questa cartella né le sue sottocartelle</string>
     <!-- Stato della scansione nelle impostazioni -->
-    <string name="settings_scan_status_hint">Immagini analizzate, su quelle che servono a ogni passaggio</string>
+    <string name="settings_scan_status_hint">Questi passaggi non hanno ancora analizzato tutte le immagini. La prossima scansione continua da lì.</string>
+    <string name="settings_scan_status_all_done">Ogni passaggio ha analizzato tutte le sue immagini</string>
+    <string name="settings_scan_status_trash">Svuotamento del cestino scaduto</string>
     <string name="settings_scan_status_last">Ultima scansione completata</string>
     <string name="settings_scan_status_none">Nessuna scansione completata con questa versione.</string>
     <string name="settings_scan_status_duration">Durata: %1$s</string>

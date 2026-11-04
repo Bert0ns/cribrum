@@ -9,7 +9,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -32,21 +31,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
@@ -117,14 +120,15 @@ fun StorageMapScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row {
-                    // The visible way in, beside the second tap on a block.
-                    if (selected != null && !isDirectFiles && selected.folder != currentFolder) {
-                        TextButton({ onZoomIn(selected.folder) }) { Text(stringResource(R.string.storage_map_open)) }
-                    }
-                    // The direct files block has no folder of its own: excluding it would hide the subfolders too.
-                    if (targetFolder.path.isNotEmpty() && !isDirectFiles && !(atRoot && selected == null)) {
-                        TextButton({ onExclude(targetFolder) }) { Text(stringResource(R.string.storage_map_exclude)) }
+                // The visible way in, beside the second tap on a block.
+                val canOpen = selected != null && !isDirectFiles && selected.folder != currentFolder
+                // The direct files block has no folder of its own: excluding it would hide the subfolders too.
+                val canExclude = targetFolder.path.isNotEmpty() && !isDirectFiles && !(atRoot && selected == null)
+                if (canOpen || canExclude) {
+                    // One under the other when they do not fit side by side, as with a large font.
+                    Buttons(Modifier.fillMaxWidth()) {
+                        if (canOpen) TextButton({ selected?.let { onZoomIn(it.folder) } }) { Text(stringResource(R.string.storage_map_open)) }
+                        if (canExclude) TextButton({ onExclude(targetFolder) }) { Text(stringResource(R.string.storage_map_exclude)) }
                     }
                 }
             }
@@ -216,8 +220,14 @@ fun StorageMapScreen(
                 }
                 // A node for each top-level block, over the drawing: its name when the block has room for it, and what a
                 // screen reader says and taps, since a Canvas has no nodes of its own. They take no touch, so the map's taps pass.
+                val selectedTop = blocks.firstOrNull { it.depth == 0 && it.isSameBlockAs(selectedBlock) }
                 for (block in blocks.filter { it.depth == 0 }) {
-                    BlockLabel(block, selected = block.isSameBlockAs(selectedBlock)) { selectedBlock = block }
+                    BlockLabel(
+                        block,
+                        selected = block.isSameBlockAs(selectedBlock),
+                        dimmed = selectedTop != null && !block.isSameBlockAs(selectedTop),
+                        onOpen = if (block.isDirectFiles || block.folder == currentFolder) null else ({ onZoomIn(block.folder) }),
+                    ) { selectedBlock = block }
                 }
             }
 
@@ -260,9 +270,12 @@ fun StorageMapScreen(
     }
 }
 
-/** The name of [block] where it is drawn, when it fits, and its node for a screen reader, which selects it on a tap. */
+/**
+ * The name of [block] where it is drawn, when it fits, and its node for a screen reader, which selects it on a tap and
+ * opens it with an action. The name dims with its block, in black or white, whichever reads better on the block's hue.
+ */
 @Composable
-private fun BlockLabel(block: TreemapBlock, selected: Boolean, onSelect: () -> Unit) {
+private fun BlockLabel(block: TreemapBlock, selected: Boolean, dimmed: Boolean, onOpen: (() -> Unit)?, onSelect: () -> Unit) {
     val density = LocalDensity.current
     val rect = block.rect
     val width = with(density) { rect.width.toFloat().toDp() }
@@ -270,6 +283,12 @@ private fun BlockLabel(block: TreemapBlock, selected: Boolean, onSelect: () -> U
     val size = summary(if (block.isDirectFiles) block.folder.directSize else block.folder.size, if (block.isDirectFiles) block.folder.directImageCount else block.folder.imageCount)
     val name = if (block.isDirectFiles) stringResource(R.string.storage_map_card_details_direct, size) else block.folder.name
     val description = if (block.isDirectFiles) name else stringResource(R.string.scan_joined, name, size)
+    val open = stringResource(R.string.storage_map_open)
+    // The color the block is drawn with, dimmed over the surface when another folder is selected, picks the ink.
+    val fill = Color.hsl(block.hue, SATURATION, 0.5f)
+    val drawn = if (dimmed) fill.copy(alpha = DIMMED_ALPHA).compositeOver(MaterialTheme.colorScheme.surface) else fill
+    // Above a luminance of about 0.18, black has more contrast than white.
+    val ink = if (drawn.luminance() > 0.18f) Color.Black else Color.White
     Box(
         Modifier
             .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
@@ -281,11 +300,19 @@ private fun BlockLabel(block: TreemapBlock, selected: Boolean, onSelect: () -> U
                     onSelect()
                     true
                 }
+                if (onOpen != null) {
+                    customActions = listOf(
+                        CustomAccessibilityAction(open) {
+                            onOpen()
+                            true
+                        },
+                    )
+                }
             }
             .padding(4.dp),
     ) {
         if (!block.isDirectFiles && width >= LABEL_MIN_WIDTH && height >= LABEL_MIN_HEIGHT) {
-            Text(block.folder.name, color = Color.White, style = MaterialTheme.typography.labelMedium.copy(shadow = Shadow(Color.Black, blurRadius = 4f)), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(block.folder.name, Modifier.alpha(if (dimmed) DIMMED_ALPHA else 1f), color = ink, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

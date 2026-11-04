@@ -238,6 +238,17 @@ class StorageMapScreenTest {
     }
 
     @Test
+    fun `a screen reader opens a folder from its block`() {
+        var zoomed: Folder? = null
+        compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = { zoomed = it }, atRoot = true) }
+
+        val actions = compose.onNodeWithContentDescription("Pictures", substring = true).fetchSemanticsNode().config[SemanticsActions.CustomActions]
+        compose.runOnUiThread { actions.single { it.label == "Open folder" }.action() }
+
+        assertEquals("Pictures", zoomed?.name)
+    }
+
+    @Test
     fun `a screen reader finds each top-level block and selects it`() {
         compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = {}, atRoot = true) }
 

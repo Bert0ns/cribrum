@@ -224,6 +224,50 @@ class IndexingWorkTest {
     }
 
     @Test
+    fun `stopping a scan frees the lock for a waiting batch and keeps the previous report`() {
+        val appInstance = app as CribrumApp
+        appInstance.lastScan.record(Stats(), finishedAt = 100)
+        val before = appInstance.lastScan.report
+        Indexing.scanNow(app)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+        assertTrue(IndexWorker.running.isLocked)
+
+        WorkManager.getInstance(app).cancelWorkById(scheduled().single().id)
+
+        runBlocking { withTimeout(10_000) { while (IndexWorker.running.isLocked) yield() } }
+        assertEquals(before, appInstance.lastScan.report)
+        assertFalse(appInstance.lastScan.failed)
+    }
+
+    @Test
+    fun `stopping the nightly scan brings its request back`() {
+        Indexing.schedulePeriodic(app, now)
+        val stopped = nightly().id
+        startNightlyAt(at(22, 2, 30))
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        WorkManager.getInstance(app).cancelWorkById(stopped)
+
+        runBlocking {
+            withTimeout(10_000) {
+                while (scheduled().none { Indexing.NIGHTLY_TAG in it.tags && it.id != stopped && it.state == WorkInfo.State.ENQUEUED }) yield()
+            }
+        }
+    }
+
+    @Test
+    fun `Scan now waits for a scan that still holds the lock, and then scans`() {
+        runBlocking { IndexWorker.running.lock() }
+        Indexing.scanNow(app)
+        Thread.sleep(300)
+        assertEquals(0, scans.get())
+
+        IndexWorker.running.unlock()
+
+        runBlocking { withTimeout(10_000) { while (scans.get() == 0) yield() } }
+    }
+
+    @Test
     fun `the nightly run does not start a second scan on top of one started with Scan now`() {
         Indexing.scanNow(app)
         Indexing.schedulePeriodic(app, now)
