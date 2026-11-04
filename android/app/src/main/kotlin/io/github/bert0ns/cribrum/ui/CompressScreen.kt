@@ -284,8 +284,11 @@ private fun Picker(
                 }
             }
         }
-        Button(onOpenSummary, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp), enabled = selection.isNotEmpty()) {
-            Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
+        // Hidden rather than disabled: a disabled button is see-through, and over the photos it reads as clutter.
+        if (selection.isNotEmpty()) {
+            Button(onOpenSummary, Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp)) {
+                Text(pluralStringResource(R.plurals.compress_continue, selection.size, selection.size))
+            }
         }
     }
     // A scan or a batch can take the photo off the page while it is open.
