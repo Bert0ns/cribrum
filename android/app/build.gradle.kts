@@ -87,6 +87,15 @@ android {
             } else {
                 it.exclude("**/ReadmeScreenshots*")
             }
+            // -PuiGallery makes UiGallery write its images and index.md to /tmp/cribrum-ui-gallery, or to the folder
+            // given as -PuiGallery=<folder> (android/README.md).
+            val gallery = providers.gradleProperty("uiGallery")
+            if (gallery.isPresent) {
+                it.systemProperty("cribrum.gallery.dir", gallery.get().ifBlank { "/tmp/cribrum-ui-gallery" })
+                it.outputs.upToDateWhen { false }
+            } else {
+                it.exclude("**/UiGallery*")
+            }
         }
     }
 
