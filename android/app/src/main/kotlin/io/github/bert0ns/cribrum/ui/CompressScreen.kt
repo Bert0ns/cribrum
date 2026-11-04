@@ -681,27 +681,32 @@ private fun BeforeAfter(summary: Summary) {
 @Composable
 internal fun zoomLabel(zoom: Zoom) = stringResource(R.string.compress_zoom, (zoom.share * 100).roundToInt())
 
-/** What the copy loses (§9), with how many of the selected photos each loss touches. */
+/**
+ * What the copy loses (§9), with how many of the selected photos each loss touches. Every copy loses the shooting mode
+ * info, which matters to almost nobody, so the box is neutral, and red with a warning only when a real loss is listed.
+ */
 @Composable
 private fun LossWarning(state: CompressState, counts: LossCounts) {
+    val losses = listOf(
+        counts.reEdit to R.plurals.compress_loss_re_edit,
+        counts.depthMap to R.plurals.compress_loss_depth_map,
+        counts.xmp to R.plurals.compress_loss_xmp,
+        counts.c2pa to R.plurals.compress_loss_c2pa,
+    ).filter { it.first > 0 }
+    val color = if (losses.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.error
     Column(
-        Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.error, MaterialTheme.shapes.medium).padding(12.dp),
+        Modifier.fillMaxWidth().border(1.dp, color, MaterialTheme.shapes.medium).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+            if (losses.isNotEmpty()) Icon(Icons.Filled.Warning, contentDescription = null, tint = color)
             Text(stringResource(R.string.compress_loss_title), style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
         }
         Text(stringResource(R.string.compress_loss_kept), style = MaterialTheme.typography.bodyMedium)
-        for ((count, plural) in listOf(
-            counts.reEdit to R.plurals.compress_loss_re_edit,
-            counts.depthMap to R.plurals.compress_loss_depth_map,
-            counts.xmp to R.plurals.compress_loss_xmp,
-            counts.c2pa to R.plurals.compress_loss_c2pa,
-        )) {
-            if (count > 0) Text("• " + pluralStringResource(plural, count, count), style = MaterialTheme.typography.bodyMedium)
+        if (losses.isNotEmpty()) Text(stringResource(R.string.compress_loss_also), style = MaterialTheme.typography.bodyMedium)
+        for ((count, plural) in losses) {
+            Text("• " + pluralStringResource(plural, count, count), style = MaterialTheme.typography.bodyMedium)
         }
-        Text("• " + stringResource(R.string.compress_loss_shooting_mode), style = MaterialTheme.typography.bodyMedium)
         Text(pluralStringResource(R.plurals.compress_loss_restore, state.retentionDays, state.retentionDays), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
