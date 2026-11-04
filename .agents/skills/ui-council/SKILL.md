@@ -20,7 +20,7 @@ cd android && ANDROID_HOME=~/android-sdk JAVA_HOME=~/.local/jdks/jdk-21.0.12.1+1
   flock /tmp/cribrum-gradle.lock ./gradlew -PuiGallery=/tmp/cribrum-ui-gallery-<run> testDebugUnitTest --tests '*UiGallery'
 ```
 
-`<run>` is the version, such as `2.0.0`. It takes about ten minutes. Look at a sample: Italian phone, dark, font 1.5 and the unfolded Fold. A state with no scene is invisible to the council, so add the missing scene first in its own PR. The notes at the top of `index.md` (`NOTES` in `GalleryScenes.kt`) must match the app.
+`<run>` is the version, such as `2.0.0`. It takes about ten minutes. Look at a sample: a few phone images in Italian, the dark theme, font 1.5 and the unfolded Fold. A state with no scene is invisible to the council, so add the missing scene first in its own PR. The notes at the top of `index.md` (`NOTES` in `GalleryScenes.kt`) must match the app.
 
 ### 2. Write the flows
 
