@@ -16,6 +16,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -85,6 +86,8 @@ class SettingsScreenTest {
         }
 
         compose.onNodeWithText("Keep trashed images for").performClick()
+        compose.onNode(hasText("30 days") and isSelected()).assertExists()
+        compose.onNode(hasText("7 days") and isSelected()).assertDoesNotExist()
         compose.onNodeWithText("7 days").performClick()
 
         assertEquals(7, days)
@@ -105,7 +108,7 @@ class SettingsScreenTest {
         }
 
         compose.onNodeWithText("Keep images only 7 days?").assertIsDisplayed()
-        compose.onNodeWithText("The next scan deletes for good the 3 images that have been in the trash for more than 7 days. This cannot be undone.").assertIsDisplayed()
+        compose.onNodeWithText("The next scan permanently deletes the 3 images that have been in the trash for more than 7 days. This cannot be undone.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(listOf(0, 1), listOf(confirmed, cancelled))
 

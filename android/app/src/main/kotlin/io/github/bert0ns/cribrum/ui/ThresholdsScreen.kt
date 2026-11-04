@@ -67,7 +67,7 @@ fun ThresholdsScreen(
                             onValueChangeFinished = { onChange(category, shown) },
                             valueRange = Thresholds.RANGE,
                             steps = 18,
-                            // The steps stay, the 19 tick dots go: they only crowded the track.
+                            // The steps stay, the tick dots go: they only crowded the track.
                             colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
                             modifier = Modifier.semantics { contentDescription = name },
                         )

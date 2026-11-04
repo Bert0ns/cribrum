@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -250,6 +251,7 @@ fun StorageMapScreen(
                         // A row follows the block's rule: the first tap selects the folder and fills the card, the second opens it.
                         val row = TreemapBlock(MapRect(0.0, 0.0, 0.0, 0.0), folder, isDirectFiles = false, depth = 0, hue = hue)
                         val rowSelected = row.isSameBlockAs(selectedBlock)
+                        val open = stringResource(R.string.storage_map_open)
                         ListItem(
                             headlineContent = { Text(folder.name) },
                             supportingContent = { Text(summary(folder.size, folder.imageCount)) },
@@ -262,7 +264,16 @@ fun StorageMapScreen(
                             },
                             colors = ListItemDefaults.colors(containerColor = if (rowSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
                             modifier = Modifier
-                                .selectable(rowSelected) { if (rowSelected) onZoomIn(folder) else selectedBlock = row },
+                                .selectable(rowSelected) { if (rowSelected) onZoomIn(folder) else selectedBlock = row }
+                                // As on a block, a screen reader opens the folder without selecting it first.
+                                .semantics {
+                                    customActions = listOf(
+                                        CustomAccessibilityAction(open) {
+                                            onZoomIn(folder)
+                                            true
+                                        },
+                                    )
+                                },
                         )
                     }
                 }

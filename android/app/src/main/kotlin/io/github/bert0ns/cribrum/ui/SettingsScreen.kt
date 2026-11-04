@@ -39,6 +39,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.pipeline.Coverage
@@ -140,6 +142,8 @@ fun SettingsScreen(
                                         choosingRetention = false
                                         onRetentionChange(days)
                                     },
+                                    // The check is for the eye, this is for a screen reader.
+                                    modifier = Modifier.semantics { selected = days == retentionDays },
                                 )
                             }
                         }
