@@ -119,6 +119,7 @@
     <string name="summary_confirm_favorites">Sposta comunque nel cestino</string>
     <string name="favorite">Preferita</string>
     <string name="cancel">Annulla</string>
+    <string name="confirm">Conferma</string>
     <plurals name="trashed_snackbar">
         <item quantity="one">%1$d immagine spostata nel cestino, %2$s</item>
         <item quantity="other">%1$d immagini spostate nel cestino, %2$s</item>
@@ -212,7 +213,6 @@
     <string name="reason_forwarded_exif">Nessun dato della fotocamera, come un\'immagine inoltrata</string>
     <string name="reason_forwarded">Sembra inoltrata da un\'app di messaggistica</string>
     <string name="reason_sticker">In una cartella di sticker</string>
-    <string name="settings">Impostazioni</string>
     <string name="settings_about">Informazioni</string>
     <string name="settings_version">Versione %1$s</string>
     <string name="settings_website">Sito web</string>
@@ -223,10 +223,15 @@
         <item quantity="other">%d giorni</item>
         <item quantity="many">%d di giorni</item>
     </plurals>
+    <plurals name="settings_trash_retention_title">
+        <item quantity="one">Tenere le immagini solo %d giorno?</item>
+        <item quantity="other">Tenere le immagini solo %d giorni?</item>
+        <item quantity="many">Tenere le immagini solo %d di giorni?</item>
+    </plurals>
     <plurals name="settings_trash_retention_confirm">
-        <item quantity="one">La prossima scansione elimina %1$d immagine nel cestino da più di %2$d giorni. Non si può annullare.</item>
-        <item quantity="other">La prossima scansione elimina %1$d immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
-        <item quantity="many">La prossima scansione elimina %1$d di immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
+        <item quantity="one">La prossima scansione elimina definitivamente %1$d immagine nel cestino da più di %2$d giorni. Non si può annullare.</item>
+        <item quantity="other">La prossima scansione elimina definitivamente %1$d immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
+        <item quantity="many">La prossima scansione elimina definitivamente %1$d di immagini nel cestino da più di %2$d giorni. Non si può annullare.</item>
     </plurals>
     <string name="settings_trash_retention_applies">Vale anche per le immagini già nel cestino.</string>
     <string name="settings_uninstall_warning">Disinstallando l\'app la cartella del cestino resta, quindi svuotalo prima.</string>
@@ -234,8 +239,7 @@
     <string name="settings_haptics_hint">Una breve vibrazione quando selezioni, salti, tieni o cestini le immagini. Segue anche l\'impostazione del feedback al tocco del telefono.</string>
     <string name="settings_language">Lingua</string>
     <string name="settings_thresholds">Soglie di rilevamento</string>
-    <string name="thresholds_intro">Una categoria elenca un\'immagine quando uno dei suoi punteggi raggiunge la soglia, e una modifica vale subito.</string>
-    <string name="thresholds_raising">Alzare una soglia toglie immagini dagli elenchi, quindi potresti non vedere alcune immagini che avresti eliminato.</string>
+    <string name="thresholds_direction">Sposta a sinistra per vedere più immagini, a destra per vederne meno.</string>
     <plurals name="thresholds_more">
         <item quantity="one">%d immagine in più rispetto al valore predefinito</item>
         <item quantity="other">%d immagini in più rispetto al valore predefinito</item>

@@ -7,9 +7,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -43,16 +44,8 @@ fun ThresholdsScreen(
     val haptics = LocalHapticFeedback.current
     LazyColumn(modifier.fillMaxSize()) {
         item {
-            // Advice, not an error: supporting text under the one sentence that says what a threshold does.
-            Column(Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.thresholds_intro))
-                Text(
-                    stringResource(R.string.thresholds_raising),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-            }
+            // The direction, which the sliders do not show, in one line. The counts under each slider show the effect.
+            Text(stringResource(R.string.thresholds_direction), Modifier.padding(16.dp))
         }
         items(Category.entries.filter { it in DETECTOR_CATEGORIES && it !in Thresholds.FIXED }, key = { it }) { category ->
             val value = thresholds[category] ?: THRESHOLDS.getValue(category)
@@ -74,6 +67,8 @@ fun ThresholdsScreen(
                             onValueChangeFinished = { onChange(category, shown) },
                             valueRange = Thresholds.RANGE,
                             steps = 18,
+                            // The steps stay, the 19 tick dots go: they only crowded the track.
+                            colors = SliderDefaults.colors(activeTickColor = Color.Transparent, inactiveTickColor = Color.Transparent),
                             modifier = Modifier.semantics { contentDescription = name },
                         )
                         Text(pluralStringResource(R.plurals.candidates, count, count))
