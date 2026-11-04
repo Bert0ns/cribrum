@@ -308,8 +308,6 @@
     <string name="compress_level_detail_full">JPEG %1$d, full resolution</string>
     <string name="compress_level_detail_limit">JPEG %1$d, up to %2$d MP</string>
     <string name="compress_level_saving">Saves about %1$s</string>
-    <string name="compress_level_better">Better quality</string>
-    <string name="compress_level_smaller">Smaller files</string>
     <string name="compress_level_state">%1$s, %2$s</string>
     <plurals name="compress_photos_heading">
         <item quantity="one">%d photo, largest first</item>
@@ -321,8 +319,8 @@
         <item quantity="other">Already compressed (%d)</item>
     </plurals>
     <string name="compress_already_hint">You already compressed these images once. If you want, you can compress them again.</string>
-    <string name="compress_select_page">Select all on this page</string>
-    <string name="compress_deselect_page">Deselect all on this page</string>
+    <string name="compress_select_page">Select all</string>
+    <string name="compress_deselect_page">Deselect all</string>
     <string name="compress_page_position">%1$,d to %2$,d of %3$,d</string>
     <string name="compress_page_previous">Previous page</string>
     <string name="compress_page_next">Next page</string>
