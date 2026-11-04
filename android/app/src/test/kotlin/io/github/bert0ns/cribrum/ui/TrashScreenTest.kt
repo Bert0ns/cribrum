@@ -8,10 +8,12 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -53,7 +55,7 @@ class TrashScreenTest {
             TrashScreen(trashed, selected, onSelect = { selected = selected + it.file.path }, onSelectAll = { _, _ -> }, onRestore = { restored = selected }, onDelete = {})
         }
 
-        compose.onNodeWithText("Restore 0").assertIsNotEnabled()
+        compose.onNodeWithText("Restore", substring = true).assertDoesNotExist() // nothing to restore yet
         compose.onNodeWithContentDescription("a.jpg. 27 days left").performClick()
         compose.onNodeWithText("Restore 1").performClick()
 
@@ -61,10 +63,43 @@ class TrashScreenTest {
     }
 
     @Test
-    fun `the hint says how long the trash keeps images, as chosen`() {
-        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}, retentionDays = 7) }
+    fun `the hint says how to select and how to see an image full size`() {
+        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}) }
 
-        compose.onNodeWithText("deleted for good 7 days after", substring = true).assertExists()
+        compose.onNodeWithText("Tap to select, hold to see full size.").assertExists()
+    }
+
+    @Test
+    fun `with nothing selected emptying the trash is the only button, and a selection brings Restore and Delete`() {
+        compose.setContent {
+            var selected by remember { mutableStateOf(emptySet<String>()) }
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.file.path }, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
+        }
+
+        compose.onNodeWithText("Empty trash").assertExists()
+        compose.onNodeWithText("Restore", substring = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").performClick()
+
+        compose.onNodeWithText("Empty trash").assertDoesNotExist()
+        compose.onNodeWithText("Restore 1").assertExists()
+        compose.onNodeWithText("Delete 1").assertExists()
+    }
+
+    @Test
+    fun `the full size checkbox selects the image, as a tap on its tile does`() {
+        compose.setContent {
+            var selected by remember { mutableStateOf(emptySet<String>()) }
+            TrashScreen(trashed, selected, onSelect = {
+                selected = if (it.file.path in selected) selected - it.file.path else selected + it.file.path
+            }, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
+        }
+
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").performTouchInput { longClick() }
+        compose.onNode(isToggleable()).assertIsOff().performClick().assertIsOn()
+        compose.onNodeWithContentDescription("Close").performClick()
+
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").assertIsSelected()
+        compose.onNodeWithText("Restore 1").assertExists()
     }
 
     @Test

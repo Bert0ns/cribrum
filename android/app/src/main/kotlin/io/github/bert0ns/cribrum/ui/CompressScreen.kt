@@ -32,7 +32,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -341,7 +340,7 @@ private fun FullSize(photos: List<CompressibleImage>, start: CompressibleImage, 
         val selected = photo.path in state.selected
         val favorite = photo.path in state.favorites
         val before = photo.info.marker?.let { marker -> CompressionLevel.entries.firstOrNull { it.id == marker.level }?.title() }
-        FullSizeToggle(selected, stringResource(R.string.compress_tile_selected), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) { onToggle(photo.path) }
+        FullSizeToggle(selected, stringResource(R.string.tile_selected), MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary) { onToggle(photo.path) }
         FullSizeBar(photo.path, favorite) {
             Text("${photo.width} × ${photo.height} • ${fileSize(photo.size)}" + if (before != null) " • " + stringResource(R.string.compress_tile_before, before) else "", color = Color.White, style = MaterialTheme.typography.bodyMedium)
         }
@@ -469,7 +468,7 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
     val parts = buildList {
         add(stringResource(R.string.compress_tile_description, name, resolution, size))
         if (before != null) add(stringResource(R.string.compress_tile_before, before))
-        add(stringResource(if (selected) R.string.compress_tile_selected else R.string.compress_tile_not_selected))
+        add(stringResource(if (selected) R.string.tile_selected else R.string.compress_tile_not_selected))
         if (favorite) add(stringResource(R.string.favorite))
     }
     val toggle = stringResource(if (selected) R.string.action_deselect else R.string.action_select)
@@ -509,7 +508,7 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
         // As in the review: the heart sits at the bottom right, and at the top right once selected, beside the check.
         Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             if (selected) {
-                Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small))
+                SelectedCheck()
                 if (favorite) FavoriteHeart(Modifier.clearAndSetSemantics {})
             }
         }

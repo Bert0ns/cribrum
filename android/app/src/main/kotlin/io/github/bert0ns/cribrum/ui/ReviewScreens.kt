@@ -271,6 +271,12 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
     }
 }
 
+/** The badge of a tile selected for an action, in Compress and in the trash. A check means "selected" everywhere. */
+@Composable
+internal fun SelectedCheck(modifier: Modifier = Modifier) {
+    Icon(Icons.Filled.Check, null, modifier.background(MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small), tint = MaterialTheme.colorScheme.onPrimary)
+}
+
 /** Tells the image is a favourite in the gallery. The dark disc keeps the heart legible on a light photo, and the pink on a dark one. */
 @Composable
 internal fun FavoriteHeart(modifier: Modifier = Modifier) {
@@ -309,14 +315,14 @@ fun CategoryScreen(
     val images = page.flatMap { it.images }
     val toTrash = images.filter { it.image.path in marked }
     val favorites = toTrash.count { it.isFavorite }
+    // Candidates only, as the header counts: a group's best copy is there for comparison, and nobody chose to keep it.
+    val toKeepCount = images.count { it.suggestTrash && it.image.path !in marked }
     // The button with its counts, the 30 day trash and the Undo snackbar are the confirmation (D6). Only a favourite asks first.
     val apply = {
         haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
         val trashPaths = toTrash.map { it.image.path }.toSet()
         onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
     }
-    // Candidates only, as the header counts: a group's best copy is there for comparison, and nobody chose to keep it.
-    val toKeepCount = images.count { it.suggestTrash && it.image.path !in marked }
     Column(modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             if (images.isNotEmpty()) {
