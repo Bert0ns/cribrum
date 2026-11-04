@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -100,7 +101,8 @@ fun SettingsScreen(
     if (pendingRetention != null) {
         AlertDialog(
             onDismissRequest = onCancelRetention,
-            title = { Text(pluralStringResource(R.plurals.empty_trash_title, pendingRetention.expiring, pendingRetention.expiring)) },
+            // A setting, not a delete: the deletion comes at the next scan, and the body says so.
+            title = { Text(pluralStringResource(R.plurals.settings_trash_retention_title, pendingRetention.days, pendingRetention.days)) },
             text = {
                 Text(
                     pluralStringResource(
@@ -111,7 +113,7 @@ fun SettingsScreen(
                     ),
                 )
             },
-            confirmButton = { TextButton(onConfirmRetention, colors = destructive()) { Text(stringResource(R.string.delete)) } },
+            confirmButton = { TextButton(onConfirmRetention, colors = destructive()) { Text(stringResource(R.string.confirm)) } },
             dismissButton = { TextButton(onCancelRetention) { Text(stringResource(R.string.cancel)) } },
         )
     }
@@ -133,6 +135,7 @@ fun SettingsScreen(
                             for (days in TrashRetention.CHOICES) {
                                 DropdownMenuItem(
                                     text = { Text(pluralStringResource(R.plurals.settings_trash_days, days, days)) },
+                                    leadingIcon = { if (days == retentionDays) Icon(Icons.Default.Check, null) },
                                     onClick = {
                                         choosingRetention = false
                                         onRetentionChange(days)
@@ -152,7 +155,7 @@ fun SettingsScreen(
         }
         items(excludedFolders, key = { it }) { folder ->
             ListItem(
-                headlineContent = { Text(folder) },
+                headlineContent = { Text(storageRelative(folder)) },
                 trailingContent = {
                     IconButton({ onRemoveExcludedFolder(folder) }) {
                         Icon(Icons.Default.Close, stringResource(R.string.remove))
@@ -257,3 +260,8 @@ private fun Size(label: Int, size: String) = ListItem(headlineContent = { Text(s
 
 @Composable
 private fun size(bytes: Long) = Formatter.formatShortFileSize(LocalContext.current, bytes)
+
+/** [path] from its storage volume's root, "Pictures/Memes": every folder on the phone starts with the same few segments. */
+internal fun storageRelative(path: String): String = path.replace(STORAGE_ROOT, "").ifEmpty { path }
+
+private val STORAGE_ROOT = Regex("^/(sdcard|storage/emulated/\\d+|storage/[^/]+)/")

@@ -305,7 +305,8 @@ private fun AppContent(
                                 Screen.Compress -> stringResource(R.string.nav_compress)
                                 is Screen.Category -> categoryName(screen.category)
                                 is Screen.Trash -> stringResource(R.string.trash)
-                                Screen.Settings -> stringResource(R.string.settings)
+                                // The bar's own label, which the #322 fix keeps short enough for a font scale of 1.5.
+                                Screen.Settings -> stringResource(R.string.nav_settings)
                                 Screen.StorageMap -> stringResource(R.string.storage_map)
                                 Screen.Thresholds -> stringResource(R.string.settings_thresholds)
                             },

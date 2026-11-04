@@ -60,6 +60,8 @@ class SettingsScreenTest {
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Keep trashed images for").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Keep trashed images for").assertIsDisplayed()
         compose.onNodeWithText("30 days").assertIsDisplayed()
+        // The screen is named as the bar names it.
+        assertEquals(2, compose.onAllNodesWithText("Settings").fetchSemanticsNodes().size)
         // The uninstall note is supporting text of the retention.
         compose.onNodeWithText("Uninstalling keeps the trash folder, so empty it first.").assertIsDisplayed()
         // The release workflow sets the version, so it can't be a literal here.
@@ -90,7 +92,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun `lowering the retention below some trashed images asks before deleting them`() {
+    fun `lowering the retention below some trashed images asks as a setting, and says what the next scan deletes`() {
         var confirmed = 0
         var cancelled = 0
         compose.setContent {
@@ -102,12 +104,12 @@ class SettingsScreenTest {
             )
         }
 
-        compose.onNodeWithText("Delete 3 images for good?").assertIsDisplayed()
-        compose.onNodeWithText("The next scan deletes the 3 images that have been in the trash for more than 7 days. This cannot be undone.").assertIsDisplayed()
+        compose.onNodeWithText("Keep images only 7 days?").assertIsDisplayed()
+        compose.onNodeWithText("The next scan deletes for good the 3 images that have been in the trash for more than 7 days. This cannot be undone.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(listOf(0, 1), listOf(confirmed, cancelled))
 
-        compose.onNodeWithText("Delete").performClick()
+        compose.onNodeWithText("Confirm").performClick()
         assertEquals(listOf(1, 1), listOf(confirmed, cancelled))
     }
 
@@ -183,14 +185,16 @@ class SettingsScreenTest {
     fun `settings screen lists excluded folders and removes one`() {
         val removed = mutableListOf<String>()
         compose.setContent {
-            SettingsScreen(excludedFolders = listOf("/sdcard/Pictures/Family", "/sdcard/Memes"), onRemoveExcludedFolder = { removed += it })
+            SettingsScreen(excludedFolders = listOf("/storage/emulated/0/Pictures/Family", "/storage/1A2B-3C4D/Memes"), onRemoveExcludedFolder = { removed += it })
         }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("/sdcard/Memes"))
-        compose.onNodeWithText("/sdcard/Memes").assertExists()
+        // From the storage root, which every folder on the phone shares.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Memes"))
+        compose.onNodeWithText("Memes").assertExists()
+        compose.onNodeWithText("Pictures/Family").assertExists()
         compose.onAllNodesWithContentDescription("Remove")[0].performClick()
 
-        assertEquals(listOf("/sdcard/Pictures/Family"), removed)
+        assertEquals(listOf("/storage/emulated/0/Pictures/Family"), removed)
     }
 
     @Test

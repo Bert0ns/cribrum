@@ -41,7 +41,7 @@ class ThresholdsScreenTest {
             )
         }
 
-        compose.onNodeWithText("Raising a threshold takes images out of the lists", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Move a slider left to see more images, right to see fewer.").assertIsDisplayed()
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Blurry"))
         compose.onNodeWithText("Blurry").assertIsDisplayed()
         compose.onNodeWithText("10 images to review").assertIsDisplayed()
