@@ -182,16 +182,14 @@ class CompressScreenTest {
     private fun stateDescription() = slider().fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
 
     @Test
-    fun `the level starts on Balanced, with the ends labelled and the numbers for a screen reader only`() {
+    fun `the level starts on Balanced, with the ends named as the levels and the numbers for a screen reader only`() {
         show(model(big))
         awaitText("1 photo, largest first")
 
         assertEquals("Balanced, JPEG 85, up to 50 MP", stateDescription())
         compose.onNodeWithText("Balanced").assertExists()
         compose.onNodeWithText("JPEG 85", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Better quality").assertExists()
-        compose.onNodeWithText("Smaller files").assertExists()
-        assertTrue(compose.onNodeWithText("Better quality").fetchSemanticsNode().boundsInRoot.left < compose.onNodeWithText("Smaller files").fetchSemanticsNode().boundsInRoot.left)
+        assertTrue(compose.onNodeWithText("High quality").fetchSemanticsNode().boundsInRoot.left < compose.onNodeWithText("Smallest").fetchSemanticsNode().boundsInRoot.left)
     }
 
     @Test
@@ -207,12 +205,12 @@ class CompressScreenTest {
         stop(0)
         compose.waitForIdle()
         assertEquals("High quality, JPEG 90, full resolution", stateDescription())
-        compose.onNodeWithText("High quality").assertExists()
+        compose.onAllNodesWithText("High quality").assertCountEquals(2) // the level's name and the slider's end
         assertEquals(CompressionLevel.HIGH, model.state.value.level)
         stop(2)
         compose.waitForIdle()
         assertEquals("Smallest, JPEG 80, up to 12 MP", stateDescription())
-        compose.onNodeWithText("Smallest").assertExists()
+        compose.onAllNodesWithText("Smallest").assertCountEquals(2)
         assertEquals(CompressionLevel.SMALLEST, model.state.value.level)
     }
 
@@ -286,11 +284,11 @@ class CompressScreenTest {
         show(model(big, middle, before))
         awaitText("2 photos, largest first")
 
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
 
         tile("IMG_1.jpg").assertIsSelected()
         tile("IMG_2.jpg").assertIsSelected()
-        compose.onNodeWithText("Deselect all on this page").assertExists()
+        compose.onNodeWithText("Deselect all").assertExists()
         scrollTo("Already compressed (1)")
         compose.onNodeWithText("Already compressed (1)").performClick()
         scrollTo(hasContentDescription("IMG_3.jpg", substring = true))
@@ -356,7 +354,7 @@ class CompressScreenTest {
     fun `a batch with no real loss lists none, in one sentence`() {
         show(model(middle))
         awaitText("1 photo, largest first")
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
 
         compose.onNodeWithText("Continue with 1 photo").performClick()
 
@@ -371,7 +369,7 @@ class CompressScreenTest {
     fun `the summary names the loss, counts the photos that have it, and shows a real before and after`() {
         show(model(big, middle))
         awaitText("2 photos, largest first")
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         stop(2)
 
         compose.onNodeWithText("Continue with 2 photos").performClick()
@@ -385,7 +383,7 @@ class CompressScreenTest {
         compose.onAllNodesWithText("Content credentials", substring = true).assertCountEquals(0)
         compose.onNodeWithText("All of it comes back only by restoring the original from the Cribrum trash, within 30 days.").assertExists()
         // The level and its saving on one line, and the slider to change it.
-        compose.onAllNodesWithText("Smallest").assertCountEquals(2)
+        compose.onAllNodesWithText("Smallest").assertCountEquals(4) // the name and the slider's end, on the page and in the summary
         compose.onAllNodesWithText("Saves about", substring = true).assertCountEquals(2)
         // The largest selected photo, compressed for real: the preview is its size 24 MB / 1.5 kB and the level's resolution.
         awaitText("Compressed • ${size(1500)} • 4000 × 3000")
@@ -431,7 +429,7 @@ class CompressScreenTest {
         val third = jpeg("/sdcard/DCIM/IMG_4.jpg", 4_100_000)
         show(model(big, middle, third))
         awaitText("3 photos, largest first")
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         compose.onNodeWithText("Continue with 3 photos").performClick()
 
         awaitText("Compressed • ${size(1500)} • 8160 × 6120")
@@ -466,7 +464,7 @@ class CompressScreenTest {
         val photos = many(5)
         show(model(*photos.toTypedArray()))
         awaitText("5 photos, largest first")
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         compose.onNodeWithText("Continue with 5 photos").performClick()
 
         for (index in 1..3) compose.waitUntil(5_000) { compose.onAllNodesWithContentDescription("Photo $index of 3", substring = true).fetchSemanticsNodes().isNotEmpty() }
@@ -480,7 +478,7 @@ class CompressScreenTest {
         refusals["IMG_2.jpg"] = Refusal.NOT_SMALLER
         show(model(big, middle))
         awaitText("2 photos, largest first")
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         stop(2)
         compose.onNodeWithText("Continue with 2 photos").performClick()
 
@@ -635,18 +633,18 @@ class CompressScreenTest {
 
         compose.onNodeWithText("1 to 50 of 120").assertExists()
         tile("IMG_000.jpg").assertExists()
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         compose.onNodeWithText("Continue with 50 photos").assertExists()
 
         compose.onAllNodesWithContentDescription("Next page")[0].performClick()
         compose.onNodeWithText("51 to 100 of 120").assertExists()
         tile("IMG_050.jpg").assertIsNotSelected()
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         compose.onNodeWithText("Continue with 100 photos").assertExists()
 
         compose.onAllNodesWithContentDescription("Previous page")[0].performClick()
         tile("IMG_000.jpg").assertIsSelected()
-        compose.onNodeWithText("Deselect all on this page").performClick()
+        compose.onNodeWithText("Deselect all").performClick()
         compose.onNodeWithText("Continue with 50 photos").assertExists()
     }
 
@@ -721,7 +719,7 @@ class CompressScreenTest {
         val model = model(big, middle)
         show(model)
         awaitText("2 photos, largest first")
-        compose.onNodeWithText("Select all on this page").performClick()
+        compose.onNodeWithText("Select all").performClick()
         compose.onNodeWithText("Continue with 2 photos").performClick()
         awaitText("Compress 2 photos?")
         haptics.types.clear()

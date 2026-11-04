@@ -420,8 +420,9 @@ private fun LevelSlider(level: CompressionLevel, saving: Long?, modifier: Modifi
             },
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.compress_level_better), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-            Text(stringResource(R.string.compress_level_smaller), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
+            // The ends are named as the levels are, so a tile's "Smallest" is a stop the slider has.
+            Text(CompressionLevel.HIGH.title(), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+            Text(CompressionLevel.SMALLEST.title(), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.End)
         }
     }
 }
