@@ -49,7 +49,7 @@
     <string name="scan_progress_open">finora %1$d</string>
     <string name="scan_now">Scansiona ora</string>
     <string name="scan_stop">Interrompi la scansione</string>
-    <string name="scan_empty">Nessuna immagine trovata finora. Tocca Scansiona ora per cercarle.</string>
+    <string name="scan_empty">Nessuna immagine trovata finora. Tocca Scansiona ora per cercarle. La prima volta ci vogliono circa 15–20 minuti per 10.000 immagini, e puoi uscire dall\'app. Poi Cribrum ripete la scansione di notte, mentre il telefono si ricarica.</string>
     <string name="scan_last">Ultima scansione: %1$s</string>
     <string name="scan_step_scan">Ricerca delle immagini: finora %1$d</string>
     <string name="scan_step">%1$s: %2$d di %3$d</string>
