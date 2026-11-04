@@ -35,7 +35,7 @@ private val OTHER = ImageRef("/photos/b.jpg", 5, 5)
 private val NOT_IMAGES_METHODS = setOf("notImages", "addNotImages", "forgetNotImages")
 
 /** What the scan read from JPEG headers for the compress page: it never reaches the review either. */
-private val JPEG_METHODS = setOf("jpegsToRead", "setJpeg", "compressible", "jpegCounts")
+private val JPEG_METHODS = setOf("jpegsToRead", "setJpeg", "setJpegBeforeScan", "compressible", "jpegCounts")
 private val META = ImageMetadata(4000, 3000, "image/jpeg", "Google", "Pixel 8", LocalDateTime.of(2024, 5, 1, 10, 20))
 private val BLUR = Signal("blur", 1, Category.BLURRY, 0.7f, mapOf("variance" to "12.5"))
 
@@ -633,6 +633,7 @@ class ImageIndexTest {
 
         jpegsToRead()
         setJpeg(PHOTO.path, JpegInfo(JpegStatus.ELIGIBLE))
+        setJpegBeforeScan(PHOTO.path, JpegInfo(JpegStatus.ELIGIBLE), 4000, 3000)
         compressible(34)
         jpegCounts()
 

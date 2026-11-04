@@ -15,6 +15,7 @@ import androidx.work.testing.SynchronousExecutor
 import androidx.work.testing.WorkManagerTestInitHelper
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.index.memoryIndex
+import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.pipeline.FakeScan
@@ -390,6 +391,27 @@ class CompressBatchTest {
         assertEquals(images.map { it.path }.toSet(), items.map { it.original.path }.toSet())
         assertTrue(items.none { it.original in images })
         assertEquals(BatchState.Idle, CompressBatch.state.value)
+    }
+
+    /** The photos the compress page lists, with the level a marker names, as the scan would leave them. */
+    private fun listed() = runBlocking { index.compressible(36) }.map { it.size to it.info.marker?.level }
+
+    @Test
+    fun `a compressed photo shows as compressed with its level at once, with no scan, and undo shows it as compressible again`() {
+        val image = photo("a.jpg")
+        runBlocking {
+            index.setMetadata(image.path, readMetadata(File(image.path)))
+            index.setJpeg(image.path, readJpeg(File(image.path)))
+        }
+        assertEquals(listOf(image.size to null), listed())
+
+        start(image)
+        val result = finished()
+        assertEquals(listOf(File(image.path).length() to "high"), listed())
+
+        runBlocking { CompressBatch.undo(Review(index, trash), result) }
+        assertEquals(listOf(image.size to null), listed())
+        assertEquals(0, scans.get())
     }
 
     @Test

@@ -2,12 +2,19 @@ package io.github.bert0ns.cribrum.compress
 
 import android.graphics.BitmapFactory
 import androidx.exifinterface.media.ExifInterface
+import io.github.bert0ns.cribrum.detectors.AnalysisContext
+import io.github.bert0ns.cribrum.detectors.Detector
+import io.github.bert0ns.cribrum.detectors.GroupDetector
+import io.github.bert0ns.cribrum.hashing.contentHash
+import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.index.memoryIndex
+import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.model.toImageRef
+import io.github.bert0ns.cribrum.pipeline.Embedder
 import io.github.bert0ns.cribrum.pipeline.Pipeline
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.sources.FilesystemImageSource
@@ -20,6 +27,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -37,6 +45,7 @@ import java.nio.file.attribute.FileTime
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Collections
 import java.util.concurrent.TimeUnit
 
 private const val TAKEN = "2024:05:01 10:20:30"
@@ -146,23 +155,90 @@ class CompressorTest {
     /** A scan of the volume with no detectors: the walk, the metadata and the JPEG headers. */
     private fun scan() = runBlocking { Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), trash = trash).run(FilesystemImageSource(volume)) }
 
-    private fun listed() = runBlocking { index.compressible(36) }.map { it.size to it.info.marker?.level }
+    private fun listed() = runBlocking { index.compressible(36) }
 
     @Test
-    fun `the next scan shows the copy as compressed, and a restore drops the copy's jpegs row`() {
+    fun `a copy shows as compressed before any scan, and a restore shows the original as compressible again`() {
         val image = photo("a.jpg", encodedJpeg(800, 600, 100))
         scan()
-        assertEquals(listOf(image.size to null), listed())
+        val original = listed()
+        assertEquals(listOf(image.size to null), original.map { it.size to it.info.marker?.level })
 
         val copy = (compress(image, CompressionLevel.HIGH) as Compression.Done).copy
-        assertEquals(emptyList<Pair<Long, String?>>(), listed())
+        val compressed = listed()
+        assertEquals(listOf(copy.size to "high"), compressed.map { it.size to it.info.marker?.level })
+        // What the page showed before the scan is what the scan reads from the copy.
         scan()
-        assertEquals(listOf(copy.size to "high"), listed())
+        assertEquals(compressed, listed())
 
         assertEquals(listOf(image), runBlocking { Review(index, trash).restore(listOf(image)) })
-        assertEquals(emptyList<Pair<Long, String?>>(), listed())
+        assertEquals(original, listed())
         scan()
-        assertEquals(listOf(image.size to null), listed())
+        assertEquals(original, listed())
+    }
+
+    @Test
+    fun `the scan after a compression reads, hashes, embeds and analyzes the copy again, as any changed file`() = runBlocking {
+        val image = photo("a.jpg", encodedJpeg(800, 600, 100))
+        val read: MutableList<String> = Collections.synchronizedList(mutableListOf())
+        val detector = object : Detector {
+            override val id = "seen"
+            override val version = 1
+
+            override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> = emptyList<Signal>().also { read += "detector ${image.size}" }
+        }
+        val group = object : GroupDetector {
+            override val id = "group"
+            override val version = 1
+
+            override suspend fun analyze(images: List<ImageRef>, context: AnalysisContext): Map<ImageRef, List<Signal>> = images.associateWith {
+                read += "group ${it.size}"
+                context.contentHash(it)
+                emptyList()
+            }
+        }
+        val embedder = object : Embedder {
+            override val id = "embedder"
+            override val version = 1
+
+            override fun embedPixels(pixels: List<FloatArray>) = pixels.map { FloatArray(512) { 1f } }
+        }
+        val pipeline = Pipeline(
+            index, listOf(detector), listOf(group), embedder,
+            preprocessing = {
+                read += "embedding ${it.length()}"
+                FloatArray(3)
+            },
+            trash = trash,
+            metadataReader = {
+                read += "metadata ${it.length()}"
+                readMetadata(it)
+            },
+            jpegReader = {
+                read += "jpeg ${it.length()}"
+                readJpeg(it)
+            },
+            perceptualHasher = {
+                read += "perceptual hash ${it.size}"
+                perceptualHash(it)
+            },
+            contentHasher = {
+                read += "content hash ${it.size}"
+                contentHash(it)
+            },
+        )
+        pipeline.run(FilesystemImageSource(volume))
+        val originalHash = index.contentHash(image.path)
+
+        val copy = (compressor.compress(image, CompressionLevel.HIGH) as Compression.Done).copy
+        read.clear()
+        pipeline.run(FilesystemImageSource(volume))
+
+        val steps = listOf("metadata", "jpeg", "perceptual hash", "detector", "embedding", "group", "content hash")
+        assertEquals(steps.map { "$it ${copy.size}" }.toSet(), read.toSet())
+        assertNotEquals(originalHash, index.contentHash(image.path))
+        assertEquals(contentHash(copy), index.contentHash(image.path))
+        assertEquals(emptyList<ImageRef>(), index.jpegsToRead())
     }
 
     @Test
