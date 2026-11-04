@@ -474,6 +474,14 @@ class CategoryScreenTest {
         compose.onNodeWithText("Trash 1, keep 1").assertExists()
     }
 
+    @Test
+    fun `on a plain category page keep counts all unmarked images`() {
+        val plainPage = images.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = false))) }
+        compose.setContent { CategoryScreen(plainPage, 3, setOf(images[1].path), grouped = false, {}, { _, _ -> }, {}) }
+
+        compose.onNodeWithText("Trash 1, keep 2").assertExists()
+    }
+
     private val favoritePage = images.mapIndexed { i, image -> ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true, isFavorite = i < 2))) }
 
     @Test

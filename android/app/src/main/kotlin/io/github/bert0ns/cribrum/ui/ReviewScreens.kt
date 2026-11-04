@@ -316,7 +316,7 @@ fun CategoryScreen(
     val toTrash = images.filter { it.image.path in marked }
     val favorites = toTrash.count { it.isFavorite }
     // Candidates only, as the header counts: a group's best copy is there for comparison, and nobody chose to keep it.
-    val toKeepCount = images.count { it.suggestTrash && it.image.path !in marked }
+    val toKeepCount = if (grouped) images.count { it.suggestTrash && it.image.path !in marked } else images.size - toTrash.size
     // The button with its counts, the 30 day trash and the Undo snackbar are the confirmation (D6). Only a favourite asks first.
     val apply = {
         haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
