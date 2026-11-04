@@ -3,6 +3,8 @@ package io.github.bert0ns.cribrum.index
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
+import io.github.bert0ns.cribrum.compress.CompressibleImage
+import io.github.bert0ns.cribrum.compress.JPEG_RULES_VERSION
 import io.github.bert0ns.cribrum.compress.JpegInfo
 import io.github.bert0ns.cribrum.compress.JpegStatus
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -102,6 +104,22 @@ class IndexMigrationTest {
             assertEquals(listOf("/photos/a.jpg"), runBlocking { it.compressible(34) }.map { image -> image.path })
             runBlocking { it.forget(listOf("/photos/a.jpg")) }
             assertEquals(emptyList<String>(), runBlocking { it.compressible(34) }.map { image -> image.path })
+        }
+    }
+
+    @Test
+    fun `version 5 opens with its JPEG rows, which the scan read and does not read again`() {
+        createDatabase(context, 5).use {
+            it.execSQL("INSERT INTO images (path, size, mtime_ns, width, height, mime) VALUES ('/photos/a.jpg', 100, 1, 4000, 3000, 'image/jpeg')")
+            it.execSQL(
+                "INSERT INTO jpegs (path, version, status, gain_map, quality, compressed, re_edit, depth_map, xmp, c2pa) " +
+                    "VALUES ('/photos/a.jpg', $JPEG_RULES_VERSION, 'eligible', 0, 95, 0, 0, 0, 0, 0)",
+            )
+        }
+
+        ImageIndex.open(context, NAME).use {
+            assertEquals(emptyList<ImageRef>(), runBlocking { it.jpegsToRead() })
+            assertEquals(listOf(CompressibleImage("/photos/a.jpg", 100, 4000, 3000, JpegInfo(JpegStatus.ELIGIBLE, quality = 95))), runBlocking { it.compressible(34) })
         }
     }
 }

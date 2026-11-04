@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
 import io.github.bert0ns.cribrum.index.ImageIndex
+import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.trash.AppTrash
@@ -91,7 +92,10 @@ class Compressor(
             }
             is Swap.Swapped -> {
                 // The files are swapped already. If the index cannot follow, the next scan records the copy.
-                runCatching { index.record(swap.copy) }
+                runCatching {
+                    index.record(swap.copy)
+                    showBeforeScan(index, swap.copy.path)
+                }
                 Compression.Done(swap.copy, swap.favorite)
             }
         }
@@ -190,6 +194,20 @@ class Compressor(
             })
         }
     }
+}
+
+/**
+ * Reads the headers and the resolution of the file the app has just put at [path], a compressed copy or a restored
+ * original, so the compress page lists it before a scan reads it (docs/design.md §9). Only an eligible JPEG gets a row,
+ * since the page lists no other. The next scan still reads the file as a changed one.
+ */
+suspend fun showBeforeScan(index: ImageIndex, path: String) {
+    val file = File(path)
+    val (info, metadata) = withContext(Dispatchers.IO) {
+        val info = readJpeg(file)
+        if (info.status == JpegStatus.ELIGIBLE) info to readMetadata(file) else null
+    } ?: return
+    index.setJpegBeforeScan(path, info, metadata.width, metadata.height)
 }
 
 /**

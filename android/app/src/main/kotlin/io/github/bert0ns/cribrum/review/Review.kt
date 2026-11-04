@@ -3,6 +3,7 @@
 package io.github.bert0ns.cribrum.review
 
 import androidx.tracing.trace
+import io.github.bert0ns.cribrum.compress.showBeforeScan
 import io.github.bert0ns.cribrum.folders.isExcluded
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.model.Category
@@ -325,6 +326,8 @@ class Review(
         val restored = trash.restore(images)
         restored.forEach {
             val fresh = index.record(it)
+            // The row lost what the scan read from the file that was there, such as a compressed copy: the compress page lists the original again at once.
+            if (fresh) runCatching { showBeforeScan(index, it.path) }
             val state = before[it.path]
             if (fresh && state != null && state != ReviewState.TRASHED) return@forEach
             index.setReviewState(it.path, if (fresh) ReviewState.UNREVIEWED else ReviewState.KEPT)

@@ -324,13 +324,23 @@ class ImageIndex(private val db: IndexDatabase) :
     suspend fun jpegsToRead(): List<ImageRef> = dao.jpegsToRead(JPEG_RULES_VERSION).map { ImageRef(it.path, it.size, it.mtimeNs) }
 
     /** Stores what the scan read from a JPEG. Leaves [version] alone, as for `not_images`: it changes no ranking. */
-    suspend fun setJpeg(path: String, info: JpegInfo) = db.withTransaction {
+    suspend fun setJpeg(path: String, info: JpegInfo) = putJpeg(path, info, null, null)
+
+    /**
+     * Stores what the compress page needs of a JPEG the app has just put at [path] itself, a compressed copy or a
+     * restored original, so the page lists it before a scan reads it (docs/design.md §9). The resolution goes on the
+     * `jpegs` row and not in the metadata, and [jpegsToRead] still lists the row: the scan reads the file's metadata and
+     * headers, as for any changed file, and its own row replaces this one.
+     */
+    suspend fun setJpegBeforeScan(path: String, info: JpegInfo, width: Int, height: Int) = putJpeg(path, info, width, height)
+
+    private suspend fun putJpeg(path: String, info: JpegInfo, width: Int?, height: Int?) = db.withTransaction {
         requireRecorded(path)
         dao.putJpeg(
             JpegRow(
                 path, JPEG_RULES_VERSION, info.status.id, info.gainMap, info.quality, info.marker != null,
                 info.marker?.version, info.marker?.level, info.marker?.compressedAt,
-                info.losses.reEdit, info.losses.depthMap, info.losses.xmp, info.losses.c2pa,
+                info.losses.reEdit, info.losses.depthMap, info.losses.xmp, info.losses.c2pa, width, height,
             ),
         )
     }
@@ -378,7 +388,7 @@ class ImageIndex(private val db: IndexDatabase) :
     }
 
     companion object {
-        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build())
+        fun open(context: Context, name: String = "index.sqlite"): ImageIndex = ImageIndex(Room.databaseBuilder(context, IndexDatabase::class.java, name).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build())
     }
 }
 

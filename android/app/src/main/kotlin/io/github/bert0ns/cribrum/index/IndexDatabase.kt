@@ -129,6 +129,8 @@ data class NotImageRow(
 
 /**
  * What the scan read from a JPEG's headers for the compress page (docs/design.md §9), at the rules' [version].
+ * A row with [pageWidth] was written by the app itself, for a file it had just put at the path, before any scan read
+ * that file: the scan still reads its metadata and headers, and its own row replaces this one.
  * Android only: compression has no lab counterpart, so the lab's schema has no such table.
  */
 @Entity(
@@ -150,6 +152,9 @@ data class JpegRow(
     @ColumnInfo(name = "depth_map") val depthMap: Boolean,
     val xmp: Boolean,
     val c2pa: Boolean,
+    /** The resolution the compress page shows until the scan reads the file's metadata. Null on a row the scan wrote. */
+    @ColumnInfo(name = "page_width") val pageWidth: Int? = null,
+    @ColumnInfo(name = "page_height") val pageHeight: Int? = null,
 )
 
 data class StoredJpeg(
@@ -383,14 +388,19 @@ interface IndexDao {
     @Query(
         """SELECT i.path, i.size, i.mtime_ns FROM images i LEFT JOIN jpegs j ON j.path = i.path
            WHERE i.mime = 'image/jpeg' AND NOT i.unreadable AND i.review_state != 'trashed'
-           AND (j.path IS NULL OR j.version != :version) ORDER BY i.path""",
+           AND (j.path IS NULL OR j.version != :version OR j.page_width IS NOT NULL) ORDER BY i.path""",
     )
     suspend fun jpegsToRead(version: Int): List<StoredRef>
 
-    /** The images a JPEG read at [version] found eligible, neither trashed nor unreadable, largest first. */
+    /**
+     * The images a JPEG read at [version] found eligible, neither trashed nor unreadable, largest first. The resolution
+     * is the metadata's, or the row's own until the scan reads the metadata.
+     */
     @Query(
-        """SELECT i.size, i.width, i.height, j.* FROM images i JOIN jpegs j ON j.path = i.path
-           WHERE i.review_state != 'trashed' AND NOT i.unreadable AND i.width IS NOT NULL AND j.version = :version AND j.status = 'eligible'
+        """SELECT i.size, COALESCE(i.width, j.page_width) AS width, COALESCE(i.height, j.page_height) AS height, j.*
+           FROM images i JOIN jpegs j ON j.path = i.path
+           WHERE i.review_state != 'trashed' AND NOT i.unreadable AND COALESCE(i.width, j.page_width) IS NOT NULL
+           AND j.version = :version AND j.status = 'eligible'
            ORDER BY i.size DESC, i.path""",
     )
     suspend fun eligibleJpegs(version: Int): List<StoredJpeg>
@@ -417,7 +427,7 @@ interface IndexDao {
         ImageRow::class, AnalysisRow::class, SignalRow::class, KeptSignalRow::class, KeptDetectorRow::class, EmbeddingRow::class,
         GroupRunRow::class, ExcludedFolderRow::class, NotImageRow::class, JpegRow::class,
     ],
-    version = 5,
+    version = 6,
 )
 abstract class IndexDatabase : RoomDatabase() {
     abstract fun dao(): IndexDao
@@ -463,5 +473,16 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
                 "`xmp` INTEGER NOT NULL, `c2pa` INTEGER NOT NULL, PRIMARY KEY(`path`), " +
                 "FOREIGN KEY(`path`) REFERENCES `images`(`path`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         )
+    }
+}
+
+/**
+ * Version 5 had no resolution on a `jpegs` row: only the scan wrote them. The app now writes one for a file it has just
+ * put at a path itself, a compressed copy or a restored original, so the compress page shows it before a scan.
+ */
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `jpegs` ADD COLUMN `page_width` INTEGER")
+        db.execSQL("ALTER TABLE `jpegs` ADD COLUMN `page_height` INTEGER")
     }
 }
