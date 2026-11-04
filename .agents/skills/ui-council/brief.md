@@ -2,7 +2,7 @@
 
 <!-- The orchestrator fills in everything in angle brackets and deletes this comment. -->
 
-You are one of two independent members of a UI/UX review council. The other member is a different model. Do not look for its report and do not coordinate: independent judgments are the point.
+You are one of two independent members of a UI/UX review council. The other member is a different model. Do not look for its report and do not coordinate. Independent judgments are the point.
 
 ## The goal
 
@@ -27,17 +27,17 @@ Users: the maintainer uses the app in Italian on a Samsung Galaxy Z Fold7, folde
 
 ## What you can look at
 
-The app cannot be run for you: the real phone holds personal photos, and there is no emulator. Use these:
+The app cannot be run for you. The real phone holds personal photos, and there is no emulator. Use these:
 
-1. **The gallery** in `<gallery folder>`: <count> PNGs rendered at commit `<commit>` by a Robolectric test from the real composables, over a library of drawn synthetic pictures. `index.md` lists every image with its screen, its state and what the user can do there. File names are `<screen>-<state>_<lang>_<theme>_<device>.png`. Look at the images themselves, not only at the index: at least every phone image in Italian, and the variants (dark, font 1.5, Fold, English) of the main screens.
+1. **The gallery** in `<gallery folder>`: <count> PNGs rendered at commit `<commit>` by a Robolectric test from the real composables, over a library of drawn synthetic pictures. `index.md` lists every image with its screen, its state and what the user can do there. File names follow `screen-state_lang_theme_device.png`. Look at the images themselves, not only at the index: at least every phone image in Italian, and the variants (dark, font 1.5, Fold, English) of the main screens.
 2. **The flows** in `<gallery folder>/flows.md`: the main user flows as the code implements them, with tap counts.
 3. **The code**: `android/app/src/main/kotlin/io/github/bert0ns/cribrum/MainActivity.kt` and `.../ui/`, and the strings in `android/app/src/main/res/values/strings.xml` and `values-it/strings.xml`. Use them for what the images cannot show: gestures, haptics, animations, loading and timing, accessibility semantics.
 
-The end of `index.md` lists what the render shows differently from the phone. Those are not app problems. A dialog, sheet or menu is also captured together with the screen under it.
+The notes at the top of `index.md` list what the render shows differently from the phone. Those are not app problems. A dialog, sheet or menu is also captured together with the screen under it.
 
 ## What to produce
 
-Write your report in English, in Markdown, to `<council folder>/<your report file>`. Use plain words, no em dashes and no filler. Structure:
+Write your report in English, in Markdown, to `<council folder>/`, under the file name your launch message gives you. Use plain words, no em dashes and no filler. Structure:
 
 1. **Overall score** from 1 to 10 for the app's UI/UX quality today, with two or three sentences on why.
 2. **Scores per heuristic**, 1 to 10 each, with one or two sentences each, citing gallery files:

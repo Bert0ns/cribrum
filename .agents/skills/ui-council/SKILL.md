@@ -13,7 +13,7 @@ The first run (issue #321, on 1.9.1) scored the app 6 out of 10 from both member
 
 The council cannot hold the phone. The maintainer's phone holds personal photos, and there is no emulator. So the council looks at the **UI gallery**: `UiGallery` renders every screen and key state from the real composables and view models, over a library of drawn pictures, to PNG files with an `index.md` (see `android/README.md`, UI gallery). The gallery is synthetic, so the images and the reports hold no personal data.
 
-What the gallery cannot show (gestures, animations, timing, TalkBack) the members read in the code.
+The members read the code for what the gallery cannot show: gestures, animations, timing and TalkBack.
 
 ## Steps
 
@@ -30,7 +30,7 @@ cd android && ANDROID_HOME=~/android-sdk JAVA_HOME=~/.local/jdks/jdk-21.0.12.1+1
 
 Then look at a sample yourself: a few phone images in Italian, the dark ones, font 1.5 and the unfolded Fold. A member judges only what the gallery shows, so a state that matters and has no scene is invisible to the council. If one is missing, add the scene first (a `Scene` in `GalleryScenes.kt`, its own small PR), then render again.
 
-The end of `index.md` lists what comes out different from the phone, such as no status bar and full width dialogs. Keep that list right when the app changes: the first run's brief had to correct it by hand.
+The notes at the top of `index.md` list what comes out different from the phone, such as no status bar and full width dialogs. They come from `NOTES` in `GalleryScenes.kt`. Keep them right when the app changes. The first run's brief had to correct them by hand.
 
 ### 2. Write the flows
 
@@ -43,14 +43,17 @@ The end of `index.md` lists what comes out different from the phone, such as no 
 - settings: thresholds, excluded folders and the storage map, retention, the diagnostics;
 - a running scan: where its progress shows, and how to stop it.
 
-Count the taps from the code, not from memory: the members use the counts to judge efficiency.
+Count the taps from the code, not from memory. The members use the counts to judge efficiency.
 
 ### 3. Write the brief
 
 Make a council folder, `/tmp/cribrum-ui-council-<run>/`, and copy [`brief.md`](brief.md) into it. Fill in its placeholders:
 
+- the council folder;
 - the gallery folder, its image count and the commit;
-- the **decisions already taken**: copy them from the previous council issue (for the first run, the "Decisions taken by the maintainer" section of #321), and add any later ones from `docs/design.md`.
+- the **decisions already taken**: copy the "Decisions taken by the maintainer" section of the last council issue (#321 for the second run), and add any later ones from `docs/design.md`.
+
+Both members read the same brief, so their report file names go in their launch messages, not in the brief.
 
 Do not give the members the previous report or its scores. They anchor on them, and the comparison is the orchestrator's job.
 
@@ -63,9 +66,9 @@ The two members run in parallel, each in its own worktree thread at the same com
 | Opus 5.5 medium | `opus.md` |
 | Gemini 3.8 Flash high | `gemini.md` |
 
-The two come from different providers on purpose, because their blind spots differ. When one model is out of credits, replace it with another from a different provider than the other member, and name the report after it.
+The two come from different providers on purpose, because their blind spots differ. In the first run one strong model and one worker gave the same overall score, and the pair costs less than two strong models. When one model is out of credits, replace it with a model from the same tier in `AGENTS.md`, from a different provider than the other member if there is one, and name the report after it.
 
-The members only read and write their report. Keep the three-agents-at-a-time limit in mind: the council takes two slots. A thread can end its turn before its report is written; nudge it, and do not merge until both files are complete.
+The members only read and write their report. Keep the three-agents-at-a-time limit in mind, since the council takes two slots. A thread can end its turn before its report is written; nudge it, and do not merge until both files are complete.
 
 ### 5. Merge the reports
 
@@ -84,7 +87,7 @@ When there is a previous run, add a section on what changed: which earlier issue
 
 ### 6. Open the council issue
 
-`/tmp` does not survive a restart of the session: the first run's reports were lost that way. So open the run's issue now, titled `feat(android): simplify the ui after the <run> ui/ux council review`. Its body for now is the scores and the consensus in a few lines. Post `report.md` as its first comment, with the members' two reports after it, each in a `<details>` block. They describe synthetic images and the code, so they can go public, but check them for paths from the machine first.
+`/tmp` does not survive a restart of the session, and the first run's reports were lost that way. So open the run's issue now, titled `feat(android): simplify the ui after the <run> ui/ux council review`. Its body for now is the scores and the consensus in a few lines. Post `report.md` as its first comment, with the members' two reports after it, each in a `<details>` block. They describe synthetic images and the code, so they can go public, but check them for paths from the machine first.
 
 ### 7. Bring the decisions to the maintainer
 
