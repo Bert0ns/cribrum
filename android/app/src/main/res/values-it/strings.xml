@@ -404,11 +404,12 @@
     </plurals>
     <string name="compress_result_saved">Risparmiati %1$s</string>
     <plurals name="compress_result_undo_hint">
-        <item quantity="one">Annulla rimette gli originali dal cestino di Cribrum, dove restano per %d giorno.</item>
-        <item quantity="other">Annulla rimette gli originali dal cestino di Cribrum, dove restano per %d giorni.</item>
-        <item quantity="many">Annulla rimette gli originali dal cestino di Cribrum, dove restano per %d di giorni.</item>
+        <item quantity="one">Gli originali restano nel cestino di Cribrum per %d giorno, e Ripristina gli originali li rimette a posto.</item>
+        <item quantity="other">Gli originali restano nel cestino di Cribrum per %d giorni, e Ripristina gli originali li rimette a posto.</item>
+        <item quantity="many">Gli originali restano nel cestino di Cribrum per %d di giorni, e Ripristina gli originali li rimette a posto.</item>
     </plurals>
     <string name="compress_result_done">Fatto</string>
+    <string name="compress_result_undo">Ripristina gli originali</string>
     <plurals name="compress_refused_not_smaller">
         <item quantity="one">%d foto non è diventata più piccola, quindi è rimasta com\'era</item>
         <item quantity="other">%d foto non sono diventate più piccole, quindi sono rimaste com\'erano</item>

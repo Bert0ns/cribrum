@@ -831,7 +831,7 @@ class CompressScreenTest {
         awaitText("3 photos compressed")
 
         val done = compose.onNodeWithText("Done").fetchSemanticsNode().boundsInRoot
-        val undo = compose.onNodeWithText("Undo").fetchSemanticsNode().boundsInRoot
+        val undo = compose.onNodeWithText("Restore originals").fetchSemanticsNode().boundsInRoot
         assertTrue("$done before $undo", done.right <= undo.left || done.bottom <= undo.top)
     }
 
@@ -845,8 +845,8 @@ class CompressScreenTest {
         compose.onNodeWithText("Saved ${size(1_300_000_000)}").assertExists()
         compose.onNodeWithText("2 photos did not get smaller, so they were left as they were").assertExists()
         compose.onNodeWithText("1 photo needed more free memory than the phone had, so it was left as it was").assertExists()
-        compose.onNodeWithText("Undo puts the originals back from the Cribrum trash, where they stay for 30 days.").assertExists()
-        compose.onNodeWithText("Undo").performClick()
+        compose.onNodeWithText("The originals stay in the Cribrum trash for 30 days, and Restore originals puts them back.").assertExists()
+        compose.onNodeWithText("Restore originals").performClick()
         awaitText("1 photo, largest first")
         assertEquals(listOf(result), batches.undone)
         assertEquals(listOf(HapticFeedbackType.SegmentTick), haptics.types)
@@ -859,10 +859,10 @@ class CompressScreenTest {
         show(model(big))
         awaitText("1 photo compressed")
 
-        compose.onNodeWithText("Undo").performClick()
+        compose.onNodeWithText("Restore originals").performClick()
 
         awaitText("Putting the originals back. This waits for a scan or a compression that is running, which can take minutes.")
-        compose.onNodeWithText("Undo").assertIsNotEnabled()
+        compose.onNodeWithText("Restore originals").assertIsNotEnabled()
         compose.onNodeWithText("Done").assertIsNotEnabled()
         assertEquals(1, batches.undone.size)
         batches.undoGate!!.complete(Unit)
@@ -876,7 +876,7 @@ class CompressScreenTest {
         show(model(big))
 
         awaitText("1 photo, largest first")
-        compose.onAllNodesWithText("Undo").assertCountEquals(0)
+        compose.onAllNodesWithText("Restore originals").assertCountEquals(0)
     }
 
     @Test
@@ -888,7 +888,7 @@ class CompressScreenTest {
         compose.onNodeWithText("Done").performClick()
 
         awaitText("1 photo, largest first")
-        compose.onAllNodesWithText("Undo").assertCountEquals(0)
+        compose.onAllNodesWithText("Restore originals").assertCountEquals(0)
     }
 
     @Test
@@ -898,7 +898,7 @@ class CompressScreenTest {
         show(model(big))
         awaitText("1 photo compressed")
 
-        compose.onNodeWithText("Undo").performClick()
+        compose.onNodeWithText("Restore originals").performClick()
 
         awaitText("1 original stayed in the trash, because another file took its place. Restore it from the trash.")
     }
@@ -917,6 +917,6 @@ class CompressScreenTest {
         show(model(big))
 
         awaitText("0 photos compressed")
-        compose.onAllNodesWithText("Undo").assertCountEquals(0)
+        compose.onAllNodesWithText("Restore originals").assertCountEquals(0)
     }
 }
