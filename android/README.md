@@ -54,7 +54,7 @@ It keeps the debug build's application id and signature, so it installs over a d
 
 ### UI gallery
 
-`UiGallery` renders every screen and key state of the app to PNG files, for a review of the UI by someone who cannot hold the phone. It drives the real `App` (the navigation bar, the top bar, the snackbar and the dialogs) with the real view models, over a library drawn in code: no photo and no file from a device is involved. It makes about 120 images, in Italian and in English, and some of them in the dark theme, with a font scale of 1.5 and on an unfolded Fold. `-PuiGallery` turns it on, and without it Gradle leaves the test out. The images go to `/tmp/cribrum-ui-gallery`, or to the folder given as `-PuiGallery=<folder>`, with an `index.md` that says what each one shows:
+`UiGallery` renders every screen and key state of the app to PNG files, for a review of the UI by someone who cannot hold the phone. It drives the real `App` (the navigation bar, the top bar, the snackbar and the dialogs) with the real view models, over a library drawn in code: no photo and no file from a device is involved. It makes about 120 images, in Italian and in English, and some of them in the dark theme, with a font scale of 1.5 and on an unfolded Fold. `-PuiGallery` turns it on, and without it Gradle leaves the test out. The `ui-council` skill (`.agents/skills/ui-council/`) runs such a review with two models. The images go to `/tmp/cribrum-ui-gallery`, or to the folder given as `-PuiGallery=<folder>`, with an `index.md` that says what each one shows:
 
 ```bash
 ./gradlew -PuiGallery testDebugUnitTest --tests '*UiGallery'
@@ -62,7 +62,7 @@ It keeps the debug build's application id and signature, so it installs over a d
 
 A run takes about ten minutes and starts by emptying the folder. Nothing it writes belongs in the repository. Compare two runs by rendering into two folders. Every scene is a `Scene` in `GalleryScenes.kt`, and a new one needs only its id, its text for `index.md` and the steps that reach it.
 
-A few things come out different from the phone. The test window has no status bar or gesture bar. A dialog is as wide as the screen, where the phone leaves a margin on each side. The paths in the full size view start with a folder in `/tmp`. The app has no dark color scheme, so the dark images match the light ones.
+A few things come out different from the phone. The test window has no status bar or gesture bar. A dialog is as wide as the screen, where the phone leaves a margin on each side. The paths in the full size view start with a folder in `/tmp`.
 
 ### Compose compiler reports
 
