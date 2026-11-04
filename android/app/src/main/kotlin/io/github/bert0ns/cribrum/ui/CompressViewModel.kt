@@ -161,7 +161,11 @@ class CompressViewModel @JvmOverloads constructor(
 
     fun goToCompressedPage(page: Int) = mutableState.update { it.copy(compressedPage = page.coerceIn(0, compressPageCount(it.compressed.size) - 1)) }
 
-    fun chooseLevel(level: CompressionLevel) = mutableState.update { it.copy(level = level) }
+    /** On the summary, a new level makes the previews again, so the comparison shows the level the user would get. */
+    fun chooseLevel(level: CompressionLevel) {
+        mutableState.update { it.copy(level = level) }
+        if (mutableState.value.summary.let { it != null && it.level != level }) openSummary()
+    }
 
     fun toggleCompressed() = mutableState.update { it.copy(compressedExpanded = !it.compressedExpanded) }
 

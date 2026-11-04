@@ -344,18 +344,17 @@
     <string name="close">Chiudi</string>
     <string name="action_select">Seleziona</string>
     <string name="action_deselect">Deseleziona</string>
-    <string name="compress_formats">Formati supportati: JPEG. Le Motion Photo non vengono compresse.</string>
-    <string name="compress_formats_no_hdr">Le foto HDR non vengono compresse.</string>
-    <string name="compress_formats_open">Mostra cosa è supportato</string>
+    <string name="compress_formats_open">Cosa si può comprimere</string>
     <string name="compress_sheet_title">Cosa comprime Cribrum</string>
     <string name="compress_sheet_supported">Compresse</string>
-    <string name="compress_sheet_jpeg">Foto JPEG. Anche le foto Ultra HDR, da Android 14 in poi.</string>
-    <string name="compress_sheet_again">Le foto che Cribrum ha già compresso, se scegli di comprimerle di nuovo.</string>
+    <string name="compress_sheet_jpeg">Le foto JPEG</string>
+    <string name="compress_sheet_hdr_yes">Le foto Ultra HDR</string>
+    <string name="compress_sheet_again">Le foto già compresse, se le scegli di nuovo</string>
     <string name="compress_sheet_unsupported">Non compresse</string>
-    <string name="compress_sheet_motion">Le Motion Photo. Il video al loro interno andrebbe perso.</string>
-    <string name="compress_sheet_hdr">Le foto HDR su Android 13 e precedenti. L\'encoder del telefono le scrive senza HDR.</string>
-    <string name="compress_sheet_extra">I JPEG con altri dati dopo l\'immagine, come le foto con mappa di profondità di alcuni telefoni. Quei dati andrebbero persi.</string>
-    <string name="compress_sheet_other">Gli altri formati, come HEIC, PNG, WebP e RAW, e i JPEG a 12 bit.</string>
+    <string name="compress_sheet_motion">Le Motion Photo, che perderebbero il video</string>
+    <string name="compress_sheet_hdr">Le foto HDR, con questa versione di Android</string>
+    <string name="compress_sheet_extra">I JPEG con altri dati dopo l\'immagine, come le foto con mappa di profondità</string>
+    <string name="compress_sheet_other">HEIC, PNG, WebP, RAW e i JPEG a 12 bit</string>
     <string name="compress_level_heading">Livello</string>
     <string name="compress_level_high">Alta qualità</string>
     <string name="compress_level_balanced">Bilanciato</string>
@@ -440,15 +439,11 @@
         <item quantity="other">Comprimere %d foto?</item>
         <item quantity="many">Comprimere %d di foto?</item>
     </plurals>
-    <string name="compress_summary_saving">Risparmio stimato: circa %1$s</string>
-    <string name="compress_summary_saving_detail">Da %1$s a circa %2$s. È una stima: il risparmio reale si vede alla fine.</string>
     <plurals name="compress_summary_confirm">
         <item quantity="one">Comprimi %d foto</item>
         <item quantity="other">Comprimi %d foto</item>
         <item quantity="many">Comprimi %d di foto</item>
     </plurals>
-    <string name="compress_preview_heading">Prima e dopo</string>
-    <string name="compress_preview_heading_some">Prima e dopo, sulla foto selezionata più grande, su quella di mezzo e sulla più piccola</string>
     <string name="compress_preview_before">Originale \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_after">Compressa \u2022 %1$s \u2022 %2$d \u00D7 %3$d</string>
     <string name="compress_preview_loading">Compressione della foto per l\'anteprima\u2026</string>
