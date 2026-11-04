@@ -188,9 +188,8 @@ class Gallery(val compose: ComposeTestRule, val app: CribrumApp, val world: Gall
     fun app(
         model: ReviewViewModel = world.model(),
         compress: CompressSetup = CompressSetup(),
-        notificationsGranted: Boolean = true,
     ): ReviewViewModel {
-        launch(compress.owner(app, world)) { App(model, notificationsGranted) }
+        launch(compress.owner(app, world)) { App(model) }
         return model
     }
 

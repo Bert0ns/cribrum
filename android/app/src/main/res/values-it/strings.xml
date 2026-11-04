@@ -337,8 +337,6 @@
         <item quantity="other">%1$s \u2022 %2$d immagini</item>
         <item quantity="many">%1$s \u2022 %2$d di immagini</item>
     </plurals>
-    <string name="notification_hint">La notifica di avanzamento della scansione è disattivata</string>
-    <string name="notification_action_settings">Impostazioni</string>
     <!-- Comprimi -->
     <string name="close">Chiudi</string>
     <string name="action_select">Seleziona</string>

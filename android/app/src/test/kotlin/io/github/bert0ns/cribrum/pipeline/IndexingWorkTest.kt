@@ -256,6 +256,38 @@ class IndexingWorkTest {
     }
 
     @Test
+    fun `the app's stop cancels the nightly scan, as the notification's does, and the night comes back`() {
+        Indexing.schedulePeriodic(app, now)
+        val stopped = nightly().id
+        startNightlyAt(at(22, 2, 30))
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        runBlocking { Indexing.stop(app) }
+
+        // A new nightly request, which the stopped run adds back only when its own was cancelled.
+        runBlocking {
+            withTimeout(10_000) {
+                while (scheduled().none { Indexing.NIGHTLY_TAG in it.tags && it.id != stopped && it.state == WorkInfo.State.ENQUEUED }) yield()
+                while (IndexWorker.running.isLocked) yield()
+            }
+        }
+    }
+
+    @Test
+    fun `the app's stop cancels a Scan now and leaves the nightly request as it was`() {
+        Indexing.schedulePeriodic(app, now)
+        val night = nightly().id
+        Indexing.scanNow(app)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        runBlocking { Indexing.stop(app) }
+
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).first { it == null } } }
+        assertEquals(WorkInfo.State.ENQUEUED, scheduled().single { it.id == night }.state)
+        assertEquals(1, scheduled().count { Indexing.NIGHTLY_TAG in it.tags })
+    }
+
+    @Test
     fun `Scan now waits for a scan that still holds the lock, and then scans`() {
         runBlocking { IndexWorker.running.lock() }
         Indexing.scanNow(app)

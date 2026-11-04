@@ -2,12 +2,10 @@ package io.github.bert0ns.cribrum
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
-import android.provider.Settings
 import android.text.format.Formatter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -16,9 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,14 +25,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
@@ -47,15 +41,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.bert0ns.cribrum.compress.BatchState
@@ -91,12 +84,8 @@ import io.github.bert0ns.cribrum.ui.label
 import io.github.bert0ns.cribrum.ui.readableWidth
 import io.github.bert0ns.cribrum.ui.rememberHeat
 import io.github.bert0ns.cribrum.ui.trailHue
+import kotlinx.coroutines.launch
 import java.io.File
-
-/** The system screen where the user can enable app notifications. */
-fun notificationSettings(context: Context): Intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-}
 
 interface Permissions {
     fun hasAllFilesAccess(): Boolean
@@ -184,27 +173,6 @@ fun App(
     }
 }
 
-@Composable
-fun NotificationHint(onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        Text(
-            text = stringResource(R.string.notification_hint),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f).padding(end = 8.dp),
-        )
-        TextButton(onClick = onOpenSettings) {
-            Text(stringResource(R.string.notification_action_settings))
-        }
-    }
-}
-
 /**
  * What the snackbar after an applied page says. The size too: with no dialog before it, the snackbar is where the user
  * reads what the page freed, and the space in "190 MB" does not break. A page with nothing marked was only kept; one
@@ -235,6 +203,7 @@ private fun AppContent(
     val compressing = batch is BatchState.WaitingForScan || batch is BatchState.Running
     val progress by remember { Indexing.progress(context) }.collectAsStateWithLifecycle(null)
     val snackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
     val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         onNotificationResult(granted)
     }
@@ -367,15 +336,12 @@ private fun AppContent(
                             ScanStatus(
                                 progress,
                                 onScan = { Indexing.scanNow(context) },
+                                onStop = { scope.launch { Indexing.stop(context) } },
                                 indexEmpty = state.indexEmpty,
                                 heat = rememberHeat(running = progress != null),
                                 compressing = compressing,
                                 lastScanAt = state.lastScan?.finishedAt,
                             )
-                            // The notification only shows a running scan, so the hint matters only then.
-                            if (!notificationsGranted && progress != null) {
-                                NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
-                            }
                             CategoryList(state.categories, state.freeableBytes, model::open)
                         }
                         is Screen.Category -> CategoryScreen(

@@ -45,6 +45,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import java.time.Duration
@@ -86,6 +87,15 @@ object Indexing {
     /** Starts a scan now, unless one is running. */
     fun scanNow(context: Context) {
         WorkManager.getInstance(context).enqueueUniqueWork(WORK, ExistingWorkPolicy.KEEP, OneTimeWorkRequestBuilder<IndexWorker>().addTag(TAG).build())
+    }
+
+    /**
+     * Stops the running scan with the cancel the notification's "Stop scanning" sends: that request's own, by its id.
+     * A stopped nightly run adds its request back as it ends, and the nightly request of a stopped "Scan now" is untouched.
+     */
+    suspend fun stop(context: Context) {
+        val manager = WorkManager.getInstance(context)
+        manager.getWorkInfosByTagFlow(TAG).first().filter { it.state == WorkInfo.State.RUNNING }.forEach { manager.cancelWorkById(it.id) }
     }
 
     /**

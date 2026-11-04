@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.os.Looper
 import android.provider.Settings
-import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -50,41 +49,6 @@ class MainActivityTest {
     fun tearDown() {
         MainActivity.resetPermissions()
         app.notificationPreferences.permissionRequested = false
-    }
-
-    @Test
-    fun `notification hint displays message and triggers settings action`() {
-        var clicked = false
-        compose.setContent {
-            NotificationHint(onOpenSettings = { clicked = true })
-        }
-
-        compose.onNodeWithText("Scan progress notification is off").assertIsDisplayed()
-        compose.onNodeWithText("Settings").assertIsDisplayed().performClick()
-        assertTrue(clicked)
-    }
-
-    @Test
-    fun `notificationSettings intent targets app notification settings`() {
-        val intent = notificationSettings(app)
-        assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, intent.action)
-        assertEquals(app.packageName, intent.getStringExtra(Settings.EXTRA_APP_PACKAGE))
-    }
-
-    @Test
-    fun `clicking notification hint settings button starts app notification settings`() {
-        Robolectric.buildActivity(ComponentActivity::class.java).setup().use { activityController ->
-            val activity = activityController.get()
-            compose.setContent {
-                NotificationHint(onOpenSettings = { activity.startActivity(notificationSettings(activity)) })
-            }
-
-            compose.onNodeWithText("Settings").performClick()
-            val nextIntent = shadowOf(activity).nextStartedActivity
-            assertNotNull(nextIntent)
-            assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, nextIntent.action)
-            assertEquals(activity.packageName, nextIntent.getStringExtra(Settings.EXTRA_APP_PACKAGE))
-        }
     }
 
     @Test
