@@ -138,7 +138,7 @@ class StorageMapScreenTest {
         val zeros = buildFolderTree(listOf(ImageRef("/a/1.jpg", 0L, 0L), ImageRef("/a/2.jpg", 0L, 0L)))
         compose.setContent { StorageMapScreen(currentFolder = zeros, onZoomIn = {}) }
 
-        compose.onNodeWithText("No images indexed").assertDoesNotExist()
+        compose.onNodeWithText("No images found yet").assertDoesNotExist()
     }
 
     @Test
@@ -150,7 +150,7 @@ class StorageMapScreenTest {
             )
         }
 
-        compose.onNodeWithText("No images indexed").assertIsDisplayed()
+        compose.onNodeWithText("No images found yet").assertIsDisplayed()
     }
 
     /** Navigation runs on the view model scope, so the screen changes after the click returns. */

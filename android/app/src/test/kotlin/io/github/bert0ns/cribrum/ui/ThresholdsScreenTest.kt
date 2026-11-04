@@ -42,12 +42,12 @@ class ThresholdsScreenTest {
         }
 
         compose.onNodeWithText("Raising a threshold takes images out of the lists", substring = true).assertIsDisplayed()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Blurry: 0.70"))
-        compose.onNodeWithText("Blurry: 0.70").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Blurry"))
+        compose.onNodeWithText("Blurry").assertIsDisplayed()
         compose.onNodeWithText("10 images to review").assertIsDisplayed()
         compose.onNodeWithText("15 images fewer than at the default").assertIsDisplayed()
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Documents and notes: 0.20"))
-        compose.onNodeWithText("Documents and notes: 0.20").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Documents and notes"))
+        compose.onNodeWithText("Documents and notes").assertIsDisplayed()
         compose.onNodeWithText("1 image to review").assertIsDisplayed()
     }
 

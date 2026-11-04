@@ -86,6 +86,7 @@ import io.github.bert0ns.cribrum.ui.coversNavigation
 import io.github.bert0ns.cribrum.ui.destination
 import io.github.bert0ns.cribrum.ui.icon
 import io.github.bert0ns.cribrum.ui.label
+import io.github.bert0ns.cribrum.ui.readableWidth
 import io.github.bert0ns.cribrum.ui.rememberHeat
 import io.github.bert0ns.cribrum.ui.trailHue
 import java.io.File
@@ -345,9 +346,17 @@ private fun AppContent(
                 if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 val body: @Composable () -> Unit = {
                     when (screen) {
-                        Screen.Home -> {
-                            ScanStatus(progress, onScan = { Indexing.scanNow(context) }, indexEmpty = state.indexEmpty, heat = rememberHeat(running = progress != null), compressing = compressing)
-                            if (!notificationsGranted) {
+                        Screen.Home -> Column(Modifier.readableWidth()) {
+                            ScanStatus(
+                                progress,
+                                onScan = { Indexing.scanNow(context) },
+                                indexEmpty = state.indexEmpty,
+                                heat = rememberHeat(running = progress != null),
+                                compressing = compressing,
+                                lastScanAt = state.lastScan?.finishedAt,
+                            )
+                            // The notification only shows a running scan, so the hint matters only then.
+                            if (!notificationsGranted && progress != null) {
                                 NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
                             }
                             CategoryList(state.categories, state.freeableBytes, model::open)
@@ -376,6 +385,7 @@ private fun AppContent(
                             retentionDays = state.retentionDays,
                         )
                         Screen.Settings -> SettingsScreen(
+                            modifier = Modifier.readableWidth(),
                             onOpenStorageMap = { model.selectDestination(Destination.Map) },
                             onOpenThresholds = model::openThresholds,
                             retentionDays = state.retentionDays,
@@ -401,6 +411,7 @@ private fun AppContent(
                             state.defaultCounts,
                             model::setThreshold,
                             model::resetThresholds,
+                            Modifier.readableWidth(),
                         )
                         Screen.StorageMap -> StorageMapScreen(
                             currentFolder = state.storageMap.lastOrNull() ?: Folder.EMPTY,

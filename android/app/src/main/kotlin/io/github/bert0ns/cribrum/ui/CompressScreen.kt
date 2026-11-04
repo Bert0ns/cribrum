@@ -10,6 +10,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -199,6 +201,7 @@ fun CompressContent(
 /** The room under the grid for the floating Continue button: its 16 dp margins around a 40 dp button, and some slack for a large font. */
 private val CONTINUE_CLEARANCE = 96.dp
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Picker(
     state: CompressState,
@@ -252,8 +255,9 @@ private fun Picker(
             item(span = { GridItemSpan(maxLineSpan) }, key = "photos") {
                 // Only this page: the photos on the other pages keep the selection they have.
                 val all = shown.isNotEmpty() && shown.all { it.path in state.selected }
-                Row(Modifier.padding(start = 16.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(pluralStringResource(R.plurals.compress_photos_heading, state.photos.size, state.photos.size), Modifier.weight(1f).semantics { heading() }, style = MaterialTheme.typography.titleSmall)
+                // The button goes under the count when both do not fit on one line, as with a large font.
+                FlowRow(Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween, itemVerticalAlignment = Alignment.CenterVertically) {
+                    Text(pluralStringResource(R.plurals.compress_photos_heading, state.photos.size, state.photos.size), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
                     if (shown.isNotEmpty()) {
                         TextButton({
                             tick()
@@ -605,7 +609,7 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () ->
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).readableWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(pluralStringResource(R.plurals.compress_summary_title, count, count), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                     Text(stringResource(R.string.compress_summary_level, summary.level.title(), summary.level.detail()))
                     Text(stringResource(R.string.compress_summary_saving, fileSize(saving)), fontWeight = FontWeight.Bold)
@@ -613,13 +617,13 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onClose: () ->
                     BeforeAfter(summary, count)
                     LossWarning(state, state.lossCounts())
                 }
-                Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClose, Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
+                Buttons(Modifier.readableWidth().padding(16.dp)) {
                     Button({
                         // The originals go to the trash, so it is as strong as trashing in the review.
                         haptics.performHapticFeedback(Haptic.TRASH.type)
                         onConfirm()
-                    }, Modifier.weight(1f)) { Text(pluralStringResource(R.plurals.compress_summary_confirm, count, count)) }
+                    }) { Text(pluralStringResource(R.plurals.compress_summary_confirm, count, count)) }
+                    OutlinedButton(onClose) { Text(stringResource(R.string.cancel)) }
                 }
             }
         }

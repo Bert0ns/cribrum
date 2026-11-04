@@ -1,15 +1,11 @@
 package io.github.bert0ns.cribrum.ui
 
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.unit.Density
 import io.github.bert0ns.cribrum.pipeline.ScanProgress
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -18,7 +14,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36]) // Compose tests reach InputManager.getInstance, which SDK 37 removed
@@ -26,7 +21,8 @@ class ScanStatusTest {
     @get:Rule
     val compose = createComposeRule()
 
-    private val empty = "No images indexed yet. Tap Scan now to start the first scan."
+    private val empty = "No images found yet. Tap Scan now to look for them."
+    private val hot = "The phone is hot, so the scan is slower"
 
     @Test
     fun `an empty index points to Scan now, which starts a scan`() {
@@ -118,101 +114,70 @@ class ScanStatusTest {
     }
 
     @Test
-    fun `the heat shows at the end of the phase line while the scan walks`() {
+    fun `a hot phone says the scan is slower, with no number`() {
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
 
-        compose.onNodeWithText("moderate · 12%").assertExists()
-        compose.onNodeWithContentDescription("Heat: moderate · 12%").assertExists()
+        compose.onNodeWithText(hot).assertExists()
+        compose.onNodeWithText("12", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Phase 1 of 6").assertExists()
     }
 
     @Test
-    fun `the heat shows at the end of the phase line in a normal scan`() {
-        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.LIGHT, 20)) }
+    fun `a severe heat says the same`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.SEVERE, null)) }
 
-        compose.onNodeWithText("light · 20%").assertExists()
-        compose.onNodeWithContentDescription("Heat: light · 20%").assertExists()
-        compose.onNodeWithText("Phase 3 of 6").assertExists()
+        compose.onNodeWithText(hot).assertExists()
     }
 
     @Test
-    fun `with no headroom the heat shows the level alone`() {
-        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.SEVERE, null)) }
+    fun `a light heat that does not slow the scan shows nothing`() {
+        compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = Heat(HeatLevel.LIGHT, 20)) }
 
-        compose.onNodeWithText("severe").assertExists()
-        compose.onNodeWithContentDescription("Heat: severe").assertExists()
+        compose.onNodeWithText(hot).assertDoesNotExist()
     }
 
     @Test
     fun `with no reading no heat shows`() {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}, heat = null) }
 
-        compose.onNodeWithContentDescription("Heat", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("moderate", substring = true).assertDoesNotExist()
+        compose.onNodeWithText(hot).assertDoesNotExist()
     }
 
     @Test
-    @Config(qualifiers = "w360dp-h640dp")
-    fun `the heat is right-aligned on the same line when space permits`() {
-        compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
-
-        val phaseBounds = compose.onNodeWithText("Phase 1 of 6").fetchSemanticsNode().boundsInRoot
-        val heatBounds = compose.onNodeWithText("moderate · 12%").fetchSemanticsNode().boundsInRoot
-        assertTrue("Heat should be to the right of phase", heatBounds.left > phaseBounds.right)
-        assertTrue("Heat should be on the same horizontal line", heatBounds.top < phaseBounds.bottom && heatBounds.bottom > phaseBounds.top)
-    }
-
-    @Test
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Config(qualifiers = "w240dp-h640dp")
-    fun `the heat moves to its own line on narrow screens`() {
-        compose.setContent {
-            ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12))
-        }
-
-        val phaseBounds = compose.onNodeWithText("Phase 1 of 6").fetchSemanticsNode().boundsInRoot
-        val heatBounds = compose.onNodeWithText("moderate · 12%").fetchSemanticsNode().boundsInRoot
-        assertTrue("Heat should be below the phase line", heatBounds.top >= phaseBounds.bottom)
-    }
-
-    @Test
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    fun `the heat moves to its own line at large font scale`() {
-        compose.setContent {
-            CompositionLocalProvider(
-                LocalDensity provides Density(1f, fontScale = 2f),
-            ) {
-                ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12))
-            }
-        }
-
-        val phaseBounds = compose.onNodeWithText("Phase 1 of 6").fetchSemanticsNode().boundsInRoot
-        val heatBounds = compose.onNodeWithText("moderate · 12%").fetchSemanticsNode().boundsInRoot
-        assertTrue("Heat should be below the phase line at 2x font scale", heatBounds.top >= phaseBounds.bottom)
-    }
-
-    @Test
-    @GraphicsMode(GraphicsMode.Mode.NATIVE)
-    @Config(qualifiers = "w240dp-h640dp")
-    fun `on a narrow screen the first heat reading does not push the rest down`() {
+    fun `the heat line does not push the rest down`() {
         var heat by mutableStateOf<Heat?>(null)
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = heat) }
         val before = compose.onNodeWithText("Finding images", substring = true).fetchSemanticsNode().boundsInRoot.top
 
-        heat = Heat(HeatLevel.MODERATE, 12)
+        heat = Heat(HeatLevel.SEVERE, 0)
         compose.waitForIdle()
 
-        compose.onNodeWithText("moderate · 12%").assertExists()
+        compose.onNodeWithText(hot).assertExists()
         assertEquals(before, compose.onNodeWithText("Finding images", substring = true).fetchSemanticsNode().boundsInRoot.top)
     }
 
     @Test
     @Config(qualifiers = "it")
-    fun `the heat shows in Italian with thermometer icon`() {
+    fun `the heat shows in Italian`() {
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
 
-        compose.onNodeWithText("moderato · 12%").assertExists()
-        compose.onNodeWithContentDescription("Calore: moderato · 12%").assertExists()
+        compose.onNodeWithText("Il telefono è caldo, quindi la scansione è più lenta").assertExists()
         compose.onNodeWithText("Fase 1 di 6").assertExists()
+    }
+
+    @Test
+    fun `the time of the last scan shows beside Scan now`() {
+        val at = java.util.Calendar.getInstance().apply { set(2026, java.util.Calendar.NOVEMBER, 3, 3, 12) }.timeInMillis
+        compose.setContent { ScanStatus(progress = null, onScan = {}, lastScanAt = at) }
+
+        compose.onNodeWithText("Last scan: Nov 3", substring = true).assertExists()
+        compose.onNodeWithText("Scan now").assertExists()
+    }
+
+    @Test
+    fun `no time shows before the first scan`() {
+        compose.setContent { ScanStatus(progress = null, onScan = {}, indexEmpty = true) }
+
+        compose.onNodeWithText("Last scan", substring = true).assertDoesNotExist()
     }
 }

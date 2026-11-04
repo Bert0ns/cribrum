@@ -3,7 +3,6 @@ package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -86,9 +85,9 @@ fun TrashScreen(
                 trashItems(section, selected, onSelect)
             }
         }
-        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onRestore, Modifier.weight(1f), enabled = selected.isNotEmpty()) { Text(stringResource(R.string.restore, selected.size)) }
-            OutlinedButton({ confirmEmpty = true }, Modifier.weight(1f)) { Text(stringResource(R.string.empty_trash)) }
+        Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
+            Button(onRestore, enabled = selected.isNotEmpty()) { Text(stringResource(R.string.restore, selected.size)) }
+            OutlinedButton({ confirmEmpty = true }) { Text(stringResource(R.string.empty_trash)) }
         }
     }
     if (confirmEmpty) {
@@ -100,7 +99,7 @@ fun TrashScreen(
                 TextButton({
                     confirmEmpty = false
                     onEmpty()
-                }) { Text(stringResource(R.string.delete)) }
+                }, colors = destructive()) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = { TextButton({ confirmEmpty = false }) { Text(stringResource(R.string.cancel)) } },
         )

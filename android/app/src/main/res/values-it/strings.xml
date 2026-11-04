@@ -9,7 +9,7 @@
         image                             immagine
         to review (a candidate)           da controllare
         scan                              scansione ("Scansiona ora")
-        embedding                         embedding (English, invariable)
+        analysis data (embeddings)        dati dell'analisi
         duplicate, copy                   copia identica, copia simile
         best copy                         copia migliore ("Migliore" on the tile)
         burst                             raffica (of scatti)
@@ -38,22 +38,18 @@
     <string name="scan_channel">Ricerca di immagini</string>
     <string name="scan_phase_scan">Ricerca di immagini</string>
     <string name="scan_phase_metadata">Lettura delle immagini</string>
-    <string name="scan_phase_embeddings">Calcolo degli embedding</string>
+    <string name="scan_phase_embeddings">Confronto delle immagini</string>
     <string name="scan_phase_analysis">Analisi delle immagini</string>
     <string name="scan_phase_classification">Classificazione delle immagini</string>
     <string name="scan_phase_groups">Ricerca di duplicati e raffiche</string>
     <string name="scan_phase_number">Fase %1$d di %2$d</string>
-    <string name="scan_heat">Calore: %1$s</string>
-    <string name="scan_heat_headroom">%1$s · %2$d%%</string>
-    <string name="scan_heat_normal">normale</string>
-    <string name="scan_heat_light">lieve</string>
-    <string name="scan_heat_moderate">moderato</string>
-    <string name="scan_heat_severe">elevato</string>
+    <string name="scan_heat_slow">Il telefono è caldo, quindi la scansione è più lenta</string>
     <string name="scan_starting">Avvio…</string>
     <string name="scan_progress">%1$d di %2$d</string>
     <string name="scan_progress_open">finora %1$d</string>
     <string name="scan_now">Scansiona ora</string>
-    <string name="scan_empty">Nessuna immagine indicizzata. Tocca Scansiona ora per avviare la prima scansione.</string>
+    <string name="scan_empty">Nessuna immagine trovata finora. Tocca Scansiona ora per cercarle.</string>
+    <string name="scan_last">Ultima scansione: %1$s</string>
     <string name="scan_step_scan">Ricerca delle immagini: finora %1$d</string>
     <string name="scan_step">%1$s: %2$d di %3$d</string>
     <string name="scan_left_minutes">Circa %1$d min rimanenti in questa fase</string>
@@ -75,7 +71,11 @@
         <item quantity="many">%d di immagini da controllare</item>
     </plurals>
     <string name="freeable_total">Si possono liberare fino a %1$s</string>
-    <string name="category_line_with_space">%1$s · si possono liberare %2$s</string>
+    <plurals name="category_images">
+        <item quantity="one">%d immagine</item>
+        <item quantity="other">%d immagini</item>
+        <item quantity="many">%d di immagini</item>
+    </plurals>
     <plurals name="page_more">
         <item quantity="one">%1$d di %2$d immagine da controllare. Conferma queste per vedere le successive.</item>
         <item quantity="other">%1$d di %2$d immagini da controllare. Conferma queste per vedere le successive.</item>
@@ -248,25 +248,25 @@
     <string name="settings_add_excluded_folder">Aggiungi cartella</string>
     <string name="settings_storage">Archiviazione</string>
     <string name="settings_storage_app">App</string>
-    <string name="settings_storage_index">Database dell\'indice</string>
-    <string name="settings_storage_index_size">%s, senza gli embedding</string>
+    <string name="settings_storage_index">Dati della scansione</string>
+    <string name="settings_storage_index_size">%s, senza i dati dell\'analisi</string>
     <string name="settings_storage_cache">Cache</string>
     <string name="settings_storage_trash">File nel cestino</string>
     <string name="settings_embeddings_size">Circa %s, una stima</string>
-    <string name="settings_delete_embeddings">Elimina gli embedding</string>
+    <string name="settings_delete_embeddings">Elimina i dati dell\'analisi</string>
     <plurals name="settings_embeddings_stored">
-        <item quantity="one">%d embedding salvato. Eliminarlo libera il suo spazio.</item>
-        <item quantity="other">%d embedding salvati. Eliminarli libera il loro spazio.</item>
-        <item quantity="many">%d di embedding salvati. Eliminarli libera il loro spazio.</item>
+        <item quantity="one">Ciò che la scansione ha imparato su %d immagine. Eliminarlo libera il suo spazio.</item>
+        <item quantity="other">Ciò che la scansione ha imparato su %d immagini. Eliminarlo libera il suo spazio.</item>
+        <item quantity="many">Ciò che la scansione ha imparato su %d di immagini. Eliminarlo libera il suo spazio.</item>
     </plurals>
-    <string name="settings_no_embeddings">Nessun embedding salvato.</string>
+    <string name="settings_no_embeddings">Nessun dato dell\'analisi salvato.</string>
     <string name="settings_delete_embeddings_scanning">Aspetta la fine della scansione.</string>
-    <string name="settings_delete_embeddings_title">Eliminare gli embedding?</string>
-    <string name="settings_delete_embeddings_confirm">L\'app salva un embedding per ogni immagine, per trovare duplicati, documenti e immagini inoltrate. Vengono ricalcolati alla prossima scansione, che avvii con Scansiona ora o che parte da sola di notte mentre il telefono è in carica. Una scansione completa richiede un po\' di tempo: circa 15–20 minuti per 10.000 immagini. Nel frattempo la schermata di controllo continua a mostrare ciò che mostra ora. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
+    <string name="settings_delete_embeddings_title">Eliminare i dati dell\'analisi?</string>
+    <string name="settings_delete_embeddings_confirm">Cribrum conserva ciò che ha imparato su ogni immagine per trovare copie, documenti e immagini inoltrate. La prossima scansione lo impara di nuovo, e servono circa 15–20 minuti per 10.000 immagini. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
     <string name="exclude_folder">Non suggerire mai questa cartella né le sue sottocartelle</string>
     <!-- Stato della scansione nelle impostazioni -->
     <string name="settings_scan_status">Stato della scansione</string>
-    <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i passaggi embedding, documenti e inoltrate, che li saltano di proposito.</string>
+    <string name="settings_scan_status_hint">Immagini analizzate sul totale di quelle che servono a ogni passaggio. Le immagini nel cestino non sono contate, e neppure gli sticker per i dati dell\'analisi, i documenti e le immagini inoltrate, che li saltano.</string>
     <string name="settings_scan_status_last">Ultima scansione completata</string>
     <string name="settings_scan_status_none">Nessuna scansione completata con questa versione.</string>
     <string name="settings_scan_status_duration">Durata: %1$s</string>
@@ -286,7 +286,7 @@
     <string name="settings_scan_status_toggle_files">Mostra o nascondi i nomi dei file</string>
     <string name="settings_scan_status_files_shown">Nomi dei file mostrati</string>
     <string name="settings_scan_status_files_hidden">Nomi dei file nascosti</string>
-    <string name="settings_scan_status_embedding">Embedding</string>
+    <string name="settings_scan_status_embedding">Dati dell\'analisi</string>
     <string name="settings_scan_status_faces">Volti</string>
     <string name="settings_scan_status_metadata">Metadati</string>
     <string name="settings_scan_status_unreadable_step">Illeggibile</string>
@@ -313,6 +313,7 @@
     <string name="nav_clean">Pulisci</string>
     <string name="nav_compress">Comprimi</string>
     <string name="nav_map">Mappa</string>
+    <string name="nav_settings">Opzioni</string>
     <string name="compress_channel">Compressione delle foto</string>
     <string name="compress_progress">Compressione %1$d di %2$d</string>
     <string name="compress_saved">%1$s risparmiati finora</string>
@@ -324,7 +325,7 @@
     <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>
     <string name="storage_map_root">Tutte le cartelle esplorate</string>
     <string name="storage_map_exclude">Escludi questa cartella</string>
-    <string name="storage_map_empty">Nessuna immagine indicizzata</string>
+    <string name="storage_map_empty">Nessuna immagine trovata finora</string>
     <string name="storage_map_no_subfolders">Nessuna sottocartella</string>
     <plurals name="storage_map_summary">
         <item quantity="one">%1$s \u2022 %2$d immagine</item>

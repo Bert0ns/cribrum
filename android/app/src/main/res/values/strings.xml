@@ -6,22 +6,18 @@
     <string name="scan_channel">Looking for images</string>
     <string name="scan_phase_scan">Looking for images</string>
     <string name="scan_phase_metadata">Reading the images</string>
-    <string name="scan_phase_embeddings">Computing the embeddings</string>
+    <string name="scan_phase_embeddings">Comparing the images</string>
     <string name="scan_phase_analysis">Analyzing the images</string>
     <string name="scan_phase_classification">Classifying the images</string>
     <string name="scan_phase_groups">Finding duplicates and bursts</string>
     <string name="scan_phase_number">Phase %1$d of %2$d</string>
-    <string name="scan_heat">Heat: %1$s</string>
-    <string name="scan_heat_headroom">%1$s · %2$d%%</string>
-    <string name="scan_heat_normal">normal</string>
-    <string name="scan_heat_light">light</string>
-    <string name="scan_heat_moderate">moderate</string>
-    <string name="scan_heat_severe">severe</string>
+    <string name="scan_heat_slow">The phone is hot, so the scan is slower</string>
     <string name="scan_starting">Starting…</string>
     <string name="scan_progress">%1$d of %2$d</string>
     <string name="scan_progress_open">%1$d so far</string>
     <string name="scan_now">Scan now</string>
-    <string name="scan_empty">No images indexed yet. Tap Scan now to start the first scan.</string>
+    <string name="scan_empty">No images found yet. Tap Scan now to look for them.</string>
+    <string name="scan_last">Last scan: %1$s</string>
     <string name="scan_step_scan">Finding images: %1$d so far</string>
     <string name="scan_step">%1$s: %2$d of %3$d</string>
     <string name="scan_left_minutes">About %1$d min left in this step</string>
@@ -43,7 +39,10 @@
         <item quantity="other">%d images to review</item>
     </plurals>
     <string name="freeable_total">Up to %1$s can be freed</string>
-    <string name="category_line_with_space">%1$s · can free %2$s</string>
+    <plurals name="category_images">
+        <item quantity="one">%d image</item>
+        <item quantity="other">%d images</item>
+    </plurals>
     <plurals name="page_more">
         <item quantity="one">%1$d of %2$d image to review. Confirm these to see the next ones.</item>
         <item quantity="other">%1$d of %2$d images to review. Confirm these to see the next ones.</item>
@@ -195,31 +194,30 @@
         <item quantity="one">%d image fewer than at the default</item>
         <item quantity="other">%d images fewer than at the default</item>
     </plurals>
-    <string name="thresholds_value" translatable="false">%1$s: %2$.2f</string>
     <string name="thresholds_reset">Reset to defaults</string>
     <string name="settings_excluded_folders">Excluded folders</string>
     <string name="settings_no_excluded_folders">No folders are excluded. Exclude one from the storage map, or from an image at full size.</string>
     <string name="settings_add_excluded_folder">Add folder</string>
     <string name="settings_storage">Storage</string>
     <string name="settings_storage_app">App</string>
-    <string name="settings_storage_index">Index database</string>
-    <string name="settings_storage_index_size">%s, without the embeddings</string>
+    <string name="settings_storage_index">Scan data</string>
+    <string name="settings_storage_index_size">%s, without the analysis data</string>
     <string name="settings_storage_cache">Cache</string>
     <string name="settings_storage_trash">Files in the trash</string>
     <string name="settings_embeddings_size">About %s, an estimate</string>
-    <string name="settings_delete_embeddings">Delete embeddings</string>
+    <string name="settings_delete_embeddings">Delete the analysis data</string>
     <plurals name="settings_embeddings_stored">
-        <item quantity="one">%d embedding stored. Deleting it frees its space.</item>
-        <item quantity="other">%d embeddings stored. Deleting them frees their space.</item>
+        <item quantity="one">What the scan learned about %d image. Deleting it frees its space.</item>
+        <item quantity="other">What the scan learned about %d images. Deleting it frees its space.</item>
     </plurals>
-    <string name="settings_no_embeddings">No embeddings stored.</string>
+    <string name="settings_no_embeddings">No analysis data stored.</string>
     <string name="settings_delete_embeddings_scanning">Wait for the scan to finish.</string>
-    <string name="settings_delete_embeddings_title">Delete the embeddings?</string>
-    <string name="settings_delete_embeddings_confirm">The app stores one embedding per image to find duplicates, documents and forwarded images. They are computed again at the next scan, which you start with Scan now or which runs by itself at night while the phone charges. A full one takes a while: about 15 to 20 minutes for 10,000 images. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.</string>
+    <string name="settings_delete_embeddings_title">Delete the analysis data?</string>
+    <string name="settings_delete_embeddings_confirm">Cribrum keeps what it learned about each image to find copies, documents and forwarded images. The next scan learns it again, which takes about 15 to 20 minutes for 10,000 images. Your images, the trash and your decisions stay as they are.</string>
     <string name="exclude_folder">Never suggest this folder or its subfolders</string>
     <!-- Scan status in settings -->
     <string name="settings_scan_status">Scan status</string>
-    <string name="settings_scan_status_hint">Images analysed out of the images each step needs. Images in the trash are not counted, and neither are stickers for the embedding, document and forwarded steps, which skip them by design.</string>
+    <string name="settings_scan_status_hint">Images analysed out of the images each step needs. Images in the trash are not counted, and neither are stickers for the analysis data, documents and forwarded images, which skip them.</string>
     <string name="settings_scan_status_last">Last finished scan</string>
     <string name="settings_scan_status_none">No scan has finished since this version.</string>
     <string name="settings_scan_status_duration">Took %1$s</string>
@@ -237,7 +235,7 @@
     <string name="settings_scan_status_toggle_files">Show or hide the file names</string>
     <string name="settings_scan_status_files_shown">File names shown</string>
     <string name="settings_scan_status_files_hidden">File names hidden</string>
-    <string name="settings_scan_status_embedding">Embeddings</string>
+    <string name="settings_scan_status_embedding">Analysis data</string>
     <string name="settings_scan_status_faces">Faces</string>
     <string name="settings_scan_status_metadata">Metadata</string>
     <string name="settings_scan_status_unreadable_step">Unreadable</string>
@@ -262,6 +260,8 @@
     <string name="nav_clean">Clean</string>
     <string name="nav_compress">Compress</string>
     <string name="nav_map">Map</string>
+    <!-- The label in the bar, apart from the title: Italian needs a shorter word there, which stays on one line at a large font size. -->
+    <string name="nav_settings">Settings</string>
     <string name="compress_channel">Compressing photos</string>
     <string name="compress_progress">Compressing %1$d of %2$d</string>
     <string name="compress_saved">%1$s saved so far</string>
@@ -273,7 +273,7 @@
     <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s \u2022 image sizes</string>
     <string name="storage_map_root">All explored folders</string>
     <string name="storage_map_exclude">Exclude this folder</string>
-    <string name="storage_map_empty">No images indexed</string>
+    <string name="storage_map_empty">No images found yet</string>
     <string name="storage_map_no_subfolders">No subfolders</string>
     <plurals name="storage_map_summary">
         <item quantity="one">%1$s \u2022 %2$d image</item>

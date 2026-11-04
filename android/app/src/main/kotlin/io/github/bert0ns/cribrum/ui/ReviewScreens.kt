@@ -138,8 +138,9 @@ fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen:
                         if (!summary.hasDetector) {
                             stringResource(R.string.category_coming_soon)
                         } else {
-                            val count = pluralStringResource(R.plurals.candidates, summary.count, summary.count)
-                            if (summary.count == 0) count else stringResource(R.string.category_line_with_space, count, Formatter.formatShortFileSize(LocalContext.current, summary.bytes))
+                            // The header says once what the numbers are: images to review and the space they can free.
+                            val count = pluralStringResource(R.plurals.category_images, summary.count, summary.count)
+                            if (summary.count == 0) count else stringResource(R.string.scan_joined, count, Formatter.formatShortFileSize(LocalContext.current, summary.bytes))
                         },
                     )
                 },
@@ -335,8 +336,8 @@ fun CategoryScreen(
         }
         SnackbarHost(snackbar)
         if (images.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { showSummary = true }, Modifier.weight(1f), enabled = !loading) {
+            Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
+                Button(onClick = { showSummary = true }, enabled = !loading) {
                     Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
                 }
                 OutlinedButton(onClick = {
@@ -366,7 +367,9 @@ fun CategoryScreen(
                     haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
                     val trashPaths = toTrash.map { it.image.path }.toSet()
                     onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
-                }, enabled = !loading) { Text(stringResource(if (favorites > 0) R.string.summary_confirm_favorites else R.string.summary_confirm)) }
+                }, enabled = !loading, colors = if (favorites > 0) destructive() else ButtonDefaults.textButtonColors()) {
+                    Text(stringResource(if (favorites > 0) R.string.summary_confirm_favorites else R.string.summary_confirm))
+                }
             },
             dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
         )
