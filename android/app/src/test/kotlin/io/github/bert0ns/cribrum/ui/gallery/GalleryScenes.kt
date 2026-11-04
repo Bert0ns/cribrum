@@ -128,6 +128,12 @@ private fun Gallery.scanRunning(step: String, done: Int, total: Int, leftMs: Lon
     awaitNoText(str(R.string.scan_now))
 }
 
+/** 03:12 this morning, when the nightly scan ends. */
+private fun lastNight(): Long = java.util.Calendar.getInstance().apply {
+    set(java.util.Calendar.HOUR_OF_DAY, 3)
+    set(java.util.Calendar.MINUTE, 12)
+}.timeInMillis
+
 private fun Gallery.settings(model: ReviewViewModel) {
     world.library(others = true)
     world.commit()
@@ -141,15 +147,18 @@ private fun Gallery.settings(model: ReviewViewModel) {
         finishedAt = System.currentTimeMillis() - 5 * 3_600_000L,
         durationMs = 412_000,
     )
-    goTo(model, R.string.settings) { it.state.value.screen == Screen.Settings && it.state.value.coverage != null && it.state.value.storage != null }
+    goTo(model, R.string.nav_settings) { it.state.value.screen == Screen.Settings && it.state.value.coverage != null && it.state.value.storage != null }
 }
 
 val scenes: List<Scene> = listOf(
     // Clean
-    Scene("clean-results", "Clean, the home with a finished scan", "See how many images each category lists and how much they can free, open a category, scan again, open the trash from the top bar, or use the bar to go to Compress, Map or Settings.", Variant.full) {
+    Scene("clean-results", "Clean, the home with a finished scan", "See how many images each category lists and how much they can free, and when the last scan ran. Open a category, scan again, open the trash from the top bar, or use the bar to go to Compress, Map or Settings.", Variant.full) {
         world.library()
         world.commit()
-        awaitHome(app())
+        app.lastScan.record(Stats(images = 2_350), finishedAt = lastNight(), durationMs = 412_000)
+        val model = app()
+        awaitHome(model)
+        awaitText(str(R.string.scan_last, ""), substring = true)
     },
     Scene("clean-first-run", "Clean, first run with nothing scanned", "Start the first scan with Scan now. The categories are empty until it ends.", Variant.base) {
         world.commit(scanned = false)
@@ -157,10 +166,11 @@ val scenes: List<Scene> = listOf(
         awaitModel(model, "an empty index") { it.state.value.indexEmpty }
         awaitText(str(R.string.scan_empty))
     },
-    Scene("clean-first-run-notifications", "Clean, first run with notifications off", "Read the hint that scan progress notifications are off and open the system settings to turn them on, or start the first scan.", Variant.base) {
+    Scene("clean-first-run-notifications", "Clean, the first scan with notifications off", "Read the hint that scan progress notifications are off and open the system settings to turn them on, or watch the scan.", Variant.base) {
         world.commit(scanned = false)
         val model = app(notificationsGranted = false)
         awaitModel(model, "an empty index") { it.state.value.indexEmpty }
+        scanRunning("scan", 1_230, 0)
         awaitText(str(R.string.notification_hint))
     },
     Scene("clean-scanning", "Clean, a scan running in its detector phase", "Watch the phase, the count and the time left. Open a category that already has candidates, or leave the app while the scan goes on.", Variant.wide) {
@@ -447,7 +457,7 @@ val scenes: List<Scene> = listOf(
         world.library()
         world.commit()
         val model = app()
-        goTo(model, R.string.settings) { it.state.value.screen == Screen.Settings }
+        goTo(model, R.string.nav_settings) { it.state.value.screen == Screen.Settings }
         scrollTo(str(R.string.settings_thresholds))
         click(str(R.string.settings_thresholds))
         awaitModel(model, "the thresholds") { it.state.value.screen == Screen.Thresholds && it.state.value.thresholdCounts.isNotEmpty() }

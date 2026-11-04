@@ -145,8 +145,8 @@ class SettingsScreenTest {
             }
         }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
-        compose.onNodeWithText("Delete embeddings").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
+        compose.onNodeWithText("Delete the analysis data").performClick()
         assertEquals(emptyList<HapticFeedbackType>(), given)
         compose.onNodeWithText("Delete").performClick()
 
@@ -214,16 +214,16 @@ class SettingsScreenTest {
         var deleted = 0
         compose.setContent { SettingsScreen(embeddingCount = 120, onDeleteEmbeddings = { deleted++ }) }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
-        compose.onNodeWithText("120 embeddings stored. Deleting them frees their space.").assertIsDisplayed()
-        compose.onNodeWithText("Delete embeddings").performClick()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
+        compose.onNodeWithText("What the scan learned about 120 images. Deleting it frees its space.").assertIsDisplayed()
+        compose.onNodeWithText("Delete the analysis data").performClick()
 
-        compose.onNodeWithText("Delete the embeddings?").assertIsDisplayed()
-        compose.onNodeWithText("The app stores one embedding per image to find duplicates, documents and forwarded images. They are computed again at the next scan, which you start with Scan now or which runs by itself at night while the phone charges. A full one takes a while: about 15 to 20 minutes for 10,000 images. Until then the review screen keeps what it shows. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
+        compose.onNodeWithText("Delete the analysis data?").assertIsDisplayed()
+        compose.onNodeWithText("Cribrum keeps what it learned about each image to find copies, documents and forwarded images. The next scan learns it again, which takes about 15 to 20 minutes for 10,000 images. Your images, the trash and your decisions stay as they are.").assertIsDisplayed()
         compose.onNodeWithText("Cancel").performClick()
         assertEquals(0, deleted)
 
-        compose.onNodeWithText("Delete embeddings").performClick()
+        compose.onNodeWithText("Delete the analysis data").performClick()
         compose.onNodeWithText("Delete").performClick()
         assertEquals(1, deleted)
     }
@@ -231,8 +231,8 @@ class SettingsScreenTest {
     @Test
     fun `deleting the embeddings is off while a scan runs and when none are stored`() {
         compose.setContent { SettingsScreen(embeddingCount = 5, scanning = true) }
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
-        compose.onNodeWithText("Delete embeddings").assertIsNotEnabled()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
+        compose.onNodeWithText("Delete the analysis data").assertIsNotEnabled()
         compose.onNodeWithText("Wait for the scan to finish.").assertIsDisplayed()
     }
 
@@ -240,25 +240,25 @@ class SettingsScreenTest {
     fun `settings says when no embeddings are stored`() {
         compose.setContent { SettingsScreen(embeddingCount = 0) }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
-        compose.onNodeWithText("No embeddings stored.").assertIsDisplayed()
-        compose.onNodeWithText("Delete embeddings").assertIsNotEnabled()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
+        compose.onNodeWithText("No analysis data stored.").assertIsDisplayed()
+        compose.onNodeWithText("Delete the analysis data").assertIsNotEnabled()
     }
 
     @Test
     fun `settings lists the four sizes and the embeddings next to their delete item`() {
         compose.setContent { SettingsScreen(storage = StorageUse(app = 20_000_000, cache = 3_000_000, index = 1_000_000, embeddings = 5_000_000, trash = 42_000_000), embeddingCount = 3) }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
         compose.onNodeWithText("App").assertExists()
         compose.onNodeWithText(Formatter.formatShortFileSize(context, 20_000_000)).assertExists()
         compose.onNodeWithText("Cache").assertExists()
         compose.onNodeWithText(Formatter.formatShortFileSize(context, 3_000_000)).assertExists()
-        compose.onNodeWithText("Index database").assertExists()
+        compose.onNodeWithText("Scan data").assertExists()
         compose.onNodeWithText(Formatter.formatShortFileSize(context, 1_000_000), substring = true).assertExists()
         compose.onNodeWithText("Files in the trash").assertExists()
         compose.onNodeWithText(Formatter.formatShortFileSize(context, 42_000_000)).assertExists()
-        compose.onNodeWithText("3 embeddings stored. Deleting them frees their space.").assertExists()
+        compose.onNodeWithText("What the scan learned about 3 images. Deleting it frees its space.").assertExists()
         compose.onNodeWithText(Formatter.formatShortFileSize(context, 5_000_000), substring = true).assertExists()
     }
 
@@ -266,8 +266,8 @@ class SettingsScreenTest {
     fun `settings hides the app and cache lines when Android does not say`() {
         compose.setContent { SettingsScreen(storage = StorageUse(app = null, cache = null, index = 1_000_000, embeddings = 0, trash = 0)) }
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
-        compose.onNodeWithText("Index database").assertExists()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
+        compose.onNodeWithText("Scan data").assertExists()
         compose.onNodeWithText("App").assertDoesNotExist()
         compose.onNodeWithText("Cache").assertDoesNotExist()
     }

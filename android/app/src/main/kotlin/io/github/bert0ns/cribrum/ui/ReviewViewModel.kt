@@ -147,7 +147,10 @@ class ReviewViewModel @JvmOverloads constructor(
      */
     fun refresh() {
         refreshJob?.cancel()
-        refreshJob = load { it.copy(indexEmpty = app.index.imageCount() == 0).withOverview(review.overview()) }
+        refreshJob = load {
+            val lastScan = withContext(Dispatchers.IO) { app.lastScan.report }
+            it.copy(indexEmpty = app.index.imageCount() == 0, lastScan = lastScan).withOverview(review.overview())
+        }
     }
 
     private var refreshJob: Job? = null

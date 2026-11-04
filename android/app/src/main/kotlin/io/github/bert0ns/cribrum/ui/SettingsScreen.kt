@@ -111,7 +111,7 @@ fun SettingsScreen(
                     ),
                 )
             },
-            confirmButton = { TextButton(onConfirmRetention) { Text(stringResource(R.string.delete)) } },
+            confirmButton = { TextButton(onConfirmRetention, colors = destructive()) { Text(stringResource(R.string.delete)) } },
             dismissButton = { TextButton(onCancelRetention) { Text(stringResource(R.string.cancel)) } },
         )
     }

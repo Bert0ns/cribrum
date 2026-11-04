@@ -19,7 +19,7 @@ fun Destination.label(): String = stringResource(
         Destination.Clean -> R.string.nav_clean
         Destination.Compress -> R.string.nav_compress
         Destination.Map -> R.string.nav_map
-        Destination.Settings -> R.string.settings
+        Destination.Settings -> R.string.nav_settings
     },
 )
 

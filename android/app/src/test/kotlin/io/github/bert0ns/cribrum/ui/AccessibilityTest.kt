@@ -117,7 +117,7 @@ class AccessibilityTest {
         compose.setContent { SettingsScreen(excludedFolders = listOf("/sdcard/Download"), embeddingCount = 3) }
 
         assertTouchTargets("settings")
-        for (item in listOf("Detection thresholds", "Add folder", "Delete embeddings")) {
+        for (item in listOf("Detection thresholds", "Add folder", "Delete the analysis data")) {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText(item))
             assertTouchTargets("settings, at $item")
         }
@@ -181,9 +181,9 @@ class AccessibilityTest {
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Detection thresholds"))
         compose.onNodeWithText("Detection thresholds").assertIsDisplayed().performClick()
         assertEquals(1, thresholds)
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete embeddings"))
-        compose.onNodeWithText("Delete embeddings").assertIsDisplayed().performClick()
-        compose.onNodeWithText("Delete the embeddings?").assertIsDisplayed()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Delete the analysis data"))
+        compose.onNodeWithText("Delete the analysis data").assertIsDisplayed().performClick()
+        compose.onNodeWithText("Delete the analysis data?").assertIsDisplayed()
     }
 
     @Test

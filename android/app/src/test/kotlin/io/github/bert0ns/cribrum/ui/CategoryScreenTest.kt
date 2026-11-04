@@ -69,7 +69,7 @@ class CategoryScreenTest {
         }
 
         compose.onNodeWithText("Blurry").assertExists()
-        compose.onNodeWithText("3 images to review · can free 3.0 MB").assertExists()
+        compose.onNodeWithText("3 images · 3.0 MB").assertExists()
         compose.onNodeWithText("Blurry").assertIsEnabled().performClick()
         assertEquals(Category.BLURRY, opened)
     }
@@ -104,7 +104,7 @@ class CategoryScreenTest {
             CategoryList(categories = categories, freeableBytes = 0, onOpen = {})
         }
 
-        compose.onNodeWithText("can free", substring = true).assertDoesNotExist()
+        compose.onNodeWithText(" · ", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -116,7 +116,7 @@ class CategoryScreenTest {
         }
 
         compose.onNodeWithText("Blurry").assertExists()
-        compose.onNodeWithText("0 images to review").assertExists()
+        compose.onNodeWithText("0 images").assertExists()
         compose.onNodeWithText("Blurry").assertIsNotEnabled()
         assertNull(opened)
     }

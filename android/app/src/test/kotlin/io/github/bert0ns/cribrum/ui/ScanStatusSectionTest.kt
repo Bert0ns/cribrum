@@ -39,7 +39,7 @@ class ScanStatusSectionTest {
     fun `each step shows the images analysed out of the images that need it, and its version`() {
         show(coverage, null)
 
-        scrollTo("Embeddings")
+        scrollTo("Analysis data")
         scrollTo("Blurry")
         scrollTo("90 of 100 images analysed • version 1")
         scrollTo("120 of 120 images analysed • version 1")
@@ -64,8 +64,8 @@ class ScanStatusSectionTest {
         compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names hidden")).assertExists()
         compose.onNodeWithText("2 failures in the last scan").performClick()
         compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names shown")).assertExists()
-        scrollTo("Embeddings: a.jpg")
-        scrollTo("Embeddings: b.jpg")
+        scrollTo("Analysis data: a.jpg")
+        scrollTo("Analysis data: b.jpg")
     }
 
     @Test
