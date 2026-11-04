@@ -56,6 +56,14 @@ private fun Gallery.goTo(model: ReviewViewModel, destination: Int, ready: (Revie
     awaitModel(model, "the destination", ready)
 }
 
+/** The map opens from Settings, which it belongs to. */
+private fun Gallery.openMap(model: ReviewViewModel, ready: (ReviewViewModel) -> Boolean) {
+    goTo(model, R.string.nav_settings) { it.state.value.screen == Screen.Settings }
+    scrollTo(str(R.string.storage_map))
+    click(str(R.string.storage_map))
+    awaitModel(model, "the map", ready)
+}
+
 private fun Gallery.openTrash(model: ReviewViewModel) {
     awaitHome(model)
     clickDescription(str(R.string.trash))
@@ -154,7 +162,7 @@ private fun Gallery.settings(model: ReviewViewModel) {
 
 val scenes: List<Scene> = listOf(
     // Clean
-    Scene("clean-results", "Clean, the home with a finished scan", "See how many images each category lists and how much they can free, and when the last scan ran. Open a category, scan again, open the trash from the top bar, or use the bar to go to Compress, Map or Settings.", Variant.full) {
+    Scene("clean-results", "Clean, the home with a finished scan", "See how many images each category lists and how much they can free, and when the last scan ran. Open a category, scan again, open the trash from the top bar, or use the bar to go to Compress or Settings.", Variant.full) {
         world.library()
         world.commit()
         app.lastScan.record(Stats(images = 2_350), finishedAt = lastNight(), durationMs = 412_000)
@@ -383,54 +391,54 @@ val scenes: List<Scene> = listOf(
         scrollToEnd()
     },
     // Map
-    Scene("map-root", "Map, the treemap of the whole library", "Tap a folder to select it and read its size, tap it again to zoom in, or exclude it.", Variant.wide) {
+    Scene("map-root", "Storage map, opened from Settings, the treemap of the whole library", "Read the names on the larger folders, tap a folder to select it and read its size, open it, or go back to Settings.", Variant.full) {
         world.library(others = true)
         world.commit()
         val model = app()
-        goTo(model, R.string.nav_map) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
+        openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
     },
-    Scene("map-zoomed", "Map, zoomed into Pictures", "Go back to the whole map from the top bar, tap a subfolder to select it, or zoom further.", Variant.base) {
+    Scene("map-zoomed", "Storage map, zoomed into Pictures", "Go back to the whole map from the top bar, tap a subfolder to select it, or zoom further.", Variant.base) {
         world.library(others = true)
         world.commit()
         val model = app()
-        goTo(model, R.string.nav_map) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
+        openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
         click("Pictures")
         awaitModel(model, "the zoom") { it.state.value.storageMap.size > 1 }
     },
-    Scene("map-selected", "Map, a folder selected with its details", "Read the folder's size and count, exclude it from the review and the map, or zoom into it.", Variant.base + Variant.italianDark) {
+    Scene("map-selected", "Storage map, a folder selected with its details", "Read the folder's name, size and count, open it with Open folder, or exclude it from the review and the map.", Variant.base + Variant.italianDark) {
         world.library(others = true)
         world.commit()
         val model = app()
-        goTo(model, R.string.nav_map) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
+        openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
         compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(60f, 60f)) }
         awaitText(str(R.string.storage_map_exclude))
     },
-    Scene("map-excluded-snackbar", "Map, after excluding a folder", "Undo the exclusion from the snackbar. The map starts again from its root without the folder.", Variant.base) {
+    Scene("map-excluded-snackbar", "Storage map, after excluding a folder", "Undo the exclusion from the snackbar. The map starts again from its root without the folder.", Variant.base) {
         world.library(others = true)
         world.commit()
         val model = app()
-        goTo(model, R.string.nav_map) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
+        openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
         compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(60f, 60f)) }
         click(str(R.string.storage_map_exclude))
         awaitText(str(R.string.undo))
     },
-    Scene("map-empty", "Map, nothing indexed", "Read that no images are indexed yet. Scan from Clean to fill the map.", Variant.base) {
+    Scene("map-empty", "Storage map, nothing found yet", "Read that no images were found yet. Scan from Clean to fill the map.", Variant.base) {
         world.commit(scanned = false)
         val model = app()
-        goTo(model, R.string.nav_map) { it.state.value.screen == Screen.StorageMap }
+        openMap(model) { it.state.value.screen == Screen.StorageMap }
         awaitText(str(R.string.storage_map_empty))
     },
     // Settings
-    Scene("settings-top", "Settings, the top: about, trash, haptics and language", "Read the version, open the website or the source, choose how long the trash keeps images, or turn the haptics off.", Variant.full) {
+    Scene("settings-top", "Settings, the top: what the user changes", "Choose how long the trash keeps images, remove an excluded folder, open the storage map or the detection thresholds, or turn the haptics off.", Variant.full) {
         settings(app())
     },
-    Scene("settings-bottom", "Settings, scrolled to the end", "Open the detection thresholds, add or remove an excluded folder, delete the embeddings, or read the storage the app takes.", Variant.base) {
+    Scene("settings-bottom", "Settings, scrolled to the end", "Read the storage the app takes, delete the analysis data, or read the version and open the website or the source.", Variant.base) {
         settings(app())
         scrollToEnd()
     },
-    Scene("settings-scan-status", "Settings, the scan status", "Read what the last scan did, how long it took, and which detectors ran on how many images.", Variant.base) {
+    Scene("settings-scan-status", "Settings, the scans and storage", "Read what the last scan did, how long it took, and how many images each step analysed.", Variant.base) {
         settings(app())
-        scrollTo(str(R.string.settings_scan_status))
+        scrollTo(str(R.string.settings_scan_status_hint))
     },
     Scene("settings-retention-menu", "Settings, the choices of how long the trash keeps images", "Choose 7, 14, 30, 60 or 90 days.", Variant.base) {
         settings(app())
@@ -446,7 +454,7 @@ val scenes: List<Scene> = listOf(
         click(plural(R.plurals.settings_trash_days, 7, 7))
         awaitModel(model, "the question") { it.state.value.pendingRetention != null }
     },
-    Scene("settings-delete-embeddings", "Settings, the confirmation before deleting the embeddings", "Read that the embeddings come back at the next scan, then delete them or cancel.", Variant.base) {
+    Scene("settings-delete-embeddings", "Settings, the confirmation before deleting the analysis data", "Read that the analysis data comes back at the next scan, then delete it or cancel.", Variant.base) {
         settings(app())
         scrollTo(str(R.string.settings_delete_embeddings))
         click(str(R.string.settings_delete_embeddings))

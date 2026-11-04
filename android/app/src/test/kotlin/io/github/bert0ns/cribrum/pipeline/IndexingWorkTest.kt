@@ -248,6 +248,19 @@ class IndexingWorkTest {
     }
 
     @Test
+    fun `the scan's notification offers to stop it, which cancels the scan's work`() {
+        steps += Triple("scan", 300, 0)
+        Indexing.scanNow(app)
+        runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
+
+        val action = shadowOf(app.getSystemService(NotificationManager::class.java)).allNotifications.last().actions.single()
+        assertEquals("Stop scanning", action.title)
+        val running = WorkManager.getInstance(app).getWorkInfosByTag(Indexing.TAG).get().single()
+        // WorkManager's own cancel intent, as the compression batch uses: it names the scan's work.
+        assertTrue(shadowOf(action.actionIntent).savedIntent.toUri(0).contains(running.id.toString()))
+    }
+
+    @Test
     fun `the notification shows the total once the phase knows it`() {
         steps += Triple("embeddings", 3, 10)
         Indexing.scanNow(app)

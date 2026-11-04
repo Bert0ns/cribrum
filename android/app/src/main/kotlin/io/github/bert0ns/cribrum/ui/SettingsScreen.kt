@@ -117,44 +117,8 @@ fun SettingsScreen(
     }
 
     LazyColumn(modifier.fillMaxSize()) {
-        item {
-            Text(
-                text = stringResource(R.string.settings_about),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
-            )
-        }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_version, version ?: "")) },
-            )
-        }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_website)) },
-                supportingContent = { Text(websiteUrl) },
-                modifier = Modifier.clickable { uriHandler.openUri(websiteUrl) },
-            )
-        }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_source)) },
-                supportingContent = { Text(sourceUrl) },
-                modifier = Modifier.clickable { uriHandler.openUri(sourceUrl) },
-            )
-        }
-        item {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        }
-        item {
-            Text(
-                text = stringResource(R.string.trash),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
-            )
-        }
+        // What the user changes first, then what the app reports, then About.
+        item { SectionTitle(R.string.trash) }
         item {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_trash_retention)) },
@@ -163,6 +127,7 @@ fun SettingsScreen(
                         Column {
                             Text(pluralStringResource(R.plurals.settings_trash_days, retentionDays, retentionDays))
                             Text(stringResource(R.string.settings_trash_retention_applies))
+                            Text(stringResource(R.string.settings_uninstall_warning))
                         }
                         DropdownMenu(choosingRetention, { choosingRetention = false }) {
                             for (days in TrashRetention.CHOICES) {
@@ -180,13 +145,34 @@ fun SettingsScreen(
                 modifier = Modifier.clickable { choosingRetention = true },
             )
         }
-        item {
+        item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+        item { SectionTitle(R.string.settings_excluded_folders) }
+        if (excludedFolders.isEmpty()) {
+            item { ListItem(headlineContent = { Text(stringResource(R.string.settings_no_excluded_folders)) }) }
+        }
+        items(excludedFolders, key = { it }) { folder ->
             ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_uninstall_warning)) },
+                headlineContent = { Text(folder) },
+                trailingContent = {
+                    IconButton({ onRemoveExcludedFolder(folder) }) {
+                        Icon(Icons.Default.Close, stringResource(R.string.remove))
+                    }
+                },
             )
         }
         item {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.storage_map)) },
+                supportingContent = { Text(stringResource(R.string.settings_storage_map_hint)) },
+                modifier = Modifier.clickable { onOpenStorageMap() },
+            )
+        }
+        item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_thresholds)) },
+                modifier = Modifier.clickable { onOpenThresholds() },
+            )
         }
         item {
             ListItem(
@@ -207,54 +193,11 @@ fun SettingsScreen(
                 )
             }
         }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_thresholds)) },
-                modifier = Modifier.clickable { onOpenThresholds() },
-            )
-        }
-        item {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        }
-        item {
-            Text(
-                text = stringResource(R.string.settings_excluded_folders),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
-            )
-        }
-        if (excludedFolders.isEmpty()) {
-            item { ListItem(headlineContent = { Text(stringResource(R.string.settings_no_excluded_folders)) }) }
-        }
-        items(excludedFolders, key = { it }) { folder ->
-            ListItem(
-                headlineContent = { Text(folder) },
-                trailingContent = {
-                    IconButton({ onRemoveExcludedFolder(folder) }) {
-                        Icon(Icons.Default.Close, stringResource(R.string.remove))
-                    }
-                },
-            )
-        }
-        item {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_add_excluded_folder)) },
-                modifier = Modifier.clickable { onOpenStorageMap() },
-            )
-        }
-        item {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-        }
+        item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+        // One heading for what the app reports about itself: the scans, the space it takes and the data it keeps.
+        item { SectionTitle(R.string.settings_details) }
+        if (coverage != null) scanStatusSection(coverage, lastScan, lastScanFailed, showingFailedFiles) { showingFailedFiles = !showingFailedFiles }
         if (storage != null) {
-            item {
-                Text(
-                    text = stringResource(R.string.settings_storage),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
-                )
-            }
             storage.app?.let { item { Size(R.string.settings_storage_app, size(it)) } }
             item { Size(R.string.settings_storage_index, stringResource(R.string.settings_storage_index_size, size(storage.index))) }
             storage.cache?.let { item { Size(R.string.settings_storage_cache, size(it)) } }
@@ -280,9 +223,33 @@ fun SettingsScreen(
                 modifier = Modifier.clickable(enabled = !scanning && embeddingCount > 0) { confirmingEmbeddings = true },
             )
         }
-        if (coverage != null) scanStatusSection(coverage, lastScan, lastScanFailed, showingFailedFiles) { showingFailedFiles = !showingFailedFiles }
+        item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
+        item { SectionTitle(R.string.settings_about) }
+        item { ListItem(headlineContent = { Text(stringResource(R.string.settings_version, version ?: "")) }) }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_website)) },
+                supportingContent = { Text(websiteUrl) },
+                modifier = Modifier.clickable { uriHandler.openUri(websiteUrl) },
+            )
+        }
+        item {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_source)) },
+                supportingContent = { Text(sourceUrl) },
+                modifier = Modifier.clickable { uriHandler.openUri(sourceUrl) },
+            )
+        }
     }
 }
+
+@Composable
+internal fun SectionTitle(title: Int) = Text(
+    text = stringResource(title),
+    style = MaterialTheme.typography.titleSmall,
+    color = MaterialTheme.colorScheme.primary,
+    modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
+)
 
 @Composable
 private fun Size(label: Int, size: String) = ListItem(headlineContent = { Text(stringResource(label)) }, supportingContent = { Text(size) })

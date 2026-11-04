@@ -2,7 +2,6 @@ package io.github.bert0ns.cribrum.ui
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
@@ -18,7 +17,6 @@ fun Destination.label(): String = stringResource(
     when (this) {
         Destination.Clean -> R.string.nav_clean
         Destination.Compress -> R.string.nav_compress
-        Destination.Map -> R.string.nav_map
         Destination.Settings -> R.string.nav_settings
     },
 )
@@ -27,7 +25,6 @@ val Destination.icon: ImageVector
     get() = when (this) {
         Destination.Clean -> Icons.Filled.CheckCircle
         Destination.Compress -> CompressIcon
-        Destination.Map -> Icons.Filled.Place
         Destination.Settings -> Icons.Filled.Settings
     }
 

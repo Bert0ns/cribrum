@@ -337,7 +337,7 @@ private fun AppContent(
                     },
                     navigationIcon = {
                         // The bar leads between destinations, so Back shows only where it goes one step up.
-                        if (screen.coversNavigation || (screen == Screen.StorageMap && state.storageMap.size > 1)) {
+                        if (screen.coversNavigation) {
                             IconButton(model::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
                         }
                     },
@@ -398,7 +398,7 @@ private fun AppContent(
                         )
                         Screen.Settings -> SettingsScreen(
                             modifier = Modifier.readableWidth(),
-                            onOpenStorageMap = { model.selectDestination(Destination.Map) },
+                            onOpenStorageMap = model::openStorageMap,
                             onOpenThresholds = model::openThresholds,
                             retentionDays = state.retentionDays,
                             onRetentionChange = model::chooseRetention,

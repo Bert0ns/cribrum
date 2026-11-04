@@ -36,13 +36,22 @@ class ScanStatusSectionTest {
     }
 
     @Test
-    fun `each step shows the images analysed out of the images that need it, and its version`() {
+    fun `each step shows the images analysed out of the images that need it, with no version`() {
         show(coverage, null)
 
         scrollTo("Analysis data")
         scrollTo("Blurry")
-        scrollTo("90 of 100 images analysed • version 1")
-        scrollTo("120 of 120 images analysed • version 1")
+        scrollTo("90 of 100 images analysed")
+        scrollTo("120 of 120 images analysed")
+        compose.onNodeWithText("version", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `a step with no name for the user has no row`() {
+        show(coverage + Coverage("new-detector", 1, analysed = 1, needed = 1), null)
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("120 of 120 images analysed"))
+        compose.onNodeWithText("new-detector").assertDoesNotExist()
     }
 
     @Test
@@ -59,6 +68,7 @@ class ScanStatusSectionTest {
 
         scrollTo("3 unreadable files")
         scrollTo("2 failed in the last scan")
+        scrollTo("2 failures in the last scan")
         compose.onNodeWithText("2 failures in the last scan").assertHasClickAction()
         compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)).assertExists()
         compose.onNode(hasText("2 failures in the last scan") and SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "File names hidden")).assertExists()

@@ -3,12 +3,9 @@ package io.github.bert0ns.cribrum.ui
 import android.text.format.DateUtils
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -18,7 +15,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.unit.dp
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.pipeline.Coverage
 import io.github.bert0ns.cribrum.pipeline.DETECTORS
@@ -27,21 +23,11 @@ import io.github.bert0ns.cribrum.pipeline.GROUP_DETECTORS
 import io.github.bert0ns.cribrum.pipeline.ScanReport
 
 /**
- * The "Scan status" block of the settings (docs/design.md §8): per step, the images analysed out of
- * the images that need it, the failures of the last finished scan, and the version. The failing file
- * names are one tap away; no path is shown.
+ * The scan's part of the settings' details (docs/design.md §8): the last finished scan and its failures, then per
+ * step the images analysed out of the images that need it. The failing file names are one tap away; no path, no
+ * detector version and no internal name is shown.
  */
 fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanReport?, lastScanFailed: Boolean, showingFiles: Boolean, onToggleFiles: () -> Unit) {
-    item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
-    item {
-        Text(
-            text = stringResource(R.string.settings_scan_status),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
-        )
-    }
-    item { ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_hint)) }) }
     item {
         ListItem(
             headlineContent = { Text(stringResource(R.string.settings_scan_status_last)) },
@@ -77,7 +63,7 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
         }
     }
     if (lastScan != null && showingFiles) {
-        items(lastScan.files) { file -> ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_file, stepName(file.step), file.name)) }) }
+        items(lastScan.files) { file -> ListItem(headlineContent = { Text(stepName(file.step)?.let { stringResource(R.string.settings_scan_status_file, it, file.name) } ?: file.name) }) }
         if (failed > lastScan.files.size) {
             item { ListItem(headlineContent = { Text(pluralStringResource(R.plurals.settings_scan_status_more, failed - lastScan.files.size, failed - lastScan.files.size)) }) }
         }
@@ -86,13 +72,16 @@ fun LazyListScope.scanStatusSection(coverage: List<Coverage>, lastScan: ScanRepo
             item { ListItem(headlineContent = { Text(pluralStringResource(R.plurals.settings_scan_status_more, lastScan.unreadable - lastScan.unreadableFiles.size, lastScan.unreadable - lastScan.unreadableFiles.size)) }) }
         }
     }
+    item { ListItem(headlineContent = { Text(stringResource(R.string.settings_scan_status_hint)) }) }
     items(coverage, key = { it.id }) { row ->
         val rowFailed = lastScan?.failures?.get(row.id) ?: 0
+        // A step with no name for the user, such as a new detector, has no row: its id means nothing to them.
+        val name = stepName(row.id) ?: return@items
         ListItem(
-            headlineContent = { Text(stepName(row.id)) },
+            headlineContent = { Text(name) },
             supportingContent = {
                 Column {
-                    Text(pluralStringResource(R.plurals.settings_scan_status_row, row.needed, row.analysed, row.needed, row.version))
+                    Text(pluralStringResource(R.plurals.settings_scan_status_row, row.needed, row.analysed, row.needed))
                     if (rowFailed > 0) Text(pluralStringResource(R.plurals.settings_scan_status_row_failed, rowFailed, rowFailed))
                 }
             },
@@ -109,15 +98,15 @@ private fun Modifier.toggleFiles(showingFiles: Boolean, onToggleFiles: () -> Uni
         .semantics { stateDescription = state }
 }
 
-/** A detector with a category goes by the category's name; a new one without a name yet shows its id. */
+/** A detector with a category goes by the category's name; a new one without a name yet has none. */
 @Composable
-private fun stepName(id: String): String {
+private fun stepName(id: String): String? {
     val category = (DETECTORS.map { it.id to it.category } + GROUP_DETECTORS.map { it.id to it.category }).firstOrNull { it.first == id }?.second
     return when {
         category != null -> categoryName(category)
         id == EMBEDDING_STEP -> stringResource(R.string.settings_scan_status_embedding)
         id == "faces" -> stringResource(R.string.settings_scan_status_faces)
         id == "metadata" -> stringResource(R.string.settings_scan_status_metadata)
-        else -> id
+        else -> null
     }
 }

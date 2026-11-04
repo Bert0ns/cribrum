@@ -43,12 +43,13 @@ fun ThresholdsScreen(
     val haptics = LocalHapticFeedback.current
     LazyColumn(modifier.fillMaxSize()) {
         item {
+            // Advice, not an error: supporting text under the one sentence that says what a threshold does.
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.thresholds_intro))
                 Text(
                     stringResource(R.string.thresholds_raising),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
