@@ -284,6 +284,13 @@ private fun AppContent(
         snackbar.showSnackbar(changeFailedMessage, withDismissAction = true, duration = SnackbarDuration.Long)
         model.dismissChangeFailed()
     }
+    val favoriteAppeared = state.favoriteAppeared
+    val favoriteAppearedMessage = stringResource(R.string.favorite_appeared_snackbar)
+    LaunchedEffect(favoriteAppeared) {
+        if (!favoriteAppeared) return@LaunchedEffect
+        snackbar.showSnackbar(favoriteAppearedMessage, withDismissAction = true, duration = SnackbarDuration.Long)
+        model.dismissFavoriteAppeared()
+    }
     val exclusion = state.lastExclusion
     val excludedMessage = exclusion?.let { stringResource(R.string.excluded_folder_snackbar, File(it).name) }
     LaunchedEffect(exclusion) {
@@ -384,8 +391,6 @@ private fun AppContent(
                             reviewOrder = state.reviewOrder,
                             retentionDays = state.retentionDays,
                             loading = state.loading,
-                            showHint = !state.reviewHintUsed,
-                            onFullSize = model::fullSizeUsed,
                         )
                         is Screen.Trash -> TrashScreen(
                             state.trashed,

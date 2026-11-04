@@ -91,8 +91,6 @@ data class ReviewState(
     val retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     val pendingRetention: RetentionChange? = null,
     val hapticsEnabled: Boolean = true,
-    /** The user has held a tile once, so the review no longer says how. */
-    val reviewHintUsed: Boolean = false,
     /** How the open category is grouped by date or sorted by size. Off until the user picks one. */
     val reviewOrder: ReviewOrder = ReviewOrder.OFF,
     /** Folders the user asked never to be suggested again, shown in settings. */
@@ -115,6 +113,8 @@ data class ReviewState(
     val stayedInTrash: List<ImageRef> = emptyList(),
     /** The last change failed and the screen is as it was, until the snackbar goes. */
     val changeFailed: Boolean = false,
+    /** An apply showed the page again because an image on it became a favourite meanwhile, until the snackbar goes. */
+    val favoriteAppeared: Boolean = false,
 )
 
 class ReviewViewModel @JvmOverloads constructor(
@@ -138,7 +138,7 @@ class ReviewViewModel @JvmOverloads constructor(
     init {
         // The first read of the preferences can block, so it stays off the main thread.
         load {
-            withContext(Dispatchers.IO) { it.copy(retentionDays = app.trashRetention.days, hapticsEnabled = app.haptics.enabled, reviewHintUsed = app.reviewHint.used) }
+            withContext(Dispatchers.IO) { it.copy(retentionDays = app.trashRetention.days, hapticsEnabled = app.haptics.enabled) }
         }
     }
 
@@ -274,13 +274,6 @@ class ReviewViewModel @JvmOverloads constructor(
 
     fun confirmRetention() = load { state -> state.pendingRetention?.let { state.withRetention(it.days) } ?: state }
 
-    /** The user held a tile to see it full size: the hint that says how has done its job. */
-    fun fullSizeUsed() {
-        if (state.value.reviewHintUsed) return
-        app.reviewHint.used = true
-        queue { it.copy(reviewHintUsed = true) }
-    }
-
     fun setHaptics(enabled: Boolean) {
         app.haptics.enabled = enabled
         queue { it.copy(hapticsEnabled = enabled) }
@@ -385,7 +378,7 @@ class ReviewViewModel @JvmOverloads constructor(
         val items = state.page.flatMap { group -> group.images }
         val confirmed = items.filter { it.isFavorite }.map { it.image.path }
         if (!confirmed.containsAll(review.favoritesAmong(items.filter { it.image.path in toTrash }.map { it.image }))) {
-            return@load state.showing(pageFor(category, state), keepMarksOf = state)
+            return@load state.showing(pageFor(category, state), keepMarksOf = state).copy(favoriteAppeared = true)
         }
         val decision = review.applyPage(state.page, toTrash)
         state.showing(pageFor(category, state)).copy(lastDecision = decision)
@@ -413,6 +406,8 @@ class ReviewViewModel @JvmOverloads constructor(
     fun dismissStayedInTrash(images: List<ImageRef>) = queue { if (it.stayedInTrash == images) it.copy(stayedInTrash = emptyList()) else it }
 
     fun dismissChangeFailed() = queue { it.copy(changeFailed = false) }
+
+    fun dismissFavoriteAppeared() = queue { it.copy(favoriteAppeared = false) }
 
     fun select(item: TrashedImage) = queue {
         val path = item.file.path

@@ -47,7 +47,7 @@ private fun Gallery.openCategory(model: ReviewViewModel, name: Int) {
 /** The text of the button under the grid: how many images the page trashes and how many it keeps. */
 private fun Gallery.applyText(model: ReviewViewModel): String {
     val state = model.state.value
-    return str(R.string.apply, state.marked.size, state.page.sumOf { it.images.size } - state.marked.size)
+    return str(R.string.apply, state.marked.size, state.page.sumOf { group -> group.images.count { it.suggestTrash && it.image.path !in state.marked } })
 }
 
 private fun Gallery.goTo(model: ReviewViewModel, destination: Int, ready: (ReviewViewModel) -> Boolean) {
@@ -263,6 +263,15 @@ val scenes: List<Scene> = listOf(
         val model = app()
         openCategory(model, R.string.category_blurry)
         confirmApply(model)
+    },
+    Scene("review-favorite-appeared", "Review, the page back after a photo on it became a favourite", "Read why nothing went to the trash, find the new heart, then trash the page again or keep the favourite.", Variant.base) {
+        world.library(pictures = setOf(Category.BLURRY))
+        world.commit()
+        val model = app()
+        openCategory(model, R.string.category_blurry)
+        world.favorites += model.state.value.marked.first() // hearted in the gallery while the page was open
+        click(applyText(model))
+        awaitText(str(R.string.favorite_appeared_snackbar))
     },
     Scene("review-excluded-snackbar", "Review, after excluding a photo's folder", "Undo the exclusion from the snackbar. The photos of that folder left the page.", Variant.base) {
         world.library(pictures = setOf(Category.BLURRY))

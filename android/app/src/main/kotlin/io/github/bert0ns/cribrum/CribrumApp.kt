@@ -22,17 +22,6 @@ class NotificationPreferences(private val preferences: SharedPreferences) {
     }
 }
 
-/** Whether the user has held a tile to see it full size, after which the review stops saying how. */
-class ReviewHint(private val preferences: SharedPreferences) {
-    var used: Boolean
-        get() = preferences.getBoolean(KEY, false)
-        set(value) = preferences.edit { putBoolean(KEY, value) }
-
-    private companion object {
-        const val KEY = "review_hint_used"
-    }
-}
-
 /** Holds the one index and trash the app and its background work share. */
 class CribrumApp : Application() {
     val index: ImageIndex by lazy { ImageIndex.open(this) }
@@ -40,7 +29,6 @@ class CribrumApp : Application() {
     val thresholds: Thresholds by lazy { Thresholds(getSharedPreferences("settings", MODE_PRIVATE)) }
     val haptics: HapticsSetting by lazy { HapticsSetting(getSharedPreferences("settings", MODE_PRIVATE)) }
     val reviewOrder: ReviewOrderSetting by lazy { ReviewOrderSetting(getSharedPreferences("settings", MODE_PRIVATE)) }
-    val reviewHint: ReviewHint by lazy { ReviewHint(getSharedPreferences("settings", MODE_PRIVATE)) }
     val lastScan: LastScan by lazy { LastScan(getSharedPreferences("settings", MODE_PRIVATE)) }
     val notificationPreferences: NotificationPreferences by lazy {
         NotificationPreferences(getSharedPreferences("settings", MODE_PRIVATE))
