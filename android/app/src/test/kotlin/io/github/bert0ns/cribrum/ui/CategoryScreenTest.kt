@@ -291,13 +291,13 @@ class CategoryScreenTest {
         var chosen: ReviewOrder? = null
         compose.setContent { ReviewOrderMenu(ReviewOrder.DAY, ReviewOrder.entries) { chosen = it } }
 
-        compose.onNodeWithText("Week").assertDoesNotExist()
+        compose.onNodeWithText("By week").assertDoesNotExist()
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
-        listOf("Suggested order", "Day", "Week", "Month", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
-        compose.onNodeWithText("Week").performClick()
+        listOf("Suggested order", "By day", "By week", "By month", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
+        compose.onNodeWithText("By week").performClick()
 
         assertEquals(ReviewOrder.WEEK, chosen)
-        compose.onNodeWithText("Week").assertDoesNotExist()
+        compose.onNodeWithText("By week").assertDoesNotExist()
     }
 
     @Test
@@ -307,7 +307,7 @@ class CategoryScreenTest {
         compose.onNodeWithContentDescription("Group by date or sort by size").performClick()
 
         listOf("Suggested order", "Largest first").forEach { compose.onNodeWithText(it).assertExists() }
-        listOf("Day", "Week", "Month").forEach { compose.onNodeWithText(it).assertDoesNotExist() }
+        listOf("By day", "By week", "By month").forEach { compose.onNodeWithText(it).assertDoesNotExist() }
     }
 
     private fun openFullSize(name: String) = tile(name).performTouchInput { longClick() }

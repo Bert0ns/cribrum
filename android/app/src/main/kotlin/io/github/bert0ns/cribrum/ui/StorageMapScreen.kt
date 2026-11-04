@@ -4,7 +4,6 @@ package io.github.bert0ns.cribrum.ui
 import android.text.format.Formatter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,11 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -104,11 +105,7 @@ fun StorageMapScreen(
                 val count = if (isDirectFiles) targetFolder.directImageCount else targetFolder.imageCount
                 val summary = summary(size, count)
 
-                val details = if (isDirectFiles) {
-                    stringResource(R.string.storage_map_card_details_direct, summary)
-                } else {
-                    stringResource(R.string.storage_map_card_details, summary)
-                }
+                val details = if (isDirectFiles) stringResource(R.string.storage_map_card_details_direct, summary) else summary
 
                 Text(
                     text = headline,
@@ -248,7 +245,11 @@ fun StorageMapScreen(
             } else {
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     itemsIndexed(subfolders) { index, folder ->
-                        val iconColor = Color.hsl(childHue(baseHue, index), SATURATION, 0.50f)
+                        val hue = childHue(baseHue, index)
+                        val iconColor = Color.hsl(hue, SATURATION, 0.50f)
+                        // A row follows the block's rule: the first tap selects the folder and fills the card, the second opens it.
+                        val row = TreemapBlock(MapRect(0.0, 0.0, 0.0, 0.0), folder, isDirectFiles = false, depth = 0, hue = hue)
+                        val rowSelected = row.isSameBlockAs(selectedBlock)
                         ListItem(
                             headlineContent = { Text(folder.name) },
                             supportingContent = { Text(summary(folder.size, folder.imageCount)) },
@@ -259,9 +260,9 @@ fun StorageMapScreen(
                                         .background(iconColor, RoundedCornerShape(4.dp)),
                                 )
                             },
-                            modifier = Modifier.clickable {
-                                onZoomIn(folder)
-                            },
+                            colors = ListItemDefaults.colors(containerColor = if (rowSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent),
+                            modifier = Modifier
+                                .selectable(rowSelected) { if (rowSelected) onZoomIn(folder) else selectedBlock = row },
                         )
                     }
                 }

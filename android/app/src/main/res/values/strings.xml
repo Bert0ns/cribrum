@@ -62,9 +62,9 @@
     <string name="skip">Skip</string>
     <string name="review_order">Group by date or sort by size</string>
     <string name="review_order_off">Suggested order</string>
-    <string name="review_order_day">Day</string>
-    <string name="review_order_week">Week</string>
-    <string name="review_order_month">Month</string>
+    <string name="review_order_day">By day</string>
+    <string name="review_order_week">By week</string>
+    <string name="review_order_month">By month</string>
     <string name="review_order_size">Largest first</string>
     <plurals name="summary_title">
         <item quantity="one">Move %d image to the trash?</item>
@@ -274,11 +274,10 @@
     <string name="compress_waiting">Waiting for the scan to finish</string>
     <string name="compress_cancel">Cancel</string>
     <string name="storage_map">Storage map</string>
-    <string name="storage_map_card_details">%1$s \u2022 image sizes</string>
-    <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s \u2022 image sizes</string>
+    <string name="storage_map_card_details_direct">Files in this folder \u2022 %1$s</string>
     <string name="storage_map_root">All explored folders</string>
     <string name="storage_map_exclude">Exclude this folder</string>
-    <string name="storage_map_open">Open folder</string>
+    <string name="storage_map_open">Show contents</string>
     <string name="settings_storage_map_hint">Where the images take space, folder by folder. Exclude a folder from there.</string>
     <string name="settings_details">Scans and storage</string>
     <string name="storage_map_empty">No images found yet</string>

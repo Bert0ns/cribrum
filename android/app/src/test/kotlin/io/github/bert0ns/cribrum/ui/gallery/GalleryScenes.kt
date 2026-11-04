@@ -408,15 +408,16 @@ val scenes: List<Scene> = listOf(
         val model = app()
         openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
     },
-    Scene("map-zoomed", "Storage map, zoomed into Pictures", "Go back to the whole map from the top bar, tap a subfolder to select it, or zoom further.", Variant.base) {
+    Scene("map-zoomed", "Storage map, zoomed into Pictures", "Read the folder's name in the top bar, go back to the whole map, tap a subfolder to select it, or zoom further.", Variant.base) {
         world.library(others = true)
         world.commit()
         val model = app()
         openMap(model) { it.state.value.screen == Screen.StorageMap && it.state.value.storageMap.isNotEmpty() }
-        click("Pictures")
+        click("Pictures") // a row selects its folder, as a block does
+        click(str(R.string.storage_map_open))
         awaitModel(model, "the zoom") { it.state.value.storageMap.size > 1 }
     },
-    Scene("map-selected", "Storage map, a folder selected with its details", "Read the folder's name, size and count, open it with Open folder, or exclude it from the review and the map.", Variant.base + Variant.italianDark + Variant.italianLargeText) {
+    Scene("map-selected", "Storage map, a folder selected with its details", "Read the folder's name, size and count, open it with Show contents, or exclude it from the review and the map.", Variant.base + Variant.italianDark + Variant.italianLargeText) {
         world.library(others = true)
         world.commit()
         val model = app()

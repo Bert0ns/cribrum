@@ -54,7 +54,7 @@ class StorageMapScreenTest {
     }
 
     @Test
-    fun `storage map displays subfolders and fires zoom callback on tap`() {
+    fun `a list row selects its folder on the first tap and opens it on the second, like a block`() {
         var zoomed: Folder? = null
         compose.setContent {
             StorageMapScreen(
@@ -67,6 +67,9 @@ class StorageMapScreenTest {
         compose.onNodeWithText("Pictures").assertIsDisplayed()
 
         compose.onNodeWithText("DCIM").performClick()
+        assertEquals(null, zoomed)
+        compose.onAllNodesWithText("DCIM").assertCountEquals(2) // the card and the list
+        compose.onAllNodesWithText("DCIM")[1].performClick()
         assertEquals("DCIM", zoomed?.name)
     }
 
@@ -207,9 +210,12 @@ class StorageMapScreenTest {
 
         openStorageMapFromTheBar()
 
-        // Zoom into DCIM
+        // Zoom into DCIM: its row selects it, and Show contents opens it.
         compose.onNodeWithText("DCIM").performClick()
+        compose.onNodeWithText("Show contents").performClick()
         awaitText("Camera")
+        // The top bar names the open folder.
+        compose.onAllNodesWithText("DCIM").assertCountEquals(2) // the bar and the card
         compose.onNodeWithText("Camera").assertIsDisplayed()
 
         // First back zooms out to root folder
@@ -229,10 +235,10 @@ class StorageMapScreenTest {
         var zoomed: Folder? = null
         compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = { zoomed = it }, atRoot = true) }
 
-        compose.onNodeWithText("Open folder").assertDoesNotExist()
+        compose.onNodeWithText("Show contents").assertDoesNotExist()
         compose.onNodeWithTag("storage_map").performTouchInput { click(Offset(width / 2f, 20f)) }
         compose.onAllNodesWithText("DCIM").assertCountEquals(2) // the card and the list
-        compose.onNodeWithText("Open folder").performClick()
+        compose.onNodeWithText("Show contents").performClick()
 
         assertEquals("DCIM", zoomed?.name)
     }
@@ -243,7 +249,7 @@ class StorageMapScreenTest {
         compose.setContent { StorageMapScreen(currentFolder = tree, onZoomIn = { zoomed = it }, atRoot = true) }
 
         val actions = compose.onNodeWithContentDescription("Pictures", substring = true).fetchSemanticsNode().config[SemanticsActions.CustomActions]
-        compose.runOnUiThread { actions.single { it.label == "Open folder" }.action() }
+        compose.runOnUiThread { actions.single { it.label == "Show contents" }.action() }
 
         assertEquals("Pictures", zoomed?.name)
     }
@@ -255,6 +261,6 @@ class StorageMapScreenTest {
         compose.onNodeWithContentDescription("Pictures", substring = true).performSemanticsAction(SemanticsActions.OnClick)
 
         compose.onNodeWithContentDescription("Pictures", substring = true).assertIsSelected()
-        compose.onNodeWithText("Open folder").assertIsDisplayed()
+        compose.onNodeWithText("Show contents").assertIsDisplayed()
     }
 }
