@@ -343,18 +343,23 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(storageMap = state.storageMap + folder)
     }
 
-    fun back() = load { state ->
-        when {
-            state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
-                state.copy(storageMap = state.storageMap.dropLast(1))
-            // The map and the thresholds open from Settings, and go back to it.
-            state.screen == Screen.Thresholds || state.screen == Screen.StorageMap ->
-                state.copy(screen = Screen.Settings, excludedFolders = app.index.excludedFolders())
-            // The trash opens from the top bar of every destination, and goes back to it.
-            state.screen == Screen.Trash(Destination.Compress) -> state.copy(screen = Screen.Compress)
-            state.screen == Screen.Trash(Destination.Settings) -> state.copy(screen = Screen.Settings)
-            else -> state.home()
+    fun back() {
+        val from = state.value
+        load { state ->
+            when {
+                state.screen == Screen.StorageMap && state.storageMap.size > 1 ->
+                    state.copy(storageMap = state.storageMap.dropLast(1))
+                // The map and the thresholds open from Settings, and go back to it.
+                state.screen == Screen.Thresholds || state.screen == Screen.StorageMap -> state.copy(screen = Screen.Settings)
+                // The trash opens from the top bar of every destination, and goes back to it.
+                state.screen == Screen.Trash(Destination.Compress) -> state.copy(screen = Screen.Compress)
+                state.screen == Screen.Trash(Destination.Settings) -> state.copy(screen = Screen.Settings)
+                else -> state.home()
+            }
         }
+        // Settings comes back read again, as when it opens: a scan, an exclusion or a purge may have changed it meanwhile.
+        val toSettings = from.screen == Screen.Thresholds || (from.screen == Screen.StorageMap && from.storageMap.size <= 1) || from.screen == Screen.Trash(Destination.Settings)
+        if (toSettings) showSettings(onlyIfOpen = true)
     }
 
     private fun showHome() = load { it.home() }

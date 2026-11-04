@@ -197,12 +197,7 @@ fun SettingsScreen(
         // One heading for what the app reports about itself: the scans, the space it takes and the data it keeps.
         item { SectionTitle(R.string.settings_details) }
         if (coverage != null) scanStatusSection(coverage, lastScan, lastScanFailed, showingFailedFiles) { showingFailedFiles = !showingFailedFiles }
-        if (storage != null) {
-            storage.app?.let { item { Size(R.string.settings_storage_app, size(it)) } }
-            item { Size(R.string.settings_storage_index, stringResource(R.string.settings_storage_index_size, size(storage.index))) }
-            storage.cache?.let { item { Size(R.string.settings_storage_cache, size(it)) } }
-            item { Size(R.string.settings_storage_trash, size(storage.trash)) }
-        }
+        // Next to the steps, which say how much of it the scan has made.
         item {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_delete_embeddings)) },
@@ -222,6 +217,12 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.clickable(enabled = !scanning && embeddingCount > 0) { confirmingEmbeddings = true },
             )
+        }
+        if (storage != null) {
+            storage.app?.let { item { Size(R.string.settings_storage_app, size(it)) } }
+            item { Size(R.string.settings_storage_index, stringResource(R.string.settings_storage_index_size, size(storage.index))) }
+            storage.cache?.let { item { Size(R.string.settings_storage_cache, size(it)) } }
+            item { Size(R.string.settings_storage_trash, size(storage.trash)) }
         }
         item { HorizontalDivider(Modifier.padding(vertical = 8.dp)) }
         item { SectionTitle(R.string.settings_about) }
@@ -244,7 +245,7 @@ fun SettingsScreen(
 }
 
 @Composable
-internal fun SectionTitle(title: Int) = Text(
+private fun SectionTitle(title: Int) = Text(
     text = stringResource(title),
     style = MaterialTheme.typography.titleSmall,
     color = MaterialTheme.colorScheme.primary,

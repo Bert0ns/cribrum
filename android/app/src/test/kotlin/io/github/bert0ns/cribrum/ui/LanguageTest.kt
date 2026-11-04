@@ -72,11 +72,11 @@ class LanguageTest {
     @Test
     @Config(qualifiers = "it")
     fun `the scan status rows read naturally in Italian, with the category names`() {
-        val coverage = listOf(Coverage("embedding", 1, analysed = 90, needed = 100), Coverage("blur", 1, analysed = 1, needed = 1), Coverage("faces", 2, analysed = 0, needed = 0))
+        val coverage = listOf(Coverage("embedding", 1, analysed = 90, needed = 100), Coverage("blur", 1, analysed = 0, needed = 1), Coverage("faces", 2, analysed = 1, needed = 2))
         val report = ScanReport(1_700_000_000_000, unreadable = 1, failures = mapOf("embedding" to 2), files = listOf(FailedFile("embedding", "a.jpg")))
         compose.setContent { SettingsScreen(coverage = coverage, lastScan = report) }
 
-        for (text in listOf("Scansioni e archiviazione", "1 file illeggibile", "2 errori nell'ultima scansione", "Dati dell'analisi", "90 di 100 immagini analizzate", "Sfocate", "1 di 1 immagine analizzata", "Volti", "2 non analizzate nell'ultima scansione")) {
+        for (text in listOf("Scansioni e archiviazione", "1 file illeggibile", "2 errori nell'ultima scansione", "Dati dell'analisi", "90 di 100 immagini analizzate", "Sfocate", "0 di 1 immagine analizzata", "Volti", "1 di 2 immagini analizzate", "2 non analizzate nell'ultima scansione")) {
             compose.onNode(hasScrollAction()).performScrollToNode(hasText(text))
             compose.onNodeWithText(text).assertExists()
         }

@@ -405,7 +405,7 @@ val scenes: List<Scene> = listOf(
         click("Pictures")
         awaitModel(model, "the zoom") { it.state.value.storageMap.size > 1 }
     },
-    Scene("map-selected", "Storage map, a folder selected with its details", "Read the folder's name, size and count, open it with Open folder, or exclude it from the review and the map.", Variant.base + Variant.italianDark) {
+    Scene("map-selected", "Storage map, a folder selected with its details", "Read the folder's name, size and count, open it with Open folder, or exclude it from the review and the map.", Variant.base + Variant.italianDark + Variant.italianLargeText) {
         world.library(others = true)
         world.commit()
         val model = app()

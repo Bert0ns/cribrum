@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performScrollToNode
 import io.github.bert0ns.cribrum.pipeline.Coverage
 import io.github.bert0ns.cribrum.pipeline.FailedFile
 import io.github.bert0ns.cribrum.pipeline.ScanReport
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,22 +37,51 @@ class ScanStatusSectionTest {
     }
 
     @Test
-    fun `each step shows the images analysed out of the images that need it, with no version`() {
+    fun `only a step still missing images has a row, with no version`() {
         show(coverage, null)
 
         scrollTo("Analysis data")
-        scrollTo("Blurry")
         scrollTo("90 of 100 images analysed")
-        scrollTo("120 of 120 images analysed")
-        compose.onNodeWithText("version", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Blurry").assertDoesNotExist()
+        compose.onNodeWithText("120 of 120", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("• version", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `when every step is done one row says so`() {
+        show(listOf(Coverage("embedding", 1, analysed = 100, needed = 100), Coverage("blur", 1, analysed = 120, needed = 120)), null)
+
+        scrollTo("Every step has analysed all its images")
+        compose.onNodeWithText("Analysis data").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the analysis data can be deleted right after the steps`() {
+        show(coverage, null)
+
+        scrollTo("Delete the analysis data")
+        val row = compose.onNodeWithText("90 of 100 images analysed").fetchSemanticsNode().boundsInRoot
+        val delete = compose.onNodeWithText("Delete the analysis data").fetchSemanticsNode().boundsInRoot
+        // Right under the step, with nothing between them but the row's own height.
+        assertTrue(delete.top >= row.bottom && delete.top - row.bottom < 200)
     }
 
     @Test
     fun `a step with no name for the user has no row`() {
-        show(coverage + Coverage("new-detector", 1, analysed = 1, needed = 1), null)
+        show(coverage + Coverage("new-detector", 1, analysed = 0, needed = 1), null)
 
-        compose.onNode(hasScrollAction()).performScrollToNode(hasText("120 of 120 images analysed"))
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("90 of 100 images analysed"))
         compose.onNodeWithText("new-detector").assertDoesNotExist()
+    }
+
+    @Test
+    fun `a failure of the trash's purge says what failed`() {
+        val report = ScanReport(1_700_000_000_000, unreadable = 0, failures = mapOf("trash" to 1), files = listOf(FailedFile("trash", "")))
+        show(coverage, report)
+
+        scrollTo("1 failure in the last scan")
+        compose.onNodeWithText("1 failure in the last scan").performClick()
+        scrollTo("Clearing the expired trash")
     }
 
     @Test

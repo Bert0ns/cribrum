@@ -194,10 +194,20 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     override suspend fun doWork(): Result {
         val nightly = Indexing.NIGHTLY_TAG in tags
         try {
+            if (nightly && !Indexing.isNight(Indexing.now(applicationContext))) return Result.success()
+            // Two scans would share the index and the model. A nightly run gives way to one already running. "Scan now"
+            // waits instead: right after "Stop scanning" the stopped scan can still hold the lock, and a tap must not be
+            // lost. It still gives way to a compression batch, which holds the lock for the whole batch (docs/design.md §9).
+            val locked = when {
+                nightly -> running.tryLock()
+                CompressBatch.busy -> false
+                else -> {
+                    running.lock()
+                    true
+                }
+            }
             return when {
-                nightly && !Indexing.isNight(Indexing.now(applicationContext)) -> Result.success()
-                // A scan from "Scan now" is already running: two would share the index and the model.
-                !running.tryLock() -> Result.success()
+                !locked -> Result.success()
                 else -> try {
                     // A compression batch asked for or running goes first, and the scan after it reads its copies (docs/design.md §9).
                     if (CompressBatch.busy) Result.success() else scan()
@@ -212,6 +222,9 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
             return Result.failure()
         } finally {
             if (nightly) Indexing.pinNextNight(applicationContext, id)
+            // "Stop scanning" cancels the nightly request itself. KEEP adds it back only then: a run stopped because the
+            // charger was unplugged leaves the request enqueued, and this does nothing.
+            if (nightly && isStopped) Indexing.schedulePeriodic(applicationContext, Indexing.now(applicationContext))
         }
     }
 
