@@ -516,7 +516,7 @@ class ReviewViewModelTest {
         settle(model) { it.state.value.screen == Screen.Home }
 
         model.openTrash()
-        settle(model) { it.state.value.screen == Screen.Trash }
+        settle(model) { it.state.value.screen == Screen.Trash(Destination.Clean) }
         assertEquals(Destination.Clean, model.state.value.screen.destination)
         assertTrue(model.state.value.screen.coversNavigation)
         model.back()
@@ -1241,6 +1241,27 @@ class ReviewViewModelTest {
     }
 
     @Test
+    fun `Back from a trash opened on Compress returns to Compress, and from Clean to the home`() {
+        val model = ReviewViewModel(app)
+
+        model.selectDestination(Destination.Compress)
+        settle(model) { it.state.value.screen == Screen.Compress }
+        model.openTrash()
+        settle(model) { it.state.value.screen == Screen.Trash(Destination.Compress) }
+        assertEquals(Destination.Compress, model.state.value.screen.destination)
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Compress }
+        assertEquals(Destination.Compress, model.state.value.screen.destination)
+
+        model.selectDestination(Destination.Clean)
+        settle(model) { it.state.value.screen == Screen.Home }
+        model.openTrash()
+        settle(model) { it.state.value.screen == Screen.Trash(Destination.Clean) }
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home }
+    }
+
+    @Test
     fun `a thresholds reload queued behind another screen does not pull the user back to thresholds`() {
         val release = CompletableDeferred<Unit>()
         val model = ReviewViewModel(app, Review(app.index, SlowTrash(release)))
@@ -1251,10 +1272,10 @@ class ReviewViewModelTest {
         shadowOf(Looper.getMainLooper()).idle()
         model.reloadThresholds() // a scan changed phase meanwhile
         release.complete(Unit)
-        settle(model) { it.state.value.screen == Screen.Trash }
+        settle(model) { it.state.value.screen == Screen.Trash(Destination.Settings) }
         Thread.sleep(200)
         shadowOf(Looper.getMainLooper()).idle()
 
-        assertEquals(Screen.Trash, model.state.value.screen)
+        assertEquals(Screen.Trash(Destination.Settings), model.state.value.screen)
     }
 }

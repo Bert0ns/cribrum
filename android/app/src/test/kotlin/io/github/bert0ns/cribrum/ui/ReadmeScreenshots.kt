@@ -79,7 +79,7 @@ class ReadmeScreenshots {
         )
         Column(Modifier.fillMaxSize()) {
             ScanStatus(null, onScan = {})
-            CategoryList(categories, freeableBytes = 2_100_000_000, onOpen = {}, onTrash = {})
+            CategoryList(categories, freeableBytes = 2_100_000_000, onOpen = {})
         }
     }
 

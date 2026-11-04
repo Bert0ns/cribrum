@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -315,7 +316,7 @@ private fun AppContent(
                                 Screen.Home -> stringResource(R.string.app_name)
                                 Screen.Compress -> stringResource(R.string.nav_compress)
                                 is Screen.Category -> categoryName(screen.category)
-                                Screen.Trash -> stringResource(R.string.trash)
+                                is Screen.Trash -> stringResource(R.string.trash)
                                 Screen.Settings -> stringResource(R.string.settings)
                                 Screen.StorageMap -> stringResource(R.string.storage_map)
                                 Screen.Thresholds -> stringResource(R.string.settings_thresholds)
@@ -329,6 +330,9 @@ private fun AppContent(
                         }
                     },
                     actions = {
+                        if (screen == Screen.Home || screen == Screen.Compress) {
+                            IconButton(model::openTrash) { Icon(Icons.Default.Delete, stringResource(R.string.trash)) }
+                        }
                         if (screen is Screen.Category) {
                             ReviewOrderMenu(state.reviewOrder, ReviewOrder.optionsFor(screen.category), model::setReviewOrder)
                         }
@@ -345,7 +349,7 @@ private fun AppContent(
                             if (!notificationsGranted) {
                                 NotificationHint(onOpenSettings = { context.startActivity(notificationSettings(context)) })
                             }
-                            CategoryList(state.categories, state.freeableBytes, model::open, model::openTrash)
+                            CategoryList(state.categories, state.freeableBytes, model::open)
                         }
                         is Screen.Category -> CategoryScreen(
                             state.page,
@@ -361,7 +365,7 @@ private fun AppContent(
                             retentionDays = state.retentionDays,
                             loading = state.loading,
                         )
-                        Screen.Trash -> TrashScreen(
+                        is Screen.Trash -> TrashScreen(
                             state.trashed,
                             state.selected,
                             model::select,

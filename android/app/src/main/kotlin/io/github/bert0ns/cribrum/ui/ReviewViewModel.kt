@@ -44,7 +44,9 @@ sealed interface Screen {
     data object Home : Screen
     data object Compress : Screen
     data class Category(val category: io.github.bert0ns.cribrum.model.Category) : Screen
-    data object Trash : Screen
+
+    /** The trash belongs to the destination it was opened [from], which Back returns to. */
+    data class Trash(val from: Destination) : Screen
     data object Settings : Screen
     data object StorageMap : Screen
     data object Thresholds : Screen
@@ -53,14 +55,15 @@ sealed interface Screen {
 /** The destination of the bar that this screen belongs to, and the one it goes back to. */
 val Screen.destination: Destination
     get() = when (this) {
-        Screen.Home, is Screen.Category, Screen.Trash -> Destination.Clean
+        Screen.Home, is Screen.Category -> Destination.Clean
+        is Screen.Trash -> from
         Screen.Compress -> Destination.Compress
         Screen.StorageMap -> Destination.Map
         Screen.Settings, Screen.Thresholds -> Destination.Settings
     }
 
 /** A full screen view covers the navigation bar. */
-val Screen.coversNavigation: Boolean get() = this is Screen.Category || this == Screen.Trash || this == Screen.Thresholds
+val Screen.coversNavigation: Boolean get() = this is Screen.Category || this is Screen.Trash || this == Screen.Thresholds
 
 /** A lower retention that would purge [expiring] trashed images at the next scan, waiting for the user's confirmation. */
 data class RetentionChange(val days: Int, val expiring: Int)
@@ -168,7 +171,9 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(reviewOrder = grouping).showing(pageFor(category, state, grouping = grouping), keepMarksOf = state)
     }
 
-    fun openTrash() = load { it.copy(screen = Screen.Trash, trashed = review.trashed(), selected = emptySet()) }
+    fun openTrash() = load {
+        it.copy(screen = Screen.Trash(it.screen.destination), trashed = review.trashed(), selected = emptySet())
+    }
 
     /** Only the embeddings go: the next scan computes them again. */
     fun deleteEmbeddings() {
@@ -334,6 +339,8 @@ class ReviewViewModel @JvmOverloads constructor(
                 state.copy(storageMap = state.storageMap.dropLast(1))
             state.screen == Screen.Thresholds ->
                 state.copy(screen = Screen.Settings)
+            state.screen == Screen.Trash(Destination.Compress) ->
+                state.copy(screen = Screen.Compress)
             else -> state.home()
         }
     }
