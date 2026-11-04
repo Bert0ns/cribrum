@@ -145,6 +145,7 @@ fun CompressScreen(model: CompressViewModel, progress: ScanProgress?, modifier: 
         onPage = model::goToPage,
         onCompressedPage = model::goToCompressedPage,
         onLevel = model::chooseLevel,
+        onLevelSettled = model::remakePreviews,
         onToggleCompressed = model::toggleCompressed,
         onOpenSummary = model::openSummary,
         onCloseSummary = model::closeSummary,
@@ -177,6 +178,8 @@ fun CompressContent(
     modifier: Modifier = Modifier,
     /** The running scan, which a waiting batch shows: scanning itself lives on Clean. */
     progress: ScanProgress? = null,
+    /** The finger left the level slider, or a screen reader stepped it: the summary makes its previews again then. */
+    onLevelSettled: () -> Unit = {},
 ) {
     val busy = batch is BatchState.WaitingForScan || batch is BatchState.Running
     Column(modifier) {
@@ -188,7 +191,7 @@ fun CompressContent(
         }
     }
     // A summary is never over a batch: its preview is a second full decode next to the batch's.
-    if (!busy) state.summary?.let { SummaryDialog(it, state, onLevel, onCloseSummary, onConfirm) }
+    if (!busy) state.summary?.let { SummaryDialog(it, state, onLevel, onLevelSettled, onCloseSummary, onConfirm) }
 }
 
 /** The room under the grid for the floating Continue button: its 16 dp margins around a 40 dp button, and some slack for a large font. */
@@ -396,7 +399,7 @@ private fun SupportedFormats(hdrSupported: Boolean, opener: @Composable (open: (
  * decrement send, and a state description that names the level.
  */
 @Composable
-private fun LevelSlider(level: CompressionLevel, saving: Long?, modifier: Modifier = Modifier, onLevel: (CompressionLevel) -> Unit) {
+private fun LevelSlider(level: CompressionLevel, saving: Long?, modifier: Modifier = Modifier, onSettled: () -> Unit = {}, onLevel: (CompressionLevel) -> Unit) {
     val heading = stringResource(R.string.compress_level_heading)
     val state = stringResource(R.string.compress_level_state, level.title(), level.detail())
     // The level's name and the saving on one line, then the slider: the JPEG numbers are for the screen reader only.
@@ -409,6 +412,7 @@ private fun LevelSlider(level: CompressionLevel, saving: Long?, modifier: Modifi
             value = level.ordinal.toFloat(),
             // Only a new stop is reported, so the caller's tick comes once per stop even while the finger stays on it.
             onValueChange = { value -> CompressionLevel.entries[value.roundToInt().coerceIn(0, 2)].let { if (it != level) onLevel(it) } },
+            onValueChangeFinished = onSettled,
             valueRange = 0f..2f,
             steps = 1,
             modifier = Modifier.semantics {
@@ -533,7 +537,8 @@ private fun BatchProgress(batch: BatchState, progress: ScanProgress?, onCancel: 
                 }
             }
         }
-        Text(stringResource(R.string.compress_screen_cancel_hint), style = MaterialTheme.typography.bodySmall)
+        // Only a running batch has a photo in progress to wait for.
+        if (batch is BatchState.Running) Text(stringResource(R.string.compress_screen_cancel_hint), style = MaterialTheme.typography.bodySmall)
         OutlinedButton({
             haptics.performHapticFeedback(Haptic.KEEP.type)
             onCancel()
@@ -575,7 +580,7 @@ private fun BatchResultPanel(result: BatchResult, favoritesLost: Int, retentionD
                 OutlinedButton({
                     haptics.performHapticFeedback(Haptic.TICK.type)
                     onUndo()
-                }, enabled = !undoing) { Text(stringResource(R.string.undo)) }
+                }, enabled = !undoing) { Text(stringResource(R.string.compress_result_undo)) }
             }
         }
     }
@@ -591,7 +596,7 @@ private fun Refusal.plural() = when (this) {
 
 /** The summary before confirming (§8): the saving, a real before and after, and what the copy loses. */
 @Composable
-private fun SummaryDialog(summary: Summary, state: CompressState, onLevel: (CompressionLevel) -> Unit, onClose: () -> Unit, onConfirm: () -> Unit) {
+private fun SummaryDialog(summary: Summary, state: CompressState, onLevel: (CompressionLevel) -> Unit, onLevelSettled: () -> Unit, onClose: () -> Unit, onConfirm: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val count = state.selectedPhotos.size
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
@@ -599,8 +604,9 @@ private fun SummaryDialog(summary: Summary, state: CompressState, onLevel: (Comp
             Column(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).readableWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(pluralStringResource(R.plurals.compress_summary_title, count, count), style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
-                    // The level can change here too, next to its effect: a new level makes the previews again.
-                    LevelSlider(summary.level, state.estimatedSaving(summary.level)) {
+                    // The level can change here too, next to its effect. The slider follows the finger, and the previews are made again
+                    // only once it lets go: each is a full decode, and one started at each stop on the way would block the next.
+                    LevelSlider(state.level, state.estimatedSaving(state.level), onSettled = onLevelSettled) {
                         haptics.performHapticFeedback(Haptic.TICK.type)
                         onLevel(it)
                     }

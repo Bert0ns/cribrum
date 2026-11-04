@@ -346,10 +346,12 @@
     </plurals>
     <string name="compress_result_saved">Saved %1$s</string>
     <plurals name="compress_result_undo_hint">
-        <item quantity="one">Undo puts the originals back from the Cribrum trash, where they stay for %d day.</item>
-        <item quantity="other">Undo puts the originals back from the Cribrum trash, where they stay for %d days.</item>
+        <item quantity="one">The originals stay in the Cribrum trash for %d day, and Restore originals puts them back.</item>
+        <item quantity="other">The originals stay in the Cribrum trash for %d days, and Restore originals puts them back.</item>
     </plurals>
     <string name="compress_result_done">Done</string>
+    <!-- Not "Undo": in Italian that is "Annulla", which also reads as the summary's Cancel. -->
+    <string name="compress_result_undo">Restore originals</string>
     <plurals name="compress_refused_not_smaller">
         <item quantity="one">%d photo did not get smaller, so it was left as it was</item>
         <item quantity="other">%d photos did not get smaller, so they were left as they were</item>

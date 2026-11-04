@@ -18,6 +18,8 @@ import io.github.bert0ns.cribrum.compress.Marker
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.model.ImageRef
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -137,10 +139,70 @@ class CompressViewModelTest {
         settle(model, ::ready)
 
         model.chooseLevel(CompressionLevel.HIGH)
+        model.remakePreviews()
         settle(model) { it.summary?.level == CompressionLevel.HIGH && ready(it) }
 
         assertEquals(listOf(File(a.path) to CompressionLevel.BALANCED, File(a.path) to CompressionLevel.HIGH), previewed)
         assertEquals(CompressionLevel.HIGH, model.state.value.level)
+    }
+
+    @Test
+    fun `two quick level changes on the summary compress only at the last level`() {
+        val model = loaded()
+        model.toggle(a.path)
+        model.openSummary()
+        settle(model, ::ready)
+        previewed.clear()
+
+        // A drag passes through stops, and only letting go makes the previews again.
+        model.chooseLevel(CompressionLevel.HIGH)
+        model.chooseLevel(CompressionLevel.SMALLEST)
+        model.remakePreviews()
+        settle(model) { it.summary?.level == CompressionLevel.SMALLEST && ready(it) }
+
+        assertEquals(listOf(File(a.path) to CompressionLevel.SMALLEST), previewed)
+    }
+
+    @Test
+    fun `a level change while a preview runs stops it, and its result never lands`() {
+        val gate = CompletableDeferred<Unit>()
+        val started = mutableListOf<CompressionLevel>()
+        val model = CompressViewModel(
+            app,
+            batches,
+            photos = { listed },
+            favorites = { emptySet() },
+            retentionDays = { 7 },
+            preview = { _, level, out ->
+                started += level
+                // The decode of the old level does not stop when its job is cancelled, as a real one would not, and
+                // its result differs, so it shows if it lands.
+                if (level == CompressionLevel.BALANCED) {
+                    withContext(NonCancellable) { gate.await() }
+                    Refusal.NOT_SMALLER
+                } else {
+                    out.writeBytes(ByteArray(10))
+                    null
+                }
+            },
+            previewFiles = previewFiles,
+            discard = { discarded += it },
+        )
+        model.refresh()
+        settle(model) { it.loaded }
+        model.toggle(a.path)
+        model.openSummary()
+        settle(model) { CompressionLevel.BALANCED in started }
+
+        model.chooseLevel(CompressionLevel.HIGH)
+        model.remakePreviews()
+        gate.complete(Unit)
+        settle(model) { it.summary?.level == CompressionLevel.HIGH && ready(it) }
+        repeat(20) { shadowOf(Looper.getMainLooper()).idle() }
+
+        assertEquals(CompressionLevel.HIGH, model.state.value.summary?.level)
+        assertTrue(model.state.value.summary!!.samples.all { it.preview is SampleResult.Ready })
+        assertEquals(listOf(CompressionLevel.BALANCED, CompressionLevel.HIGH), started)
     }
 
     @Test

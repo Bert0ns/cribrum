@@ -19,6 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -161,10 +162,14 @@ class CompressViewModel @JvmOverloads constructor(
 
     fun goToCompressedPage(page: Int) = mutableState.update { it.copy(compressedPage = page.coerceIn(0, compressPageCount(it.compressed.size) - 1)) }
 
-    /** On the summary, a new level makes the previews again, so the comparison shows the level the user would get. */
-    fun chooseLevel(level: CompressionLevel) {
-        mutableState.update { it.copy(level = level) }
-        if (mutableState.value.summary.let { it != null && it.level != level }) openSummary()
+    fun chooseLevel(level: CompressionLevel) = mutableState.update { it.copy(level = level) }
+
+    /**
+     * On the summary, once the slider settles on a new level, makes the previews again at it, so the comparison shows the
+     * level the user would get. The previews of the old level stop, and none of their results lands.
+     */
+    fun remakePreviews() {
+        if (mutableState.value.let { it.summary != null && it.summary.level != it.level }) openSummary()
     }
 
     fun toggleCompressed() = mutableState.update { it.copy(compressedExpanded = !it.compressedExpanded) }
@@ -184,8 +189,10 @@ class CompressViewModel @JvmOverloads constructor(
             photos.forEachIndexed { index, photo ->
                 val refusal = makePreview(File(photo.path), level, previewFiles[index])
                 val result = if (refusal == null) SampleResult.Ready(previewFiles[index]) else SampleResult.Failed(refusal)
-                // The summary may have been closed meanwhile.
-                mutableState.update { state -> state.copy(summary = state.summary?.let { it.copy(samples = it.samples.mapIndexed { i, sample -> if (i == index) sample.copy(preview = result) else sample }) }) }
+                // The summary may have been closed meanwhile, or opened again at another level: a decode that would not stop
+                // returns here after its job was cancelled, and its result is not the summary's.
+                ensureActive()
+                mutableState.update { state -> state.copy(summary = state.summary?.let { if (it.level != level) it else it.copy(samples = it.samples.mapIndexed { i, sample -> if (i == index) sample.copy(preview = result) else sample }) }) }
             }
         }
     }
