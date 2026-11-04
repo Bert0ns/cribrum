@@ -279,7 +279,7 @@ val scenes: List<Scene> = listOf(
         openTrash(model)
         awaitText(str(R.string.trash_empty))
     },
-    Scene("trash-items", "Trash with photos, screenshots and stickers", "Select photos to bring them back, select all, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.wide) {
+    Scene("trash-items", "Trash with photos, screenshots and stickers", "Select photos to bring them back, select all, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.full) {
         val model = app(trashed(this))
         openTrash(model)
         awaitModel(model, "the items") { it.state.value.trashed.isNotEmpty() }
@@ -306,7 +306,7 @@ val scenes: List<Scene> = listOf(
         openCompress(model, setup)
         awaitText(str(R.string.compress_none))
     },
-    Scene("compress-list", "Compress, the list with nothing selected", "Pick photos, change the level, read the formats, see the photos compressed before, or open the trash from the top bar.", Variant.wide) {
+    Scene("compress-list", "Compress, the list with nothing selected", "Pick photos, change the level, read the formats, see the photos compressed before, or open the trash from the top bar.", Variant.full) {
         val setup = cameraRoll()
         val model = app(compress = setup)
         openCompress(model, setup)
@@ -325,7 +325,7 @@ val scenes: List<Scene> = listOf(
         click(str(R.string.compress_formats))
         awaitText(str(R.string.compress_sheet_title))
     },
-    Scene("compress-summary", "Compress, the summary with the before and after slider", "Drag the line to compare the original and the compressed copy, pinch to zoom, read the saving, then compress or cancel.", Variant.wide) {
+    Scene("compress-summary", "Compress, the summary with the before and after slider", "Drag the line to compare the original and the compressed copy, pinch to zoom, read the saving, then compress or cancel.", Variant.full) {
         val setup = cameraRoll()
         summary(setup, app(compress = setup))
     },
@@ -398,7 +398,7 @@ val scenes: List<Scene> = listOf(
         click("Pictures")
         awaitModel(model, "the zoom") { it.state.value.storageMap.size > 1 }
     },
-    Scene("map-selected", "Map, a folder selected with its details", "Read the folder's size and count, exclude it from the review and the map, or zoom into it.", Variant.base) {
+    Scene("map-selected", "Map, a folder selected with its details", "Read the folder's size and count, exclude it from the review and the map, or zoom into it.", Variant.base + Variant.italianDark) {
         world.library(others = true)
         world.commit()
         val model = app()
@@ -453,7 +453,7 @@ val scenes: List<Scene> = listOf(
         click(str(R.string.settings_delete_embeddings))
         awaitText(str(R.string.settings_delete_embeddings_confirm))
     },
-    Scene("thresholds", "Detection thresholds", "Move a slider to list more or fewer images in a category, read how many that adds or removes, or reset to the defaults.", Variant.wide) {
+    Scene("thresholds", "Detection thresholds", "Move a slider to list more or fewer images in a category, read how many that adds or removes, or reset to the defaults.", Variant.full) {
         world.library()
         world.commit()
         val model = app()

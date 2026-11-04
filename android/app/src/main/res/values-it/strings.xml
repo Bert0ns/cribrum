@@ -255,14 +255,14 @@
     <string name="settings_embeddings_size">Circa %s, una stima</string>
     <string name="settings_delete_embeddings">Elimina i dati dell\'analisi</string>
     <plurals name="settings_embeddings_stored">
-        <item quantity="one">Ciò che la scansione ha imparato su %d immagine. Eliminarlo libera il suo spazio.</item>
-        <item quantity="other">Ciò che la scansione ha imparato su %d immagini. Eliminarlo libera il suo spazio.</item>
-        <item quantity="many">Ciò che la scansione ha imparato su %d di immagini. Eliminarlo libera il suo spazio.</item>
+        <item quantity="one">Dati dell\'analisi di %d immagine. Eliminarli libera spazio, e l\'immagine resta.</item>
+        <item quantity="other">Dati dell\'analisi di %d immagini. Eliminarli libera spazio, e le immagini restano.</item>
+        <item quantity="many">Dati dell\'analisi di %d di immagini. Eliminarli libera spazio, e le immagini restano.</item>
     </plurals>
     <string name="settings_no_embeddings">Nessun dato dell\'analisi salvato.</string>
     <string name="settings_delete_embeddings_scanning">Aspetta la fine della scansione.</string>
     <string name="settings_delete_embeddings_title">Eliminare i dati dell\'analisi?</string>
-    <string name="settings_delete_embeddings_confirm">Cribrum conserva ciò che ha imparato su ogni immagine per trovare copie, documenti e immagini inoltrate. La prossima scansione lo impara di nuovo, e servono circa 15–20 minuti per 10.000 immagini. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
+    <string name="settings_delete_embeddings_confirm">Cribrum salva i dati dell\'analisi di ogni immagine per trovare copie, documenti e immagini inoltrate. La prossima scansione li calcola di nuovo, in circa 15–20 minuti per 10.000 immagini. Le tue immagini, il cestino e le tue scelte restano come sono.</string>
     <string name="exclude_folder">Non suggerire mai questa cartella né le sue sottocartelle</string>
     <!-- Stato della scansione nelle impostazioni -->
     <string name="settings_scan_status">Stato della scansione</string>
