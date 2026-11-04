@@ -282,7 +282,12 @@ class IndexingWorkTest {
 
         runBlocking { Indexing.stop(app) }
 
-        runBlocking { withTimeout(10_000) { Indexing.progress(app).first { it == null } } }
+        runBlocking {
+            withTimeout(10_000) {
+                Indexing.progress(app).first { it == null }
+                while (IndexWorker.running.isLocked) yield()
+            }
+        }
         assertEquals(WorkInfo.State.ENQUEUED, scheduled().single { it.id == night }.state)
         assertEquals(1, scheduled().count { Indexing.NIGHTLY_TAG in it.tags })
     }
