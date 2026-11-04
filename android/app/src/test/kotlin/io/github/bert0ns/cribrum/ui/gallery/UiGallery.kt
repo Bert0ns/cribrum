@@ -138,7 +138,9 @@ class UiGallery(private val shot: Shot) {
 
     companion object {
         private const val META = ".meta"
-        private val outputDir = System.getProperty("cribrum.gallery.dir")?.let(::File)
+        private val outputDir = System.getProperty("cribrum.gallery.dir")?.let(::File)?.also { dir ->
+            require(dir.isAbsolute && dir.parentFile != null) { "-PuiGallery needs an absolute folder other than the root, not '$dir'" }
+        }
 
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
@@ -152,7 +154,6 @@ class UiGallery(private val shot: Shot) {
         @JvmStatic
         fun clear() {
             val dir = outputDir ?: return
-            require(dir.isAbsolute && dir.parentFile != null) { "-PuiGallery needs an absolute folder other than the root, not '$dir'" }
             val meta = File(dir, META).also { it.mkdirs() }
             val run = File(meta, "run")
             val started = ProcessHandle.current().info().startInstant().toString()
