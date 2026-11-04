@@ -41,8 +41,9 @@ Project skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills/` o
 | `deslop` | Removing AI boilerplate from code before committing |
 | `unslop` | Removing AI tells from docs, issues and commit messages |
 | `grill-me`, `grilling` | Stress-testing a design decision before it goes into `docs/design.md` |
+| `ui-council` | A UI/UX review of the Android app by two models, on the UI gallery |
 
-They come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
+`ui-council` belongs to this repository, so it is edited here. The others come from [Bert0ns/agent-skills](https://github.com/Bert0ns/agent-skills), pinned in `skills-lock.json`. Update them with `npx skills update -p`, and never edit them in place.
 
 ## Which model does the work
 
