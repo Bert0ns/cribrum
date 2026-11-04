@@ -38,5 +38,5 @@ fun AllFilesAccess(onGrant: () -> Unit, modifier: Modifier = Modifier) {
 @Preview
 @Composable
 private fun AllFilesAccessPreview() {
-    MaterialTheme { AllFilesAccess(onGrant = {}) }
+    CribrumTheme { AllFilesAccess(onGrant = {}) }
 }

@@ -227,7 +227,7 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
             Icon(
                 if (marked) Icons.Default.Delete else Icons.Default.Check,
                 contentDescription = null,
-                tint = Color.White,
+                tint = if (marked) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.background(if (marked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
             )
             if (item.isFavorite && marked) FavoriteHeart()

@@ -7,7 +7,6 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -47,6 +46,7 @@ import io.github.bert0ns.cribrum.Permissions
 import io.github.bert0ns.cribrum.compress.CompressibleImage
 import io.github.bert0ns.cribrum.ui.CompressBatches
 import io.github.bert0ns.cribrum.ui.CompressViewModel
+import io.github.bert0ns.cribrum.ui.CribrumTheme
 import io.github.bert0ns.cribrum.ui.MAX_COMPARED
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import org.junit.AfterClass
@@ -194,13 +194,13 @@ class Gallery(val compose: ComposeTestRule, val app: CribrumApp, val world: Gall
         return model
     }
 
-    /** Runs [content] as the app's own activity does: the Material theme, edge to edge, and the view model store of this scene. */
+    /** Runs [content] as the app's own activity does: the app's theme, edge to edge, and the view model store of this scene. */
     fun launch(owner: ViewModelStoreOwner? = null, content: @Composable () -> Unit) {
         scenario = ActivityScenario.launch(ComponentActivity::class.java).also { launched ->
             launched.onActivity { activity ->
                 activity.enableEdgeToEdge()
                 activity.setContent {
-                    MaterialTheme {
+                    CribrumTheme {
                         if (owner == null) content() else CompositionLocalProvider(LocalViewModelStoreOwner provides owner, content = content)
                     }
                 }
