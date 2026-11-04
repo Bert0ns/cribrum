@@ -140,6 +140,7 @@
         <item quantity="many">%d di immagini restano nel cestino: un file ha ora il loro nome, oppure la loro cartella non c\'è più</item>
     </plurals>
     <string name="change_failed_snackbar">Non ha funzionato. Riprova.</string>
+    <string name="favorite_appeared_snackbar">Un\'immagine è diventata preferita nel frattempo. Controlla la pagina.</string>
     <string name="undo">Annulla</string>
     <string name="trash_empty">Il cestino è vuoto.</string>
     <plurals name="trash_hint">

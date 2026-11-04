@@ -227,7 +227,7 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
     val open = stringResource(R.string.action_open_full_size)
     Box(
         Modifier.aspectRatio(1f).padding(2.dp)
-            .border(if (marked) 3.dp else 0.dp, if (marked) MaterialTheme.colorScheme.error else Color.Transparent)
+            .border(if (marked) 3.dp else 0.dp, if (marked) markColor else Color.Transparent)
             .combinedClickable(onClick = onTap, onClickLabel = toggle, onLongClick = onHold, onLongClickLabel = open)
             .semantics {
                 contentDescription = description
@@ -247,19 +247,18 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
             model = File(item.image.path),
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize().alpha(if (marked) 0.6f else 1f),
+            modifier = Modifier.fillMaxSize(),
         )
-        // A favourite's heart takes the top right corner when the image is marked, so the status badge moves left of it.
-        Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(
-                if (marked) Icons.Default.Delete else Icons.Default.Check,
-                contentDescription = null,
-                tint = if (marked) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.background(if (marked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small),
-            )
-            if (item.isFavorite && marked) FavoriteHeart()
+        // A kept tile is a plain photo, so a check means "selected" everywhere in the app. A favourite's heart takes
+        // the top right corner when the image is marked, so the trash badge moves left of it.
+        if (marked) {
+            Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.White, modifier = Modifier.background(markColor, MaterialTheme.shapes.small))
+                if (item.isFavorite) FavoriteHeart()
+            }
+        } else if (item.isFavorite) {
+            FavoriteHeart(Modifier.align(Alignment.BottomEnd).padding(4.dp))
         }
-        if (item.isFavorite && !marked) FavoriteHeart(Modifier.align(Alignment.BottomEnd).padding(4.dp))
         if (item.isBest) {
             Text(
                 stringResource(R.string.best_copy),
@@ -302,9 +301,6 @@ fun CategoryScreen(
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     /** A change is running: the page on screen is about to be replaced, so confirming it is off. */
     loading: Boolean = false,
-    /** The hint about tap and hold, until the user has held a tile once. */
-    showHint: Boolean = true,
-    onFullSize: () -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val haptics = LocalHapticFeedback.current
@@ -319,6 +315,8 @@ fun CategoryScreen(
         val trashPaths = toTrash.map { it.image.path }.toSet()
         onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
     }
+    // Candidates only, as the header counts: a group's best copy is there for comparison, and nobody chose to keep it.
+    val toKeepCount = images.count { it.suggestTrash && it.image.path !in marked }
     Column(modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             if (images.isNotEmpty()) {
@@ -330,9 +328,7 @@ fun CategoryScreen(
             if (images.isEmpty()) {
                 Text(stringResource(R.string.review_done), style = MaterialTheme.typography.bodySmall)
             } else {
-                // What a mark means stays; how to tap and hold goes once the user has held a tile.
-                val hint = stringResource(R.string.review_hint)
-                Text(if (showHint) hint + " " + stringResource(R.string.review_hint_gestures) else hint, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.review_hint) + " " + stringResource(R.string.review_hint_gestures), style = MaterialTheme.typography.bodySmall)
             }
         }
         // A new grouping reorders the page: start at its top instead of in the middle of it.
@@ -372,10 +368,7 @@ fun CategoryScreen(
                             haptics.performHapticFeedback(Haptic.TICK.type)
                             onToggle(item.image)
                         },
-                        onHold = {
-                            fullSize = item.image
-                            onFullSize()
-                        },
+                        onHold = { fullSize = item.image },
                     )
                 }
             }
@@ -384,7 +377,7 @@ fun CategoryScreen(
         if (images.isNotEmpty()) {
             Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
                 Button(onClick = { if (favorites > 0) askFavorites = true else apply() }, enabled = !loading) {
-                    Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
+                    Text(stringResource(R.string.apply, toTrash.size, toKeepCount))
                 }
                 OutlinedButton(onClick = {
                     haptics.performHapticFeedback(Haptic.TICK.type)
@@ -446,7 +439,7 @@ private fun FullSize(
     val haptics = LocalHapticFeedback.current
     FullSizeViewer(items.map { it.image.path }, start.path, onClose) { page ->
         val current = items.getOrNull(page) ?: return@FullSizeViewer // the page emptied under the dialog; CategoryScreen closes it next
-        FullSizeToggle(current.image.path in marked, stringResource(R.string.selected_for_trash), MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError) {
+        FullSizeToggle(current.image.path in marked, stringResource(R.string.selected_for_trash), markColor, Color.White) {
             haptics.performHapticFeedback(Haptic.TICK.type)
             onToggle(current.image)
         }

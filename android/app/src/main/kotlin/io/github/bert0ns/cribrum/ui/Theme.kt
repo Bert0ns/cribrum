@@ -10,7 +10,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -21,8 +25,20 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun CribrumTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(), content = content)
+    CompositionLocalProvider(LocalDark provides dark) {
+        MaterialTheme(colorScheme = if (dark) darkColorScheme() else lightColorScheme(), content = content)
+    }
 }
+
+private val LocalDark = staticCompositionLocalOf { false }
+
+/**
+ * The review's trash mark: a tile's border and badge, and the full size checkbox. The baseline dark error is a pale
+ * pink that reads as decoration on a photo, so in dark mode the mark alone takes a deeper red. White reads on both.
+ */
+val markColor: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalDark.current) Color(0xFFE53935) else MaterialTheme.colorScheme.error
 
 /** A dialog's confirm button for an action that deletes or is hard to take back, in the error color. */
 @Composable

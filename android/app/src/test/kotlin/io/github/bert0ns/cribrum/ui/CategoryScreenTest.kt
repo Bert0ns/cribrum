@@ -455,24 +455,23 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `the tap and hold hint shows until the user has held a tile once`() {
-        var used = false
-        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, showHint = !used, onFullSize = { used = true }) }
-        val hint = "Marked images go to the trash. Tap one to keep it, hold it to see it full size."
-        compose.onNodeWithText(hint).assertExists()
+    fun `the hint says what a mark means and how to tap and hold, for good`() {
+        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}) }
 
         openFullSize("img1.jpg")
+        compose.onNodeWithContentDescription("Close").performClick()
 
-        assertTrue(used)
+        compose.onNodeWithText("Marked images go to the trash. Tap one to keep it, hold it to see it full size.").assertExists()
     }
 
     @Test
-    fun `no hint once it was used`() {
-        compose.setContent { CategoryScreen(page, 3, emptySet(), false, {}, { _, _ -> }, {}, showHint = false) }
+    fun `on a group page keep counts only candidates, as the header does`() {
+        val best = ReviewItem(images[0], suggestTrash = false, isBest = true)
+        val group = ReviewGroup("g", listOf(best, ReviewItem(images[1], suggestTrash = true), ReviewItem(images[2], suggestTrash = true)))
+        compose.setContent { CategoryScreen(listOf(group), 2, setOf(images[1].path), grouped = true, {}, { _, _ -> }, {}) }
 
-        compose.onNodeWithText("Tap one to keep it", substring = true).assertDoesNotExist()
-        // What a mark means stays.
-        compose.onNodeWithText("Marked images go to the trash.").assertExists()
+        compose.onNodeWithText("The last 2 images").assertExists()
+        compose.onNodeWithText("Trash 1, keep 1").assertExists()
     }
 
     private val favoritePage = images.mapIndexed { i, image -> ReviewGroup(image.path, listOf(ReviewItem(image, suggestTrash = true, isFavorite = i < 2))) }

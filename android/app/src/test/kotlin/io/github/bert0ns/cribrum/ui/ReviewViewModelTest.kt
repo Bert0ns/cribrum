@@ -913,6 +913,9 @@ class ReviewViewModelTest {
         assertNull(model.state.value.lastDecision)
         assertEquals(setOf("/sdcard/a.jpg"), model.state.value.page.flatMap { it.images }.filter { it.isFavorite }.map { it.image.path }.toSet())
         assertEquals(toTrash, model.state.value.marked) // the page is back as it was, with its marks
+        assertTrue(model.state.value.favoriteAppeared) // and a snackbar says why
+        model.dismissFavoriteAppeared()
+        settle(model) { !it.state.value.favoriteAppeared }
 
         model.applyPage(toTrash, toKeep) // now the page, and so the dialog, shows the heart
         settle(model) { it.state.value.lastDecision != null }
@@ -1277,19 +1280,6 @@ class ReviewViewModelTest {
             model.back()
             settle(model) { it.state.value.screen == screen }
         }
-    }
-
-    @Test
-    fun `the tap and hold hint is gone for good once a tile was held`() {
-        val model = ReviewViewModel(app)
-        settle(model) { !it.state.value.reviewHintUsed }
-
-        model.fullSizeUsed()
-        settle(model) { it.state.value.reviewHintUsed }
-
-        assertTrue(app.reviewHint.used)
-        val next = ReviewViewModel(app)
-        settle(next) { it.state.value.reviewHintUsed }
     }
 
     @Test

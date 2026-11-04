@@ -98,6 +98,7 @@
         <item quantity="other">%d images stay in the trash: a file now has their name, or their folder is gone</item>
     </plurals>
     <string name="change_failed_snackbar">That did not work. Try again.</string>
+    <string name="favorite_appeared_snackbar">An image became a favourite meanwhile. Check the page.</string>
     <string name="undo">Undo</string>
     <string name="trash_empty">The trash is empty.</string>
     <plurals name="trash_hint">
