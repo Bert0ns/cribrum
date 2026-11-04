@@ -394,7 +394,8 @@
     <string name="compress_compare_tab_failed">Photo %1$d of %2$d: %3$s before, cannot be compressed at this level</string>
     <string name="compress_zoom">Zoom: %1$d%% of full resolution</string>
     <string name="compress_loss_title">What you lose</string>
-    <string name="compress_loss_kept">The date, the place and the camera details are kept. The compressed copy loses:</string>
+    <string name="compress_loss_kept">The date, the place and the camera details are kept, the shooting mode info is not.</string>
+    <string name="compress_loss_also">The compressed copy also loses:</string>
     <plurals name="compress_loss_re_edit">
         <item quantity="one">Samsung Gallery\'s Revert, for %d edited photo</item>
         <item quantity="other">Samsung Gallery\'s Revert, for %d edited photos</item>
@@ -411,7 +412,6 @@
         <item quantity="one">Content credentials (C2PA), such as an \"edited with AI\" label, in %d photo</item>
         <item quantity="other">Content credentials (C2PA), such as an \"edited with AI\" label, in %d photos</item>
     </plurals>
-    <string name="compress_loss_shooting_mode">The shooting mode info</string>
     <plurals name="compress_loss_restore">
         <item quantity="one">All of it comes back only by restoring the original from the Cribrum trash, within %d day.</item>
         <item quantity="other">All of it comes back only by restoring the original from the Cribrum trash, within %d days.</item>

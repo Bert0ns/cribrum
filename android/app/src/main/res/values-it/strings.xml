@@ -458,7 +458,8 @@
     <string name="compress_compare_tab_failed">Foto %1$d di %2$d: %3$s prima, non si può comprimere con questo livello</string>
     <string name="compress_zoom">Zoom: %1$d%% della risoluzione piena</string>
     <string name="compress_loss_title">Cosa perdi</string>
-    <string name="compress_loss_kept">La data, il luogo e i dati della fotocamera restano. La copia compressa perde:</string>
+    <string name="compress_loss_kept">La data, il luogo e i dati della fotocamera restano, le informazioni sulla modalità di scatto no.</string>
+    <string name="compress_loss_also">La copia compressa perde anche:</string>
     <plurals name="compress_loss_re_edit">
         <item quantity="one">Il Ripristina originale di Samsung Gallery, per %d foto modificata</item>
         <item quantity="other">Il Ripristina originale di Samsung Gallery, per %d foto modificate</item>
@@ -479,7 +480,6 @@
         <item quantity="other">Le credenziali dei contenuti (C2PA), come l\'etichetta \"modificata con IA\", in %d foto</item>
         <item quantity="many">Le credenziali dei contenuti (C2PA), come l\'etichetta \"modificata con IA\", in %d di foto</item>
     </plurals>
-    <string name="compress_loss_shooting_mode">Le informazioni sulla modalità di scatto</string>
     <plurals name="compress_loss_restore">
         <item quantity="one">Tutto questo torna solo ripristinando l\'originale dal cestino di Cribrum, entro %d giorno.</item>
         <item quantity="other">Tutto questo torna solo ripristinando l\'originale dal cestino di Cribrum, entro %d giorni.</item>

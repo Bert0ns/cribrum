@@ -353,6 +353,21 @@ class CompressScreenTest {
     }
 
     @Test
+    fun `a batch with no real loss lists none, in one sentence`() {
+        show(model(middle))
+        awaitText("1 photo, largest first")
+        compose.onNodeWithText("Select all on this page").performClick()
+
+        compose.onNodeWithText("Continue with 1 photo").performClick()
+
+        awaitText("Compress 1 photo?")
+        compose.onNodeWithText("The date, the place and the camera details are kept, the shooting mode info is not.").assertExists()
+        compose.onNodeWithText("The compressed copy also loses:").assertDoesNotExist()
+        compose.onAllNodesWithText("Revert", substring = true).assertCountEquals(0)
+        compose.onAllNodesWithText("other apps saved", substring = true).assertCountEquals(0)
+    }
+
+    @Test
     fun `the summary names the loss, counts the photos that have it, and shows a real before and after`() {
         show(model(big, middle))
         awaitText("2 photos, largest first")
@@ -362,12 +377,12 @@ class CompressScreenTest {
         compose.onNodeWithText("Continue with 2 photos").performClick()
 
         awaitText("Compress 2 photos?")
-        compose.onNodeWithText("The date, the place and the camera details are kept. The compressed copy loses:").assertExists()
+        compose.onNodeWithText("The date, the place and the camera details are kept, the shooting mode info is not.").assertExists()
+        compose.onNodeWithText("The compressed copy also loses:").assertExists()
         compose.onNodeWithText("• Samsung Gallery's Revert, for 1 edited photo").assertExists()
         compose.onNodeWithText("• The edits, ratings, keywords, captions and people tags that other apps saved, in 1 photo").assertExists()
         compose.onAllNodesWithText("Re-blurring", substring = true).assertCountEquals(0)
         compose.onAllNodesWithText("Content credentials", substring = true).assertCountEquals(0)
-        compose.onNodeWithText("• The shooting mode info").assertExists()
         compose.onNodeWithText("All of it comes back only by restoring the original from the Cribrum trash, within 30 days.").assertExists()
         // The level and its saving on one line, and the slider to change it.
         compose.onAllNodesWithText("Smallest").assertCountEquals(2)

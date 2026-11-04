@@ -348,6 +348,15 @@ val scenes: List<Scene> = listOf(
         val setup = cameraRoll()
         summary(setup, app(compress = setup))
     },
+    Scene("compress-summary-no-loss", "Compress, the summary of photos that lose nothing that matters", "Read that the date, the place and the camera details stay, in a neutral box with no warning, then compress or cancel.", Variant.base) {
+        val setup = cameraRoll()
+        val model = app(compress = setup)
+        openCompress(model, setup)
+        select(setup, 3, 4)
+        click(plural(R.plurals.compress_continue, 2, 2))
+        awaitText(plural(R.plurals.compress_summary_title, 2, 2))
+        scrollToEnd(inDialog = true)
+    },
     Scene("compress-summary-losses", "Compress, the summary scrolled to what the copy loses", "Read what the compressed copy loses and how long the originals stay in the trash, then compress or cancel.", Variant.base) {
         val setup = cameraRoll()
         summary(setup, app(compress = setup))
