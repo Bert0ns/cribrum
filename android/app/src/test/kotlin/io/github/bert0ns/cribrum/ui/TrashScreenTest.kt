@@ -13,13 +13,17 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,7 +49,7 @@ class TrashScreenTest {
         var restored = emptySet<String>()
         compose.setContent {
             var selected by remember { mutableStateOf(emptySet<String>()) }
-            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = { restored = selected }, onEmpty = {})
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = { restored = selected }, onDelete = {})
         }
 
         compose.onNodeWithText("Restore 0").assertIsNotEnabled()
@@ -66,7 +70,7 @@ class TrashScreenTest {
     fun `a screen reader hears which images are selected`() {
         compose.setContent {
             var selected by remember { mutableStateOf(emptySet<String>()) }
-            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = {}, onEmpty = {})
+            TrashScreen(trashed, selected, onSelect = { selected = selected + it.original.path }, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
         }
 
         compose.onNodeWithContentDescription("a.jpg. 27 days left").assertIsNotSelected()
@@ -102,16 +106,42 @@ class TrashScreenTest {
     }
 
     @Test
-    fun `emptying the trash asks first`() {
-        var emptied = 0
-        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, onEmpty = { emptied++ }) }
+    fun `emptying the trash asks first and says the space it frees`() {
+        var deleted: Set<String>? = null
+        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, onDelete = { deleted = it }) }
 
         compose.onNodeWithText("Empty trash").performClick()
-        assertEquals(0, emptied)
+        assertNull(deleted)
         compose.onNodeWithText("Delete 2 images for good?").assertExists()
+        compose.onNodeWithText("This frees 2 B and cannot be undone.").assertExists()
         compose.onNodeWithText("Delete").performClick()
 
-        assertEquals(1, emptied)
+        assertEquals(trashed.map { it.original.path }.toSet(), deleted)
+    }
+
+    @Test
+    fun `with a selection the button deletes only the selected images`() {
+        var deleted: Set<String>? = null
+        compose.setContent { TrashScreen(trashed, setOf(trashed[1].original.path), {}, { _, _ -> }, {}, onDelete = { deleted = it }) }
+
+        compose.onNodeWithText("Empty trash").assertDoesNotExist()
+        compose.onNodeWithText("Delete 1").performClick()
+        compose.onNodeWithText("Delete 1 image for good?").assertExists()
+        compose.onNodeWithText("Delete").performClick()
+
+        assertEquals(setOf(trashed[1].original.path), deleted)
+    }
+
+    @Test
+    fun `holding an image opens it full size, with its days left`() {
+        compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}) }
+
+        compose.onNodeWithContentDescription("a.jpg. 27 days left").performTouchInput { longClick() }
+
+        compose.onNodeWithTag("fullSize").assertExists()
+        compose.onNodeWithText("27 days left").assertExists()
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.onNodeWithTag("fullSize").assertDoesNotExist()
     }
 
     @Test

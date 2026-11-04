@@ -98,9 +98,9 @@ class LanguageTest {
 
     @Test
     @Config(qualifiers = "it")
-    fun `the summary and the trash hint give the chosen retention in Italian`() {
+    fun `the favourite dialog and the trash hint give the chosen retention in Italian`() {
         val image = ImageRef("/sdcard/DCIM/a.jpg", 1, 0)
-        val page = listOf(ReviewGroup("a", listOf(ReviewItem(image, suggestTrash = true))))
+        val page = listOf(ReviewGroup("a", listOf(ReviewItem(image, suggestTrash = true, isFavorite = true))))
         val trashedAt = Instant.now()
         val trashed = listOf(TrashedImage(image, trashedAt, File("/sdcard/.cribrum-trash/x/a.jpg"), trashedAt + Duration.ofDays(1)))
         var days by mutableIntStateOf(1)

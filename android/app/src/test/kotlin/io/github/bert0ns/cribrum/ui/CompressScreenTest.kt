@@ -23,6 +23,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.doubleClick
@@ -556,7 +558,7 @@ class CompressScreenTest {
     private fun actionsOf(name: String) = tile(name).fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions).orEmpty().map { it.label }
 
     @Test
-    fun `a long press opens the photo full screen, where a button selects it and a swipe pages`() {
+    fun `a long press opens the photo full screen, where a checkbox selects it and a swipe pages`() {
         show(model(big, middle))
         awaitText("2 photos, largest first")
         assertTrue("Open full size" in actionsOf("IMG_1.jpg"))
@@ -564,11 +566,12 @@ class CompressScreenTest {
         tile("IMG_1.jpg").performTouchInput { longClick() }
 
         compose.onNodeWithTag("fullSize").assertExists()
-        compose.onNodeWithText(big.path).assertExists()
-        compose.onNodeWithText("Not selected").performClick()
-        compose.onNodeWithText("Selected").assertExists()
+        compose.onNodeWithText("16320 × 12240", substring = true).assertExists()
+        compose.onNodeWithText("DCIM").assertExists() // the folder, not the path
+        compose.onNodeWithText("Selected").assertIsOff().performClick()
+        compose.onNodeWithText("Selected").assertIsOn()
         compose.onNodeWithTag("fullSize").performTouchInput { swipeLeft() }
-        compose.onNodeWithText(middle.path).assertExists()
+        compose.onNodeWithText("4000 × 3000", substring = true).assertExists()
         compose.onNodeWithTag("fullSize").performTouchInput { click() }
         compose.mainClock.advanceTimeBy(1_000) // a tap waits to tell itself from a double tap, which resets the zoom
         compose.onNodeWithTag("fullSize").assertDoesNotExist()

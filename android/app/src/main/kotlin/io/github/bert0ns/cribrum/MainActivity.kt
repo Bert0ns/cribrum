@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
+import android.text.format.Formatter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -242,7 +243,12 @@ private fun AppContent(
     }
     val decision = state.lastDecision
     val trashedMessage = decision?.let {
-        val trashed = pluralStringResource(R.plurals.trashed_snackbar, it.trashed.size, it.trashed.size)
+        // The size too: with no dialog before it, the snackbar is where the user reads what the page freed.
+        val trashed = if (it.trashed.isEmpty()) {
+            pluralStringResource(R.plurals.kept_snackbar, it.kept.size, it.kept.size)
+        } else {
+            pluralStringResource(R.plurals.trashed_snackbar, it.trashed.size, it.trashed.size, Formatter.formatShortFileSize(context, it.trashed.sumOf { image -> image.size }))
+        }
         if (it.failed.isEmpty()) {
             trashed
         } else {
@@ -332,7 +338,7 @@ private fun AppContent(
                         }
                     },
                     actions = {
-                        if (screen == Screen.Home || screen == Screen.Compress) {
+                        if (!screen.coversNavigation) {
                             IconButton(model::openTrash) { Icon(Icons.Default.Delete, stringResource(R.string.trash)) }
                         }
                         if (screen is Screen.Category) {
@@ -374,6 +380,8 @@ private fun AppContent(
                             reviewOrder = state.reviewOrder,
                             retentionDays = state.retentionDays,
                             loading = state.loading,
+                            showHint = !state.reviewHintUsed,
+                            onFullSize = model::fullSizeUsed,
                         )
                         is Screen.Trash -> TrashScreen(
                             state.trashed,
@@ -381,7 +389,7 @@ private fun AppContent(
                             model::select,
                             model::selectAll,
                             model::restoreSelected,
-                            model::emptyTrash,
+                            model::deleteFromTrash,
                             retentionDays = state.retentionDays,
                         )
                         Screen.Settings -> SettingsScreen(

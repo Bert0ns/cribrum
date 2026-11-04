@@ -3,7 +3,6 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.text.format.Formatter
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,17 +16,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -38,15 +35,19 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -69,10 +70,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
@@ -82,6 +86,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
@@ -156,7 +161,7 @@ fun CategoryList(categories: List<CategorySummary>, freeableBytes: Long, onOpen:
 @Composable
 fun ReviewOrderMenu(selected: ReviewOrder, options: List<ReviewOrder>, onSelect: (ReviewOrder) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    IconButton({ open = true }) { Icon(Icons.AutoMirrored.Filled.List, stringResource(R.string.review_order)) }
+    IconButton({ open = true }) { Icon(SortIcon, stringResource(R.string.review_order)) }
     DropdownMenu(open, { open = false }) {
         for (grouping in options) {
             DropdownMenuItem(
@@ -170,6 +175,27 @@ fun ReviewOrderMenu(selected: ReviewOrder, options: List<ReviewOrder>, onSelect:
         }
     }
 }
+
+/** Three lines of falling length. The core icon set has no sort icon and the extended one is large. */
+private val SortIcon = ImageVector.Builder("Sort", 24.dp, 24.dp, 24f, 24f).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(3f, 6f)
+        horizontalLineTo(21f)
+        verticalLineTo(8f)
+        horizontalLineTo(3f)
+        close()
+        moveTo(3f, 11f)
+        horizontalLineTo(15f)
+        verticalLineTo(13f)
+        horizontalLineTo(3f)
+        close()
+        moveTo(3f, 16f)
+        horizontalLineTo(9f)
+        verticalLineTo(18f)
+        horizontalLineTo(3f)
+        close()
+    }
+}.build()
 
 private val ReviewOrder.title
     get() = when (this) {
@@ -276,13 +302,23 @@ fun CategoryScreen(
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     /** A change is running: the page on screen is about to be replaced, so confirming it is off. */
     loading: Boolean = false,
+    /** The hint about tap and hold, until the user has held a tile once. */
+    showHint: Boolean = true,
+    onFullSize: () -> Unit = {},
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val haptics = LocalHapticFeedback.current
-    var showSummary by remember { mutableStateOf(false) }
+    var askFavorites by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<ImageRef?>(null) }
     val images = page.flatMap { it.images }
     val toTrash = images.filter { it.image.path in marked }
+    val favorites = toTrash.count { it.isFavorite }
+    // The button with its counts, the 30 day trash and the Undo snackbar are the confirmation (D6). Only a favourite asks first.
+    val apply = {
+        haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
+        val trashPaths = toTrash.map { it.image.path }.toSet()
+        onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
+    }
     Column(modifier.fillMaxSize()) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             if (images.isNotEmpty()) {
@@ -291,7 +327,11 @@ fun CategoryScreen(
                 val position = if (remaining > shown) R.plurals.page_more else R.plurals.page_last
                 Text(pluralStringResource(position, remaining, shown, remaining), style = MaterialTheme.typography.titleSmall)
             }
-            Text(stringResource(if (images.isEmpty()) R.string.review_done else R.string.review_hint), style = MaterialTheme.typography.bodySmall)
+            if (images.isEmpty()) {
+                Text(stringResource(R.string.review_done), style = MaterialTheme.typography.bodySmall)
+            } else if (showHint) {
+                Text(stringResource(R.string.review_hint), style = MaterialTheme.typography.bodySmall)
+            }
         }
         // A new grouping reorders the page: start at its top instead of in the middle of it.
         val grid = rememberLazyGridState()
@@ -304,7 +344,8 @@ fun CategoryScreen(
                             reviewOrder.label(group.date, locale),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+                            // At the text margin of the header above, not at the edge of the tiles.
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                         )
                     }
                 }
@@ -329,7 +370,10 @@ fun CategoryScreen(
                             haptics.performHapticFeedback(Haptic.TICK.type)
                             onToggle(item.image)
                         },
-                        onHold = { fullSize = item.image },
+                        onHold = {
+                            fullSize = item.image
+                            onFullSize()
+                        },
                     )
                 }
             }
@@ -337,7 +381,7 @@ fun CategoryScreen(
         SnackbarHost(snackbar)
         if (images.isNotEmpty()) {
             Buttons(Modifier.fillMaxWidth().padding(16.dp)) {
-                Button(onClick = { showSummary = true }, enabled = !loading) {
+                Button(onClick = { if (favorites > 0) askFavorites = true else apply() }, enabled = !loading) {
                     Text(stringResource(R.string.apply, toTrash.size, images.size - toTrash.size))
                 }
                 OutlinedButton(onClick = {
@@ -347,31 +391,26 @@ fun CategoryScreen(
             }
         }
     }
-    if (showSummary) {
+    // A favourite was marked on purpose, by a tap, but trashing one is never a surprise.
+    if (askFavorites && favorites > 0) {
         val size = Formatter.formatShortFileSize(LocalContext.current, toTrash.sumOf { it.image.size })
-        // The one dialog also asks about the favourites, so trashing one is never a surprise.
-        val favorites = toTrash.count { it.isFavorite }
         AlertDialog(
-            onDismissRequest = { showSummary = false },
-            icon = if (favorites > 0) ({ Icon(Icons.Filled.Favorite, contentDescription = null) }) else null,
+            onDismissRequest = { askFavorites = false },
+            icon = { Icon(Icons.Filled.Favorite, contentDescription = null) },
             title = { Text(pluralStringResource(R.plurals.summary_title, toTrash.size, toTrash.size)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(pluralStringResource(R.plurals.summary_body, retentionDays, size, retentionDays))
-                    if (favorites > 0) Text(pluralStringResource(R.plurals.summary_favorites, favorites, favorites), fontWeight = FontWeight.Bold)
+                    Text(pluralStringResource(R.plurals.summary_favorites, favorites, favorites), fontWeight = FontWeight.Bold)
                 }
             },
             confirmButton = {
                 TextButton({
-                    showSummary = false
-                    haptics.performHapticFeedback((if (toTrash.isEmpty()) Haptic.KEEP else Haptic.TRASH).type)
-                    val trashPaths = toTrash.map { it.image.path }.toSet()
-                    onApply(trashPaths, images.map { it.image.path }.toSet() - trashPaths)
-                }, enabled = !loading, colors = if (favorites > 0) destructive() else ButtonDefaults.textButtonColors()) {
-                    Text(stringResource(if (favorites > 0) R.string.summary_confirm_favorites else R.string.summary_confirm))
-                }
+                    askFavorites = false
+                    apply()
+                }, enabled = !loading, colors = destructive()) { Text(stringResource(R.string.summary_confirm_favorites)) }
             },
-            dismissButton = { TextButton({ showSummary = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton({ askFavorites = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     // A skip, an apply or an exclusion can take the image off the page while it is open.
@@ -389,9 +428,9 @@ fun CategoryScreen(
 
 /**
  * The images of the list at full size, to tell real blur from a small thumbnail. Swipe to page,
- * pinch to zoom, and drag to pan once zoomed. Tap to close. A button says how the grid marks the
- * image and toggles that mark, which writes nothing on its own, and the view offers to never
- * suggest the image's folder again.
+ * pinch to zoom, and drag to pan once zoomed. A checkbox says whether the grid marks the image
+ * for the trash and toggles that mark, which writes nothing on its own, and the view offers to
+ * never suggest the image's folder again.
  */
 @Composable
 private fun FullSize(
@@ -405,40 +444,18 @@ private fun FullSize(
     val haptics = LocalHapticFeedback.current
     FullSizeViewer(items.map { it.image.path }, start.path, onClose) { page ->
         val current = items.getOrNull(page) ?: return@FullSizeViewer // the page emptied under the dialog; CategoryScreen closes it next
-        val isMarked = current.image.path in marked
-        if (current.isFavorite && isMarked) FavoriteHeart(Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp))
-        FullSizeMark(
-            if (isMarked) Icons.Default.Delete else Icons.Default.Check,
-            if (isMarked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-            if (isMarked) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
-            stringResource(
-                if (isMarked) {
-                    R.string.selected_for_trash
-                } else if (current.isBest) {
-                    R.string.kept_best_copy
-                } else {
-                    R.string.kept
-                },
-            ),
-            stringResource(if (isMarked) R.string.action_keep else R.string.action_trash),
-        ) {
+        FullSizeToggle(current.image.path in marked, stringResource(R.string.selected_for_trash), MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError) {
             haptics.performHapticFeedback(Haptic.TICK.type)
             onToggle(current.image)
         }
-        FullSizeBar {
+        FullSizeBar(current.image.path, current.isFavorite) {
             for (reason in current.reasons.mapNotNull(::reasonOf)) {
                 Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
-            Text(current.image.path, color = Color.White, style = MaterialTheme.typography.labelSmall)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                OutlinedButton(
-                    onClick = { onExcludeFolder(current.image) },
-                    border = BorderStroke(1.dp, Color.White),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                ) { Text(stringResource(R.string.exclude_folder)) }
-                Spacer(Modifier.weight(1f))
-                if (current.isFavorite && !isMarked) FavoriteHeart()
-            }
+            TextButton(
+                onClick = { onExcludeFolder(current.image) },
+                colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+            ) { Text(stringResource(R.string.exclude_folder)) }
         }
     }
 }
@@ -463,36 +480,49 @@ internal fun FullSizeViewer(
                 image(page)
             }
             overlay(pager.currentPage)
+            // Tapping the image closes it too, but nothing showed that.
+            IconButton(
+                onClose,
+                Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp).background(Color.Black.copy(alpha = 0.55f), CircleShape),
+            ) { Icon(Icons.Default.Close, stringResource(R.string.close), tint = Color.White) }
         }
     }
 }
 
-/** The button at the top left of the full size view: its text says how the grid marks the image, a tap toggles that mark as on a tile. */
+/**
+ * The checkbox at the top right of the full size view, with [label] saying what a tick means, as a tap on a tile
+ * toggles it. A box and a label read as a control, where a colored chip read as a status.
+ */
 @Composable
-internal fun BoxScope.FullSizeMark(icon: ImageVector, container: Color, content: Color, text: String, toggleLabel: String, onToggle: () -> Unit) {
-    Button(
-        onClick = onToggle,
-        colors = ButtonDefaults.buttonColors(containerColor = container, contentColor = content),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-        // The text says the mark; the label says what a tap does to it, as on a tile.
-        modifier = Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
-            .semantics {
-                onClick(label = toggleLabel) {
-                    onToggle()
-                    true
-                }
-            },
+internal fun BoxScope.FullSizeToggle(checked: Boolean, label: String, checkedColor: Color, checkmarkColor: Color, onToggle: () -> Unit) {
+    Row(
+        Modifier.align(Alignment.TopEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)
+            .background(Color.Black.copy(alpha = 0.55f), CircleShape)
+            .clip(CircleShape)
+            .toggleable(checked, role = Role.Checkbox) { onToggle() }
+            .heightIn(min = 48.dp)
+            .padding(start = 12.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.labelLarge)
+        Checkbox(checked, onCheckedChange = null, colors = CheckboxDefaults.colors(checkedColor = checkedColor, uncheckedColor = Color.White, checkmarkColor = checkmarkColor))
+        Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge)
     }
 }
 
-/** The dark translucent bar at the bottom of the full size view, readable on a white image. */
+/**
+ * The dark translucent bar at the bottom of the full size view, readable on a white image: [content], then the folder
+ * of [path] and a favourite's heart. The folder's name is enough to place a photo, where its path took two lines.
+ */
 @Composable
-internal fun BoxScope.FullSizeBar(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp), content = content)
+internal fun BoxScope.FullSizeBar(path: String, favorite: Boolean, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(File(path).parentFile?.name.orEmpty(), Modifier.weight(1f), color = Color.White, style = MaterialTheme.typography.labelMedium)
+            if (favorite) FavoriteHeart()
+        }
+        content()
+    }
 }
 
 /** Pinch zooms. A drag pans only while zoomed, so at scale 1 it is left to the pager to change page. */
