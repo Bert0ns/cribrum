@@ -130,7 +130,7 @@ private fun Handle(zoom: Zoom, line: MutableFloatState, haptics: HapticFeedback)
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Row(Modifier.size(40.dp).background(MaterialTheme.colorScheme.surface, CircleShape).shadow(2.dp, CircleShape), Arrangement.Center, Alignment.CenterVertically) {
+            Row(Modifier.size(40.dp).shadow(2.dp, CircleShape).background(MaterialTheme.colorScheme.surface, CircleShape), Arrangement.Center, Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null, Modifier.size(16.dp))
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, Modifier.size(16.dp))
             }
