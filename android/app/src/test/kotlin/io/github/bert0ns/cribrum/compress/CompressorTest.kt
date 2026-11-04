@@ -173,8 +173,22 @@ class CompressorTest {
 
         assertEquals(listOf(image), runBlocking { Review(index, trash).restore(listOf(image)) })
         assertEquals(original, listed())
-        scan()
+        val headersRead = mutableListOf<Long>()
+        val pipeline = Pipeline(
+            index,
+            detectors = emptyList(),
+            groupDetectors = emptyList(),
+            trash = trash,
+            jpegReader = {
+                headersRead += it.length()
+                readJpeg(it)
+            },
+        )
+        runBlocking { pipeline.run(FilesystemImageSource(volume)) }
         assertEquals(original, listed())
+        // The page row did not stop the scan from reading the restored original's headers.
+        assertEquals(listOf(image.size), headersRead)
+        assertEquals(emptyList<ImageRef>(), runBlocking { index.jpegsToRead() })
     }
 
     @Test
