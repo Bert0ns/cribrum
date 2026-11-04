@@ -307,7 +307,8 @@ private fun AppContent(
                                 is Screen.Trash -> stringResource(R.string.trash)
                                 // The bar's own label, which the #322 fix keeps short enough for a font scale of 1.5.
                                 Screen.Settings -> stringResource(R.string.nav_settings)
-                                Screen.StorageMap -> stringResource(R.string.storage_map)
+                                // Zoomed in, the folder's name, so Back has a visible target.
+                                Screen.StorageMap -> state.storageMap.takeIf { it.size > 1 }?.last()?.name ?: stringResource(R.string.storage_map)
                                 Screen.Thresholds -> stringResource(R.string.settings_thresholds)
                             },
                         )

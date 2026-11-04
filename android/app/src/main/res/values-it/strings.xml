@@ -97,9 +97,9 @@
     <string name="skip">Salta</string>
     <string name="review_order">Raggruppa per data o ordina per dimensione</string>
     <string name="review_order_off">Ordine suggerito</string>
-    <string name="review_order_day">Giorno</string>
-    <string name="review_order_week">Settimana</string>
-    <string name="review_order_month">Mese</string>
+    <string name="review_order_day">Per giorno</string>
+    <string name="review_order_week">Per settimana</string>
+    <string name="review_order_month">Per mese</string>
     <string name="review_order_size">Prima le più grandi</string>
     <plurals name="summary_title">
         <item quantity="one">Spostare %d immagine nel cestino?</item>
@@ -327,11 +327,10 @@
     <string name="compress_waiting">In attesa della fine della scansione</string>
     <string name="compress_cancel">Annulla</string>
     <string name="storage_map">Mappa dell\'archiviazione</string>
-    <string name="storage_map_card_details">%1$s \u2022 dimensioni delle immagini</string>
-    <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s \u2022 dimensioni delle immagini</string>
+    <string name="storage_map_card_details_direct">File in questa cartella \u2022 %1$s</string>
     <string name="storage_map_root">Tutte le cartelle esplorate</string>
     <string name="storage_map_exclude">Escludi questa cartella</string>
-    <string name="storage_map_open">Apri la cartella</string>
+    <string name="storage_map_open">Mostra il contenuto</string>
     <string name="settings_storage_map_hint">Dove le immagini occupano spazio, cartella per cartella. Da lì puoi escludere una cartella.</string>
     <string name="settings_details">Scansioni e archiviazione</string>
     <string name="storage_map_empty">Nessuna immagine trovata finora</string>
