@@ -104,9 +104,10 @@ class CompressBatchTest {
         override fun heat() = this@CompressBatchTest.heat
 
         override fun askFavorites(result: BatchResult) {
-            asked += result.favorites
             answer = { lost -> CompressBatch.favoritesLost(result, lost) }
             wanted = { CompressBatch.isFinished(result) }
+            // Last: a test waits for this, then calls the two above.
+            asked += result.favorites
         }
 
         override suspend fun doWork(): Result {
