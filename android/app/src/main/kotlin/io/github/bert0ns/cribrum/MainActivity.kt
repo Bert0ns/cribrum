@@ -316,7 +316,7 @@ private fun AppContent(
                                 Screen.Home -> stringResource(R.string.app_name)
                                 Screen.Compress -> stringResource(R.string.nav_compress)
                                 is Screen.Category -> categoryName(screen.category)
-                                Screen.Trash -> stringResource(R.string.trash)
+                                is Screen.Trash -> stringResource(R.string.trash)
                                 Screen.Settings -> stringResource(R.string.settings)
                                 Screen.StorageMap -> stringResource(R.string.storage_map)
                                 Screen.Thresholds -> stringResource(R.string.settings_thresholds)
@@ -365,7 +365,7 @@ private fun AppContent(
                             retentionDays = state.retentionDays,
                             loading = state.loading,
                         )
-                        Screen.Trash -> TrashScreen(
+                        is Screen.Trash -> TrashScreen(
                             state.trashed,
                             state.selected,
                             model::select,

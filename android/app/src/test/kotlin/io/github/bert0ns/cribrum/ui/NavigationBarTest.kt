@@ -74,7 +74,7 @@ class NavigationBarTest {
         awaitScreen(model, Screen.Home)
 
         compose.onNodeWithContentDescription("Trash").performClick()
-        awaitScreen(model, Screen.Trash)
+        awaitScreen(model, Screen.Trash(Destination.Clean))
         compose.onAllNodesWithText("Compress").assertCountEquals(0)
         compose.onNodeWithContentDescription("Back").performClick()
         awaitText("Compress")
@@ -83,7 +83,7 @@ class NavigationBarTest {
         compose.onNodeWithText("Compress").performClick()
         awaitText("Supported formats: JPEG. Motion Photos are not compressed.")
         compose.onNodeWithContentDescription("Trash").performClick()
-        awaitScreen(model, Screen.Trash)
+        awaitScreen(model, Screen.Trash(Destination.Compress))
         compose.onNodeWithContentDescription("Back").performClick()
         awaitScreen(model, Screen.Compress)
         awaitText("Supported formats: JPEG. Motion Photos are not compressed.")
