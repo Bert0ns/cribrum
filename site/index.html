@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cribrum: On-device photo cleanup for Android</title>
-  <meta name="description" content="A private, local photo sieve for Android. Finds duplicates, blurry shots, WhatsApp media clutter, and screenshots without uploading anything to the cloud.">
-  <meta property="og:title" content="Cribrum: On-device photo cleanup for Android">
-  <meta property="og:description" content="Find photos you can delete without losing memories that matter. On-device analysis, suggestions only, and safe trash (30 days by default).">
+  <title>Cribrum: Clean and compress photos on Android</title>
+  <meta name="description" content="A private, on-device photo sieve for Android. Cleans clutter, duplicates, and blurry shots, or recompresses large photos to save storage without losing memories.">
+  <meta property="og:title" content="Cribrum: Clean and compress photos on Android">
+  <meta property="og:description" content="Clean clutter or recompress large photos without sending data to the cloud. On-device analysis, suggestions only, and safe 30-day trash.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://cribrum.bertons.me">
   <link rel="icon" type="image/png" href="favicon.png">
@@ -21,7 +21,9 @@
       </a>
 
       <div class="nav-links">
-        <a href="#what-it-finds">What it finds</a>
+        <a href="#clean">Clean</a>
+        <a href="#compress">Compress</a>
+        <a href="#settings">Settings</a>
         <a href="#principles">Principles</a>
         <a href="#permissions">Permissions</a>
         <a href="#install">Install</a>
@@ -45,7 +47,7 @@
     <header class="hero">
       <h1>A local photo sieve for Android</h1>
       <p class="hero-lead">
-        Cribrum scans storage for images you can safely delete, surfaces candidates for your review, and keeps deletions in a trash for 30 days by default.
+        Cribrum finds images on your device that you can delete or recompress: duplicates, blurry shots, messaging clutter, and large camera photos. All analysis runs on the device, suggestions require your confirmation, and deleted files stay in a safe trash.
       </p>
 
       <div class="cta-row">
@@ -60,21 +62,24 @@
 
       <div class="screenshots" aria-label="App screenshots">
         <figure class="screenshot-figure">
-          <img src="screenshots/home.png" alt="The home screen, with the categories and the space each can free" class="screenshot-img" width="411" height="891">
+          <img src="screenshots/home.png" alt="The Clean screen, showing categories and how much space each can free" class="screenshot-img" width="411" height="891">
         </figure>
         <figure class="screenshot-figure">
-          <img src="screenshots/category.png" alt="A category grid with the likely deletable images marked" class="screenshot-img" width="411" height="891">
+          <img src="screenshots/category.png" alt="A category review grid with deletable images marked" class="screenshot-img" width="411" height="891">
         </figure>
         <figure class="screenshot-figure">
-          <img src="screenshots/trash.png" alt="The trash, with the days left on each image" class="screenshot-img" width="411" height="891">
+          <img src="screenshots/trash.png" alt="The trash, showing days left before automatic deletion" class="screenshot-img" width="411" height="891">
         </figure>
       </div>
       <p class="screenshots-note">The images in the screenshots are drawn in code, and the counts are made up.</p>
     </header>
 
     <main>
-      <section id="what-it-finds">
-        <h2>What it finds</h2>
+      <section id="clean">
+        <h2>Clean: what it finds</h2>
+        <p>
+          Cribrum scans storage, including folders hidden from your gallery, across six distinct phases with live progress and time estimates. Scans monitor device temperature and throttle if the phone gets warm. Photos marked as gallery favourites display a heart badge, start kept, and trashing a favourite asks for confirmation. Pages apply at once, with an immediate undo snackbar.
+        </p>
         <div class="feature-list">
           <div class="feature-row">
             <div class="feature-term">Exact copies</div>
@@ -115,6 +120,60 @@
         </div>
       </section>
 
+      <section id="compress">
+        <h2>Photo compression</h2>
+        <p>
+          Instead of deleting photos, Cribrum can recompress large camera JPEGs to reclaim storage space.
+        </p>
+        <div class="feature-list">
+          <div class="feature-row">
+            <div class="feature-term">Three quality levels</div>
+            <div class="feature-desc">Choose High quality at JPEG 90 and original resolution, Balanced at JPEG 85 and up to 50 MP, or Smallest files at JPEG 80 and up to 12 MP. Balanced halves file size with little visible change.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Split comparison slider</div>
+            <div class="feature-desc">Compare up to three photos before confirming. A draggable split handle separates the original and the compressed copy, with deep zooming down to individual pixels.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Metadata and gain maps</div>
+            <div class="feature-desc">Copies keep EXIF tags, GPS coordinates, date taken, camera details, and Ultra HDR gain maps on Android 14 and newer. Cribrum requests system confirmation to retain gallery favourite status on compressed copies.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Reversible originals</div>
+            <div class="feature-desc">Original photos move to Cribrum's trash folder. Undo the entire batch with one tap from the summary screen, or restore individual originals from the trash at any time.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Background batches</div>
+            <div class="feature-desc">Compresses photos in the background with progress notifications. Batches can be stopped at any time and pause when the phone gets hot.</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="settings">
+        <h2>Settings and storage map</h2>
+        <p>
+          Settings gives you control over trash retention, folder exclusions, and scanning sensitivity.
+        </p>
+        <div class="feature-list">
+          <div class="feature-row">
+            <div class="feature-term">Storage map</div>
+            <div class="feature-desc">An interactive treemap shows where storage goes across your folders. Select a folder to inspect its size and file count, or exclude it from scans.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Trash retention</div>
+            <div class="feature-desc">Deleted files and original copies stay in Cribrum's trash for 30 days by default, adjustable from 7 to 90 days in settings. Restore photos to their original folders or empty the trash permanently.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Detection thresholds</div>
+            <div class="feature-desc">Fine-tune recall with sensitivity sliders for each category, or reset them to defaults.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">System dark theme</div>
+            <div class="feature-desc">The app follows Android's system dark mode setting automatically, adjusting colors and contrast for low light.</div>
+          </div>
+        </div>
+      </section>
+
       <section id="principles">
         <h2>Design principles</h2>
         <div class="feature-list">
@@ -132,7 +191,7 @@
           </div>
           <div class="feature-row">
             <div class="feature-term">Nothing is lost by accident</div>
-            <div class="feature-desc">Every deletion is confirmed and reversible for 30 days by default (7 to 90 days in settings). Files move to Cribrum's trash folder on shared storage and can be restored to their original paths.</div>
+            <div class="feature-desc">Every deletion and compression is confirmed and reversible. Files move to Cribrum's trash folder on shared storage, kept safely before permanent deletion, and can be restored to their original paths.</div>
           </div>
         </div>
       </section>
@@ -140,13 +199,13 @@
       <section id="permissions">
         <h2>Permissions and sideloading</h2>
         <p>
-          Standard gallery applications use Android MediaStore, which only indexes public media folders. MediaStore ignores folders with <code>.nomedia</code> markers, such as <code>WhatsApp Images/Sent</code>, where silent storage waste accumulates.
+          Standard gallery applications use Android MediaStore, which only indexes public media folders. MediaStore ignores folders with <code>.nomedia</code> markers, such as WhatsApp sent media folders, where silent storage waste accumulates.
         </p>
         <p>
-          Cribrum asks for <code>MANAGE_EXTERNAL_STORAGE</code> (All files access) to scan hidden directories directly and manage its trash folder on shared storage. Because Google Play restricts this permission to file managers, Cribrum is distributed as a direct APK download on GitHub.
+          Cribrum asks for All files access, known as <code>MANAGE_EXTERNAL_STORAGE</code>, to scan hidden directories directly and manage its trash folder on shared storage. Because Google Play restricts this permission to file managers, Cribrum is distributed as a direct APK download on GitHub.
         </p>
         <p>
-          Cribrum explicitly removes the <code>android.permission.INTERNET</code> permission in its manifest, stripping even telemetry from bundled libraries. The app cannot open network connections or send data anywhere.
+          Cribrum explicitly removes the <code>android.permission.INTERNET</code> permission in its manifest, stripping telemetry from bundled libraries. The app cannot open network connections or send data anywhere.
         </p>
       </section>
 
@@ -182,7 +241,7 @@
             <span class="step-num">4</span>
             <div class="step-body">
               <h3>Scan and review</h3>
-              <p>Tap Scan now to run the initial scan, or leave it to run automatically overnight while charging. Candidates will appear grouped by category for your review.</p>
+              <p>Tap Scan now to run the initial scan, or leave it to run automatically overnight while charging. Review clutter candidates grouped by category, or recompress large photos from the Compress tab.</p>
             </div>
           </li>
         </ol>
@@ -201,6 +260,8 @@
     <footer>
       <div>Cribrum &bull; GNU GPLv3</div>
       <div class="footer-nav">
+        <a href="#clean">Clean</a>
+        <a href="#compress">Compress</a>
         <a href="https://github.com/Bert0ns/cribrum" target="_blank" rel="noopener noreferrer">GitHub</a>
         <a href="https://github.com/Bert0ns/cribrum/releases/latest" target="_blank" rel="noopener noreferrer">Releases</a>
         <a href="https://github.com/Bert0ns/cribrum/blob/main/docs/design.md" target="_blank" rel="noopener noreferrer">Design</a>
