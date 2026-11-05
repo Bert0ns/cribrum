@@ -226,13 +226,23 @@ val scenes: List<Scene> = listOf(
         click(str(R.string.review_order_day))
         awaitModel(model, "the day order") { it.state.value.reviewOrder == ReviewOrder.DAY && it.state.value.page.isNotEmpty() }
     },
-    Scene("review-full-size", "Review, a photo at full size with why it is a candidate", "Swipe to the next photo, pinch to zoom, tick or untick the checkbox that marks it for the trash, read its folder, never suggest the folder again, or close the view.", Variant.base) {
+    Scene("review-full-size", "Review, a photo at full size with why it is a candidate", "Swipe to the next photo, pinch to zoom, tick or untick the checkbox that marks it for the trash, find the heart, which is off while the photo is marked, read its folder, never suggest the folder again, or close the view.", Variant.base) {
         world.library(pictures = setOf(Category.BLURRY))
         world.commit()
         val model = app()
         openCategory(model, R.string.category_blurry)
         described(str(R.string.selected_for_trash))[1].performTouchInput { longClick() }
         awaitTag("fullSize")
+    },
+    Scene("review-full-size-favorite", "Review, a favourite at full size with its heart on", "Tap the heart to take the photo out of the gallery favourites, or swipe to a photo that is not one and heart it. The system asks first.", Variant.base) {
+        world.library(pictures = setOf(Category.BAD_EXPOSURE))
+        world.commit()
+        val model = app()
+        openCategory(model, R.string.category_bad_exposure)
+        scrollToEnd()
+        described(str(R.string.favorite))[0].performTouchInput { longClick() }
+        awaitTag("fullSize")
+        await(str(R.string.favorite_remove)) { described(str(R.string.favorite_remove)).fetchSemanticsNodes().isNotEmpty() }
     },
     Scene("review-favorites", "Review of Too dark or too bright photos, favourites kept at the end", "Find the gallery favourites, which start kept with a heart, and decide whether to trash them anyway.", Variant.base) {
         world.library(pictures = setOf(Category.BAD_EXPOSURE))
