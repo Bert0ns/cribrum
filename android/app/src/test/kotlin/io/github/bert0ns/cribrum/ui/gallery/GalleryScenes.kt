@@ -139,22 +139,25 @@ private fun Gallery.scanRunning(step: String, done: Int, total: Int, leftMs: Lon
 }
 
 /** 03:12 this morning, when the nightly scan ends. */
-private fun lastNight(): Long = java.util.Calendar.getInstance().apply {
-    set(java.util.Calendar.HOUR_OF_DAY, 3)
-    set(java.util.Calendar.MINUTE, 12)
-}.timeInMillis
+private fun Gallery.lastNight(): Long {
+    val zdt = world.clock.now.atZone(java.time.ZoneId.systemDefault())
+    return java.util.Calendar.getInstance().apply {
+        set(zdt.year, zdt.monthValue - 1, zdt.dayOfMonth, 3, 12, 0)
+        set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+}
 
 private fun Gallery.settings(model: ReviewViewModel) {
     world.library(others = true)
     world.commit()
     runBlocking {
-        app.index.excludeFolder(world.path("Pictures", "Memes"))
-        app.index.excludeFolder(world.path("WhatsApp/Media", "WhatsApp Video"))
+        app.index.excludeFolder("/sdcard/Pictures/Memes")
+        app.index.excludeFolder("/sdcard/WhatsApp/Media/WhatsApp Video")
     }
     app.lastScan.record(
         Stats(images = 2_350, newOrChanged = 18, unreadable = 2, unreadablePaths = listOf("/sdcard/Download/broken.jpg", "/sdcard/Pictures/old.heic"))
             .also { it.failures += Failure("/sdcard/DCIM/Camera/IMG_20261014_183422.jpg", "blur", "OutOfMemoryError: bitmap too large") },
-        finishedAt = System.currentTimeMillis() - 5 * 3_600_000L,
+        finishedAt = world.clock.now.toEpochMilli() - 5 * 3_600_000L,
         durationMs = 412_000,
     )
     goTo(model, R.string.nav_settings) { it.state.value.screen == Screen.Settings && it.state.value.coverage != null && it.state.value.storage != null }
@@ -195,6 +198,7 @@ val scenes: List<Scene> = listOf(
         world.commit()
         val model = app()
         openCategory(model, R.string.category_near_duplicate)
+        keep(1)
     },
     Scene("review-blurry", "Review of Blurry photos, three kept", "Tap a photo to keep it or mark it for the trash, hold one to see it full size, trash the marked ones or skip the page.", Variant.full) {
         world.library(pictures = setOf(Category.BLURRY))
@@ -231,6 +235,10 @@ val scenes: List<Scene> = listOf(
         world.commit()
         val model = app()
         openCategory(model, R.string.category_blurry)
+        val itemPath = model.state.value.page.flatMap { it.images }[1].image.path
+        val targetFile = File(itemPath)
+        val large = GalleryPictures.scene(1_001, width = 1080, height = 810)
+        GalleryPictures.write(targetFile, large, targetFile.length())
         described(str(R.string.selected_for_trash))[1].performTouchInput { longClick() }
         awaitTag("fullSize")
     },
