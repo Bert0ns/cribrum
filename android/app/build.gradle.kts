@@ -80,9 +80,12 @@ android {
         unitTests.all {
             // Robolectric reaches into FileDescriptor on SDK 37
             it.jvmArgs("--add-exports=java.base/jdk.internal.access=ALL-UNNAMED")
-            // -PreadmeScreenshots makes ReadmeScreenshots write docs/screenshots (android/README.md).
+            // -PreadmeScreenshots makes ReadmeScreenshots write docs/screenshots and site/screenshots (android/README.md).
             if (providers.gradleProperty("readmeScreenshots").isPresent) {
-                it.systemProperty("cribrum.screenshots.dir", rootProject.file("../docs/screenshots").path)
+                it.systemProperty(
+                    "cribrum.screenshots.dirs",
+                    "${rootProject.file("../docs/screenshots").path},${rootProject.file("../site/screenshots").path}",
+                )
                 it.outputs.upToDateWhen { false }
             } else {
                 it.exclude("**/ReadmeScreenshots*")

@@ -1,158 +1,135 @@
 package io.github.bert0ns.cribrum.ui
 
+import android.database.SQLException
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.LinearGradient
-import android.graphics.Paint
-import android.graphics.RadialGradient
-import android.graphics.Shader
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.test.captureToImage
-import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onRoot
-import io.github.bert0ns.cribrum.model.Category
-import io.github.bert0ns.cribrum.model.ImageRef
-import io.github.bert0ns.cribrum.review.CategorySummary
-import io.github.bert0ns.cribrum.review.ReviewGroup
-import io.github.bert0ns.cribrum.review.ReviewItem
-import io.github.bert0ns.cribrum.review.ReviewOrder
-import io.github.bert0ns.cribrum.trash.TrashedImage
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.Configuration
+import androidx.work.testing.SynchronousExecutor
+import androidx.work.testing.WorkManagerTestInitHelper
+import io.github.bert0ns.cribrum.CribrumApp
+import io.github.bert0ns.cribrum.ui.gallery.Gallery
+import io.github.bert0ns.cribrum.ui.gallery.GalleryWorkerFactory
+import io.github.bert0ns.cribrum.ui.gallery.GalleryWorld
+import io.github.bert0ns.cribrum.ui.gallery.MovableClock
+import io.github.bert0ns.cribrum.ui.gallery.scenes
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
+import org.junit.runners.model.Statement
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.time.Instant
-import java.time.temporal.ChronoUnit
-import kotlin.random.Random
 
 /**
- * Renders the screens in the README (docs/screenshots) on the JVM, with the real composables and
- * theme, apart from the top bar, a copy of MainActivity's that needs no view model. Every image is
- * drawn here, so no photo is involved. It runs only when `-PreadmeScreenshots` is set
- * (android/README.md), so a normal test run neither writes the files nor pays for the sandbox.
+ * Renders the screens for the README and the website (docs/screenshots) on the JVM, driving the real
+ * app over a drawn library (android/README.md). Every image is drawn in code, so no photo from a device
+ * is involved. It runs only when `-PreadmeScreenshots` is set.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [36], qualifiers = "w411dp-h891dp-mdpi", application = android.app.Application::class)
+@Config(sdk = [36], qualifiers = "en-w411dp-h891dp-notnight-mdpi", application = CribrumApp::class)
 class ReadmeScreenshots {
-    @get:Rule
-    val compose = createComposeRule()
+    private var written = false
 
-    @get:Rule
+    // WorkManager's background threads can race test teardown against Room after the screenshot is written.
+    @get:Rule(order = 0)
+    val workManagerTeardown = TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                try {
+                    base.evaluate()
+                } catch (e: Throwable) {
+                    val closed = generateSequence(e) { it.cause }.any { cause ->
+                        cause is SQLException &&
+                            cause.message.orEmpty().contains("connection is closed") &&
+                            cause.stackTrace.any { it.className.startsWith("androidx.work.") }
+                    }
+                    if (!written || !closed) throw e
+                }
+            }
+        }
+    }
+
+    @get:Rule(order = 1)
+    val compose = createEmptyComposeRule()
+
+    @get:Rule(order = 2)
     val folder = TemporaryFolder()
 
-    private val outputDir = System.getProperty("cribrum.screenshots.dir")?.let(::File)
+    private val outputDirs: List<File> by lazy {
+        val dirsProperty = System.getProperty("cribrum.screenshots.dirs")
+        if (!dirsProperty.isNullOrBlank()) {
+            dirsProperty.split(",").map { File(it.trim()) }
+        } else {
+            listOfNotNull(System.getProperty("cribrum.screenshots.dir")?.let(::File))
+        }
+    }
 
     @Test
-    fun home() = screenshot("home", title = "Cribrum", actions = { IconButton({}) { Icon(Icons.Filled.Settings, "Settings") } }) {
-        val categories = listOf(
-            CategorySummary(Category.EXACT_DUPLICATE, 42, bytes = 188_000_000),
-            CategorySummary(Category.NEAR_DUPLICATE, 217, bytes = 640_000_000),
-            CategorySummary(Category.BURST, 64, bytes = 210_000_000),
-            CategorySummary(Category.BLURRY, 128, bytes = 412_000_000),
-            CategorySummary(Category.BAD_EXPOSURE, 31, bytes = 96_000_000),
-            CategorySummary(Category.SCREENSHOT, 305, bytes = 530_000_000),
-            CategorySummary(Category.DOCUMENT, 89, bytes = 270_000_000),
-            CategorySummary(Category.FORWARDED, 412, bytes = 350_000_000),
-            CategorySummary(Category.STICKER, 1_024, bytes = 120_000_000),
+    fun home() = render("clean-results", "home.png")
+
+    @Test
+    fun category() = render("review-blurry", "category.png")
+
+    @Test
+    fun group() = render("review-near-duplicates", "group.png")
+
+    @Test
+    fun fullSize() = render("review-full-size", "full-size.png")
+
+    @Test
+    fun compress() = render("compress-selected", "compress.png")
+
+    @Test
+    fun compressSummary() = render("compress-summary", "compress-summary.png")
+
+    @Test
+    fun trash() = render("trash-items", "trash.png")
+
+    @Test
+    fun settings() = render("settings-top", "settings.png")
+
+    @Test
+    fun storageMap() = render("map-root", "storage-map.png")
+
+    private fun render(sceneId: String, fileName: String) {
+        assumeTrue("set -PreadmeScreenshots to write the screenshots", outputDirs.isNotEmpty())
+        RuntimeEnvironment.setQualifiers("en-w411dp-h891dp-notnight-mdpi")
+        val app = ApplicationProvider.getApplicationContext<CribrumApp>()
+        WorkManagerTestInitHelper.initializeTestWorkManager(
+            app,
+            Configuration.Builder().setExecutor(SynchronousExecutor()).setWorkerFactory(GalleryWorkerFactory()).build(),
         )
-        Column(Modifier.fillMaxSize()) {
-            ScanStatus(null, onScan = {})
-            CategoryList(categories, freeableBytes = 2_100_000_000, onOpen = {})
-        }
-    }
-
-    @Test
-    fun category() = screenshot("category", title = "Blurry", back = true, actions = { ReviewOrderMenu(ReviewOrder.OFF, ReviewOrder.optionsFor(Category.BLURRY)) {} }) {
-        val images = (1..24).map { thumbnail("blurry", it, blurry = true) }
-        val page = images.map { ReviewGroup(it.path, listOf(ReviewItem(it, suggestTrash = true))) }
-        val kept = setOf(images[2].path, images[7].path, images[12].path, images[17].path)
-        CategoryScreen(page, 128, marked = images.map { it.path }.toSet() - kept, grouped = false, onToggle = {}, onApply = { _, _ -> }, onSkip = {})
-    }
-
-    @Test
-    fun trash() = screenshot("trash", title = "Trash", back = true) {
-        val now = Instant.now()
-        val trashed = (1..12).map { index ->
-            val image = thumbnail("trash", index, blurry = index % 2 == 0)
-            TrashedImage(image, now.minus(index.toLong(), ChronoUnit.DAYS), File(image.path), now.plus(30L - index, ChronoUnit.DAYS))
-        }
-        TrashScreen(trashed, selected = setOf(trashed[1].file.path, trashed[4].file.path), onSelect = {}, onSelectAll = { _, _ -> }, onRestore = {}, onDelete = {})
-    }
-
-    @OptIn(ExperimentalMaterial3Api::class)
-    private fun screenshot(name: String, title: String, back: Boolean = false, actions: @Composable () -> Unit = {}, content: @Composable () -> Unit) {
-        assumeTrue("set -PreadmeScreenshots to write the screenshots", outputDir != null)
-        compose.setContent {
-            MaterialTheme {
-                Scaffold(topBar = {
-                    TopAppBar(
-                        title = { Text(title) },
-                        navigationIcon = { if (back) IconButton({}) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
-                        actions = { actions() },
-                    )
-                }) { padding -> Column(Modifier.fillMaxSize().padding(padding)) { content() } }
+        val clock = MovableClock(Instant.parse("2026-11-04T12:00:00Z"))
+        val gallery = Gallery(compose, app, GalleryWorld(app, folder.newFolder("sdcard"), clock = clock))
+        try {
+            prime(gallery)
+            val scene = checkNotNull(scenes.firstOrNull { it.id == sceneId }) { "scene $sceneId not found" }
+            scene.run(gallery)
+            gallery.settle()
+            val bitmap = gallery.capture()
+            for (dir in outputDirs) {
+                dir.mkdirs()
+                File(dir, fileName).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
             }
+            written = true
+        } finally {
+            gallery.close()
         }
-        // Coil decodes the thumbnails off the main thread, and Compose does not wait for it.
-        repeat(20) {
-            compose.waitForIdle()
-            Thread.sleep(100)
-        }
-        val bitmap = compose.onRoot().captureToImage().asAndroidBitmap()
-        outputDir!!.mkdirs()
-        File(outputDir, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    /** A drawn picture: a gradient with a few shapes. The blurry ones are soft blobs. Nothing is a photo. */
-    private fun thumbnail(set: String, index: Int, blurry: Boolean): ImageRef {
-        val random = Random(index * 31 + set.length)
-        val size = 140
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val hue = random.nextFloat() * 360f
-        val sky = Color.HSVToColor(floatArrayOf(hue, 0.45f, 0.95f))
-        val ground = Color.HSVToColor(floatArrayOf((hue + 40f) % 360f, 0.6f, 0.55f))
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        paint.shader = LinearGradient(0f, 0f, 0f, size.toFloat(), sky, ground, Shader.TileMode.CLAMP)
-        canvas.drawRect(0f, 0f, size.toFloat(), size.toFloat(), paint)
-        repeat(3) {
-            val x = random.nextFloat() * size
-            val y = size * (0.3f + random.nextFloat() * 0.6f)
-            val radius = size * (0.12f + random.nextFloat() * 0.18f)
-            val color = Color.HSVToColor(floatArrayOf(random.nextFloat() * 360f, 0.7f, 0.9f))
-            if (blurry) {
-                paint.shader = RadialGradient(x, y, radius * 1.8f, color, Color.TRANSPARENT, Shader.TileMode.CLAMP)
-                canvas.drawCircle(x, y, radius * 1.8f, paint)
-            } else {
-                paint.shader = null
-                paint.color = color
-                canvas.drawCircle(x, y, radius, paint)
-            }
-        }
-        val file = folder.newFile("$set$index.png")
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        return ImageRef(file.path, file.length(), 0)
+    /** Sets up native graphics so dialogs and complex views render safely. */
+    private fun prime(gallery: Gallery) {
+        gallery.launch { Text("Cribrum") }
+        gallery.capture()
+        gallery.close()
     }
 }

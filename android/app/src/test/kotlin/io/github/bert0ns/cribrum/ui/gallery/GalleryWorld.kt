@@ -68,8 +68,7 @@ class GalleryWorkerFactory : WorkerFactory() {
  * file stand for the rest of the library: they give the counts and sizes of the home and the map, and never reach a
  * page, because the pictures that do are ranked above them.
  */
-class GalleryWorld(val app: CribrumApp, val root: File) {
-    val clock = MovableClock()
+class GalleryWorld(val app: CribrumApp, val root: File, val clock: MovableClock = MovableClock()) {
     val trash = AppTrash({ listOf(root) }, clock)
     val favorites = mutableSetOf<String>()
 
@@ -152,7 +151,7 @@ class GalleryWorld(val app: CribrumApp, val root: File) {
 
     /** Puts [images] in the trash on the days given by [daysAgo], as if the user had trashed them then. */
     fun trashed(images: List<ImageRef>, daysAgo: (Int) -> Long) = runBlocking {
-        val today = Instant.now()
+        val today = clock.now
         images.forEachIndexed { index, image ->
             clock.now = today.minusSeconds(daysAgo(index) * 86_400)
             trash.moveToTrash(listOf(image))
