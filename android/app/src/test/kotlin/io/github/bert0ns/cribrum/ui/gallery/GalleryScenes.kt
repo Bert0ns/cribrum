@@ -44,10 +44,10 @@ private fun Gallery.openCategory(model: ReviewViewModel, name: Int) {
     awaitText(applyText(model))
 }
 
-/** The text of the button under the grid: how many images the page trashes and how many candidates it keeps. */
+/** The text of the button under the grid: how many images the page trashes and how many images it keeps. */
 private fun Gallery.applyText(model: ReviewViewModel): String {
     val state = model.state.value
-    return str(R.string.apply, state.marked.size, state.page.sumOf { group -> group.images.count { it.suggestTrash && it.image.path !in state.marked } })
+    return str(R.string.apply, state.marked.size, state.page.sumOf { it.images.size } - state.marked.size)
 }
 
 private fun Gallery.goTo(model: ReviewViewModel, destination: Int, ready: (ReviewViewModel) -> Boolean) {

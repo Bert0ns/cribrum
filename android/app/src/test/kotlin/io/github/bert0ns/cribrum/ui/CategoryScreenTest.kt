@@ -465,13 +465,13 @@ class CategoryScreenTest {
     }
 
     @Test
-    fun `on a group page keep counts only candidates, as the header does`() {
+    fun `on a group page keep counts every unmarked image, best copy included`() {
         val best = ReviewItem(images[0], suggestTrash = false, isBest = true)
         val group = ReviewGroup("g", listOf(best, ReviewItem(images[1], suggestTrash = true), ReviewItem(images[2], suggestTrash = true)))
         compose.setContent { CategoryScreen(listOf(group), 2, setOf(images[1].path), grouped = true, {}, { _, _ -> }, {}) }
 
         compose.onNodeWithText("The last 2 images").assertExists()
-        compose.onNodeWithText("Trash 1, keep 1").assertExists()
+        compose.onNodeWithText("Trash 1, keep 2").assertExists()
     }
 
     @Test
