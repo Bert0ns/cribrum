@@ -923,6 +923,121 @@ class ReviewViewModelTest {
         assertEquals(setOf("/sdcard/a.jpg", "/sdcard/b.jpg"), trash.moves.single().map { it.path }.toSet())
     }
 
+    /** A view model on a page of [count] blurry images, whose favourite requests the user answers with [granted] and the gallery records. */
+    private fun withFavorites(count: Int, favorites: MutableSet<String>, asked: MutableList<Pair<String, Boolean>>, granted: Boolean = true, trash: RecordingTrash = RecordingTrash()): ReviewViewModel {
+        repeat(count) { blurry("/sdcard/a$it.jpg", 0.9f - it * 0.1f) }
+        val review = Review(app.index, trash, favorites = { favorites.toSet() })
+        val model = ReviewViewModel(app, review) { path, favorite ->
+            asked += path to favorite
+            if (granted) if (favorite) favorites += path else favorites -= path
+            granted
+        }
+        model.open(Category.BLURRY)
+        settle(model) { paths(it).size == count }
+        return model
+    }
+
+    private fun hearts(model: ReviewViewModel) = model.state.value.page.flatMap { it.images }.filter { it.isFavorite }.map { it.image.path }
+
+    @Test
+    fun `hearting a kept image keeps the page, its order and its marks, and shows the heart`() {
+        val favorites = mutableSetOf<String>()
+        val asked = mutableListOf<Pair<String, Boolean>>()
+        val model = withFavorites(4, favorites, asked)
+        val image = model.state.value.page[1].images.single().image
+        model.toggle(image) // the user keeps it
+        settle(model) { image.path !in it.state.value.marked }
+        val before = model.state.value
+
+        model.setFavorite(image, true)
+        settle(model) { hearts(it).isNotEmpty() }
+
+        assertEquals(listOf(image.path to true), asked)
+        assertEquals(listOf(image.path), hearts(model))
+        assertEquals(paths(model), before.page.flatMap { g -> g.images.map { it.image.path } })
+        assertEquals(before.marked, model.state.value.marked)
+        assertEquals(before.remaining, model.state.value.remaining)
+        assertFalse(model.state.value.favoriteAppeared)
+    }
+
+    @Test
+    fun `a favourite made in the review is no surprise at the apply, and trashing the rest asks nothing`() {
+        val favorites = mutableSetOf<String>()
+        val trash = RecordingTrash()
+        val model = withFavorites(3, favorites, mutableListOf(), trash = trash)
+        val image = model.state.value.page[0].images.single().image
+        model.toggle(image)
+        settle(model) { image.path !in it.state.value.marked }
+        model.setFavorite(image, true)
+        settle(model) { hearts(it).isNotEmpty() }
+
+        applyShown(model)
+        settle(model) { it.state.value.lastDecision != null }
+
+        assertFalse(model.state.value.favoriteAppeared)
+        assertEquals(2, trash.moves.single().size)
+    }
+
+    @Test
+    fun `a favourite removed in the review loses its heart on the page and nothing else changes`() {
+        val image = "/sdcard/a0.jpg"
+        val favorites = mutableSetOf(image)
+        val asked = mutableListOf<Pair<String, Boolean>>()
+        val model = withFavorites(3, favorites, asked)
+        val marked = model.state.value.marked
+        assertEquals(listOf(image), hearts(model))
+
+        model.setFavorite(ImageRef(image, 1_000, 1L), false)
+        settle(model) { hearts(it).isEmpty() }
+
+        assertEquals(listOf(image to false), asked)
+        assertEquals(marked, model.state.value.marked)
+        assertEquals(3, paths(model).size)
+    }
+
+    @Test
+    fun `a declined request changes nothing`() {
+        val asked = mutableListOf<Pair<String, Boolean>>()
+        val model = withFavorites(3, mutableSetOf(), asked, granted = false)
+        val image = model.state.value.page[0].images.single().image
+        model.toggle(image)
+        settle(model) { image.path !in it.state.value.marked }
+        val before = model.state.value
+
+        model.setFavorite(image, true)
+        settle(model) { asked.isNotEmpty() }
+
+        assertEquals(before, model.state.value)
+    }
+
+    @Test
+    fun `an image marked for the trash is not asked about`() {
+        val asked = mutableListOf<Pair<String, Boolean>>()
+        val model = withFavorites(2, mutableSetOf(), asked)
+        val image = model.state.value.page[0].images.single().image
+        assertTrue(image.path in model.state.value.marked)
+
+        model.setFavorite(image, true)
+        settle(model) { true }
+
+        assertEquals(emptyList<Pair<String, Boolean>>(), asked)
+        assertEquals(emptyList<String>(), hearts(model))
+    }
+
+    @Test
+    fun `an image that became a favourite elsewhere while it is marked still asks at the apply`() {
+        val favorites = mutableSetOf<String>()
+        val trash = RecordingTrash()
+        val model = withFavorites(2, favorites, mutableListOf(), trash = trash)
+        favorites += "/sdcard/a0.jpg" // hearted in the gallery, not through the heart
+        val (toTrash, toKeep) = confirm(model)
+
+        model.applyPage(toTrash, toKeep)
+        settle(model) { it.state.value.favoriteAppeared }
+
+        assertEquals(emptyList<List<ImageRef>>(), trash.moves)
+    }
+
     @Test
     fun `a favourite starts kept, so trashing the rest of the page needs no confirmation`() {
         blurry("/sdcard/a.jpg", 0.9f)
