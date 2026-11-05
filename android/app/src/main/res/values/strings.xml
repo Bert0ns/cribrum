@@ -80,6 +80,9 @@
     </plurals>
     <string name="summary_confirm_favorites">Move to trash anyway</string>
     <string name="favorite">Favourite</string>
+    <string name="favorite_add">Add to favourites</string>
+    <string name="favorite_remove">Remove from favourites</string>
+    <string name="favorite_off_marked">Unavailable while the image is marked for the trash. Unmark it first.</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
     <plurals name="trashed_snackbar">

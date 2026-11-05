@@ -10,6 +10,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
@@ -498,6 +500,66 @@ class CategoryScreenTest {
         val markedTile = tiles[1].fetchSemanticsNode().boundsInRoot
         assertTrue(kept.center.y > keptTile.center.y && kept.center.x > keptTile.center.x)
         assertTrue(marked.center.y < markedTile.center.y && marked.center.x > markedTile.center.x)
+    }
+
+    /** The page and the marks as a view model holds them: a heart flips the flag of its image in place, and a tap on the checkbox flips the mark. */
+    private fun heartScreen(requests: MutableList<Pair<String, Boolean>>, marked: Set<String>, start: List<ReviewGroup> = page) {
+        compose.setContent {
+            var shown by remember { mutableStateOf(start) }
+            var now by remember { mutableStateOf(marked) }
+            CategoryScreen(shown, 3, now, false, { image -> now = if (image.path in now) now - image.path else now + image.path }, { _, _ -> }, {}, onFavorite = { image, favorite ->
+                requests += image.path to favorite
+                shown = shown.map { group -> group.copy(images = group.images.map { if (it.image == image) it.copy(isFavorite = favorite) else it }) }
+            })
+        }
+    }
+
+    private fun heart(label: String) = compose.onNodeWithContentDescription(label)
+
+    private fun stateDescription(node: SemanticsNodeInteraction) = node.fetchSemanticsNode().config.getOrNull(SemanticsProperties.StateDescription)
+
+    @Test
+    fun `the full size heart makes a kept image a favourite and takes the mark off again, keeping the view on the image`() {
+        val requests = mutableListOf<Pair<String, Boolean>>()
+        heartScreen(requests, marked = setOf(images[1].path, images[2].path))
+
+        openFullSize("img1.jpg")
+        heart("Add to favourites").assertIsEnabled().performClick()
+        heart("Remove from favourites").assertIsEnabled()
+        compose.onNodeWithText("Album1").assertExists() // still the same image, with the same checkbox
+        toggle().assertIsOff()
+        heart("Remove from favourites").performClick()
+        heart("Add to favourites").assertExists()
+
+        assertEquals(listOf(images[0].path to true, images[0].path to false), requests)
+    }
+
+    @Test
+    fun `the heart is off while the image is marked for the trash, says why, and comes on when the mark goes`() {
+        val requests = mutableListOf<Pair<String, Boolean>>()
+        heartScreen(requests, marked = setOf(images[0].path))
+
+        openFullSize("img1.jpg")
+        heart("Add to favourites").assertIsNotEnabled().performClick()
+        assertEquals("Unavailable while the image is marked for the trash. Unmark it first.", stateDescription(heart("Add to favourites")))
+        assertEquals(emptyList<Pair<String, Boolean>>(), requests)
+
+        toggle().performClick().assertIsOff()
+        heart("Add to favourites").assertIsEnabled()
+        assertNull(stateDescription(heart("Add to favourites")))
+        toggle().performClick().assertIsOn()
+        heart("Add to favourites").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `a favourite that is marked for the trash keeps its filled heart, and it is off`() {
+        val requests = mutableListOf<Pair<String, Boolean>>()
+        heartScreen(requests, marked = setOf(images[0].path), start = favoritePage)
+
+        openFullSize("img1.jpg")
+        heart("Remove from favourites").assertIsNotEnabled().performClick()
+
+        assertEquals(emptyList<Pair<String, Boolean>>(), requests)
     }
 
     @Test

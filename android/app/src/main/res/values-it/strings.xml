@@ -118,6 +118,9 @@
     </plurals>
     <string name="summary_confirm_favorites">Sposta comunque nel cestino</string>
     <string name="favorite">Preferita</string>
+    <string name="favorite_add">Aggiungi ai preferiti</string>
+    <string name="favorite_remove">Rimuovi dai preferiti</string>
+    <string name="favorite_off_marked">Non disponibile finché l\'immagine è segnata per il cestino. Togli prima il segno.</string>
     <string name="cancel">Annulla</string>
     <string name="confirm">Conferma</string>
     <plurals name="trashed_snackbar">
