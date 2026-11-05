@@ -340,6 +340,7 @@ private fun AppContent(model: ReviewViewModel) {
                             model::skip,
                             snackbar = snackbar,
                             onExcludeFolder = model::excludeFolder,
+                            onFavorite = model::setFavorite,
                             reviewOrder = state.reviewOrder,
                             retentionDays = state.retentionDays,
                             loading = state.loading,

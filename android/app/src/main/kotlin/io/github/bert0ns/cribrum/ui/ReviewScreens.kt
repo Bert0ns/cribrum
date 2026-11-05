@@ -43,6 +43,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.materialIcon
+import androidx.compose.material.icons.materialPath
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -92,6 +94,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -303,6 +306,8 @@ fun CategoryScreen(
     /** Shown right above the button, which a snackbar at the bottom of the screen would cover. */
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     onExcludeFolder: (ImageRef) -> Unit = {},
+    /** Makes the image a gallery favourite, or takes the mark off, from the full size view. */
+    onFavorite: (ImageRef, Boolean) -> Unit = { _, _ -> },
     reviewOrder: ReviewOrder = ReviewOrder.OFF,
     retentionDays: Int = TrashRetention.DEFAULT_DAYS,
     /** A change is running: the page on screen is about to be replaced, so confirming it is off. */
@@ -423,15 +428,15 @@ fun CategoryScreen(
             fullSize = null
             haptics.performHapticFeedback(Haptic.KEEP.type)
             onExcludeFolder(it)
-        }) { fullSize = null }
+        }, onFavorite) { fullSize = null }
     }
 }
 
 /**
  * The images of the list at full size, to tell real blur from a small thumbnail. Swipe to page,
  * pinch to zoom, and drag to pan once zoomed. A checkbox says whether the grid marks the image
- * for the trash and toggles that mark, which writes nothing on its own, and the view offers to
- * never suggest the image's folder again.
+ * for the trash and toggles that mark, which writes nothing on its own, a heart makes the image a gallery
+ * favourite or takes that off, and the view offers to never suggest the image's folder again.
  */
 @Composable
 private fun FullSize(
@@ -440,6 +445,7 @@ private fun FullSize(
     marked: Set<String>,
     onToggle: (ImageRef) -> Unit,
     onExcludeFolder: (ImageRef) -> Unit,
+    onFavorite: (ImageRef, Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -449,7 +455,13 @@ private fun FullSize(
             haptics.performHapticFeedback(Haptic.TICK.type)
             onToggle(current.image)
         }
-        FullSizeBar(current.image.path, current.isFavorite) {
+        val marked = current.image.path in marked
+        FullSizeBar(current.image.path, current.isFavorite, heart = {
+            FavoriteToggle(current.isFavorite, enabled = !marked) {
+                haptics.performHapticFeedback(Haptic.TICK.type)
+                onFavorite(current.image, it)
+            }
+        }) {
             for (reason in current.reasons.mapNotNull(::reasonOf)) {
                 Text(reason.text(), color = Color.White, style = MaterialTheme.typography.bodyMedium)
             }
@@ -513,16 +525,67 @@ internal fun BoxScope.FullSizeToggle(checked: Boolean, label: String, checkedCol
 
 /**
  * The dark translucent bar at the bottom of the full size view, readable on a white image: [content], then the folder
- * of [path] and a favourite's heart. The folder's name is enough to place a photo, where its path took two lines.
+ * of [path] and a favourite's [heart]. The folder's name is enough to place a photo, where its path took two lines.
  */
 @Composable
-internal fun BoxScope.FullSizeBar(path: String, favorite: Boolean, content: @Composable ColumnScope.() -> Unit) {
+internal fun BoxScope.FullSizeBar(path: String, favorite: Boolean, heart: @Composable () -> Unit = { if (favorite) FavoriteHeart() }, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().background(Color.Black.copy(alpha = 0.7f)).windowInsetsPadding(WindowInsets.safeDrawing).padding(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(File(path).parentFile?.name.orEmpty(), Modifier.weight(1f), color = Color.White, style = MaterialTheme.typography.labelMedium)
-            if (favorite) FavoriteHeart()
+            heart()
         }
         content()
+    }
+}
+
+/**
+ * The heart of the review's full size view: filled for a favourite, an outline for any other image, and a tap says the
+ * other. It is off while the image is marked for the trash, and says why to a screen reader, which would only hear
+ * "dimmed" from a plain disabled button.
+ */
+@Composable
+private fun FavoriteToggle(favorite: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    val label = stringResource(if (favorite) R.string.favorite_remove else R.string.favorite_add)
+    val reason = stringResource(R.string.favorite_off_marked)
+    IconButton(
+        { onChange(!favorite) },
+        Modifier.semantics { if (!enabled) stateDescription = reason },
+        enabled,
+    ) {
+        Icon(
+            if (favorite) Icons.Filled.Favorite else FavoriteOutline,
+            label,
+            tint = (if (favorite) Color(0xFFFF6B81) else Color.White).copy(alpha = if (enabled) 1f else 0.4f),
+        )
+    }
+}
+
+// Material's Outlined.FavoriteBorder, which material-icons-extended holds and the app does not depend on.
+private val FavoriteOutline: ImageVector by lazy {
+    materialIcon(name = "Outlined.FavoriteBorder") {
+        materialPath {
+            moveTo(16.5f, 3.0f)
+            curveToRelative(-1.74f, 0.0f, -3.41f, 0.81f, -4.5f, 2.09f)
+            curveTo(10.91f, 3.81f, 9.24f, 3.0f, 7.5f, 3.0f)
+            curveTo(4.42f, 3.0f, 2.0f, 5.42f, 2.0f, 8.5f)
+            curveToRelative(0.0f, 3.78f, 3.4f, 6.86f, 8.55f, 11.54f)
+            lineTo(12.0f, 21.35f)
+            lineToRelative(1.45f, -1.32f)
+            curveTo(18.6f, 15.36f, 22.0f, 12.28f, 22.0f, 8.5f)
+            curveTo(22.0f, 5.42f, 19.58f, 3.0f, 16.5f, 3.0f)
+            close()
+            moveTo(12.1f, 18.55f)
+            lineToRelative(-0.1f, 0.1f)
+            lineToRelative(-0.1f, -0.1f)
+            curveTo(7.14f, 14.24f, 4.0f, 11.39f, 4.0f, 8.5f)
+            curveTo(4.0f, 6.5f, 5.5f, 5.0f, 7.5f, 5.0f)
+            curveToRelative(1.54f, 0.0f, 3.04f, 0.99f, 3.57f, 2.36f)
+            horizontalLineToRelative(1.87f)
+            curveTo(13.46f, 5.99f, 14.96f, 5.0f, 16.5f, 5.0f)
+            curveToRelative(2.0f, 0.0f, 3.5f, 1.5f, 3.5f, 3.5f)
+            curveToRelative(0.0f, 2.89f, -3.14f, 5.74f, -7.9f, 10.05f)
+            close()
+        }
     }
 }
 
