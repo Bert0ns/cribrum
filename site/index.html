@@ -59,16 +59,44 @@
         </a>
       </div>
       <p class="meta-text">Requires Android 11 or newer. Free software under GPL-3.0.</p>
+      <p class="meta-text">The detectors are tuned on one person's library, so expect some wrong suggestions and some misses. Cloud libraries, iOS, and desktop are not covered.</p>
 
       <div class="screenshots" aria-label="App screenshots">
         <figure class="screenshot-figure">
-          <img src="screenshots/home.png" alt="The Clean screen, showing categories and how much space each can free" class="screenshot-img" width="411" height="891">
+          <img src="screenshots/home.png" alt="Clean home screen showing categories and space savings" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Clean categories</figcaption>
         </figure>
         <figure class="screenshot-figure">
-          <img src="screenshots/category.png" alt="A category review grid with deletable images marked" class="screenshot-img" width="411" height="891">
+          <img src="screenshots/category.png" alt="Category review grid with marked items" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Review grid</figcaption>
         </figure>
         <figure class="screenshot-figure">
-          <img src="screenshots/trash.png" alt="The trash, showing days left before automatic deletion" class="screenshot-img" width="411" height="891">
+          <img src="screenshots/group.png" alt="Group view showing duplicate copies with best copy kept" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Duplicate groups</figcaption>
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/full-size.png" alt="Full size photo view with candidate details" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Full size inspection</figcaption>
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/compress.png" alt="Compress screen with photo selection and savings estimate" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Compress list</figcaption>
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/compress-summary.png" alt="Compression confirmation dialog before moving originals to trash" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Compression confirmation</figcaption>
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/trash.png" alt="Trash screen showing days left before deletion" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Safe trash</figcaption>
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/settings.png" alt="Settings screen with trash retention and options" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Settings</figcaption>
+        </figure>
+        <figure class="screenshot-figure">
+          <img src="screenshots/storage-map.png" alt="Storage map treemap of device folders" class="screenshot-img" width="411" height="891">
+          <figcaption class="screenshot-caption">Storage map</figcaption>
         </figure>
       </div>
       <p class="screenshots-note">The images in the screenshots are drawn in code, and the counts are made up.</p>
@@ -78,20 +106,20 @@
       <section id="clean">
         <h2>Clean: what it finds</h2>
         <p>
-          Cribrum scans storage, including folders hidden from your gallery, across six distinct phases with live progress and time estimates. Scans monitor device temperature and throttle if the phone gets warm. Photos marked as gallery favourites display a heart badge, start kept, and trashing a favourite asks for confirmation. Pages apply at once, with an immediate undo snackbar.
+          Cribrum scans storage, including folders hidden from your gallery, across six distinct phases with live progress and time estimates. The app indicates when the phone is hot enough to slow the scan down. Photos marked as gallery favourites display a heart badge and start kept, with confirmation required before trashing them. Confirming a page moves files to Cribrum's trash, accompanied by an undo snackbar.
         </p>
         <div class="feature-list">
           <div class="feature-row">
             <div class="feature-term">Exact copies</div>
-            <div class="feature-desc">Matches identical files byte-for-byte using xxHash, marking the best copy to keep.</div>
+            <div class="feature-desc">Matches identical files byte-for-byte using xxHash3-64, marking the best copy to keep.</div>
           </div>
           <div class="feature-row">
             <div class="feature-term">Similar copies</div>
-            <div class="feature-desc">Finds recompressed and resized copies with perceptual hashes and MobileCLIP embeddings, suggesting the highest-quality version to keep.</div>
+            <div class="feature-desc">Finds recompressed and resized copies with 64-bit DCT perceptual hashes (pHash) and MobileCLIP embeddings, suggesting the highest-quality version to keep.</div>
           </div>
           <div class="feature-row">
             <div class="feature-term">Bursts</div>
-            <div class="feature-desc">Clusters photos taken in quick succession and suggests keeping the sharpest shot with open eyes.</div>
+            <div class="feature-desc">Clusters photos taken within 3 seconds of each other and suggests keeping the sharpest shot.</div>
           </div>
           <div class="feature-row">
             <div class="feature-term">Blurry</div>
@@ -115,7 +143,15 @@
           </div>
           <div class="feature-row">
             <div class="feature-term">WhatsApp stickers</div>
-            <div class="feature-desc">Finds reaction stickers saved in WhatsApp sticker folders across storage.</div>
+            <div class="feature-desc">Finds files saved in WhatsApp sticker folders across storage.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Grouped reviews</div>
+            <div class="feature-desc">Exact copies, similar copies, and burst shots group related photos together. Cribrum selects the highest-quality copy to keep and lets you compare them side by side, swap which copy to keep, or mark copies for trash.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Full size inspection</div>
+            <div class="feature-desc">Holding any photo opens the full size viewer, displaying why it was flagged, its folder location, and options to zoom or exclude the folder from future scans.</div>
           </div>
         </div>
       </section>
@@ -136,7 +172,7 @@
           </div>
           <div class="feature-row">
             <div class="feature-term">Metadata and gain maps</div>
-            <div class="feature-desc">Copies keep EXIF tags, GPS coordinates, date taken, camera details, and Ultra HDR gain maps on Android 14 and newer. Cribrum requests system confirmation to retain gallery favourite status on compressed copies.</div>
+            <div class="feature-desc">Copies keep EXIF tags, GPS coordinates, date taken, camera details, and Ultra HDR gain maps on Android 14 and newer. Recompressed copies lose original XMP (except new gain map data on Ultra HDR), Samsung trailers, C2PA credentials, IPTC data, EXIF thumbnails, and custom maker notes. Cribrum requests system confirmation to retain gallery favourite status on compressed copies.</div>
           </div>
           <div class="feature-row">
             <div class="feature-term">Reversible originals</div>
@@ -144,7 +180,7 @@
           </div>
           <div class="feature-row">
             <div class="feature-term">Background batches</div>
-            <div class="feature-desc">Compresses photos in the background with progress notifications. Batches can be stopped at any time and pause when the phone gets hot.</div>
+            <div class="feature-desc">Compresses photos in the background with progress notifications. Batches can be stopped at any time and pause when the device reaches severe heat.</div>
           </div>
         </div>
       </section>
@@ -166,6 +202,14 @@
           <div class="feature-row">
             <div class="feature-term">Detection thresholds</div>
             <div class="feature-desc">Fine-tune recall with sensitivity sliders for each category, or reset them to defaults.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Folder exclusions</div>
+            <div class="feature-desc">Review and manage directories excluded from review.</div>
+          </div>
+          <div class="feature-row">
+            <div class="feature-term">Haptics feedback</div>
+            <div class="feature-desc">Toggle vibration feedback for selection and review actions.</div>
           </div>
           <div class="feature-row">
             <div class="feature-term">System dark theme</div>
