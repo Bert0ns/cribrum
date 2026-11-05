@@ -57,14 +57,18 @@ suspend fun favoritePaths(resolver: ContentResolver): Set<String> = withContext(
 
 /**
  * Asks the user, with one system dialog, to mark photos as favourites again after a copy or a restore gave them
- * a MediaStore row without the mark (docs/design.md §9). `createFavoriteRequest` needs an Activity to launch it,
- * so the data layer queues an [Ask] and the activity's host launches it when it is in front.
+ * a MediaStore row without the mark (docs/design.md §9), or to mark or unmark one the user chose in the review
+ * (§8). `createFavoriteRequest` needs an Activity to launch it, so the data layer queues an [Ask] and the
+ * activity's host launches it when it is in front.
  */
 object FavoriteRequests {
-    /** [uris] are MediaStore rows without the mark. [onAnswer] gets how many photos stay without it: 0 once granted. */
-    class Ask(val uris: List<Uri>, val onAnswer: (lost: Int) -> Unit, val stillWanted: () -> Boolean = { true }) {
-        /** The system dialog that marks all of [uris] at once. */
-        fun intentSender(resolver: ContentResolver): IntentSender = MediaStore.createFavoriteRequest(resolver, uris, true).intentSender
+    /**
+     * [uris] are MediaStore rows to put the mark on, or to take it off when [favorite] is false.
+     * [onAnswer] gets how many photos stay as they were: 0 once granted.
+     */
+    class Ask(val uris: List<Uri>, val onAnswer: (lost: Int) -> Unit, val stillWanted: () -> Boolean = { true }, val favorite: Boolean = true) {
+        /** The system dialog that changes the mark of all of [uris] at once. */
+        fun intentSender(resolver: ContentResolver): IntentSender = MediaStore.createFavoriteRequest(resolver, uris, favorite).intentSender
     }
 
     // A receive that is cancelled just as it returns can lose its element: put that one back.
@@ -105,6 +109,19 @@ object FavoriteRequests {
         if (uris.isEmpty()) onAnswer(0) else queue.send(Ask(uris, onAnswer, stillWanted))
     }
 
+    /**
+     * Asks the user to mark the image at [path] as a favourite, or to take the mark off, and says whether they agreed.
+     * A decline, an image MediaStore does not index, and a dialog that could not open all answer false and change nothing.
+     * A caller that is cancelled while the dialog waits for the screen withdraws the request.
+     */
+    suspend fun set(resolver: ContentResolver, path: String, favorite: Boolean): Boolean {
+        val uri = withContext(Dispatchers.IO) { imageUri(resolver, path) } ?: return false
+        return suspendCancellableCoroutine { continuation ->
+            val ask = Ask(listOf(uri), { lost -> if (continuation.isActive) continuation.resume(lost == 0) }, { continuation.isActive }, favorite)
+            queue.trySend(ask)
+        }
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
@@ -141,6 +158,15 @@ object FavoriteRequests {
     fun answered(granted: Boolean) {
         val ask = inFlight.getAndUpdate { null } ?: return
         ask.onAnswer(if (granted) 0 else ask.uris.size)
+    }
+}
+
+/** The MediaStore row of the image at [path], or null when MediaStore does not index it. Blocks. */
+internal fun imageUri(resolver: ContentResolver, path: String): Uri? {
+    @Suppress("DEPRECATION") // DATA, as for the favourites
+    val selection = "${MediaStore.Images.Media.DATA} = ?"
+    return resolver.query(IMAGES, arrayOf(MediaStore.Images.Media._ID), selection, arrayOf(path), null)?.use { cursor ->
+        if (cursor.moveToFirst()) ContentUris.withAppendedId(IMAGES, cursor.getLong(0)) else null
     }
 }
 

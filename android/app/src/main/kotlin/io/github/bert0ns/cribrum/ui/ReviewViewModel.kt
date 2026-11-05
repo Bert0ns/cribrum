@@ -18,6 +18,7 @@ import io.github.bert0ns.cribrum.review.Page
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewOrder
+import io.github.bert0ns.cribrum.sources.FavoriteRequests
 import io.github.bert0ns.cribrum.sources.favoritePaths
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
@@ -128,6 +129,10 @@ class ReviewViewModel @JvmOverloads constructor(
             // The locale the screen formats its date labels with (LocalConfiguration), so a week and its label agree.
             firstDayOfWeek = { WeekFields.of(it.resources.configuration.locales[0]).firstDayOfWeek },
         )
+    },
+    /** Asks the user to mark the image at the path as a favourite, or to take the mark off. True once they agreed. */
+    private val askFavorite: suspend (path: String, favorite: Boolean) -> Boolean = { path, favorite ->
+        FavoriteRequests.set(application.contentResolver, path, favorite)
     },
 ) : AndroidViewModel(application) {
     private val app = application as CribrumApp
@@ -363,6 +368,30 @@ class ReviewViewModel @JvmOverloads constructor(
     fun toggle(image: ImageRef) = queue {
         if (it.page.none { group -> group.images.any { item -> item.image.path == image.path } }) return@queue it
         it.copy(marked = if (image.path in it.marked) it.marked - image.path else it.marked + image.path)
+    }
+
+    /**
+     * Makes [image] a gallery favourite, or takes the mark off, once the user agreed to the system dialog. An image marked
+     * for the trash is left alone, as the screen offers no heart for it. The page on screen is not read again: it keeps its
+     * images and marks, and only the heart changes. A ranking built later reads the favourites again by itself.
+     */
+    fun setFavorite(image: ImageRef, favorite: Boolean) {
+        viewModelScope.launch {
+            if (image.path in state.value.marked) return@launch
+            val granted = try {
+                askFavorite(image.path, favorite)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not ask for the favourite", e)
+                false
+            }
+            if (granted) queue { it.copy(page = it.page.withFavorite(image.path, favorite)) }
+        }
+    }
+
+    private fun List<ReviewGroup>.withFavorite(path: String, favorite: Boolean) = map { group ->
+        group.copy(images = group.images.map { if (it.image.path == path) it.copy(isFavorite = favorite) else it })
     }
 
     /**

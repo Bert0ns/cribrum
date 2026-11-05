@@ -17,6 +17,9 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.AppTrash
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
@@ -273,6 +276,50 @@ class FavoriteRequestsTest {
         assertEquals(emptyList<Int>(), asked)
         gate.complete(Unit)
         assertEquals(listOf(FakeMediaStore.uri(7)), next().uris)
+    }
+
+    @Test
+    fun `one image is marked or unmarked with a request of its own, and its answer says whether the user agreed`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", favorite = false), FakeMediaStore.Row(2, "/p/b.jpg", favorite = true))
+
+        val marked = CoroutineScope(Dispatchers.IO).async { FavoriteRequests.set(context.contentResolver, "/p/a.jpg", true) }
+        val mark = next()
+        FavoriteRequests.launched(mark)
+        FavoriteRequests.answered(granted = true)
+        val unmarked = CoroutineScope(Dispatchers.IO).async { FavoriteRequests.set(context.contentResolver, "/p/b.jpg", false) }
+        val unmark = next()
+        FavoriteRequests.launched(unmark)
+        FavoriteRequests.answered(granted = false)
+
+        assertEquals(listOf(FakeMediaStore.uri(1)), mark.uris)
+        assertEquals(listOf(FakeMediaStore.uri(2)), unmark.uris)
+        mark.intentSender(context.contentResolver)
+        unmark.intentSender(context.contentResolver)
+        assertEquals(listOf(true, false), FakeMediaStore.requests.map { it.value })
+        assertEquals(true, runBlocking { withTimeout(5_000) { marked.await() } })
+        assertEquals(false, runBlocking { withTimeout(5_000) { unmarked.await() } })
+    }
+
+    @Test
+    fun `an image MediaStore does not index cannot be marked, and nothing is queued`() {
+        FakeMediaStore.rows = emptyList()
+
+        val granted = runBlocking { FavoriteRequests.set(context.contentResolver, "/p/not-indexed.jpg", true) }
+
+        assertEquals(false, granted)
+        assertEquals(null, runBlocking { withTimeoutOrNull(300) { FavoriteRequests.next() } })
+    }
+
+    @Test
+    fun `a request whose caller is gone is not wanted any more`() {
+        FakeMediaStore.rows = listOf(FakeMediaStore.Row(1, "/p/a.jpg", favorite = false))
+        val job = CoroutineScope(Dispatchers.IO).async { FavoriteRequests.set(context.contentResolver, "/p/a.jpg", true) }
+        val request = next()
+
+        job.cancel()
+        runBlocking { job.join() }
+
+        assertEquals(false, request.stillWanted())
     }
 
     private fun waitFor(condition: () -> Boolean) = runBlocking { withTimeout(5_000) { while (!condition()) yield() } }
