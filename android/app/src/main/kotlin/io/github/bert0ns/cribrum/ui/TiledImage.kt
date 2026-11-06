@@ -41,11 +41,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.withMatrix
+import androidx.tracing.trace
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.size.Scale
 import io.github.bert0ns.cribrum.imaging.orientation
+import io.github.bert0ns.cribrum.tracing.traced
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
@@ -154,8 +156,13 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
                 translationY = zoom.offset.y
             },
         ) {
+            val context = LocalContext.current
+            // Remembered: the listener of the trace section is not equal from one recomposition to the next, and the request would load again.
+            val request = remember(context, file, key) {
+                ImageRequest.Builder(context).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).traced("TiledImage.base").build()
+            }
             AsyncImage(
-                ImageRequest.Builder(LocalContext.current).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).build(),
+                request,
                 null,
                 Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
@@ -273,7 +280,7 @@ internal class TileSource private constructor(private val decoder: BitmapRegionD
     override val raw = IntSize(decoder.width, decoder.height)
 
     override fun decode(rect: IntRect, sample: Int): Bitmap? = try {
-        decoder.decodeRegion(rect.toAndroidRect(), BitmapFactory.Options().apply { inSampleSize = sample })
+        trace("TiledImage.tile") { decoder.decodeRegion(rect.toAndroidRect(), BitmapFactory.Options().apply { inSampleSize = sample }) }
     } catch (_: OutOfMemoryError) {
         null
     } catch (_: IllegalArgumentException) {

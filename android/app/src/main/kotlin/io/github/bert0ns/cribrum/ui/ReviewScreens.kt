@@ -594,8 +594,9 @@ private val FavoriteOutline: ImageVector by lazy {
 private fun ZoomableImage(path: String, onClose: () -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
-    AsyncImage(
-        model = File(path),
+    TracedAsyncImage(
+        File(path),
+        "FullSize.image",
         contentDescription = File(path).name,
         contentScale = ContentScale.Fit,
         modifier = Modifier.fillMaxSize()
