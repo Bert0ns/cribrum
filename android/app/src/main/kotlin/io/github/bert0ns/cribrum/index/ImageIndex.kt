@@ -66,7 +66,7 @@ class ImageIndex(private val db: IndexDatabase) :
      * [record] for many images in one transaction, which is much cheaper than one each. Returns how many are new or
      * changed. If it throws, none of them is recorded and the version stays.
      */
-    suspend fun recordAll(images: List<ImageRef>): Int = db.withTransaction { images.count { recordOne(it) } }.also { changed -> if (changed > 0) writes.incrementAndGet() }
+    suspend fun recordAll(images: List<ImageRef>): Int = traceSuspend("Index.recordAll") { db.withTransaction { images.count { recordOne(it) } } }.also { changed -> if (changed > 0) writes.incrementAndGet() }
 
     private suspend fun recordOne(image: ImageRef): Boolean {
         val stored = dao.ref(image.path)

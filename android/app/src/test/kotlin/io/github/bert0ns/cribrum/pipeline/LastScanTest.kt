@@ -80,6 +80,32 @@ class LastScanTest {
     }
 
     @Test
+    fun `a scan logs its counts after the new files and the thermal status of each phase after the times`() {
+        val stats = Stats(images = 12).apply {
+            counts += linkedMapOf("walk folders" to 3, "trash items" to 4, "detectors tasks" to 12)
+            phaseMs += linkedMapOf("walk" to 40L, "detectors" to 90L)
+            thermal += linkedMapOf("walk" to 0, "detectors" to 2)
+        }
+
+        runBlocking { LastScan(preferences).run(now = { 1 }, elapsed = { 0 }) { stats } }
+
+        val log = listOf(
+            "images 12",
+            "new or changed 0",
+            "walk folders 3",
+            "trash items 4",
+            "detectors tasks 12",
+            "walk 40 ms",
+            "detectors 90 ms",
+            "thermal walk 0",
+            "thermal detectors 2",
+            "group detectors ran: none; skipped: none",
+            "total 0 ms",
+        )
+        assertEquals(log, ShadowLog.getLogsForTag(LastScan.TIME_TAG).map { it.msg })
+    }
+
+    @Test
     fun `a report saved before the times were kept reads them as unknown`() {
         preferences.edit().putString("last_scan", """{"finished_at":1,"unreadable":0,"failures":{},"files":[],"unreadable_files":[]}""").commit()
 

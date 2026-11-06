@@ -86,7 +86,18 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Pipeline.walk`, `Pipeline.metadata`, `Pipeline.detectors`, `Pipeline.embeddings`, `Pipeline.embeddedDetectors`, `Pipeline.groupDetectors` | the phases of `Pipeline.run` |
 | `Imaging.decode` | one image's decode |
 | `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
-| `Onnx.run` | one `ModelRuntime.run` call of `OnnxRuntime` |
+| `Onnx.run.yunet`, `Onnx.run.ppocr`, `Onnx.run.mobileclip` | one `ModelRuntime.run` call of `OnnxRuntime`, named after the model it runs (the faces, the text coverage and the embeddings) |
+| `Imaging.exif`, `Imaging.gray` | one `orientation` read of the EXIF, and one `loadGrayscale` (its `Imaging.decode` and `Imaging.exif` inside) |
+| `Detector.<id>.image`, `Detector.<id>.sticker` | one per-image detector's `analyze` call on one image, for each of `blur`, `exposure`, `faces`, `screenshot`, `sticker`, `document` and `forwarded`. `.sticker` is for an image in a sticker folder, so stickers can be split out. An async section |
+| `Pipeline.phash.image`, `Pipeline.phash.sticker` | one perceptual hash |
+| `Pipeline.tasks` | `analyzeEach`'s building of its tasks: the index reads that tell what each image still needs |
+| `Pipeline.store` | `storeOutcome`: the index writes of one image's results |
+| `Walk.list`, `Walk.stat` | the walk's `listFiles` of one folder, and the `readAttributes` of all its entries (one section for the folder, not for each entry) |
+| `Walk.mediaStore` | the MediaStore pass: the query, and the stat of each row's file. Not the emits, which wait for the collector |
+| `Index.recordAll` | `ImageIndex.recordAll`: one transaction of the walk, `RECORD_BATCH` images at most |
+| `Group.<id>.analyze`, `Group.<id>.store` | a group detector's `analyze`, and the writes of its signals and fingerprint, for `exact_duplicate`, `near_duplicate` and `burst` |
+| `Trash.items` | `AppTrash.items()`: reading every item folder of the trash. It runs inside the calls that list, purge or restore |
+| `Trash.purge`, `Trash.unheld` | the scan worker's `purgeExpired`, and its `unheldPaths` of the purged images |
 | `Compress.list` | `CompressViewModel.refresh`: reading the photos, the favourites and the retention for the Compress page |
 | `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |
 | `Compressor.preview` | one `Compressor.preview`, the before and after of the Compress summary, inside its lock (not the wait for the one before) |
@@ -114,6 +125,11 @@ Sections are per image at the finest, never per pixel or row. Perfetto shows the
 - `trash open`, `trash tiles` and `trash scroll ...`: the same for the trash, from the first `Trash.list` to the last `Trash.tile` of the first screen.
 - `storage map open`: from the first `StorageMap.build` to the end of the `StorageMap.layout` that follows it.
 - `indexed images` and `last scan` with the new or changed files, the time of each phase and the group detectors that ran or skipped: what the last scan logged under the `scan-time` tag (`adb logcat -s scan-time`), while the log still holds it. Settings shows the total time of the last scan.
+  The `last scan` lines also hold, after the new or changed files and before the phase times:
+  - `walk folders`, `walk entries`, `walk sniffed`, `walk mediaStoreRows` and `walk duplicates`: the folders and entries listed, the files whose head the walk read, the MediaStore rows, and the files MediaStore found that the walk already had;
+  - `trash items`: the items the trash held when the scan listed it;
+  - `detectors tasks`, `embeddings tasks` and `embedded_detectors tasks`: the images each phase worked on, and `detectors sticker tasks` and `embedded_detectors sticker tasks`, how many of them are stickers; `stickers` is the stickers among all the readable images;
+  - after the phase times, `thermal <phase> <status>`: `PowerManager.currentThermalStatus` (0 none, 1 light, 2 moderate, 3 severe, up to 6 shutdown), read once when the phase starts.
 
 It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It records one Perfetto trace of the whole run, which takes about two and a half minutes since the trace has a fixed length. It starts the app cold, opens one category from the home, scrolls it and goes back, then opens the Compress page, the trash and the storage map from the home, and scrolls the first two. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review. It refuses a name that is not a category title, and stops before the flings if the category screen did not open. A Compress page or a trash with nothing in it is not scrolled and has no number.
 

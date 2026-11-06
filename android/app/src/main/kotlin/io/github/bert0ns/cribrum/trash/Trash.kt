@@ -4,6 +4,7 @@ package io.github.bert0ns.cribrum.trash
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.storage.StorageManager
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.sources.FavoriteRequests
@@ -227,9 +228,11 @@ class AppTrash(
         return null
     }
 
-    private fun items(): List<TrashedImage> = volumes().flatMap { volume ->
-        File(volume, TRASH_FOLDER).listFiles().orEmpty().mapNotNull { readItem(it) }
-    }.sortedByDescending { it.trashedAt }
+    private fun items(): List<TrashedImage> = trace("Trash.items") {
+        volumes().flatMap { volume ->
+            File(volume, TRASH_FOLDER).listFiles().orEmpty().mapNotNull { readItem(it) }
+        }.sortedByDescending { it.trashedAt }
+    }
 
     private fun rootOf(file: File): File? {
         val path = file.canonicalPath

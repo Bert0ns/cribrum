@@ -3,10 +3,13 @@ package io.github.bert0ns.cribrum.sources
 
 import android.content.ContentResolver
 import android.provider.MediaStore
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.TRASH_FOLDER
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -24,6 +27,12 @@ interface ImageSource {
      * yield is gone; under any other root the scan could not look, so it says nothing.
      */
     val walkedRoots: List<File>
+
+    /**
+     * What the last [scan] counted, for the scan-time log: folders listed, entries listed, files whose head was sniffed,
+     * MediaStore rows, and files a later source found that an earlier one already had. A source counts what it does.
+     */
+    val counts: Map<String, Int> get() = emptyMap()
 }
 
 /**
@@ -69,8 +78,16 @@ class FilesystemImageSource(
     override var walkedRoots: List<File> = emptyList()
         private set
 
+    @Volatile
+    override var counts: Map<String, Int> = emptyMap()
+        private set
+
     override fun scan(): Flow<ImageRef> = flow {
         walkedRoots = emptyList()
+        counts = emptyMap()
+        var folderCount = 0
+        var entryCount = 0
+        var sniffCount = 0
         var listedAll = true
         val known = indexed().toHashSet()
         val remembered = notImages?.notImages().orEmpty()
@@ -80,14 +97,18 @@ class FilesystemImageSource(
         val folders = ArrayDeque(listOf(root))
         while (folders.isNotEmpty()) {
             val folder = folders.removeFirst()
-            val listing = folder.listFiles()
+            val listing = trace("Walk.list") { folder.listFiles() }
             if (listing == null) listedAll = false
-            // One stat per entry: it tells a folder from a file and gives the size and mtime.
-            val entries = listing.orEmpty().sortedBy { it.name }.mapNotNull { entry ->
-                try {
-                    entry to Files.readAttributes(entry.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-                } catch (_: IOException) {
-                    null // unreadable or vanished during the scan
+            folderCount++
+            entryCount += listing?.size ?: 0
+            // One stat per entry: it tells a folder from a file and gives the size and mtime. One section for the folder's entries.
+            val entries = trace("Walk.stat") {
+                listing.orEmpty().sortedBy { it.name }.mapNotNull { entry ->
+                    try {
+                        entry to Files.readAttributes(entry.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+                    } catch (_: IOException) {
+                        null // unreadable or vanished during the scan
+                    }
                 }
             }
             val (dirs, files) = entries.partition { (_, attributes) -> attributes.isDirectory }
@@ -97,6 +118,7 @@ class FilesystemImageSource(
                 val image = file.toImageRef(attributes)
                 if (image !in known) {
                     val again = image in rememberedSet
+                    if (!again) sniffCount++
                     val isImageFile = if (again) false else sniff(file) ?: continue
                     if (!isImageFile) {
                         metNotImages += image.path
@@ -121,6 +143,7 @@ class FilesystemImageSource(
             if (listedAll) notImages.forgetNotImages(remembered.map { it.path }.filter { it !in metNotImages && File(it).startsWith(root) })
         }
         if (listedAll) walkedRoots = listOf(root)
+        counts = mapOf("folders" to folderCount, "entries" to entryCount, "sniffed" to sniffCount)
     }.flowOn(Dispatchers.IO)
 }
 
@@ -145,24 +168,39 @@ internal fun isSkipped(root: File, file: File): Boolean {
 class MediaStoreImageSource(private val resolver: ContentResolver, private val volumes: List<File>) : ImageSource {
     override val walkedRoots: List<File> = emptyList()
 
+    @Volatile
+    override var counts: Map<String, Int> = emptyMap()
+        private set
+
     override fun scan(): Flow<ImageRef> = flow {
-        val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val paths = mutableListOf<String>()
-        @Suppress("DEPRECATION") // DATA is the only way to the path, and All files access allows reading it
-        resolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
-            while (cursor.moveToNext()) cursor.getString(0)?.let(paths::add)
-        }
-        for (path in paths.sorted()) {
-            val file = File(path)
-            if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) continue
-            val image = try {
-                if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
-                file.toImageRef()
-            } catch (_: IOException) {
-                continue
+        counts = emptyMap()
+        var rows = 0
+        // The query and the stats are one section; the emits wait for the collector, so they stay out of it. Without an emit
+        // per row, each row checks for a stopped scan itself, so a stop does not wait for the stats of every row.
+        val images = trace("Walk.mediaStore") {
+            val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            val paths = mutableListOf<String>()
+            @Suppress("DEPRECATION") // DATA is the only way to the path, and All files access allows reading it
+            resolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    currentCoroutineContext().ensureActive()
+                    cursor.getString(0)?.let(paths::add)
+                }
             }
-            emit(image)
+            rows = paths.size
+            paths.sorted().mapNotNull { path ->
+                currentCoroutineContext().ensureActive()
+                val file = File(path)
+                if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) return@mapNotNull null
+                try {
+                    if (Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) file.toImageRef() else null
+                } catch (_: IOException) {
+                    null
+                }
+            }
         }
+        counts = mapOf("mediaStoreRows" to rows)
+        images.forEach { emit(it) }
     }.flowOn(Dispatchers.IO)
 }
 
@@ -173,10 +211,17 @@ class MediaStoreImageSource(private val resolver: ContentResolver, private val v
 class MergedImageSource(private val sources: List<ImageSource>) : ImageSource {
     override val walkedRoots: List<File> get() = sources.flatMap { it.walkedRoots }
 
+    @Volatile
+    private var duplicates = 0
+
+    override val counts: Map<String, Int>
+        get() = sources.flatMap { it.counts.entries }.groupingBy { it.key }.fold(0) { sum, entry -> sum + entry.value } + ("duplicates" to duplicates)
+
     override fun scan(): Flow<ImageRef> = flow {
+        duplicates = 0
         val seen = HashSet<String>()
         for (source in sources) {
-            source.scan().collect { if (seen.add(it.path)) emit(it) }
+            source.scan().collect { if (seen.add(it.path)) emit(it) else duplicates++ }
         }
     }
 }

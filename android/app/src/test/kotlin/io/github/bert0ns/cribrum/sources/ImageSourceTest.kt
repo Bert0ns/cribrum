@@ -42,6 +42,8 @@ private val MIAF_HEIC = bytes(0, 0, 0, 0x1c) + ascii("ftypmiaf") + ByteArray(4) 
 private val AVIF = bytes(0, 0, 0, 0x1c) + ascii("ftypavif") + ByteArray(4) + ascii("mif1miaf") + ByteArray(8)
 private val MP4 = bytes(0, 0, 0, 0x18) + ascii("ftypisom") + ByteArray(12)
 
+// Robolectric: the walk and the trash trace their calls, and a plain JVM test has no android.os.Trace.
+@RunWith(RobolectricTestRunner::class)
 class ImageSourceTest {
     @get:Rule
     val folder = TemporaryFolder()
@@ -381,6 +383,18 @@ class ImageSourceTest {
     }
 
     @Test
+    fun `counts the folders and entries it lists and the files whose head it reads`() {
+        write("a/b.jpg", JPEG)
+        write("a/notes.txt", ascii("not an image"))
+        write("c.png", PNG)
+        val source = FilesystemImageSource(root)
+
+        runBlocking { source.scan().toList() }
+
+        assertEquals(mapOf("folders" to 2, "entries" to 4, "sniffed" to 3), source.counts)
+    }
+
+    @Test
     fun `reports its root as walked once the whole tree is listed`() {
         write("a/b.jpg", JPEG)
         val source = FilesystemImageSource(root)
@@ -440,6 +454,20 @@ class ImageSourceTest {
 
         assertEquals(listOf("/a.jpg", "/b.jpg", "/sd/c.jpg"), runBlocking { merged.scan().toList() }.map { it.path })
     }
+
+    @Test
+    fun `merged sources add up their counts and count the files a later source found again`() {
+        fun source(count: Int, vararg paths: String) = object : ImageSource {
+            override val walkedRoots = emptyList<File>()
+            override val counts = mapOf("folders" to count)
+            override fun scan(): Flow<ImageRef> = flowOf(*paths.map { ImageRef(it, 1, 1) }.toTypedArray())
+        }
+
+        val merged = MergedImageSource(listOf(source(2, "/a.jpg", "/b.jpg"), source(3, "/b.jpg", "/sd/c.jpg")))
+        runBlocking { merged.scan().toList() }
+
+        assertEquals(mapOf("folders" to 5, "duplicates" to 1), merged.counts)
+    }
 }
 
 /** A MediaStore that answers every query with the same paths. */
@@ -481,6 +509,19 @@ class MediaStoreImageSourceTest {
         val a = write("DCIM/a.jpg")
 
         assertEquals(listOf(a, b), scanned(b, a))
+    }
+
+    @Test
+    fun `counts the rows MediaStore listed, the skipped ones included`() {
+        val kept = write("DCIM/Camera/IMG_4.jpg")
+        val trashed = write("$TRASH_FOLDER/0b1c/IMG_1.jpg")
+        FakeMedia.paths = listOf(kept, trashed)
+        Robolectric.setupContentProvider(FakeMedia::class.java, MediaStore.AUTHORITY)
+        val source = MediaStoreImageSource(ApplicationProvider.getApplicationContext<Context>().contentResolver, listOf(root))
+
+        runBlocking { source.scan().toList() }
+
+        assertEquals(mapOf("mediaStoreRows" to 2), source.counts)
     }
 
     @Test

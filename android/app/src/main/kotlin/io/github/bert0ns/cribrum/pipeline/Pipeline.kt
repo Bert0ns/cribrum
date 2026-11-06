@@ -4,6 +4,7 @@ package io.github.bert0ns.cribrum.pipeline
 
 import android.os.SystemClock
 import android.util.Log
+import androidx.tracing.trace
 import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.compress.JpegInfo
 import io.github.bert0ns.cribrum.compress.readJpeg
@@ -114,6 +115,10 @@ data class Stats(
     val skippedGroupDetectors: MutableList<String> = mutableListOf(),
     /** Milliseconds each phase took, in the order they ran. */
     val phaseMs: MutableMap<String, Long> = linkedMapOf(),
+    /** What the scan counted, for the scan-time log: the walk's counts, the trash items, the tasks of each phase and the stickers. */
+    val counts: MutableMap<String, Int> = linkedMapOf(),
+    /** The thermal status ([android.os.PowerManager.currentThermalStatus]) at the start of each phase. */
+    val thermal: MutableMap<String, Int> = linkedMapOf(),
 )
 
 /**
@@ -138,6 +143,8 @@ class Pipeline(
     private val contentHasher: (ImageRef) -> String = ::contentHash,
     /** Monotonic milliseconds, for [Stats.phaseMs]. */
     private val clock: () -> Long = SystemClock::elapsedRealtime,
+    /** The phone's thermal status, read once at the start of each phase. Null when unknown. */
+    private val thermalStatus: () -> Int? = { null },
     /** Images the walk records in one transaction; a test sets it low to cross it with a few files. */
     internal val recordBatch: Int = RECORD_BATCH,
 ) {
@@ -167,6 +174,7 @@ class Pipeline(
             }
             flush()
         }
+        source.counts.forEach { (name, count) -> stats.counts["walk $name"] = count }
         // A trash that cannot be listed is a failure of this step. No missing file leaves the index until a scan can read it.
         val items = try {
             trash?.trashed()
@@ -175,6 +183,7 @@ class Pipeline(
             stats.failures += Failure("", "trash", failureMessage(error))
             null
         }
+        items?.let { stats.counts["trash items"] = it.size }
         val inTrash = items?.mapTo(HashSet()) { it.original.path }
         // A compression killed between its two moves leaves the original in the trash, its path empty, and its row
         // not TRASHED and still the original's. A finished swap's row is the copy's, so a copy deleted elsewhere goes.
@@ -229,6 +238,7 @@ class Pipeline(
         }
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
+        stats.counts["stickers"] = stickers.size
         // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
         index.forgetAnalyses(stickers.map { it.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
         val embeddings = if (embedder == null) {
@@ -282,9 +292,11 @@ class Pipeline(
                 progress(detector.id, 0, 1)
                 hashFailed.clear()
                 try {
-                    val signals = detector.analyze(images, context)
-                    index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-                    index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
+                    val signals = traceSuspend("Group.${detector.id}.analyze") { detector.analyze(images, context) }
+                    traceSuspend("Group.${detector.id}.store") {
+                        index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                        index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
+                    }
                     stats.detectorRuns++
                     progress(detector.id, 1, 1)
                 } catch (error: Exception) {
@@ -304,6 +316,7 @@ class Pipeline(
 
     /** Runs one phase of [run] in a trace section, and keeps how long it took. */
     private suspend fun <T> phase(name: String, stats: Stats, block: suspend () -> T): T {
+        thermalStatus()?.let { stats.thermal[name] = it }
         val start = clock()
         return traceSuspend("Pipeline.$name", block).also { stats.phaseMs[name] = clock() - start }
     }
@@ -331,6 +344,7 @@ class Pipeline(
     private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
         val stored = index.embeddings(embedder.id, embedder.version).keys
         val todo = images.filter { it.path !in stored }
+        stats.counts["embeddings tasks"] = todo.size
         if (todo.isEmpty()) return
         val loaded = withContext(Dispatchers.Default) { attempt { embedder.load() } }
         loaded.exceptionOrNull()?.let { error ->
@@ -415,17 +429,21 @@ class Pipeline(
     ) = coroutineScope {
         val analyzed = selected.associateWith { index.analyzedPaths(it.id, it.version) }
         val hashed = if (beforeEmbeddings) index.hashedPaths() else emptySet()
-        val tasks = images.mapNotNull { image ->
-            val todo = selected.filter { image.path !in analyzed.getValue(it) }
-            val needsPhash = beforeEmbeddings && image.path !in hashed
-            // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
-            val metadata = index.metadata(image.path)
-            if ((todo.isEmpty() && !needsPhash) || metadata == null) {
-                null
-            } else {
-                AnalysisTask(image, metadata, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
+        val tasks = traceSuspend("Pipeline.tasks") {
+            images.mapNotNull { image ->
+                val todo = selected.filter { image.path !in analyzed.getValue(it) }
+                val needsPhash = beforeEmbeddings && image.path !in hashed
+                // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
+                val metadata = index.metadata(image.path)
+                if ((todo.isEmpty() && !needsPhash) || metadata == null) {
+                    null
+                } else {
+                    AnalysisTask(image, metadata, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
+                }
             }
         }
+        stats.counts["$step tasks"] = tasks.size
+        stats.counts["$step sticker tasks"] = tasks.count { isStickerFolder(it.image.path) }
         progress(step, 0, tasks.size)
         val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
         tasks.forEach(queue::trySend)
@@ -457,13 +475,14 @@ class Pipeline(
                 task.embedding ?: throw MissingEmbedding(it)
             },
         )
-        val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context) }
-        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image) else null)
+        val kind = if (isStickerFolder(task.image.path)) "sticker" else "image" // the sections tell the two apart, never the path
+        val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context, kind) }
+        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image, kind) else null)
     }
 
     /** Stores what [outcome] has. Unless [final], what ran out of memory is not stored but returned as a task to run again. */
     private suspend fun store(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? = try {
-        storeOutcome(outcome, stats, final)
+        traceSuspend("Pipeline.store") { storeOutcome(outcome, stats, final) }
     } catch (_: NoSuchElementException) {
         null // the row went while the scan ran: the image is gone
     }
@@ -507,12 +526,12 @@ class Pipeline(
      * One broken file must not stop a run over thousands: errors come back as values. A detector
      * that needs the missing embedding comes back with null signals and no error.
      */
-    private suspend fun analyze(detector: Detector, image: ImageRef, context: AnalysisContext): Result<List<Signal>?> {
-        val result = attempt<List<Signal>?> { detector.analyze(image, context) }
+    private suspend fun analyze(detector: Detector, image: ImageRef, context: AnalysisContext, kind: String): Result<List<Signal>?> {
+        val result = attempt<List<Signal>?> { traceSuspend("Detector.${detector.id}.$kind") { detector.analyze(image, context) } }
         return if (result.exceptionOrNull() is MissingEmbedding) Result.success(null) else result
     }
 
-    private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHasher(image) }
+    private fun computePhash(image: ImageRef, kind: String): Result<ULong> = attempt { trace("Pipeline.phash.$kind") { perceptualHasher(image) } }
 
     /**
      * The detector last ran on [images] as they are, and every content hash that failed in that run fails again.

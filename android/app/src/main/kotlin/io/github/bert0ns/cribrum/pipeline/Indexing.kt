@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.content.res.Resources
 import android.os.Environment
+import android.os.PowerManager
 import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.util.Log
@@ -40,6 +41,7 @@ import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import io.github.bert0ns.cribrum.sources.NotImages
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.unheldPaths
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -256,8 +258,8 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         try {
             val trashFailures = mutableListOf<Failure>()
             try {
-                val purged = purgeExpired(app)
-                app.index.forgetTrashed(app.trash.unheldPaths(purged))
+                val purged = traceSuspend("Trash.purge") { purgeExpired(app) }
+                app.index.forgetTrashed(traceSuspend("Trash.unheld") { app.trash.unheldPaths(purged) })
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 Log.w(Indexing.TAG, "Failed to purge expired trash", error)
@@ -278,7 +280,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     }
 
     // The CPU fallback reads the model again only if the GPU fails, so the bytes are not held through the scan.
-    protected open fun loadVision(): ModelRuntime = FallbackRuntime(OnnxRuntime(visionModel(), gpu = true)) { OnnxRuntime(visionModel()) }
+    protected open fun loadVision(): ModelRuntime = FallbackRuntime(OnnxRuntime(visionModel(), gpu = true, name = "mobileclip")) { OnnxRuntime(visionModel(), name = "mobileclip") }
 
     private fun visionModel() = applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }
 
@@ -288,7 +290,10 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
 
     protected open suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = app.trash.purgeExpired()
 
-    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline = Pipeline(app.index, embedder = embedder, trash = app.trash)
+    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline {
+        val power = applicationContext.getSystemService(PowerManager::class.java)
+        return Pipeline(app.index, embedder = embedder, trash = app.trash, thermalStatus = { runCatching { power?.currentThermalStatus }.getOrNull() })
+    }
 
     private var title = 0
     private var reported = 0L
