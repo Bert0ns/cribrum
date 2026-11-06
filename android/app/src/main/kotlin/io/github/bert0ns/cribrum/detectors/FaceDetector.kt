@@ -126,5 +126,5 @@ internal object YuNet {
 /** Lives for the process and is shared by every pipeline worker. One thread, as the lab's: they all run the detector at once. */
 private val defaultRuntime: ModelRuntime by lazy {
     val stream = object {}.javaClass.getResourceAsStream(MODEL) ?: error("Resource $MODEL not found on classpath")
-    OnnxRuntime(stream.use { it.readBytes() }, threads = 1)
+    OnnxRuntime(stream.use { it.readBytes() }, threads = 1, name = "yunet")
 }

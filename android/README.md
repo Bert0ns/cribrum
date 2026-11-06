@@ -86,7 +86,12 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Pipeline.walk`, `Pipeline.metadata`, `Pipeline.detectors`, `Pipeline.embeddings`, `Pipeline.embeddedDetectors`, `Pipeline.groupDetectors` | the phases of `Pipeline.run` |
 | `Imaging.decode` | one image's decode |
 | `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
-| `Onnx.run` | one `ModelRuntime.run` call of `OnnxRuntime` |
+| `Onnx.run.yunet`, `Onnx.run.ppocr`, `Onnx.run.mobileclip` | one `ModelRuntime.run` call of `OnnxRuntime`, named after the model it runs (the faces, the text coverage and the embeddings) |
+| `Imaging.exif`, `Imaging.gray` | one `orientation` read of the EXIF, and one `loadGrayscale` (its `Imaging.decode` and `Imaging.exif` inside) |
+| `Detector.<id>.image`, `Detector.<id>.sticker` | one per-image detector's `analyze` call on one image, for each of `blur`, `exposure`, `faces`, `screenshot`, `sticker`, `document` and `forwarded`. `.sticker` is for an image in a sticker folder, so stickers can be split out. An async section |
+| `Pipeline.phash.image`, `Pipeline.phash.sticker` | one perceptual hash |
+| `Pipeline.tasks` | `analyzeEach`'s building of its tasks: the index reads that tell what each image still needs |
+| `Pipeline.store` | `storeOutcome`: the index writes of one image's results |
 | `Compress.list` | `CompressViewModel.refresh`: reading the photos, the favourites and the retention for the Compress page |
 | `Tile.wait`, `Tile.decode <bucket>` | one grid tile's decode (Compress, trash and review tiles, `TileDecoder`): the wait for one of its permits, and the decode holding it. The permits are the cores minus two, from 2 to 6; the full size views keep Coil's default 4 and have no such section. The bucket is the file's size rounded up to 1, 2, 4, 8, 16 or 32 MB (`<=8MB`, `>32MB`), never a name. Both are async sections, so how many `Tile.decode` overlap at one time is the parallelism |
 | `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |

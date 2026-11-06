@@ -28,9 +28,9 @@ class Gray(val width: Int, val height: Int, val pixels: FloatArray) {
  * Measures computed on it depend on [maxSide]: changing it means bumping the version of every
  * detector that uses it.
  */
-fun loadGrayscale(file: File, maxSide: Int): Gray {
+fun loadGrayscale(file: File, maxSide: Int): Gray = trace("Imaging.gray") {
     val (width, height, argb) = decode(file, maxSide)
-    return thumbnail(transpose(luminance(width, height, argb), orientation(file)), maxSide)
+    thumbnail(transpose(luminance(width, height, argb), orientation(file)), maxSide)
 }
 
 /** Decoded pixels as unpremultiplied ARGB, row by row, before EXIF orientation. */
@@ -100,10 +100,12 @@ private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
 
 // On a HEIC or AVIF, BitmapFactory ignores the container rotation (irot) and ExifInterface reports it, so the image turns once, from this value (#220).
 // One whose EXIF orientation differs from its irot, or that has no irot, follows the EXIF here, where ImageDecoder and the lab follow the irot.
-internal fun orientation(file: File): Int = try {
-    ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-} catch (_: IOException) {
-    ExifInterface.ORIENTATION_NORMAL
+internal fun orientation(file: File): Int = trace("Imaging.exif") {
+    try {
+        ExifInterface(file).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    } catch (_: IOException) {
+        ExifInterface.ORIENTATION_NORMAL
+    }
 }
 
 /** Pillow's exif_transpose: turns the pixels so the image is as displayed. */
