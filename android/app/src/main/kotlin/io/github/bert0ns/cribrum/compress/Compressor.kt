@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.ReviewState
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.Swap
 import io.github.bert0ns.cribrum.trash.copyFileFor
@@ -109,29 +110,32 @@ class Compressor(
      * the preview refuses, fails or is cancelled, so it must be named by [copyFileFor].
      */
     suspend fun preview(original: File, level: CompressionLevel, out: File): Refusal? = previews.withLock {
-        withContext(Dispatchers.IO) {
-            // Until it ends well, [out] is not worth keeping: a throw or a cancel leaves this as it is.
-            var refusal: Refusal? = Refusal.FAILED
-            try {
-                refusal = try {
-                    val encoded = encode(original, out, level) { ensureActive() }
-                    if (encoded.refusal != null) {
-                        encoded.refusal
-                    } else {
-                        ensureActive()
-                        copyExif(original, out, encoded.width, encoded.height)
-                        Refusal.NOT_SMALLER.takeIf { out.length() >= original.length() }
+        // Inside the lock, so the section is the work and not the wait for the preview before it.
+        traceSuspend("Compressor.preview") {
+            withContext(Dispatchers.IO) {
+                // Until it ends well, [out] is not worth keeping: a throw or a cancel leaves this as it is.
+                var refusal: Refusal? = Refusal.FAILED
+                try {
+                    refusal = try {
+                        val encoded = encode(original, out, level) { ensureActive() }
+                        if (encoded.refusal != null) {
+                            encoded.refusal
+                        } else {
+                            ensureActive()
+                            copyExif(original, out, encoded.width, encoded.height)
+                            Refusal.NOT_SMALLER.takeIf { out.length() >= original.length() }
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: OutOfMemoryError) {
+                        Refusal.LOW_MEMORY
+                    } catch (_: Exception) {
+                        Refusal.FAILED
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: OutOfMemoryError) {
-                    Refusal.LOW_MEMORY
-                } catch (_: Exception) {
-                    Refusal.FAILED
+                    refusal
+                } finally {
+                    if (refusal != null) trash.discardCopy(out)
                 }
-                refusal
-            } finally {
-                if (refusal != null) trash.discardCopy(out)
             }
         }
     }

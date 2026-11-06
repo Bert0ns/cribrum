@@ -14,6 +14,7 @@ import io.github.bert0ns.cribrum.compress.CompressionLevel
 import io.github.bert0ns.cribrum.compress.Compressor
 import io.github.bert0ns.cribrum.compress.Refusal
 import io.github.bert0ns.cribrum.sources.favoritePaths
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -124,9 +125,9 @@ class CompressViewModel @JvmOverloads constructor(
     fun refresh() {
         viewModelScope.launch {
             try {
-                val all = photos()
-                val favorite = favorites()
-                val days = withContext(Dispatchers.IO) { retentionDays() }
+                val (all, favorite, days) = traceSuspend("Compress.list") {
+                    Triple(photos(), favorites(), withContext(Dispatchers.IO) { retentionDays() })
+                }
                 val (done, todo) = all.partition { it.info.marker != null }
                 mutableState.update { state ->
                     val selected = state.selected intersect all.mapTo(HashSet()) { it.path }
