@@ -492,7 +492,7 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
                 )
             },
     ) {
-        TracedAsyncImage(File(photo.path), "Compress.tile", null, Modifier.fillMaxSize())
+        TracedAsyncImage(File(photo.path), "Compress.tile", null, Modifier.fillMaxSize(), tile = true)
         // The description says all of this, so the visible texts stay out of the screen reader's way.
         // The size only: the resolution is in the full size view and the summary.
         Text(size, Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp).clearAndSetSemantics {}, color = Color.White, style = MaterialTheme.typography.labelSmall)
