@@ -45,8 +45,11 @@ class FallbackRuntime(private var current: ModelRuntime, private var fallback: (
 /**
  * ONNX Runtime on the CPU, with ONNX Runtime's default thread count unless [threads] says otherwise.
  * With [gpu] it runs on the GPU through WebGPU, or on the CPU when the build or the phone has no WebGPU.
+ * [name] is the model's short name, for the trace section of each run (`Onnx.run.<name>`).
  */
-class OnnxRuntime(model: ByteArray, threads: Int? = null, gpu: Boolean = false) : ModelRuntime {
+class OnnxRuntime(model: ByteArray, threads: Int? = null, gpu: Boolean = false, name: String = "model") : ModelRuntime {
+    private val section = "Onnx.run.$name"
+
     private val environment = OrtEnvironment.getEnvironment()
     private val session = if (gpu) {
         try {
@@ -65,7 +68,7 @@ class OnnxRuntime(model: ByteArray, threads: Int? = null, gpu: Boolean = false) 
         environment.createSession(model, options)
     }
 
-    override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = trace("Onnx.run") {
+    override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = trace(section) {
         val tensors = LinkedHashMap<String, OnnxTensor>()
         try {
             for ((name, tensor) in inputs) tensors[name] = OnnxTensor.createTensor(environment, FloatBuffer.wrap(tensor.values), tensor.shape)

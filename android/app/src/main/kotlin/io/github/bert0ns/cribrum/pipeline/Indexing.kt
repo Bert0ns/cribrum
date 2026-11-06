@@ -278,7 +278,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     }
 
     // The CPU fallback reads the model again only if the GPU fails, so the bytes are not held through the scan.
-    protected open fun loadVision(): ModelRuntime = FallbackRuntime(OnnxRuntime(visionModel(), gpu = true)) { OnnxRuntime(visionModel()) }
+    protected open fun loadVision(): ModelRuntime = FallbackRuntime(OnnxRuntime(visionModel(), gpu = true, name = "mobileclip")) { OnnxRuntime(visionModel(), name = "mobileclip") }
 
     private fun visionModel() = applicationContext.assets.open(VISION_MODEL_ASSET).use { it.readBytes() }
 

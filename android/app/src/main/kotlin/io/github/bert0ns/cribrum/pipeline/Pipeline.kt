@@ -4,6 +4,7 @@ package io.github.bert0ns.cribrum.pipeline
 
 import android.os.SystemClock
 import android.util.Log
+import androidx.tracing.trace
 import com.appmattus.crypto.Algorithm
 import io.github.bert0ns.cribrum.compress.JpegInfo
 import io.github.bert0ns.cribrum.compress.readJpeg
@@ -415,15 +416,17 @@ class Pipeline(
     ) = coroutineScope {
         val analyzed = selected.associateWith { index.analyzedPaths(it.id, it.version) }
         val hashed = if (beforeEmbeddings) index.hashedPaths() else emptySet()
-        val tasks = images.mapNotNull { image ->
-            val todo = selected.filter { image.path !in analyzed.getValue(it) }
-            val needsPhash = beforeEmbeddings && image.path !in hashed
-            // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
-            val metadata = index.metadata(image.path)
-            if ((todo.isEmpty() && !needsPhash) || metadata == null) {
-                null
-            } else {
-                AnalysisTask(image, metadata, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
+        val tasks = traceSuspend("Pipeline.tasks") {
+            images.mapNotNull { image ->
+                val todo = selected.filter { image.path !in analyzed.getValue(it) }
+                val needsPhash = beforeEmbeddings && image.path !in hashed
+                // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
+                val metadata = index.metadata(image.path)
+                if ((todo.isEmpty() && !needsPhash) || metadata == null) {
+                    null
+                } else {
+                    AnalysisTask(image, metadata, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
+                }
             }
         }
         progress(step, 0, tasks.size)
@@ -457,13 +460,14 @@ class Pipeline(
                 task.embedding ?: throw MissingEmbedding(it)
             },
         )
-        val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context) }
-        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image) else null)
+        val kind = if (isStickerFolder(task.image.path)) "sticker" else "image" // the sections tell the two apart, never the path
+        val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context, kind) }
+        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image, kind) else null)
     }
 
     /** Stores what [outcome] has. Unless [final], what ran out of memory is not stored but returned as a task to run again. */
     private suspend fun store(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? = try {
-        storeOutcome(outcome, stats, final)
+        traceSuspend("Pipeline.store") { storeOutcome(outcome, stats, final) }
     } catch (_: NoSuchElementException) {
         null // the row went while the scan ran: the image is gone
     }
@@ -507,12 +511,12 @@ class Pipeline(
      * One broken file must not stop a run over thousands: errors come back as values. A detector
      * that needs the missing embedding comes back with null signals and no error.
      */
-    private suspend fun analyze(detector: Detector, image: ImageRef, context: AnalysisContext): Result<List<Signal>?> {
-        val result = attempt<List<Signal>?> { detector.analyze(image, context) }
+    private suspend fun analyze(detector: Detector, image: ImageRef, context: AnalysisContext, kind: String): Result<List<Signal>?> {
+        val result = attempt<List<Signal>?> { traceSuspend("Detector.${detector.id}.$kind") { detector.analyze(image, context) } }
         return if (result.exceptionOrNull() is MissingEmbedding) Result.success(null) else result
     }
 
-    private fun computePhash(image: ImageRef): Result<ULong> = attempt { perceptualHasher(image) }
+    private fun computePhash(image: ImageRef, kind: String): Result<ULong> = attempt { trace("Pipeline.phash.$kind") { perceptualHasher(image) } }
 
     /**
      * The detector last ran on [images] as they are, and every content hash that failed in that run fails again.
