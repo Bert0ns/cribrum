@@ -283,9 +283,11 @@ class Pipeline(
                 progress(detector.id, 0, 1)
                 hashFailed.clear()
                 try {
-                    val signals = detector.analyze(images, context)
-                    index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
-                    index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
+                    val signals = traceSuspend("Group.${detector.id}.analyze") { detector.analyze(images, context) }
+                    traceSuspend("Group.${detector.id}.store") {
+                        index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                        index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
+                    }
                     stats.detectorRuns++
                     progress(detector.id, 1, 1)
                 } catch (error: Exception) {

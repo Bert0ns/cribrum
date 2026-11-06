@@ -42,6 +42,8 @@ private val MIAF_HEIC = bytes(0, 0, 0, 0x1c) + ascii("ftypmiaf") + ByteArray(4) 
 private val AVIF = bytes(0, 0, 0, 0x1c) + ascii("ftypavif") + ByteArray(4) + ascii("mif1miaf") + ByteArray(8)
 private val MP4 = bytes(0, 0, 0, 0x18) + ascii("ftypisom") + ByteArray(12)
 
+// Robolectric: the walk and the trash trace their calls, and a plain JVM test has no android.os.Trace.
+@RunWith(RobolectricTestRunner::class)
 class ImageSourceTest {
     @get:Rule
     val folder = TemporaryFolder()

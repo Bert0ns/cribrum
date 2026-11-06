@@ -40,6 +40,7 @@ import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import io.github.bert0ns.cribrum.sources.NotImages
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.unheldPaths
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -256,8 +257,8 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         try {
             val trashFailures = mutableListOf<Failure>()
             try {
-                val purged = purgeExpired(app)
-                app.index.forgetTrashed(app.trash.unheldPaths(purged))
+                val purged = traceSuspend("Trash.purge") { purgeExpired(app) }
+                app.index.forgetTrashed(traceSuspend("Trash.unheld") { app.trash.unheldPaths(purged) })
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 Log.w(Indexing.TAG, "Failed to purge expired trash", error)
