@@ -58,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.R
 import kotlin.math.roundToInt
 
@@ -153,13 +154,15 @@ fun StorageMapScreen(
                 val minSizePx = with(density) { 3.dp.toPx().toDouble() }
 
                 val blocks = remember(currentFolder, baseHue, widthPx, heightPx) {
-                    layoutTreemap(
-                        folder = currentFolder,
-                        bounds = MapRect(0.0, 0.0, widthPx, heightPx),
-                        gap = gapPx,
-                        minSize = minSizePx,
-                        baseHue = baseHue,
-                    )
+                    trace("StorageMap.layout") {
+                        layoutTreemap(
+                            folder = currentFolder,
+                            bounds = MapRect(0.0, 0.0, widthPx, heightPx),
+                            gap = gapPx,
+                            minSize = minSizePx,
+                            baseHue = baseHue,
+                        )
+                    }
                 }
 
                 Canvas(

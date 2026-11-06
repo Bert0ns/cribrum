@@ -34,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -46,7 +45,6 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.folders.isStickerFolder
 import io.github.bert0ns.cribrum.trash.TrashedImage
@@ -170,7 +168,7 @@ private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<
                     )
                 },
         ) {
-            AsyncImage(File(item.file.path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            TracedAsyncImage(File(item.file.path), "Trash.tile", null, Modifier.fillMaxSize())
             if (isSelected) SelectedCheck(Modifier.align(Alignment.TopEnd).padding(4.dp))
             Text(
                 daysText,

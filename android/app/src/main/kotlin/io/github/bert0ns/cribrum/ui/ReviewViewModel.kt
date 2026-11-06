@@ -20,6 +20,7 @@ import io.github.bert0ns.cribrum.review.ReviewGroup
 import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.sources.FavoriteRequests
 import io.github.bert0ns.cribrum.sources.favoritePaths
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.TrashRetention
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CancellationException
@@ -181,7 +182,7 @@ class ReviewViewModel @JvmOverloads constructor(
     }
 
     fun openTrash() = load {
-        it.copy(screen = Screen.Trash(it.screen.destination), trashed = review.trashed(), selected = emptySet())
+        it.copy(screen = Screen.Trash(it.screen.destination), trashed = traceSuspend("Trash.list") { review.trashed() }, selected = emptySet())
     }
 
     /** Only the embeddings go: the next scan computes them again. */
@@ -335,7 +336,7 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(screen = Screen.StorageMap, storageMap = trail)
     }
 
-    private suspend fun storageMapRoot() = listOf(buildFolderTree(review.notTrashed()))
+    private suspend fun storageMapRoot() = traceSuspend("StorageMap.build") { listOf(buildFolderTree(review.notTrashed())) }
 
     fun zoomStorageMap(folder: Folder) = load { state ->
         state.copy(storageMap = state.storageMap + folder)
