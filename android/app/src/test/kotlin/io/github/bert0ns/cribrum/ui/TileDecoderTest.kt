@@ -4,7 +4,9 @@ import coil3.decode.DecodeResult
 import coil3.decode.Decoder
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -63,6 +65,22 @@ class TileDecoderTest {
             override suspend fun decode(): DecodeResult? = error("broken file")
         }
         runCatching { PermitDecoder(failing, permits, "?").decode() }
+        assertEquals(1, permits.availablePermits)
+    }
+
+    @Test
+    fun `a cancelled tile gives its permit back, whether it waits or decodes`() = runTest {
+        val permits = Semaphore(1)
+        val hanging = object : Decoder {
+            override suspend fun decode(): DecodeResult? = awaitCancellation()
+        }
+        val decoding = launch { PermitDecoder(hanging, permits, "?").decode() }
+        val waiting = launch { PermitDecoder(hanging, permits, "?").decode() }
+        testScheduler.runCurrent()
+        assertEquals(0, permits.availablePermits)
+        waiting.cancel()
+        decoding.cancel()
+        testScheduler.runCurrent()
         assertEquals(1, permits.availablePermits)
     }
 }
