@@ -63,7 +63,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
@@ -90,7 +89,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.compress.BatchResult
 import io.github.bert0ns.cribrum.compress.BatchState
@@ -494,7 +492,7 @@ private fun PhotoTile(photo: CompressibleImage, selected: Boolean, favorite: Boo
                 )
             },
     ) {
-        AsyncImage(File(photo.path), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        TracedAsyncImage(File(photo.path), "Compress.tile", null, Modifier.fillMaxSize())
         // The description says all of this, so the visible texts stay out of the screen reader's way.
         // The size only: the resolution is in the full size view and the summary.
         Text(size, Modifier.align(Alignment.BottomStart).background(Color.Black.copy(alpha = 0.6f)).padding(4.dp).clearAndSetSemantics {}, color = Color.White, style = MaterialTheme.typography.labelSmall)

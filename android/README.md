@@ -87,6 +87,9 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Imaging.decode` | one image's decode |
 | `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
 | `Onnx.run` | one `ModelRuntime.run` call of `OnnxRuntime` |
+| `Compress.list` | `CompressViewModel.refresh`: reading the photos, the favourites and the retention for the Compress page |
+| `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |
+| `Compressor.preview` | one `Compressor.preview`, the before and after of the Compress summary, inside its lock (not the wait for the one before) |
 
 Sections are per image at the finest, never per pixel or row. Perfetto shows the async sections on process tracks and the others on thread tracks, so a query for a name must read both.
 
