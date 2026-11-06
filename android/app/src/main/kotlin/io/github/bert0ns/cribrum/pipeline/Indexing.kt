@@ -292,7 +292,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
 
     protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline {
         val power = applicationContext.getSystemService(PowerManager::class.java)
-        return Pipeline(app.index, embedder = embedder, trash = app.trash, thermalStatus = { power.currentThermalStatus })
+        return Pipeline(app.index, embedder = embedder, trash = app.trash, thermalStatus = { runCatching { power?.currentThermalStatus }.getOrNull() })
     }
 
     private var title = 0
