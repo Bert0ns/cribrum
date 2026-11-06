@@ -108,9 +108,32 @@ Sections are per image at the finest, never per pixel or row. Perfetto shows the
 - `home ready`: from the start of the process to the end of the last `Review.overview` before the category opens, from a Perfetto trace.
 - `category open`: the length of the first `Review.page`, from the same trace.
 - `scroll frames`, `scroll janky frames`, `scroll p90`, `scroll p99`: `dumpsys gfxinfo` over ten flings on the category page.
+- `compress open`: from the first `Compress.list`, which starts a frame or two after the tap on the tab, to the end of the last `Compress.tile` of the first screen. The first screen's tiles are the loads that start within a second of the first one, since a list composes them together and the script scrolls seconds later. The page is opened right after the category, so its tiles load from a cold image cache.
+- `compress tiles`: how many tile loads the first screen started, the slowest one, and the most open at once. A count of loads in flight, to tell a slow decode from a queue.
+- `compress scroll frames`, `compress scroll janky frames`, `compress scroll p90`, `compress scroll p99`: as `scroll`, over ten flings on the Compress page.
+- `trash open`, `trash tiles` and `trash scroll ...`: the same for the trash, from the first `Trash.list` to the last `Trash.tile` of the first screen.
+- `storage map open`: from the first `StorageMap.build` to the end of the `StorageMap.layout` that follows it.
 - `indexed images` and `last scan` with the new or changed files, the time of each phase and the group detectors that ran or skipped: what the last scan logged under the `scan-time` tag (`adb logcat -s scan-time`), while the log still holds it. Settings shows the total time of the last scan.
 
-It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It starts the app cold, opens one category from the home, scrolls it and goes back, and taps nothing else. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review. It refuses a name that is not a category title, and stops before the flings if the category screen did not open.
+It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It records one Perfetto trace of the whole run, which takes about two and a half minutes since the trace has a fixed length. It starts the app cold, opens one category from the home, scrolls it and goes back, then opens the Compress page, the trash and the storage map from the home, and scrolls the first two. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review. It refuses a name that is not a category title, and stops before the flings if the category screen did not open. A Compress page or a trash with nothing in it is not scrolled and has no number.
+
+The taps are all in the header of the script and in `measure.sh -h`, and they are all it makes:
+
+- the title of one category on the home;
+- the "Compress" tab, and the "Clean" tab to come back;
+- the trash icon in the home's top bar, which opens the trash (it is not a Trash button);
+- the "Settings" tab, its "Storage map" row, which opens a screen that only reads, and the "Clean" tab.
+
+Besides those it swipes to scroll the category, the Compress page, the trash and Settings, and presses Back. It never taps a tile, a checkbox, Continue, Trash, Keep, Skip, Undo, Exclude, a Settings action or Scan now. It only goes on from the home, which it recognises by the app's name in the top bar, and stops when a screen is not the one it expects.
+
+**By hand: the full size view and the summary.** Both need a tile, so the script leaves them out. Start `scripts/measure.sh --by-hand 120` instead: it makes no tap and no swipe, starts the app cold and records for that many seconds while you use it. In that time open the full size view of a review image or a trash image (long press a tile), swipe to the next one, and for the Compress ones long press a tile and zoom, or select photos, tap Continue and wait for the previews. When the trace ends it prints:
+
+- `summary previews`: the length of each `Compressor.preview`, in order. The first one is the time to the first before and after, from the moment the summary opens, since the summary starts it at once.
+- `full size image`: each `FullSize.image`, the load of the review's and the trash's full size view.
+- `zoom base image`: each `TiledImage.base`, the base image of the Compress full size view and of the summary's slider.
+- `zoom tile decodes`: how many `TiledImage.tile` decodes the zooms made and the slowest. One decode reads the bounding box of a view's missing tiles.
+
+Name a photo by its size in megapixels only, never by its name or path, and keep the trace in `/tmp`.
 
 A cold start force-stops the app, which would kill a running scan. The script stops instead when a scan is running (WorkManager's job or foreground service in `dumpsys activity services`), so start it when the scan is done:
 
