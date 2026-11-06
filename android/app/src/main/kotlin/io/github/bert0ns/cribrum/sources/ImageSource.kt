@@ -8,6 +8,8 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.TRASH_FOLDER
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -173,16 +175,21 @@ class MediaStoreImageSource(private val resolver: ContentResolver, private val v
     override fun scan(): Flow<ImageRef> = flow {
         counts = emptyMap()
         var rows = 0
-        // The query and the stats are one section; the emits wait for the collector, so they stay out of it.
+        // The query and the stats are one section; the emits wait for the collector, so they stay out of it. Without an emit
+        // per row, each row checks for a stopped scan itself, so a stop does not wait for the stats of every row.
         val images = trace("Walk.mediaStore") {
             val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
             val paths = mutableListOf<String>()
             @Suppress("DEPRECATION") // DATA is the only way to the path, and All files access allows reading it
             resolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
-                while (cursor.moveToNext()) cursor.getString(0)?.let(paths::add)
+                while (cursor.moveToNext()) {
+                    currentCoroutineContext().ensureActive()
+                    cursor.getString(0)?.let(paths::add)
+                }
             }
             rows = paths.size
             paths.sorted().mapNotNull { path ->
+                currentCoroutineContext().ensureActive()
                 val file = File(path)
                 if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) return@mapNotNull null
                 try {
