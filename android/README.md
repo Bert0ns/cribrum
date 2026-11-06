@@ -90,6 +90,9 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Compress.list` | `CompressViewModel.refresh`: reading the photos, the favourites and the retention for the Compress page |
 | `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |
 | `Compressor.preview` | one `Compressor.preview`, the before and after of the Compress summary, inside its lock (not the wait for the one before) |
+| `FullSize.image` | the image load of the review's and the trash's full size view (`ZoomableImage`), from Coil's request start to its end |
+| `TiledImage.base` | the base image load of a `TiledImage` (the Compress full size view and the summary's before and after), like `FullSize.image` |
+| `TiledImage.tile` | one `BitmapRegionDecoder.decodeRegion` of a `TiledImage`: a view's missing tiles are one decode of their bounding box, so it is one for the view, not for each tile |
 
 Sections are per image at the finest, never per pixel or row. Perfetto shows the async sections on process tracks and the others on thread tracks, so a query for a name must read both.
 
