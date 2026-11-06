@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.pm.ServiceInfo
 import android.content.res.Resources
 import android.os.Environment
+import android.os.PowerManager
 import android.os.SystemClock
 import android.os.storage.StorageManager
 import android.util.Log
@@ -289,7 +290,10 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
 
     protected open suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = app.trash.purgeExpired()
 
-    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline = Pipeline(app.index, embedder = embedder, trash = app.trash)
+    protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline {
+        val power = applicationContext.getSystemService(PowerManager::class.java)
+        return Pipeline(app.index, embedder = embedder, trash = app.trash, thermalStatus = { power.currentThermalStatus })
+    }
 
     private var title = 0
     private var reported = 0L

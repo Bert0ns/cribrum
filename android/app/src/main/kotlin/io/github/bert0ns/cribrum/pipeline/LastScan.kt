@@ -48,7 +48,9 @@ class LastScan(private val preferences: SharedPreferences) {
         record(stats, now(), durationMs)
         Log.i(TIME_TAG, "images ${stats.images}")
         Log.i(TIME_TAG, "new or changed ${stats.newOrChanged}")
+        stats.counts.forEach { (name, count) -> Log.i(TIME_TAG, "$name $count") }
         stats.phaseMs.forEach { (phase, ms) -> Log.i(TIME_TAG, "$phase $ms ms") }
+        stats.thermal.forEach { (phase, status) -> Log.i(TIME_TAG, "thermal $phase $status") }
         fun ids(list: List<String>) = list.ifEmpty { listOf("none") }.joinToString(", ")
         Log.i(TIME_TAG, "group detectors ran: ${ids(stats.ranGroupDetectors)}; skipped: ${ids(stats.skippedGroupDetectors)}")
         Log.i(TIME_TAG, "total $durationMs ms")
