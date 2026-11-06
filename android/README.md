@@ -88,7 +88,9 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
 | `Onnx.run` | one `ModelRuntime.run` call of `OnnxRuntime` |
 | `Compress.list` | `CompressViewModel.refresh`: reading the photos, the favourites and the retention for the Compress page |
+| `Tile.wait`, `Tile.decode <bucket>` | one grid tile's decode (Compress, trash and review tiles, `TileDecoder`): the wait for one of its permits, and the decode holding it. The permits are the cores minus two, from 2 to 6; the full size views keep Coil's default 4 and have no such section. The bucket is the file's size rounded up to 1, 2, 4, 8, 16 or 32 MB (`<=8MB`, `>32MB`), never a name. Both are async sections, so how many `Tile.decode` overlap at one time is the parallelism |
 | `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |
+| `Review.tile` | one review tile's image load, like `Compress.tile` |
 | `Compressor.preview` | one `Compressor.preview`, the before and after of the Compress summary, inside its lock (not the wait for the one before) |
 | `Trash.list` | `ReviewViewModel.openTrash`: reading the trash's list |
 | `Trash.tile` | one trash tile's image load, like `Compress.tile` |
