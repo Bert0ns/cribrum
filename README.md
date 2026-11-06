@@ -40,7 +40,7 @@ Exact duplicates, similar copies, and burst shots appear in grouped views. The a
 
 Instead of deleting photos, the Compress tab lets you recompress large camera JPEGs to reclaim storage space.
 
-- **Three quality levels.** High quality uses JPEG 90 at original resolution. Balanced uses JPEG 85 and scales down photos larger than 50 MP, cutting file size roughly in half with little visible change. Smallest files uses JPEG 80 and scales down photos larger than 12 MP.
+- **Three quality levels.** High quality uses JPEG 90 at original resolution. Balanced uses JPEG 85 and scales down photos larger than 50 MP. In the lab it saved a median 47% on one phone's camera photos. Smallest files uses JPEG 80 and scales down photos larger than 12 MP.
 - **Split comparison slider.** An interactive split handle lets you compare the original image against the recompressed result before confirming, with deep zooming down to individual pixels.
 - **Preserved metadata.** Recompressed copies preserve standard EXIF tags (date taken, camera details, lens info, orientation), GPS coordinates, and Ultra HDR gain maps on Android 14 and newer. Original XMP (except new gain map data on Ultra HDR), Samsung SEF trailers, C2PA content credentials, IPTC data, EXIF thumbnails, and shooting mode info are not preserved, and custom maker notes are not guaranteed. The original photo moves to the trash, where it can be restored with all metadata intact within the retention window.
 - **Reversible originals.** Original photos move to Cribrum's trash folder. You can undo the entire compression batch from the summary screen or restore individual originals later.
@@ -105,7 +105,7 @@ Cribrum performs all scanning, inference, and file operations directly on the de
 Analysis runs as a pipeline where individual detectors emit `Signal` values with confidence scores. The `Ranker` combines these signals into ordered candidate lists:
 
 - **Recall over precision.** Surfacing a photo that turns out to be worth keeping is acceptable. Missing clutter that the user wanted to delete is not.
-- **Protections reorder without dropping.** Signals like faces, favourites, and albums reduce candidate priority rather than filtering images out. This leaves the final decision to the user while keeping important items safe from accidental deletion.
+- **Protections reorder without dropping.** Faces and gallery favourites lower an image in the review order, and never take it out of the candidates. The user still decides on every image.
 
 ### On-device models
 
@@ -115,13 +115,13 @@ The app bundles three local neural models:
 - **YuNet.** A 230 KB ONNX face detection model. It locates faces and facial landmarks to protect portraits.
 - **PP-OCRv4.** An ONNX text detection model that measures the proportion of an image covered by text lines, identifying slides, documents, and paper receipts.
 
-Models run through ONNX Runtime with CPU fallback and hardware acceleration where supported.
+Models run through ONNX Runtime. The image encoder tries the GPU through WebGPU and falls back to the CPU when the phone or the build has none.
 
 ### Storage index and scan worker
 
 - **Room database.** A SQLite database tracks file metadata, content hashes, perceptual hashes, embeddings, and emitted signals.
 - **Six-phase incremental scan.** Scans run through six phases ([`docs/design.md §4, §7`](docs/design.md)): (1) filesystem walk ("Looking for images"), (2) metadata extraction ("Reading the images"), (3) non-embedding detectors ("Analyzing the images": `BLURRY`, `BAD_EXPOSURE`, `SCREENSHOT`, `FACES`, `STICKER`, and 64-bit DCT pHash), (4) embedding generation ("Comparing the images"), (5) embedded detectors ("Classifying the images": `DOCUMENT` with PP-OCRv4 text coverage, and `FORWARDED`), and (6) group detectors ("Finding duplicates and bursts": exact duplicates with xxHash3-64, near duplicates with DCT pHash and embeddings, and bursts). Files with unchanged size and modification timestamps skip earlier phases.
-- **WorkManager.** `IndexWorker` manages nightly scans at 02:00 when connected to power, running within a 00:00–06:00 window and rescheduling for the next night if skipped.
+- **WorkManager.** `IndexWorker` manages nightly scans at 02:00 when connected to power, running within a 00:00 to 06:00 window and rescheduling for the next night if skipped.
 
 ### Python lab and parity
 
