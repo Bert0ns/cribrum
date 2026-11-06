@@ -127,6 +127,11 @@ Sections are per image at the finest, never per pixel or row. Perfetto shows the
 - `trash open`, `trash tiles` and `trash scroll ...`: the same for the trash, from the first `Trash.list` to the last `Trash.tile` of the first screen.
 - `storage map open`: from the first `StorageMap.build` to the end of the `StorageMap.layout` that follows it.
 - `indexed images` and `last scan` with the new or changed files, the time of each phase and the group detectors that ran or skipped: what the last scan logged under the `scan-time` tag (`adb logcat -s scan-time`), while the log still holds it. Settings shows the total time of the last scan.
+  The `last scan` lines also hold, after the new or changed files and before the phase times:
+  - `walk folders`, `walk entries`, `walk sniffed`, `walk mediaStoreRows` and `walk duplicates`: the folders and entries listed, the files whose head the walk read, the MediaStore rows, and the files MediaStore found that the walk already had;
+  - `trash items`: the items the trash held when the scan listed it;
+  - `detectors tasks`, `embeddings tasks` and `embedded_detectors tasks`: the images each phase worked on, and `detectors sticker tasks` and `embedded_detectors sticker tasks`, how many of them are stickers; `stickers` is the stickers among all the readable images;
+  - after the phase times, `thermal <phase> <status>`: `PowerManager.currentThermalStatus` (0 none, 1 light, 2 moderate, 3 severe, up to 6 shutdown), read once when the phase starts.
 
 It needs the phone unlocked with its screen on, and [uv](https://docs.astral.sh/uv/), which installs the `perfetto` Python package for `scripts/trace_times.py` and downloads Perfetto's `trace_processor` the first time. It records one Perfetto trace of the whole run, which takes about two and a half minutes since the trace has a fixed length. It starts the app cold, opens one category from the home, scrolls it and goes back, then opens the Compress page, the trash and the storage map from the home, and scrolls the first two. It opens "Similar copies" (or "Copie simili"), or the category named in its arguments, which must have something to review. It refuses a name that is not a category title, and stops before the flings if the category screen did not open. A Compress page or a trash with nothing in it is not scrolled and has no number.
 

@@ -115,6 +115,10 @@ data class Stats(
     val skippedGroupDetectors: MutableList<String> = mutableListOf(),
     /** Milliseconds each phase took, in the order they ran. */
     val phaseMs: MutableMap<String, Long> = linkedMapOf(),
+    /** What the scan counted, for the scan-time log: the walk's counts, the trash items, the tasks of each phase and the stickers. */
+    val counts: MutableMap<String, Int> = linkedMapOf(),
+    /** The thermal status ([android.os.PowerManager.currentThermalStatus]) at the start of each phase. */
+    val thermal: MutableMap<String, Int> = linkedMapOf(),
 )
 
 /**
@@ -139,6 +143,8 @@ class Pipeline(
     private val contentHasher: (ImageRef) -> String = ::contentHash,
     /** Monotonic milliseconds, for [Stats.phaseMs]. */
     private val clock: () -> Long = SystemClock::elapsedRealtime,
+    /** The phone's thermal status, read once at the start of each phase. Null when unknown. */
+    private val thermalStatus: () -> Int? = { null },
     /** Images the walk records in one transaction; a test sets it low to cross it with a few files. */
     internal val recordBatch: Int = RECORD_BATCH,
 ) {
@@ -168,6 +174,7 @@ class Pipeline(
             }
             flush()
         }
+        source.counts.forEach { (name, count) -> stats.counts["walk $name"] = count }
         // A trash that cannot be listed is a failure of this step. No missing file leaves the index until a scan can read it.
         val items = try {
             trash?.trashed()
@@ -176,6 +183,7 @@ class Pipeline(
             stats.failures += Failure("", "trash", failureMessage(error))
             null
         }
+        items?.let { stats.counts["trash items"] = it.size }
         val inTrash = items?.mapTo(HashSet()) { it.original.path }
         // A compression killed between its two moves leaves the original in the trash, its path empty, and its row
         // not TRASHED and still the original's. A finished swap's row is the copy's, so a copy deleted elsewhere goes.
@@ -230,6 +238,7 @@ class Pipeline(
         }
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
+        stats.counts["stickers"] = stickers.size
         // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
         index.forgetAnalyses(stickers.map { it.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
         val embeddings = if (embedder == null) {
@@ -307,6 +316,7 @@ class Pipeline(
 
     /** Runs one phase of [run] in a trace section, and keeps how long it took. */
     private suspend fun <T> phase(name: String, stats: Stats, block: suspend () -> T): T {
+        thermalStatus()?.let { stats.thermal[name] = it }
         val start = clock()
         return traceSuspend("Pipeline.$name", block).also { stats.phaseMs[name] = clock() - start }
     }
@@ -334,6 +344,7 @@ class Pipeline(
     private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
         val stored = index.embeddings(embedder.id, embedder.version).keys
         val todo = images.filter { it.path !in stored }
+        stats.counts["embeddings tasks"] = todo.size
         if (todo.isEmpty()) return
         val loaded = withContext(Dispatchers.Default) { attempt { embedder.load() } }
         loaded.exceptionOrNull()?.let { error ->
@@ -431,6 +442,8 @@ class Pipeline(
                 }
             }
         }
+        stats.counts["$step tasks"] = tasks.size
+        stats.counts["$step sticker tasks"] = tasks.count { isStickerFolder(it.image.path) }
         progress(step, 0, tasks.size)
         val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
         tasks.forEach(queue::trySend)

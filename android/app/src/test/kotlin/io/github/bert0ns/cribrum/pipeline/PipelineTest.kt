@@ -133,6 +133,28 @@ class PipelineTest {
     }
 
     @Test
+    fun `a run counts the walk, the tasks of each phase and the stickers, and reads the thermal status once at each phase start`() {
+        photos()
+        save("WhatsApp/Media/WhatsApp Stickers/s.png", seed = 2)
+        var reads = 0
+
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder(), thermalStatus = { reads++ }))
+
+        val tree = root.walkTopDown().toList()
+        assertEquals(tree.count { it.isDirectory }, stats.counts["walk folders"])
+        assertEquals(tree.size - 1, stats.counts["walk entries"])
+        assertEquals(tree.count { it.isFile }, stats.counts["walk sniffed"])
+        assertEquals(4, stats.counts["detectors tasks"])
+        assertEquals(1, stats.counts["detectors sticker tasks"])
+        assertEquals(1, stats.counts["stickers"])
+        assertEquals(3, stats.counts["embeddings tasks"])
+        assertEquals(3, stats.counts["embedded_detectors tasks"])
+        assertEquals(0, stats.counts["embedded_detectors sticker tasks"])
+        assertEquals(listOf("walk", "metadata", "jpegHeaders", "detectors", "embeddings", "embeddedDetectors", "groupDetectors"), stats.thermal.keys.toList())
+        assertEquals((0..6).toList(), stats.thermal.values.toList())
+    }
+
+    @Test
     fun `a run without an embedder still times every phase, the embeddings one included`() {
         photos()
 
