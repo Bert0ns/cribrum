@@ -168,7 +168,7 @@ private fun LazyGridScope.trashItems(trashed: List<TrashedImage>, selected: Set<
                     )
                 },
         ) {
-            TracedAsyncImage(File(item.file.path), "Trash.tile", null, Modifier.fillMaxSize())
+            TracedAsyncImage(File(item.file.path), "Trash.tile", null, Modifier.fillMaxSize(), tile = true)
             if (isSelected) SelectedCheck(Modifier.align(Alignment.TopEnd).padding(4.dp))
             Text(
                 daysText,

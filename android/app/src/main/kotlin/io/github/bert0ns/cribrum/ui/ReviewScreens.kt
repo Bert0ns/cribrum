@@ -99,7 +99,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import coil3.compose.AsyncImage
 import io.github.bert0ns.cribrum.R
 import io.github.bert0ns.cribrum.model.Category
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -246,12 +245,7 @@ private fun Tile(item: ReviewItem, marked: Boolean, onTap: () -> Unit, onHold: (
                 )
             },
     ) {
-        AsyncImage(
-            model = File(item.image.path),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
+        TracedAsyncImage(File(item.image.path), "Review.tile", null, Modifier.fillMaxSize(), tile = true)
         // A kept tile is a plain photo, so a check means "selected" everywhere in the app. A favourite's heart takes
         // the top right corner when the image is marked, so the trash badge moves left of it.
         if (marked) {
