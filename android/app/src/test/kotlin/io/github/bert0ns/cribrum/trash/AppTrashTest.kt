@@ -11,6 +11,8 @@ import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -27,6 +29,8 @@ private class MovableClock(var now: Instant) : Clock() {
     override fun withZone(zone: java.time.ZoneId) = this
 }
 
+// Robolectric: the walk and the trash trace their calls, and a plain JVM test has no android.os.Trace.
+@RunWith(RobolectricTestRunner::class)
 class AppTrashTest {
     @get:Rule
     val folder = TemporaryFolder()

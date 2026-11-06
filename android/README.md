@@ -92,6 +92,12 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Pipeline.phash.image`, `Pipeline.phash.sticker` | one perceptual hash |
 | `Pipeline.tasks` | `analyzeEach`'s building of its tasks: the index reads that tell what each image still needs |
 | `Pipeline.store` | `storeOutcome`: the index writes of one image's results |
+| `Walk.list`, `Walk.stat` | the walk's `listFiles` of one folder, and the `readAttributes` of all its entries (one section for the folder, not for each entry) |
+| `Walk.mediaStore` | the MediaStore pass: the query, and the stat of each row's file. Not the emits, which wait for the collector |
+| `Index.recordAll` | `ImageIndex.recordAll`: one transaction of the walk, `RECORD_BATCH` images at most |
+| `Group.<id>.analyze`, `Group.<id>.store` | a group detector's `analyze`, and the writes of its signals and fingerprint, for `exact_duplicate`, `near_duplicate` and `burst` |
+| `Trash.items` | `AppTrash.items()`: reading every item folder of the trash. It runs inside the calls that list, purge or restore |
+| `Trash.purge`, `Trash.unheld` | the scan worker's `purgeExpired`, and its `unheldPaths` of the purged images |
 | `Compress.list` | `CompressViewModel.refresh`: reading the photos, the favourites and the retention for the Compress page |
 | `Tile.wait`, `Tile.decode <bucket>` | one grid tile's decode (Compress, trash and review tiles, `TileDecoder`): the wait for one of its permits, and the decode holding it. The permits are the cores minus two, from 2 to 6; the full size views keep Coil's default 4 and have no such section. The bucket is the file's size rounded up to 1, 2, 4, 8, 16 or 32 MB (`<=8MB`, `>32MB`), never a name. Both are async sections, so how many `Tile.decode` overlap at one time is the parallelism |
 | `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |

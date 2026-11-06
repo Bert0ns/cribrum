@@ -3,6 +3,7 @@ package io.github.bert0ns.cribrum.sources
 
 import android.content.ContentResolver
 import android.provider.MediaStore
+import androidx.tracing.trace
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.trash.TRASH_FOLDER
@@ -80,14 +81,16 @@ class FilesystemImageSource(
         val folders = ArrayDeque(listOf(root))
         while (folders.isNotEmpty()) {
             val folder = folders.removeFirst()
-            val listing = folder.listFiles()
+            val listing = trace("Walk.list") { folder.listFiles() }
             if (listing == null) listedAll = false
-            // One stat per entry: it tells a folder from a file and gives the size and mtime.
-            val entries = listing.orEmpty().sortedBy { it.name }.mapNotNull { entry ->
-                try {
-                    entry to Files.readAttributes(entry.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-                } catch (_: IOException) {
-                    null // unreadable or vanished during the scan
+            // One stat per entry: it tells a folder from a file and gives the size and mtime. One section for the folder's entries.
+            val entries = trace("Walk.stat") {
+                listing.orEmpty().sortedBy { it.name }.mapNotNull { entry ->
+                    try {
+                        entry to Files.readAttributes(entry.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+                    } catch (_: IOException) {
+                        null // unreadable or vanished during the scan
+                    }
                 }
             }
             val (dirs, files) = entries.partition { (_, attributes) -> attributes.isDirectory }
@@ -146,23 +149,25 @@ class MediaStoreImageSource(private val resolver: ContentResolver, private val v
     override val walkedRoots: List<File> = emptyList()
 
     override fun scan(): Flow<ImageRef> = flow {
-        val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val paths = mutableListOf<String>()
-        @Suppress("DEPRECATION") // DATA is the only way to the path, and All files access allows reading it
-        resolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
-            while (cursor.moveToNext()) cursor.getString(0)?.let(paths::add)
-        }
-        for (path in paths.sorted()) {
-            val file = File(path)
-            if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) continue
-            val image = try {
-                if (!Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
-                file.toImageRef()
-            } catch (_: IOException) {
-                continue
+        // The query and the stats are one section; the emits wait for the collector, so they stay out of it.
+        val images = trace("Walk.mediaStore") {
+            val uri = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
+            val paths = mutableListOf<String>()
+            @Suppress("DEPRECATION") // DATA is the only way to the path, and All files access allows reading it
+            resolver.query(uri, arrayOf(MediaStore.Images.Media.DATA), null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) cursor.getString(0)?.let(paths::add)
             }
-            emit(image)
+            paths.sorted().mapNotNull { path ->
+                val file = File(path)
+                if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) return@mapNotNull null
+                try {
+                    if (Files.isRegularFile(file.toPath(), LinkOption.NOFOLLOW_LINKS)) file.toImageRef() else null
+                } catch (_: IOException) {
+                    null
+                }
+            }
         }
+        images.forEach { emit(it) }
     }.flowOn(Dispatchers.IO)
 }
 
