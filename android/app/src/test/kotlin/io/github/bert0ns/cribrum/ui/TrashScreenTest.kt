@@ -63,6 +63,16 @@ class TrashScreenTest {
     }
 
     @Test
+    fun `an empty trash says so, but not while its list is still being read`() {
+        var loading by mutableStateOf(true)
+        compose.setContent { TrashScreen(emptyList(), emptySet(), {}, { _, _ -> }, {}, {}, loading = loading) }
+
+        compose.onNodeWithText("The trash is empty.").assertDoesNotExist()
+        loading = false
+        compose.onNodeWithText("The trash is empty.").assertExists()
+    }
+
+    @Test
     fun `the hint says how to select and how to see an image full size`() {
         compose.setContent { TrashScreen(trashed, emptySet(), {}, { _, _ -> }, {}, {}) }
 
