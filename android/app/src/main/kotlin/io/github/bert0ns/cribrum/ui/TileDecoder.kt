@@ -43,7 +43,10 @@ private const val MB = 1024L * 1024L
  * Gives the request the grid tiles' decoder (see [TileDecoder]), their disk cache ([TileCache]) and a `section` trace for its
  * load. Only the grids use it: the full size views load with Coil's default fetcher and decoder.
  */
-internal fun ImageRequest.Builder.tile(section: String): ImageRequest.Builder = fetcherFactory(TileCache.fetcherFactory, Uri::class).decoderFactory(TileDecoder.factory).traced(section)
+internal fun ImageRequest.Builder.tile(section: String): ImageRequest.Builder {
+    if (section == "Compress.tile") extras[TileCache.COMPRESS_TILE] = true
+    return fetcherFactory(TileCache.fetcherFactory, Uri::class).decoderFactory(TileDecoder.factory).traced(section)
+}
 
 /**
  * The decoder of the grid tiles (Compress, trash and review), under a limit of its own, [tilePermits]. It picks the decoder

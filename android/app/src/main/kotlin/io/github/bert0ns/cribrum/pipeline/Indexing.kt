@@ -43,6 +43,7 @@ import io.github.bert0ns.cribrum.sources.MergedImageSource
 import io.github.bert0ns.cribrum.sources.NotImages
 import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.ExpiredPurge
+import io.github.bert0ns.cribrum.ui.TilePreparing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -225,6 +226,8 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
                     if (CompressBatch.busy) Result.success() else scan()
                 } finally {
                     running.unlock()
+                    // Once the lock is free, so the job does not take the ending scan for a new one (docs/design.md §8).
+                    if (scanned) TilePreparing.enqueue(applicationContext)
                 }
             }
         } catch (error: Exception) {
@@ -241,6 +244,9 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
     }
 
     protected var isForeground = false
+
+    /** The pipeline ran to its end, so the Compress list may have changed. */
+    private var scanned = false
 
     /** The scan itself, open so a test can tell when one starts. */
     protected open suspend fun scan(): Result {
@@ -274,6 +280,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
                     stats
                 }
             }
+            scanned = true
             return Result.success()
         } finally {
             applicationContext.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)

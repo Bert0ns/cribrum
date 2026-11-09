@@ -28,6 +28,7 @@ import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
 import io.github.bert0ns.cribrum.trash.AppTrash
 import io.github.bert0ns.cribrum.trash.ExpiredPurge
+import io.github.bert0ns.cribrum.ui.TilePreparing
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
@@ -120,6 +121,9 @@ class IndexingWorkTest {
     }
 
     private fun scheduled() = WorkManager.getInstance(app).getWorkInfosByTag(Indexing.TAG).get()
+
+    /** The tile preparing job a finished scan enqueues. Its battery constraint keeps it waiting in the test WorkManager. */
+    private fun preparing() = WorkManager.getInstance(app).getWorkInfosForUniqueWork(TilePreparing.WORK).get().filterNot { it.state.isFinished }
 
     private fun nightly() = scheduled().single { it.tags.contains(Indexing.NIGHTLY_TAG) }
 
@@ -625,6 +629,7 @@ class IndexingWorkTest {
         assertEquals(1, worker.models)
         assertEquals(1, runtime.closed)
         assertFalse(IndexWorker.running.isLocked)
+        assertEquals(1, preparing().size)
     }
 
     @Test
@@ -642,6 +647,7 @@ class IndexingWorkTest {
 
         assertEquals(1, runtime.closed)
         assertFalse(IndexWorker.running.isLocked)
+        assertEquals(0, preparing().size)
     }
 
     @Test
@@ -658,5 +664,6 @@ class IndexingWorkTest {
 
         assertEquals(1, runtime.closed)
         assertFalse(IndexWorker.running.isLocked)
+        assertEquals(0, preparing().size)
     }
 }
