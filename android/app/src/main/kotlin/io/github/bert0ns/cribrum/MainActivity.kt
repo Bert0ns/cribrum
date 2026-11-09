@@ -67,6 +67,7 @@ import io.github.bert0ns.cribrum.ui.Destination
 import io.github.bert0ns.cribrum.ui.FavoriteRequestHost
 import io.github.bert0ns.cribrum.ui.Folder
 import io.github.bert0ns.cribrum.ui.Haptic
+import io.github.bert0ns.cribrum.ui.HomeReloads
 import io.github.bert0ns.cribrum.ui.ReviewOrderMenu
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.ScanStatus
@@ -200,12 +201,14 @@ private fun AppContent(model: ReviewViewModel) {
             }
         }
     }
-    // The list reloads when a scan starts or ends and at each phase, so the candidates of the early
-    // detectors show up while the embeddings are still computed.
+    // The home and the thresholds read the whole index, so they reload when a scan ends or a phase that can add
+    // candidates is over: the candidates of the early detectors still show while the embeddings are computed.
+    val reloads = remember { HomeReloads() }
     LaunchedEffect(progress == null, progress?.step) {
-        if (state.screen == Screen.Home) model.refresh()
-        if (state.screen == Screen.Settings) model.reloadSettings() // the scan changed the embedding count
-        if (state.screen == Screen.Thresholds) model.reloadThresholds()
+        val reload = reloads.next(progress?.step)
+        if (reload && state.screen == Screen.Home) model.refresh()
+        if (state.screen == Screen.Settings) model.reloadSettings() // at each step: the embeddings change their count
+        if (reload && state.screen == Screen.Thresholds) model.reloadThresholds()
     }
     val decision = state.lastDecision
     val trashedMessage = decision?.let { appliedMessage(context, it) }
