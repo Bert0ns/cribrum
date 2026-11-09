@@ -68,6 +68,8 @@ fun TrashScreen(
      */
     onDelete: (Set<String>) -> Unit,
     modifier: Modifier = Modifier,
+    /** The list is still being read: the progress bar above says so, and the screen does not claim the trash is empty. */
+    loading: Boolean = false,
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var fullSize by remember { mutableStateOf<TrashedImage?>(null) }
@@ -75,7 +77,7 @@ fun TrashScreen(
     val targets = if (selected.isEmpty()) trashed else trashed.filter { it.file.path in selected }
     Column(modifier.fillMaxSize()) {
         if (trashed.isEmpty()) {
-            Text(stringResource(R.string.trash_empty), Modifier.padding(16.dp))
+            if (!loading) Text(stringResource(R.string.trash_empty), Modifier.padding(16.dp))
             return@Column
         }
         // How long the trash keeps images is in Settings. Here the hint says how to look before restoring.

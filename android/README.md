@@ -103,7 +103,7 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Compress.tile` | one Compress tile's image load, from Coil's request start to its success, error or cancel. The tiles of a screen overlap, so the time to the first screen of tiles is from the first start to the last end |
 | `Review.tile` | one review tile's image load, like `Compress.tile` |
 | `Compressor.preview` | one `Compressor.preview`, the before and after of the Compress summary, inside its lock (not the wait for the one before) |
-| `Trash.list` | `ReviewViewModel.openTrash`: reading the trash's list |
+| `Trash.list` | `ReviewViewModel.openTrash`: reading the trash's list, after the screen is already up and loading |
 | `Trash.tile` | one trash tile's image load, like `Compress.tile` |
 | `StorageMap.build` | `ReviewViewModel.openStorageMap`: reading the images that are not in the trash and building the folder tree |
 | `StorageMap.layout` | `layoutTreemap` for the map on screen, in the composition, so it runs again when the folder or the size changes |

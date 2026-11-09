@@ -832,6 +832,24 @@ class ReviewViewModelTest {
         assertNull(model.state.value.storage)
     }
 
+    @Test
+    fun `the trash screen opens at once, empty and loading, and fills when the list is read`() {
+        val release = CompletableDeferred<Unit>()
+        val model = ReviewViewModel(app, Review(app.index, SlowTrash(release)))
+        settle(model) { true }
+
+        model.openTrash()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(Screen.Trash(Destination.Clean), model.state.value.screen)
+        assertTrue(model.state.value.loading)
+        assertTrue(model.state.value.trashed.isEmpty())
+
+        release.complete(Unit)
+        settle(model) { true }
+        assertEquals(Screen.Trash(Destination.Clean), model.state.value.screen)
+    }
+
     /** A trash that records what it was asked and can hold the moves, like a slow volume. */
     private class RecordingTrash(private val gate: CompletableDeferred<Unit>? = null) : Trash {
         val moves = mutableListOf<List<ImageRef>>()

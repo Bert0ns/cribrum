@@ -181,8 +181,20 @@ class ReviewViewModel @JvmOverloads constructor(
         state.copy(reviewOrder = grouping).showing(pageFor(category, state, grouping = grouping), keepMarksOf = state)
     }
 
-    fun openTrash() = load {
-        it.copy(screen = Screen.Trash(it.screen.destination), trashed = traceSuspend("Trash.list") { review.trashed() }, selected = emptySet())
+    /**
+     * The screen comes up at once, empty and loading, and fills when the list is read: a big trash takes a second.
+     * A read that fails puts back the screen the user was on, as any failed change leaves it.
+     */
+    fun openTrash() = load { before ->
+        val opened = before.copy(screen = Screen.Trash(before.screen.destination), trashed = emptyList(), selected = emptySet())
+        mutableState.value = opened.copy(loading = true)
+        val trashed = try {
+            traceSuspend("Trash.list") { review.trashed() }
+        } catch (e: Exception) {
+            if (e !is CancellationException) mutableState.value = before.copy(loading = true)
+            throw e
+        }
+        opened.copy(trashed = trashed)
     }
 
     /** Only the embeddings go: the next scan computes them again. */
