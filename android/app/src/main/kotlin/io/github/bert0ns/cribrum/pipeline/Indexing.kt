@@ -42,7 +42,7 @@ import io.github.bert0ns.cribrum.sources.MediaStoreImageSource
 import io.github.bert0ns.cribrum.sources.MergedImageSource
 import io.github.bert0ns.cribrum.sources.NotImages
 import io.github.bert0ns.cribrum.tracing.traceSuspend
-import io.github.bert0ns.cribrum.trash.unheldPaths
+import io.github.bert0ns.cribrum.trash.ExpiredPurge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -258,8 +258,9 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
         try {
             val trashFailures = mutableListOf<Failure>()
             try {
-                val purged = traceSuspend("Trash.purge") { purgeExpired(app) }
-                app.index.forgetTrashed(traceSuspend("Trash.unheld") { app.trash.unheldPaths(purged) })
+                // The purge has just read the whole trash, so what it left tells which paths are still held.
+                val purge = traceSuspend("Trash.purge") { purgeExpired(app) }
+                app.index.forgetTrashed(traceSuspend("Trash.unheld") { purge.unheldPaths })
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 Log.w(Indexing.TAG, "Failed to purge expired trash", error)
@@ -288,7 +289,7 @@ open class IndexWorker(context: Context, parameters: WorkerParameters) : Corouti
 
     protected open suspend fun setForegroundInfo(info: ForegroundInfo) = setForeground(info)
 
-    protected open suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = app.trash.purgeExpired()
+    protected open suspend fun purgeExpired(app: CribrumApp): ExpiredPurge = app.trash.purgeExpired()
 
     protected open fun pipeline(app: CribrumApp, embedder: MobileClip): Pipeline {
         val power = applicationContext.getSystemService(PowerManager::class.java)

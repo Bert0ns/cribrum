@@ -27,6 +27,7 @@ import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.ExpiredPurge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.filterNotNull
@@ -460,7 +461,7 @@ class IndexingWorkTest {
                     foregroundAttempted = true
                     throw IllegalStateException("ForegroundServiceStartNotAllowedException")
                 }
-                override suspend fun purgeExpired(app: CribrumApp) = emptyList<ImageRef>()
+                override suspend fun purgeExpired(app: CribrumApp) = ExpiredPurge.NONE
                 override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
                 override suspend fun scan(): Result {
                     try {
@@ -491,7 +492,7 @@ class IndexingWorkTest {
             object : IndexWorker(ctx, params) {
                 override fun hasStorageAccess() = true
                 override suspend fun setForegroundInfo(info: ForegroundInfo) {}
-                override suspend fun purgeExpired(app: CribrumApp): List<ImageRef> = throw IllegalStateException("disk error during purge")
+                override suspend fun purgeExpired(app: CribrumApp): ExpiredPurge = throw IllegalStateException("disk error during purge")
                 override fun pipeline(app: CribrumApp, embedder: MobileClip) = Pipeline(app.index, detectors = emptyList(), groupDetectors = emptyList())
                 override suspend fun scan(): Result {
                     try {
@@ -579,9 +580,9 @@ class IndexingWorkTest {
             foreground++
         }
 
-        override suspend fun purgeExpired(app: CribrumApp): List<ImageRef> {
+        override suspend fun purgeExpired(app: CribrumApp): ExpiredPurge {
             purged++
-            return emptyList()
+            return ExpiredPurge.NONE
         }
 
         override fun loadVision(): ModelRuntime {

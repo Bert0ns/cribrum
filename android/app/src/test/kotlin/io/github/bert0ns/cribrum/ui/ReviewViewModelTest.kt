@@ -20,6 +20,7 @@ import io.github.bert0ns.cribrum.review.PAGE_SIZE
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.review.ReviewOrder
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.ExpiredPurge
 import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.trash.TrashedImage
 import kotlinx.coroutines.CompletableDeferred
@@ -811,7 +812,7 @@ class ReviewViewModelTest {
 
         override suspend fun purge(images: List<ImageRef>) = images
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     @Test
@@ -851,7 +852,7 @@ class ReviewViewModelTest {
 
         override suspend fun purge(images: List<ImageRef>) = images
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     /** What the screen hands over when the user confirms: the marked paths to trash, and the others on the page to keep. */
@@ -1149,7 +1150,7 @@ class ReviewViewModelTest {
 
         override suspend fun purge(images: List<ImageRef>) = images.take(1).also { inside.removeAll(it) }
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     /** A trash that remembers what it was asked to purge, and purges it. */
@@ -1168,7 +1169,7 @@ class ReviewViewModelTest {
             inside.removeAll(it)
         }
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     @Test
@@ -1211,7 +1212,7 @@ class ReviewViewModelTest {
 
         override suspend fun purge(images: List<ImageRef>) = images.also { inside.removeAll(it) }
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     @Test
@@ -1293,7 +1294,7 @@ class ReviewViewModelTest {
 
         override suspend fun purge(images: List<ImageRef>) = images
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     @Test
@@ -1380,7 +1381,7 @@ class ReviewViewModelTest {
             for (image in it) inside.remove(inside.first { item -> item.original == image })
         }
 
-        override suspend fun purgeExpired() = emptyList<ImageRef>()
+        override suspend fun purgeExpired() = ExpiredPurge.NONE
     }
 
     @Test
