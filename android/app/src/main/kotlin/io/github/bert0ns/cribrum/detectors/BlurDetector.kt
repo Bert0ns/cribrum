@@ -52,21 +52,26 @@ class BlurDetector : Detector {
             val w = gray.width - 2
             val h = gray.height - 2
             if (w <= 0 || h <= 0) return null
-            // 4-neighbor Laplacian over the interior pixels
-            val laplacian = DoubleArray(w * h) { i ->
-                val x = i % w + 1
-                val y = i / w + 1
-                (gray[x, y - 1] + gray[x, y + 1] + gray[x - 1, y] + gray[x + 1, y] - 4 * gray[x, y]).toDouble()
+            // 4-neighbor Laplacian over the interior pixels, summed in Float as before, left to right
+            val pixels = gray.pixels
+            val stride = gray.width
+            val laplacian = DoubleArray(w * h)
+            for (y in 0 until h) {
+                var i = (y + 1) * stride + 1
+                for (x in 0 until w) {
+                    laplacian[y * w + x] = (pixels[i - stride] + pixels[i + stride] + pixels[i - 1] + pixels[i + 1] - 4 * pixels[i]).toDouble()
+                    i++
+                }
             }
             // A portrait with a blurred background still has a sharp region: score on that one.
             var peak = 0.0
             for (rows in split(h, TILES)) {
                 for (columns in split(w, TILES)) {
                     if (rows.isEmpty() || columns.isEmpty()) continue // images narrower than TILES px
-                    peak = maxOf(peak, variance(rows.flatMap { y -> columns.map { x -> laplacian[y * w + x] } }))
+                    peak = maxOf(peak, variance(laplacian, w, rows, columns))
                 }
             }
-            return variance(laplacian.asList()) to peak
+            return variance(laplacian, w, 0 until h, 0 until w) to peak
         }
 
         /** numpy's array_split: the first n % parts ranges get one item more. */
@@ -78,9 +83,23 @@ class BlurDetector : Detector {
             }
         }
 
-        private fun variance(values: List<Double>): Double {
-            val mean = values.sum() / values.size
-            return values.sumOf { (it - mean) * (it - mean) } / values.size
+        /**
+         * The variance of the [rows] x [columns] block of [values], a [w] wide image, row by row. The sums
+         * add the same values in the same order as a list of the block did, so the result is the same to the bit.
+         */
+        private fun variance(values: DoubleArray, w: Int, rows: IntRange, columns: IntRange): Double {
+            val count = (rows.last - rows.first + 1) * (columns.last - columns.first + 1)
+            var sum = 0.0
+            for (y in rows) for (x in columns) sum += values[y * w + x]
+            val mean = sum / count
+            var squares = 0.0
+            for (y in rows) {
+                for (x in columns) {
+                    val d = values[y * w + x] - mean
+                    squares += d * d
+                }
+            }
+            return squares / count
         }
     }
 }
