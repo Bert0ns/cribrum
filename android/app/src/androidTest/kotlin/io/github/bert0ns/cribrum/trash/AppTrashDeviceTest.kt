@@ -104,7 +104,7 @@ class AppTrashDeviceTest {
         trash.moveToTrash(listOf(image))
         val later = Clock.fixed(Instant.now() + TrashRetention.DEFAULT, ZoneOffset.UTC)
 
-        assertEquals(listOf(image), testTrash(later).purgeExpired())
+        assertEquals(listOf(image), testTrash(later).purgeExpired().purged)
         assertTrue(trash.trashed().none { it.original == image })
         assertTrue("Real device trash item must not be purged", sentinelFile.exists())
     }

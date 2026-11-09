@@ -158,7 +158,7 @@ class AppTrashTest {
 
         clock.now += Duration.ofDays(20)
 
-        assertEquals(listOf(old), purgeExpired())
+        assertEquals(listOf(old), purgeExpired().purged)
         assertEquals(listOf(recent), trashed().map { it.original })
         assertEquals(
             listOf(".nomedia", trashed().single().file.parentFile!!.name).sorted(),
@@ -172,13 +172,13 @@ class AppTrashTest {
         moveToTrash(listOf(image))
         clock.now += Duration.ofDays(10)
 
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
         assertEquals(Instant.parse("2026-11-18T12:00:00Z"), trashed().single().purgeAt)
 
         retention = Duration.ofDays(7)
 
         assertEquals(Instant.parse("2026-10-26T12:00:00Z"), trashed().single().purgeAt)
-        assertEquals(listOf(image), purgeExpired())
+        assertEquals(listOf(image), purgeExpired().purged)
         assertTrue(trashed().isEmpty())
     }
 
@@ -189,7 +189,7 @@ class AppTrashTest {
         clock.now += Duration.ofDays(40)
         retention = Duration.ofDays(60)
 
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
         assertEquals(listOf(image), trashed().map { it.original })
     }
 
@@ -238,7 +238,9 @@ class AppTrashTest {
             folder.setWritable(true)
         }
 
-        assertEquals(listOf(free), purged)
+        assertEquals(listOf(free), purged.purged)
+        // An item it could not delete is still in the trash, so its path is held and its row stays.
+        assertEquals(setOf(stuck.path), purged.held)
         assertEquals(listOf(stuck), trashed().map { it.original })
     }
 
@@ -294,7 +296,7 @@ class AppTrashTest {
         File(invalidFolder, "origin.properties").writeBytes(byteArrayOf(0x00, 0x1F, 0x7F))
 
         assertEquals(emptyList<TrashedImage>(), trashed())
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
     }
 
     @Test
@@ -319,7 +321,7 @@ class AppTrashTest {
         assertEquals(clock.now, items.single().trashedAt)
         assertEquals(clock.now + retention, items.single().purgeAt)
 
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
         assertTrue(imgFile.exists())
     }
 
@@ -337,7 +339,7 @@ class AppTrashTest {
         val rewoundNow = clock.now
 
         // purgeExpired detects now < seen_at and rewrites seen_at to now
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
 
         val updatedProps = Properties().apply { originFile.inputStream().use(::load) }
         assertEquals(rewoundNow.toString(), updatedProps.getProperty("seen_at"))
@@ -346,12 +348,12 @@ class AppTrashTest {
         // Advance clock by 31 days (retention is 30 days from rewoundNow, but 26 days from trashedAt)
         // At this point: seen_at + 30 days <= clock.now, but trashed_at + 30 days > clock.now!
         clock.now = rewoundNow + Duration.ofDays(28)
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
         assertTrue(trashed().isNotEmpty())
 
         // Advance clock so both trashed_at + 30 days and seen_at + 30 days have passed
         clock.now = trashedAt + Duration.ofDays(31)
-        assertEquals(listOf(image), purgeExpired())
+        assertEquals(listOf(image), purgeExpired().purged)
         assertTrue(trashed().isEmpty())
     }
 
@@ -373,14 +375,14 @@ class AppTrashTest {
         originFile.outputStream().use { props.store(it, null) }
 
         // purgeExpired writes seen_at = clock.now and does not purge yet
-        assertEquals(emptyList<ImageRef>(), purgeExpired())
+        assertEquals(emptyList<ImageRef>(), purgeExpired().purged)
 
         val loaded = Properties().apply { originFile.inputStream().use(::load) }
         assertEquals(clock.now.toString(), loaded.getProperty("seen_at"))
 
         // Clock advances by 31 days (retention 30 days from seen_at)
         clock.now += Duration.ofDays(31)
-        val purged = purgeExpired()
+        val purged = purgeExpired().purged
         assertEquals(1, purged.size)
         assertEquals("${volume.path}/DCIM/legacy.jpg", purged.single().path)
         assertFalse(folder.exists())
@@ -751,6 +753,42 @@ class AppTrashTest {
         moveToTrash(listOf(swapped, other))
 
         assertEquals(listOf(other.path), unheldPaths(purge(listOf(image, other))))
+    }
+
+    @Test
+    fun `the expired purge tells the paths left unheld as a new listing would`() = test {
+        val image = photo("DCIM/Camera/a.jpg", "the original photo")
+        val swapped = (replaceWithCopy(image, copyOf(image)) as Swap.Swapped).copy
+        val other = photo("DCIM/Camera/b.jpg")
+        moveToTrash(listOf(other))
+        clock.now += Duration.ofDays(10)
+        moveToTrash(listOf(swapped))
+        clock.now += Duration.ofDays(25)
+
+        val purge = purgeExpired()
+
+        assertEquals(setOf(image, other), purge.purged.toSet())
+        assertEquals(setOf(image.path), purge.held)
+        assertEquals(listOf(other.path), purge.unheldPaths)
+        assertEquals(unheldPaths(purge.purged), purge.unheldPaths)
+    }
+
+    @Test
+    fun `the parallel listing gives the items and the order one read after another gives`() = test {
+        val images = (0 until 40).map { photo("DCIM/p$it.jpg", "photo $it") }
+        for (image in images.shuffled(java.util.Random(7))) {
+            clock.now += Duration.ofMinutes(1)
+            moveToTrash(listOf(image))
+        }
+        // Two items trashed at the same instant: the sort keeps them in listing order, as before.
+        moveToTrash(listOf(photo("DCIM/tie1.jpg"), photo("DCIM/tie2.jpg")))
+        File(volume, "$TRASH_FOLDER/no-origin").mkdirs()
+        File(volume, "$TRASH_FOLDER/origin-is-a-folder/origin.properties").mkdirs()
+
+        val oneByOne = volume.resolve(TRASH_FOLDER).listFiles()!!.mapNotNull { readItem(it) }.sortedByDescending { it.trashedAt }
+
+        assertEquals(42, oneByOne.size)
+        assertEquals(oneByOne, trashed())
     }
 
     @Test

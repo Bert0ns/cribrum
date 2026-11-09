@@ -4,12 +4,15 @@ package io.github.bert0ns.cribrum.trash
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.os.storage.StorageManager
-import androidx.tracing.trace
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.toImageRef
 import io.github.bert0ns.cribrum.sources.FavoriteRequests
 import io.github.bert0ns.cribrum.sources.queryFavoritesAmong
+import io.github.bert0ns.cribrum.tracing.traceSuspend
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -72,17 +75,26 @@ interface Trash {
     suspend fun purge(images: List<ImageRef>): List<ImageRef>
 
     /** Deletes what has been in the trash for longer than the retention the user chose. Returns what it deleted. */
-    suspend fun purgeExpired(): List<ImageRef>
+    suspend fun purgeExpired(): ExpiredPurge
+}
+
+/** What [Trash.purgeExpired] deleted, and the original paths of the items it read and left in the trash. */
+data class ExpiredPurge(val purged: List<ImageRef>, val held: Set<String>) {
+    /** [unheldPaths] without listing the trash again: what the purge read, minus what it deleted, is what is left. */
+    val unheldPaths: List<String> get() = unheld(purged, held)
+
+    companion object {
+        val NONE = ExpiredPurge(emptyList(), emptySet())
+    }
 }
 
 /**
  * The paths of [purged] that no item left in the trash holds, for the index to forget. A compressed original and
  * its copy share a path, so purging one must not drop the row the other still needs (docs/design.md §9).
  */
-suspend fun Trash.unheldPaths(purged: List<ImageRef>): List<String> {
-    val held = trashed().mapTo(HashSet()) { it.original.path }
-    return purged.map { it.path }.filterNot { it in held }
-}
+suspend fun Trash.unheldPaths(purged: List<ImageRef>): List<String> = unheld(purged, trashed().mapTo(HashSet()) { it.original.path })
+
+private fun unheld(purged: List<ImageRef>, held: Set<String>): List<String> = purged.map { it.path }.filterNot { it in held }
 
 /**
  * Each trashed file gets its own folder in the trash of its volume, holding the file under its
@@ -127,7 +139,7 @@ class AppTrash(
     }
 
     /** The images put back, and the paths among them that were favourites. */
-    private fun restoreFiles(images: List<ImageRef>): Pair<List<ImageRef>, List<String>> {
+    private suspend fun restoreFiles(images: List<ImageRef>): Pair<List<ImageRef>, List<String>> {
         val byOriginal = items().associateBy { it.original }
         val restored = images.filter { image ->
             val item = byOriginal[image] ?: return@filter false
@@ -196,17 +208,18 @@ class AppTrash(
         }.map { it.original }
     }
 
-    override suspend fun purgeExpired(): List<ImageRef> = io {
+    override suspend fun purgeExpired(): ExpiredPurge = io {
         val now = clock.instant()
         val expired = mutableListOf<ImageRef>()
+        val held = HashSet<String>()
         for (volume in volumes()) {
             val trashFolder = File(volume, TRASH_FOLDER)
             for (folder in trashFolder.listFiles().orEmpty()) {
                 val item = readItem(folder, syncSeenAt = true) ?: continue
-                if (item.purgeAt <= now && deleteItem(folder)) expired += item.original
+                if (item.purgeAt <= now && deleteItem(folder)) expired += item.original else held += item.original.path
             }
         }
-        expired
+        ExpiredPurge(expired, held)
     }
 
     /** Returns the item folder the file went to, or null if it stayed where it was. */
@@ -228,10 +241,15 @@ class AppTrash(
         return null
     }
 
-    private fun items(): List<TrashedImage> = trace("Trash.items") {
-        volumes().flatMap { volume ->
-            File(volume, TRASH_FOLDER).listFiles().orEmpty().mapNotNull { readItem(it) }
-        }.sortedByDescending { it.trashedAt }
+    /**
+     * Reads the item folders [READS] at a time: each read waits on the file system, shared storage most of all.
+     * The reads write nothing, and the items come in listing order before the sort, as one after another did.
+     */
+    private suspend fun items(): List<TrashedImage> = traceSuspend("Trash.items") {
+        val folders = volumes().flatMap { volume -> File(volume, TRASH_FOLDER).listFiles().orEmpty().asList() }
+        coroutineScope {
+            folders.map { async(reads) { readItem(it) } }.awaitAll()
+        }.filterNotNull().sortedByDescending { it.trashedAt }
     }
 
     private fun rootOf(file: File): File? {
@@ -260,7 +278,7 @@ class AppTrash(
     /** Null for anything the trash did not write, or that lost its file. */
     internal fun readItem(folder: File, syncSeenAt: Boolean = false): TrashedImage? = runCatching {
         val originFile = File(folder, ORIGIN)
-        if (!originFile.isFile) return null
+        // No isFile first: opening a missing file or a folder throws, and the throw means null.
         val origin = Properties().apply { originFile.inputStream().use(::load) }
         val path = origin.getProperty("path") ?: return null
         val fileName = File(path).name
@@ -305,6 +323,10 @@ class AppTrash(
     companion object {
         private const val ORIGIN = "origin.properties"
 
+        /** Item reads at once: enough for the file system to serve several, few enough to leave IO threads to the tiles. */
+        private const val READS = 6
+        private val reads = Dispatchers.IO.limitedParallelism(READS)
+
         fun forDevice(
             context: Context,
             clock: Clock = Clock.systemUTC(),
@@ -329,4 +351,4 @@ private fun Properties.parsedSeenAt(): Instant? = getProperty("seen_at")?.let { 
 
 private fun Properties.seenAt(now: Instant): Instant = parsedSeenAt()?.takeIf { it <= now } ?: now
 
-private suspend fun <T> io(block: () -> T): T = withContext(Dispatchers.IO) { block() }
+private suspend fun <T> io(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
