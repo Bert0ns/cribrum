@@ -14,9 +14,10 @@ class BlurDetector : Detector {
     override val id = "blur"
     override val version = 1
     override val category = Category.BLURRY
+    override val decodeSide = MAX_SIDE
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
-        val (globalVariance, peakVariance) = measure(loadGrayscale(File(image.path), MAX_SIDE)) ?: return emptyList()
+        val (globalVariance, peakVariance) = measure(context.pixels(image).gray(MAX_SIDE)) ?: return emptyList()
         val score = (HALF_SCORE_VARIANCE / (HALF_SCORE_VARIANCE + peakVariance)).toFloat()
         val evidence = mapOf(
             "global_variance" to "%.1f".format(Locale.ROOT, globalVariance),

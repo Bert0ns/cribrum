@@ -5,6 +5,8 @@ import android.graphics.ColorSpace
 import androidx.exifinterface.media.ExifInterface
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertSame
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -20,6 +22,16 @@ import java.util.zip.DeflaterOutputStream
 private fun gray(width: Int, height: Int, vararg values: Int) = Gray(width, height, FloatArray(values.size) { values[it].toFloat() })
 
 private val DECODE_FIXTURES = File("../../fixtures/decode").canonicalFile
+
+/** loadGrayscale as it was before #353: the luminance of the whole decode, then turned. Do not optimize it. */
+private fun referenceGrayscale(file: File, maxSide: Int): Gray {
+    val decoded = decode(file, maxSide)
+    val luminance = FloatArray(decoded.pixels.size) { i ->
+        val c = decoded.pixels[i]
+        (((c shr 16 and 0xff) * 19595 + (c shr 8 and 0xff) * 38470 + (c and 0xff) * 7471 + 0x8000) shr 16).toFloat()
+    }
+    return thumbnail(transpose(Gray(decoded.width, decoded.height, luminance), orientation(file)), maxSide)
+}
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -172,5 +184,52 @@ class ImagingTest {
         val loaded = loadGrayscale(file, 256)
 
         assertEquals(192 to 256, loaded.width to loaded.height)
+    }
+
+    @Test
+    fun `pixels decode once per sample size and give what a decode of its own gives`() {
+        val file = TestImage.texture(2000, 1500).save(File(folder.root, "a.jpg"), Bitmap.CompressFormat.JPEG)
+        val pixels = Pixels(file)
+
+        val half = pixels.decode(640)
+        assertSame("640 and 512 both draft at 1/2", half, pixels.decode(512))
+        assertEquals(1000 to 750, half.width to half.height)
+        assertArrayEquals(decode(file, 512).pixels, half.pixels)
+
+        val quarter = pixels.decode(256)
+        assertEquals(500 to 375, quarter.width to quarter.height)
+        assertSame("300 drafts at 1/4 too", quarter, pixels.decode(300))
+        assertArrayEquals(decode(file, 256).pixels, quarter.pixels)
+
+        // Only the last decode is kept, so a side that comes back after another sample size decodes again.
+        val again = pixels.decode(640)
+        assertNotSame(half, again)
+        assertArrayEquals(half.pixels, again.pixels)
+    }
+
+    @Test
+    fun `an image that is not a jpeg decodes once for every side`() {
+        val pixels = Pixels(TestImage.texture(700, 300).save(File(folder.root, "a.png")))
+
+        assertSame(pixels.decode(640), pixels.decode(256))
+    }
+
+    @Test
+    fun `the grayscale is computed once per side and is the one loadGrayscale gave before`() {
+        val image = TestImage.texture(1100, 700)
+        for (orientation in 0..9) {
+            val file = image.save(File(folder.root, "$orientation.jpg"), Bitmap.CompressFormat.JPEG)
+            ExifInterface(file).apply { setAttribute(ExifInterface.TAG_ORIENTATION, "$orientation") }.saveAttributes()
+            val pixels = Pixels(file)
+            // 512 decodes at full size and shrinks, 256 drafts at 1/2, and 1100 is above both sides and keeps them.
+            for (side in listOf(512, 256, 1100)) {
+                val gray = pixels.gray(side)
+                val expected = referenceGrayscale(file, side)
+                val name = "orientation $orientation, side $side"
+                assertSame(name, gray, pixels.gray(side))
+                assertEquals(name, expected.width to expected.height, gray.width to gray.height)
+                assertArrayEquals(name, expected.pixels, gray.pixels, 0f)
+            }
+        }
     }
 }

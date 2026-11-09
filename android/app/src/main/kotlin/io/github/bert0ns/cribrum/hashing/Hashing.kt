@@ -2,6 +2,7 @@
 package io.github.bert0ns.cribrum.hashing
 
 import com.appmattus.crypto.Algorithm
+import io.github.bert0ns.cribrum.imaging.Gray
 import io.github.bert0ns.cribrum.imaging.loadGrayscale
 import io.github.bert0ns.cribrum.imaging.resize
 import io.github.bert0ns.cribrum.model.ImageRef
@@ -35,8 +36,10 @@ fun contentHash(image: ImageRef): String {
  * [PHASH_DECODE_SIDE] and the resampling are part of the hash: changing them means
  * bumping the version of every detector that uses it.
  */
-fun perceptualHash(image: ImageRef): ULong {
-    val gray = loadGrayscale(File(image.path), PHASH_DECODE_SIDE)
+fun perceptualHash(image: ImageRef): ULong = perceptualHash(loadGrayscale(File(image.path), PHASH_DECODE_SIDE))
+
+/** The pHash of [gray], an image's grayscale at [PHASH_DECODE_SIDE]: the pipeline passes the one exposure computed. */
+fun perceptualHash(gray: Gray): ULong {
     val small = resize(gray, PHASH_SIZE, PHASH_SIZE)
 
     val intermediate = DoubleArray(PHASH_SIZE * PHASH_SIZE)

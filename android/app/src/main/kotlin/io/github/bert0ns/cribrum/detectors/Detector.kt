@@ -2,6 +2,7 @@
 // lab/src/cribrum_lab/detectors/base.py and docs/design.md §7.
 package io.github.bert0ns.cribrum.detectors
 
+import io.github.bert0ns.cribrum.imaging.Pixels
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.readMetadata
 import io.github.bert0ns.cribrum.model.Category
@@ -26,6 +27,11 @@ data class AnalysisContext(
     val metadata: suspend (ImageRef) -> ImageMetadata = { readMetadata(File(it.path)) },
     /** The BLURRY measure of the image, the Laplacian variance of its sharpest region: 0 when it can't be decoded. */
     val sharpness: suspend (ImageRef) -> Double = { BlurDetector.peakVariance(it) },
+    /**
+     * The image's decoded pixels. The pipeline gives the detectors of one image the same [Pixels], so they
+     * share its decodes, and drops it with the image. By default each call decodes anew.
+     */
+    val pixels: (ImageRef) -> Pixels = { Pixels(File(it.path)) },
     /** Known screen resolutions as (short side, long side). */
     val screenSizes: Set<Pair<Int, Int>> = SCREEN_SIZES,
 )
@@ -51,6 +57,13 @@ interface Detector {
 
     /** True when [analyze] reads the embedding, so a new embedding means its stored result is stale. */
     val usesEmbeddings: Boolean get() = false
+
+    /**
+     * The draft side [analyze] decodes the image at through [AnalysisContext.pixels], or null when it decodes
+     * nothing. The pipeline runs an image's detectors from the largest side down, so the ones whose sides give
+     * one sample size run one after the other and share a decode.
+     */
+    val decodeSide: Int? get() = null
 
     suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal>
 }

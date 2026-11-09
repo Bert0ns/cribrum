@@ -84,12 +84,12 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Ranker.rank` | `Review`'s calls of `Ranker.rank` |
 | `Review.overview`, `Review.counts`, `Review.page` | the three `Review` loads, each with the two above inside |
 | `Pipeline.walk`, `Pipeline.metadata`, `Pipeline.detectors`, `Pipeline.embeddings`, `Pipeline.embeddedDetectors`, `Pipeline.groupDetectors` | the phases of `Pipeline.run` |
-| `Imaging.decode` | one image's decode |
+| `Imaging.decode` | one image's decode at one sample size, with its bounds read the first time. In the detectors phase an image's steps share their decodes (`Pixels`), so an image has one for each sample size its steps need: 1 for a sticker, a PNG or a small JPEG, up to 3 for a JPEG whose drafts at 640, 512 and 256 all differ |
 | `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
 | `Onnx.run.yunet`, `Onnx.run.ppocr`, `Onnx.run.mobileclip` | one `ModelRuntime.run` call of `OnnxRuntime`, named after the model it runs (the faces, the text coverage and the embeddings) |
-| `Imaging.exif`, `Imaging.gray` | one `orientation` read of the EXIF, and one `loadGrayscale` (its `Imaging.decode` and `Imaging.exif` inside) |
-| `Detector.<id>.image`, `Detector.<id>.sticker` | one per-image detector's `analyze` call on one image, for each of `blur`, `exposure`, `faces`, `screenshot`, `sticker`, `document` and `forwarded`. `.sticker` is for an image in a sticker folder, so stickers can be split out. An async section |
-| `Pipeline.phash.image`, `Pipeline.phash.sticker` | one perceptual hash |
+| `Imaging.exif`, `Imaging.gray` | one `orientation` read of the EXIF, once per image in the detectors phase, and one grayscale at one side computed from a decode: in the detectors phase, one at 512 for `blur` and one at 256 that `exposure` and the perceptual hash share. Each holds the `Imaging.decode` and `Imaging.exif` it is the first of its image to need |
+| `Detector.<id>.image`, `Detector.<id>.sticker` | one per-image detector's `analyze` call on one image, for each of `blur`, `exposure`, `faces`, `screenshot`, `sticker`, `document` and `forwarded`. `.sticker` is for an image in a sticker folder, so stickers can be split out. An async section. The detectors of an image run from the largest draft side down (`faces` at 640, `blur` at 512, `exposure` at 256), and a decode shows inside the first one that needs it, so a later one that shares it is shorter by that much |
+| `Pipeline.phash.image`, `Pipeline.phash.sticker` | one perceptual hash. It reads the grayscale `exposure` computed, so it holds no decode unless exposure did not run on the image |
 | `Pipeline.tasks` | `analyzeEach`'s building of its tasks: the index reads that tell what each image still needs |
 | `Pipeline.store` | `storeOutcome`: the index writes of one image's results |
 | `Walk.list`, `Walk.stat` | the walk's `listFiles` of one folder, and the `readAttributes` of all its entries (one section for the folder, not for each entry) |

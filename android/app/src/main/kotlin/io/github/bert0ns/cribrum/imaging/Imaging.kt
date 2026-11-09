@@ -28,9 +28,79 @@ class Gray(val width: Int, val height: Int, val pixels: FloatArray) {
  * Measures computed on it depend on [maxSide]: changing it means bumping the version of every
  * detector that uses it.
  */
-fun loadGrayscale(file: File, maxSide: Int): Gray = trace("Imaging.gray") {
-    val (width, height, argb) = decode(file, maxSide)
-    thumbnail(transpose(luminance(width, height, argb), orientation(file)), maxSide)
+fun loadGrayscale(file: File, maxSide: Int): Gray = Pixels(file).gray(maxSide)
+
+/**
+ * One image's pixels while one task analyzes it (docs/design.md §7): a sample size decodes once, the EXIF
+ * orientation is read once, and the grayscale at a side is computed once, for all the steps of the task. A
+ * decode depends on its draft side only through the sample size it gives, so each step gets the pixels its
+ * own decode gave it.
+ *
+ * Only the last decode is kept, so memory holds one decoded image, as when each step decoded its own. The
+ * pipeline runs the steps from the largest draft side down, which puts the sides that give one sample size
+ * next to each other. The grayscale images are kept by side, and are at most a side squared.
+ * Not thread-safe: the steps of a task run one after the other. Nothing is kept past the task.
+ */
+class Pixels(val file: File, private val maxPixels: Int = MAX_PIXELS) {
+    /** The EXIF orientation. */
+    val orientation: Int by lazy(LazyThreadSafetyMode.NONE) { orientation(file) }
+
+    // A read that throws is not kept, so the next step tries again, as it did with a decode of its own.
+    private val bounds by lazy(LazyThreadSafetyMode.NONE) {
+        BitmapFactory.Options().apply { inJustDecodeBounds = true }.also {
+            BitmapFactory.decodeFile(file.path, it)
+            if (it.outWidth <= 0 || it.outHeight <= 0) throw UnreadableImage(file)
+        }
+    }
+
+    private class Decoded(val sample: Int, val argb: Argb)
+
+    private var last: Decoded? = null
+    private val grays = HashMap<Int, Gray>()
+
+    /** The pixels [decode] gives at [draftSide]. Its bounds read goes in the first `Imaging.decode` section. */
+    internal fun decode(draftSide: Int): Argb {
+        last?.let { if (it.sample == sampleSize(draftSide)) return it.argb }
+        return trace("Imaging.decode") {
+            last = null // the earlier decode can go before this one is made
+            val sample = sampleSize(draftSide)
+            Decoded(sample, decodeAt(sample)).also { last = it }.argb
+        }
+    }
+
+    /** As [loadGrayscale]. */
+    fun gray(maxSide: Int): Gray = grays.getOrPut(maxSide) {
+        trace("Imaging.gray") { thumbnail(turnedLuminance(decode(maxSide), orientation), maxSide) }
+    }
+
+    private fun sampleSize(draftSide: Int): Int = if (bounds.outMimeType == "image/jpeg") {
+        draftScale(bounds.outWidth, bounds.outHeight, draftSide)
+    } else {
+        sampleFor(bounds.outWidth, bounds.outHeight, maxPixels)
+    }
+
+    private fun decodeAt(sample: Int): Argb {
+        val options = BitmapFactory.Options().apply {
+            inPreferredConfig = Bitmap.Config.ARGB_8888
+            inPremultiplied = false
+            inSampleSize = sample
+        }
+        val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
+        try {
+            val argb = IntArray(bitmap.width * bitmap.height)
+            // A 16-bit or 10-bit image comes in another config, which the raw copy does not fit: getPixels reads those.
+            if (bitmap.config == Bitmap.Config.ARGB_8888 && bitmap.colorSpace?.isSrgb == false) {
+                // getPixels converts to sRGB, where Pillow reads the stored values and ignores the profile.
+                bitmap.copyPixelsToBuffer(IntBuffer.wrap(argb))
+                for (i in argb.indices) argb[i] = (argb[i] and 0xff00ff00.toInt()) or (argb[i] shl 16 and 0xff0000) or (argb[i] shr 16 and 0xff) // RGBA bytes to ARGB
+            } else {
+                bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            }
+            return Argb(bitmap.width, bitmap.height, argb)
+        } finally {
+            bitmap.recycle()
+        }
+    }
 }
 
 /** Decoded pixels as unpremultiplied ARGB, row by row, before EXIF orientation. */
@@ -51,35 +121,7 @@ internal const val MAX_PIXELS = 16_000_000
  * keeps its stored values, as Pillow does: converted to sRGB they moved the embeddings off the lab's,
  * to a cosine of 0.9993 on a saturated test image.
  */
-internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Argb = trace("Imaging.decode") {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeFile(file.path, bounds)
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw UnreadableImage(file)
-    val options = BitmapFactory.Options().apply {
-        inPreferredConfig = Bitmap.Config.ARGB_8888
-        inPremultiplied = false
-        inSampleSize = if (bounds.outMimeType == "image/jpeg") {
-            draftScale(bounds.outWidth, bounds.outHeight, draftSide)
-        } else {
-            sampleFor(bounds.outWidth, bounds.outHeight, maxPixels)
-        }
-    }
-    val bitmap = BitmapFactory.decodeFile(file.path, options) ?: throw UnreadableImage(file)
-    try {
-        val argb = IntArray(bitmap.width * bitmap.height)
-        // A 16-bit or 10-bit image comes in another config, which the raw copy does not fit: getPixels reads those.
-        if (bitmap.config == Bitmap.Config.ARGB_8888 && bitmap.colorSpace?.isSrgb == false) {
-            // getPixels converts to sRGB, where Pillow reads the stored values and ignores the profile.
-            bitmap.copyPixelsToBuffer(IntBuffer.wrap(argb))
-            for (i in argb.indices) argb[i] = (argb[i] and 0xff00ff00.toInt()) or (argb[i] shl 16 and 0xff0000) or (argb[i] shr 16 and 0xff) // RGBA bytes to ARGB
-        } else {
-            bitmap.getPixels(argb, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-        }
-        Argb(bitmap.width, bitmap.height, argb)
-    } finally {
-        bitmap.recycle()
-    }
-}
+internal fun decode(file: File, draftSide: Int, maxPixels: Int = MAX_PIXELS): Argb = Pixels(file, maxPixels).decode(draftSide)
 
 /** The smallest power of two that brings the image down to [maxPixels]. */
 private fun sampleFor(width: Int, height: Int, maxPixels: Int): Int = generateSequence(1) { it * 2 }.first { width.toLong() * height / (it.toLong() * it) <= maxPixels }
@@ -89,13 +131,16 @@ internal fun draftScale(width: Int, height: Int, maxSide: Int): Int {
     return listOf(8, 4, 2).firstOrNull { scale >= it } ?: 1
 }
 
-/** Pillow's RGB to L: ITU-R 601-2 luma in 16-bit fixed point, rounded. */
-private fun luminance(width: Int, height: Int, argb: IntArray): Gray {
-    val pixels = FloatArray(argb.size) { i ->
+/**
+ * Pillow's RGB to L (ITU-R 601-2 luma in 16-bit fixed point, rounded), read already turned as [transpose] does,
+ * so no plane of the other orientation is made.
+ */
+private fun turnedLuminance(image: Argb, orientation: Int): Gray {
+    val argb = image.pixels
+    return turn(image.width, image.height, orientation) { i ->
         val c = argb[i]
         (((c shr 16 and 0xff) * 19595 + (c shr 8 and 0xff) * 38470 + (c and 0xff) * 7471 + 0x8000) shr 16).toFloat()
     }
-    return Gray(width, height, pixels)
 }
 
 // On a HEIC or AVIF, BitmapFactory ignores the container rotation (irot) and ExifInterface reports it, so the image turns once, from this value (#220).

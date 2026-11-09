@@ -232,9 +232,9 @@ class CompressorTest {
                 read += "jpeg ${it.length()}"
                 readJpeg(it)
             },
-            perceptualHasher = {
-                read += "perceptual hash ${it.size}"
-                perceptualHash(it)
+            perceptualHasher = { image, _ ->
+                read += "perceptual hash ${image.size}"
+                perceptualHash(image)
             },
             contentHasher = {
                 read += "content hash ${it.size}"

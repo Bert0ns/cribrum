@@ -7,8 +7,7 @@
 package io.github.bert0ns.cribrum.detectors
 
 import io.github.bert0ns.cribrum.imaging.Argb
-import io.github.bert0ns.cribrum.imaging.decode
-import io.github.bert0ns.cribrum.imaging.orientation
+import io.github.bert0ns.cribrum.imaging.Pixels
 import io.github.bert0ns.cribrum.imaging.resampleChannels
 import io.github.bert0ns.cribrum.imaging.turnedSize
 import io.github.bert0ns.cribrum.model.Category
@@ -19,7 +18,6 @@ import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
 import io.github.bert0ns.cribrum.runtime.floatBuffer
-import java.io.File
 import java.nio.FloatBuffer
 import java.util.Locale
 import kotlin.math.exp
@@ -37,10 +35,12 @@ class FaceDetector(private val injected: ModelRuntime? = null) : Detector {
     /** It emits a protection signal, which is no category to review. */
     override val category: Category? = null
 
+    override val decodeSide = YuNet.INPUT_SIDE
+
     private val runtime by lazy { injected ?: defaultRuntime }
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
-        val boxed = YuNet.letterbox(File(image.path))
+        val boxed = YuNet.letterbox(context.pixels(image))
         val faces = YuNet.detect(runtime, boxed.pixels)
         val evidence = mutableMapOf("faces" to faces.size.toString())
         var score = 0f
@@ -69,7 +69,7 @@ internal object YuNet {
      * The image is scaled so its longest side is 640 px (Pillow's bilinear), then padded with black
      * at the bottom and right.
      */
-    fun letterbox(file: File): Letterbox = letterbox(decode(file, INPUT_SIDE), orientation(file))
+    fun letterbox(pixels: Pixels): Letterbox = letterbox(pixels.decode(INPUT_SIDE), pixels.orientation)
 
     /** The letterbox of pixels already decoded, before their EXIF [orientation]. */
     fun letterbox(decoded: Argb, orientation: Int): Letterbox {
