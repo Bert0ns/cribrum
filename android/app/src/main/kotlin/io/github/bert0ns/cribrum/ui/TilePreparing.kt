@@ -98,12 +98,16 @@ open class TilePrepareWorker(context: Context, parameters: WorkerParameters) : C
         SingletonImageLoader.get(applicationContext).execute(request)
     }
 
-    /** Moderate heat or worse, as the scan's heat line reads it (docs/design.md §4). */
+    /**
+     * Moderate heat or worse, as the scan's heat line reads it (docs/design.md §4). A phone with no thermal service, or a
+     * read that throws, counts as not hot, as the scan's own read does.
+     */
     protected open fun hot(): Boolean {
-        val power = applicationContext.getSystemService(PowerManager::class.java)
+        val power = applicationContext.getSystemService(PowerManager::class.java) ?: return false
         // NaN when read again within 10 seconds: the last good reading stays.
-        power.getThermalHeadroom(0).takeIf { it > 0 }?.let { headroom = it }
-        val level = heatOf(power.currentThermalStatus, headroom)?.level ?: return false
+        runCatching { power.getThermalHeadroom(0) }.getOrNull()?.takeIf { it > 0 }?.let { headroom = it }
+        val status = runCatching { power.currentThermalStatus }.getOrNull() ?: return false
+        val level = heatOf(status, headroom)?.level ?: return false
         return level >= HeatLevel.MODERATE
     }
 }

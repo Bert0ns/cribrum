@@ -39,12 +39,13 @@ from dataclasses import dataclass
 from perfetto.trace_processor import TraceProcessor
 
 # Suspending sections are async ones, on process tracks, and the others are on thread tracks.
+# The tile-prepare thread works in the background after a scan: its Tile.miss lookups are not a screen's.
 SECTIONS = """
 app as (select upid, start_ts from process where name = '{package}'),
 sections as (
   select s.name, s.ts, s.dur from slice s
     join thread_track t on s.track_id = t.id join thread using (utid)
-    where thread.upid in (select upid from app)
+    where thread.upid in (select upid from app) and coalesce(thread.name, '') != 'tile-prepare'
   union all
   select s.name, s.ts, s.dur from slice s
     join process_track t on s.track_id = t.id
