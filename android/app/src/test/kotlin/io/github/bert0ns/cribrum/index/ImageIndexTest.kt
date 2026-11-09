@@ -1,6 +1,7 @@
 // The lab's tests/test_index.py, translated.
 package io.github.bert0ns.cribrum.index
 
+import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import io.github.bert0ns.cribrum.compress.JpegInfo
@@ -15,6 +16,7 @@ import io.github.bert0ns.cribrum.model.ReviewState
 import io.github.bert0ns.cribrum.model.Role
 import io.github.bert0ns.cribrum.model.Signal
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -27,7 +29,11 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.lang.reflect.Modifier
 import java.time.LocalDateTime
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
+private const val SNAPSHOT_TEST = "snapshot-test.sqlite"
 private val PHOTO = ImageRef("/photos/a.jpg", 100, 1)
 private val OTHER = ImageRef("/photos/b.jpg", 5, 5)
 
@@ -51,6 +57,41 @@ class ImageIndexTest {
     fun close() = index.close()
 
     private fun test(block: suspend ImageIndex.() -> Unit) = runBlocking { index.block() }
+
+    @Test
+    fun `indexedImages does not wait for a write in progress, and reads what was committed`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteDatabase(SNAPSHOT_TEST)
+        val db = Room.databaseBuilder(context, IndexDatabase::class.java, SNAPSHOT_TEST).build()
+        ImageIndex(db).use { file ->
+            runBlocking { file.record(PHOTO) }
+            val writing = CountDownLatch(1)
+            val release = CountDownLatch(1)
+            // A scan's write: the write lock held, its change not committed yet.
+            val writer = thread {
+                val sql = db.openHelper.writableDatabase
+                sql.beginTransactionNonExclusive()
+                try {
+                    sql.execSQL("UPDATE images SET review_state = 'kept'")
+                    writing.countDown()
+                    release.await(10, TimeUnit.SECONDS)
+                    sql.setTransactionSuccessful()
+                } finally {
+                    sql.endTransaction()
+                }
+            }
+            try {
+                assertTrue(writing.await(5, TimeUnit.SECONDS))
+                val read = runBlocking { withTimeout(5_000) { file.indexedImages() } }
+                assertEquals(listOf(PHOTO to ReviewState.UNREVIEWED), read.map { it.ref to it.reviewState })
+            } finally {
+                release.countDown()
+                writer.join()
+            }
+            assertEquals(ReviewState.KEPT, runBlocking { file.indexedImages() }.single().reviewState)
+        }
+        context.deleteDatabase(SNAPSHOT_TEST)
+    }
 
     @Test
     fun `notTrashed leaves out trashed images`() = test {

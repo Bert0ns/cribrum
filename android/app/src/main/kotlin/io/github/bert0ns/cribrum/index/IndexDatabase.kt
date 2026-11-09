@@ -322,8 +322,9 @@ interface IndexDao {
     @Query("SELECT * FROM signals WHERE path = :path ORDER BY id")
     suspend fun signals(path: String): List<SignalRow>
 
+    /** Blocking, as [ImageIndex.indexedImages] needs: its read-only transaction belongs to the thread. */
     @Query("SELECT * FROM signals ORDER BY id")
-    suspend fun allSignals(): List<SignalRow>
+    fun allSignals(): List<SignalRow>
 
     @Query("SELECT fingerprint FROM group_runs WHERE detector_id = :detectorId AND detector_version = :version")
     suspend fun groupFingerprint(detectorId: String, version: Int): String?
@@ -343,8 +344,9 @@ interface IndexDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertKeptSignals(signals: List<KeptSignalRow>)
 
+    /** Blocking, as [allSignals]. */
     @Query("SELECT * FROM kept_signals")
-    suspend fun allKeptSignals(): List<KeptSignalRow>
+    fun allKeptSignals(): List<KeptSignalRow>
 
     @Query("SELECT * FROM kept_signals WHERE path = :path")
     suspend fun keptSignals(path: String): List<KeptSignalRow>
@@ -372,6 +374,10 @@ interface IndexDao {
 
     @Query("SELECT path, size, mtime_ns, review_state FROM images ORDER BY path")
     suspend fun states(): List<StoredState>
+
+    /** [states], blocking, as [allSignals]. */
+    @Query("SELECT path, size, mtime_ns, review_state FROM images ORDER BY path")
+    fun statesNow(): List<StoredState>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertExcludedFolder(folder: ExcludedFolderRow)
