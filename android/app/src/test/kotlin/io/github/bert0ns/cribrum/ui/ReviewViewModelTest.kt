@@ -800,14 +800,14 @@ class ReviewViewModelTest {
     }
 
     /** A trash whose listing waits for [release], like a big one on a slow phone. */
-    private class SlowTrash(private val release: CompletableDeferred<Unit>) : Trash {
+    private class SlowTrash(private val release: CompletableDeferred<Unit>, private val items: List<TrashedImage> = emptyList()) : Trash {
         override suspend fun moveToTrash(images: List<ImageRef>) = images
 
         override suspend fun restore(images: List<ImageRef>) = images
 
         override suspend fun trashed(): List<TrashedImage> {
             release.await()
-            return emptyList()
+            return items
         }
 
         override suspend fun purge(images: List<ImageRef>) = images
@@ -835,7 +835,8 @@ class ReviewViewModelTest {
     @Test
     fun `the trash screen opens at once, empty and loading, and fills when the list is read`() {
         val release = CompletableDeferred<Unit>()
-        val model = ReviewViewModel(app, Review(app.index, SlowTrash(release)))
+        val items = listOf(TrashedImage(ImageRef("/sdcard/DCIM/a.jpg", 1, 0), Instant.EPOCH, File("/trash/0/a.jpg"), Instant.EPOCH))
+        val model = ReviewViewModel(app, Review(app.index, SlowTrash(release, items)))
         settle(model) { true }
 
         model.openTrash()
@@ -846,8 +847,9 @@ class ReviewViewModelTest {
         assertTrue(model.state.value.trashed.isEmpty())
 
         release.complete(Unit)
-        settle(model) { true }
+        settle(model) { !it.state.value.loading }
         assertEquals(Screen.Trash(Destination.Clean), model.state.value.screen)
+        assertEquals(items, model.state.value.trashed)
     }
 
     /** A trash that records what it was asked and can hold the moves, like a slow volume. */
