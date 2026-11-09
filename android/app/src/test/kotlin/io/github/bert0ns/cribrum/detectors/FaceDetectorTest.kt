@@ -3,6 +3,7 @@ package io.github.bert0ns.cribrum.detectors
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import io.github.bert0ns.cribrum.imaging.Pixels
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Protection
@@ -64,7 +65,7 @@ class FaceDetectorTest {
         val bitmap = Bitmap.createBitmap(1280, 640, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.RED) }
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
 
-        val boxed = YuNet.letterbox(file)
+        val boxed = YuNet.letterbox(Pixels(file))
 
         assertEquals(640 to 320, boxed.width to boxed.height)
         assertEquals(3 * 640 * 640, boxed.pixels.limit())

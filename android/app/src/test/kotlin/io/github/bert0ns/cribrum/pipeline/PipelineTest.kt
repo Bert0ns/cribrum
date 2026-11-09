@@ -12,6 +12,7 @@ import io.github.bert0ns.cribrum.detectors.MissingEmbedding
 import io.github.bert0ns.cribrum.folders.isStickerFolder
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
+import io.github.bert0ns.cribrum.imaging.Pixels
 import io.github.bert0ns.cribrum.imaging.TestImage
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.index.memoryIndex
@@ -637,6 +638,39 @@ class PipelineTest {
         }
     }
 
+    /** Logs, for each image, the detectors in the order they ran and the pixels each one got. */
+    private class Decoding(override val id: String, override val decodeSide: Int?, val log: Map<String, MutableList<Pair<String, Pixels>>>) : Detector {
+        override val version = 1
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
+            log.getValue(image.path) += id to context.pixels(image)
+            return emptyList()
+        }
+    }
+
+    @Test
+    fun `an image's detectors and its hash share one decode memo, from the largest draft side down`() {
+        photos()
+        val paths = listOf("DCIM/Camera/a.png", "WhatsApp/Media/a-copy.png", "Pictures/Screenshots/Screenshot_1.png").map { File(root, it).path }
+        // Each image's list is written by the one worker that runs its task.
+        val log = paths.associateWith { mutableListOf<Pair<String, Pixels>>() }
+        val detectors = listOf(Decoding("small", 256, log), Decoding("none", null, log), Decoding("large", 640, log), Decoding("middle", 512, log))
+        val hasher = { image: ImageRef, pixels: Pixels ->
+            log.getValue(image.path) += "hash" to pixels
+            0uL
+        }
+
+        run(Pipeline(index, detectors, emptyList(), perceptualHasher = hasher))
+
+        for (path in paths) {
+            val steps = log.getValue(path)
+            assertEquals(path, listOf("large", "middle", "small", "none", "hash"), steps.map { it.first })
+            assertTrue(path, steps.all { it.second === steps.first().second })
+            assertEquals(path, File(path), steps.first().second.file)
+        }
+        assertEquals(paths.size, log.values.map { System.identityHashCode(it.first().second) }.toSet().size)
+    }
+
     @Test
     fun `failed analysis is reported and retried on the next run`() {
         photos()
@@ -657,7 +691,7 @@ class PipelineTest {
         photos()
         val copy = File(root, "WhatsApp/Media/a-copy.png").path
 
-        var stats = run(Pipeline(index, perceptualHasher = { if (it.path == copy) throw IOException("busy") else perceptualHash(it) }))
+        var stats = run(Pipeline(index, perceptualHasher = { image, _ -> if (image.path == copy) throw IOException("busy") else perceptualHash(image) }))
 
         assertEquals(1, stats.failures.size)
         assertFalse(Category.NEAR_DUPLICATE in kinds("WhatsApp/Media/a-copy.png"))

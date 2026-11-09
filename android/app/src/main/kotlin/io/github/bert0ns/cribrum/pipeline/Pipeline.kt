@@ -23,9 +23,11 @@ import io.github.bert0ns.cribrum.detectors.NearDuplicateDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
 import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.folders.isStickerFolder
+import io.github.bert0ns.cribrum.hashing.PHASH_DECODE_SIDE
 import io.github.bert0ns.cribrum.hashing.contentHash
 import io.github.bert0ns.cribrum.hashing.perceptualHash
 import io.github.bert0ns.cribrum.hashing.toHex
+import io.github.bert0ns.cribrum.imaging.Pixels
 import io.github.bert0ns.cribrum.index.ImageIndex
 import io.github.bert0ns.cribrum.metadata.ImageMetadata
 import io.github.bert0ns.cribrum.metadata.UnreadableImage
@@ -139,7 +141,8 @@ class Pipeline(
     private val trash: Trash? = null,
     private val metadataReader: (File) -> ImageMetadata = ::readMetadata,
     private val jpegReader: (File) -> JpegInfo = ::readJpeg,
-    private val perceptualHasher: (ImageRef) -> ULong = ::perceptualHash,
+    /** Hashes an image from its task's [Pixels], so it reads the grayscale exposure already computed. */
+    private val perceptualHasher: (ImageRef, Pixels) -> ULong = { _, pixels -> perceptualHash(pixels.gray(PHASH_DECODE_SIDE)) },
     private val contentHasher: (ImageRef) -> String = ::contentHash,
     /** Monotonic milliseconds, for [Stats.phaseMs]. */
     private val clock: () -> Long = SystemClock::elapsedRealtime,
@@ -468,16 +471,20 @@ class Pipeline(
     }
 
     private suspend fun analyze(task: AnalysisTask): AnalysisOutcome {
+        // The task's decodes, shared by its detectors and the perceptual hash, and dropped with it (docs/design.md §7).
+        val pixels = Pixels(File(task.image.path))
         val context = AnalysisContext(
             metadata = { task.metadata },
             embedding = {
                 check(!task.beforeEmbeddings) { "${task.image.path}: reads an embedding without usesEmbeddings" }
                 task.embedding ?: throw MissingEmbedding(it)
             },
+            pixels = { if (it.path == task.image.path) pixels else Pixels(File(it.path)) },
         )
         val kind = if (isStickerFolder(task.image.path)) "sticker" else "image" // the sections tell the two apart, never the path
-        val results = task.detectors.map { detector -> detector to analyze(detector, task.image, context, kind) }
-        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image, kind) else null)
+        // From the largest draft side down, so the sides that give one sample size come one after the other. The hash comes last, at 256.
+        val results = task.detectors.sortedByDescending { it.decodeSide ?: 0 }.map { detector -> detector to analyze(detector, task.image, context, kind) }
+        return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image, pixels, kind) else null)
     }
 
     /** Stores what [outcome] has. Unless [final], what ran out of memory is not stored but returned as a task to run again. */
@@ -531,7 +538,7 @@ class Pipeline(
         return if (result.exceptionOrNull() is MissingEmbedding) Result.success(null) else result
     }
 
-    private fun computePhash(image: ImageRef, kind: String): Result<ULong> = attempt { trace("Pipeline.phash.$kind") { perceptualHasher(image) } }
+    private fun computePhash(image: ImageRef, pixels: Pixels, kind: String): Result<ULong> = attempt { trace("Pipeline.phash.$kind") { perceptualHasher(image, pixels) } }
 
     /**
      * The detector last ran on [images] as they are, and every content hash that failed in that run fails again.
