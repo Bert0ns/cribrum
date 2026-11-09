@@ -20,8 +20,7 @@ class ExposureDetector : Detector {
     override val category = Category.BAD_EXPOSURE
 
     override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
-        val sorted = loadGrayscale(File(image.path), MAX_SIDE).pixels.sortedArray()
-        val (p1, p5, p95, p99) = listOf(1.0, 5.0, 95.0, 99.0).map { percentile(sorted, it) }
+        val (p1, p5, p95, p99) = percentiles(loadGrayscale(File(image.path), MAX_SIDE).pixels, listOf(1.0, 5.0, 95.0, 99.0))
         val cases = linkedMapOf(
             "dark" to fade(p95 - DARK_LEVEL),
             "bright" to fade(BRIGHT_LEVEL - p5),
@@ -46,12 +45,32 @@ class ExposureDetector : Detector {
         /** Luminance distance over which each score fades from 1 to 0. */
         const val RAMP = 64.0
 
-        /** numpy's default percentile: linear between the two nearest ranks. */
-        private fun percentile(sorted: FloatArray, q: Double): Double {
-            val rank = q / 100 * (sorted.size - 1)
-            val low = rank.toInt()
-            val high = minOf(low + 1, sorted.size - 1)
-            return sorted[low] + (sorted[high] - sorted[low]) * (rank - low)
+        /**
+         * numpy's default percentiles of [pixels]: linear between the two nearest ranks. Every pixel is a whole
+         * level from 0 to 255, since loadGrayscale rounds them, so a count of each level stands in for the sort.
+         */
+        internal fun percentiles(pixels: FloatArray, qs: List<Double>): List<Double> {
+            val counts = IntArray(256)
+            for (pixel in pixels) {
+                val level = pixel.toInt()
+                check(level.toFloat() == pixel && level in counts.indices) { "$pixel is not a whole level from 0 to 255" }
+                counts[level]++
+            }
+            // The pixel at a rank of the sorted pixels: the first level whose running count passes the rank.
+            fun sorted(rank: Int): Float {
+                var seen = 0
+                for (level in counts.indices) {
+                    seen += counts[level]
+                    if (rank < seen) return level.toFloat()
+                }
+                throw IndexOutOfBoundsException("rank $rank of ${pixels.size} pixels")
+            }
+            return qs.map { q ->
+                val rank = q / 100 * (pixels.size - 1)
+                val low = rank.toInt()
+                val high = minOf(low + 1, pixels.size - 1)
+                sorted(low) + (sorted(high) - sorted(low)) * (rank - low)
+            }
         }
 
         /** 1 at distance 0 or less, 0 at RAMP or more, linear in between. */
