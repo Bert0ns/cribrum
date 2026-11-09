@@ -483,7 +483,10 @@ class Pipeline(
         )
         val kind = if (isStickerFolder(task.image.path)) "sticker" else "image" // the sections tell the two apart, never the path
         // From the largest draft side down, so the sides that give one sample size come one after the other. The hash comes last, at 256.
-        val results = task.detectors.sortedByDescending { it.decodeSide ?: 0 }.map { detector -> detector to analyze(detector, task.image, context, kind) }
+        val ran = task.detectors.indices.sortedByDescending { task.detectors[it].decodeSide ?: 0 }
+            .associateWith { analyze(task.detectors[it], task.image, context, kind) }
+        // Stored in the detectors' own order, so the index lists an image's signals and failures as it did before the shared decode.
+        val results = task.detectors.mapIndexed { i, detector -> detector to ran.getValue(i) }
         return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image, pixels, kind) else null)
     }
 

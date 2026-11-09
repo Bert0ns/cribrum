@@ -313,19 +313,22 @@ def _analyze(
         else _stored_embedding({image.path: embedding} if embedding is not None else {}),
         pixels=lambda other: pixels if other.path == image.path else Pixels(other.path),
     )
-    results = []
+    outcomes = {}
     # From the largest draft side down, as in the app, where the sides that give one sample
     # size share a decode. The hash comes last, at 256.
-    for detector in sorted(
-        detectors, key=lambda d: getattr(d, "decode_side", 0) or 0, reverse=True
+    for i in sorted(
+        range(len(detectors)),
+        key=lambda i: getattr(detectors[i], "decode_side", 0) or 0,
+        reverse=True,
     ):
         try:
-            outcome = detector.analyze(image, context)
+            outcomes[i] = detectors[i].analyze(image, context)
         except MissingEmbedding:
-            outcome = None
+            outcomes[i] = None
         except Exception as error:
-            outcome = _describe(error)
-        results.append((detector.id, detector.version, outcome))
+            outcomes[i] = _describe(error)
+    # Stored in the detectors' own order, so the index lists an image's signals as before.
+    results = [(d.id, d.version, outcomes[i]) for i, d in enumerate(detectors)]
     phash = None
     if needs_phash:
         try:
