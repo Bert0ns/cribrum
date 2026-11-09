@@ -4,7 +4,7 @@ import numpy as np
 import xxhash
 from PIL import Image
 
-from cribrum_lab.imaging import load_grayscale
+from cribrum_lab.imaging import Pixels
 from cribrum_lab.model import ImageRef
 
 _CHUNK = 1 << 20
@@ -19,14 +19,16 @@ def content_hash(image: ImageRef) -> str:
     return digest.hexdigest()
 
 
-def perceptual_hash(image: ImageRef) -> int:
+def perceptual_hash(image: ImageRef, pixels: Pixels | None = None) -> int:
     """64-bit pHash: the signs of the 8x8 lowest frequencies of a 32x32 DCT against their median.
 
     Resizing and recompression barely change it: near-duplicates differ in a few bits.
-    `_PHASH_DECODE_SIDE` and the resampling are part of the hash: changing them means
-    bumping the version of every detector that uses it.
+    `PHASH_DECODE_SIDE` and the resampling are part of the hash: changing them means
+    bumping the version of every detector that uses it. The pipeline passes the image's task
+    `pixels`, so the hash reads the grayscale exposure loaded.
     """
-    gray = Image.fromarray(load_grayscale(image.path, _PHASH_DECODE_SIDE))
+    pixels = pixels or Pixels(image.path)
+    gray = Image.fromarray(pixels.gray(PHASH_DECODE_SIDE))
     small = np.asarray(gray.resize((_PHASH_SIZE, _PHASH_SIZE), Image.Resampling.LANCZOS))
     # Rounded, so a flat image's AC terms are exactly 0 instead of platform-dependent noise.
     low = np.round(_DCT @ small.astype(np.float64) @ _DCT.T, 6)[:8, :8]
@@ -45,7 +47,7 @@ def is_flat_hash(phash: int) -> bool:
 
 
 _PHASH_SIZE = 32
-_PHASH_DECODE_SIDE = 256
+PHASH_DECODE_SIDE = 256
 """Decode at this size before shrinking to 32 px: cheap, and enough for a smooth downscale."""
 
 

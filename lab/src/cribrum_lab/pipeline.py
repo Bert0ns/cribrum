@@ -30,6 +30,7 @@ from cribrum_lab.detectors.near_duplicate import NearDuplicateDetector
 from cribrum_lab.detectors.screenshot import ScreenshotDetector
 from cribrum_lab.detectors.sticker import StickerDetector
 from cribrum_lab.folders import is_sticker_folder
+from cribrum_lab.imaging import Pixels
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.metadata import ImageMetadata, UnreadableImage, read_metadata
 from cribrum_lab.model import Category, ImageRef, Signal
@@ -303,14 +304,21 @@ def _analyze(
     detector that needs the missing embedding comes back as None.
     """
     image, metadata, embedding, detectors, needs_phash, before_embeddings = task
+    # The task's pixels, shared by its detectors and the perceptual hash, and dropped with it.
+    pixels = Pixels(image.path)
     context = AnalysisContext(
         metadata=lambda _: metadata,
         embedding=_no_embedding_yet
         if before_embeddings
         else _stored_embedding({image.path: embedding} if embedding is not None else {}),
+        pixels=lambda other: pixels if other.path == image.path else Pixels(other.path),
     )
     results = []
-    for detector in detectors:
+    # From the largest draft side down, as in the app, where the sides that give one sample
+    # size share a decode. The hash comes last, at 256.
+    for detector in sorted(
+        detectors, key=lambda d: getattr(d, "decode_side", 0) or 0, reverse=True
+    ):
         try:
             outcome = detector.analyze(image, context)
         except MissingEmbedding:
@@ -321,7 +329,7 @@ def _analyze(
     phash = None
     if needs_phash:
         try:
-            phash = hashing.perceptual_hash(image)
+            phash = hashing.perceptual_hash(image, pixels)
         except Exception as error:
             phash = _describe(error)
     return image, results, phash

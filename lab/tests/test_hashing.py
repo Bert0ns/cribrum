@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from cribrum_lab.hashing import content_hash, perceptual_hash
+from cribrum_lab.imaging import Pixels
 from cribrum_lab.model import ImageRef
 
 
@@ -52,3 +53,11 @@ def test_flat_images_hash_the_same_on_every_platform(tmp_path):
     hashes = {phash(tmp_path, Image.new("RGB", (64, 48), c), f"{c}.png") for c in ("gray", "white")}
 
     assert hashes == {1 << 63}  # only the DC term is above the median
+
+
+def test_the_hash_from_shared_pixels_is_the_hash_from_the_file(tmp_path):
+    path = tmp_path / "a.jpg"
+    scene(0).save(path)
+    image = ImageRef(path, 0, 0)
+
+    assert perceptual_hash(image, Pixels(path)) == perceptual_hash(image)

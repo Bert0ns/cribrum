@@ -31,6 +31,8 @@ class FaceDetector:
     version = 1
     category = None
     """It emits a protection signal, which is no category to review."""
+    decode_side = INPUT_SIDE
+    """Pillow decodes its RGB draft on its own, so in the lab it shares no decode."""
 
     def __init__(self, runtime: ModelRuntime | None = None) -> None:
         self._runtime = runtime

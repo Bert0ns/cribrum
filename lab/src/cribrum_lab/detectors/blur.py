@@ -1,7 +1,5 @@
 """BLURRY: variance of the Laplacian on a downscaled grayscale image (docs/design.md, section 5)."""
 
-from pathlib import Path
-
 import numpy as np
 
 from cribrum_lab.detectors.base import AnalysisContext
@@ -21,9 +19,10 @@ class BlurDetector:
     id = "blur"
     version = 1
     category = Category.BLURRY
+    decode_side = MAX_SIDE
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
-        measured = measure(image.path)
+        measured = measure(context.pixels(image).gray(MAX_SIDE))
         if measured is None:
             return []
         global_variance, peak_variance = measured
@@ -35,10 +34,10 @@ class BlurDetector:
         return [Signal(self.id, self.version, Category.BLURRY, score, evidence)]
 
 
-def measure(path: Path) -> tuple[float, float] | None:
+def measure(gray: np.ndarray) -> tuple[float, float] | None:
     """Laplacian variance of the whole image and of its sharpest tile, which stands for the
-    subject. None when the image is under 3 px on a side after downscaling."""
-    laplacian = _laplacian(load_grayscale(path, MAX_SIDE))
+    subject. None when the image is under 3 px on a side."""
+    laplacian = _laplacian(gray)
     if laplacian.size == 0:
         return None
     # A portrait with a blurred background still has a sharp region: score on that one.
@@ -55,7 +54,7 @@ def peak_variance(image: ImageRef) -> float:
     """The peak variance `measure` gives for the image, 0 when it can't be decoded or is under
     3 px on a side."""
     try:
-        measured = measure(image.path)
+        measured = measure(load_grayscale(image.path, MAX_SIDE))
     except Exception:  # undecodable pixels have no detail
         return 0.0
     return measured[1] if measured else 0.0

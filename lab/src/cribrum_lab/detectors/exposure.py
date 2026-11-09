@@ -8,7 +8,6 @@ starting points, to be tuned for recall in the lab.
 import numpy as np
 
 from cribrum_lab.detectors.base import AnalysisContext
-from cribrum_lab.imaging import load_grayscale
 from cribrum_lab.model import Category, ImageRef, Signal
 
 MAX_SIDE = 256
@@ -24,9 +23,10 @@ class ExposureDetector:
     id = "exposure"
     version = 1
     category = Category.BAD_EXPOSURE
+    decode_side = MAX_SIDE
 
     def analyze(self, image: ImageRef, context: AnalysisContext) -> list[Signal]:
-        gray = load_grayscale(image.path, MAX_SIDE)
+        gray = context.pixels(image).gray(MAX_SIDE)
         p1, p5, p95, p99 = (float(v) for v in np.percentile(gray, [1, 5, 95, 99]))
         cases = {
             "dark": _fade(p95 - DARK_LEVEL),

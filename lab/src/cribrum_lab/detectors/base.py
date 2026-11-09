@@ -8,6 +8,7 @@ from typing import Protocol
 import numpy as np
 
 from cribrum_lab import hashing
+from cribrum_lab.imaging import Pixels
 from cribrum_lab.metadata import ImageMetadata, read_metadata
 from cribrum_lab.model import Category, ImageRef, Signal
 from cribrum_lab.screens import SCREEN_SIZES
@@ -38,6 +39,9 @@ class AnalysisContext:
     can't be decoded."""
     screen_sizes: Collection[tuple[int, int]] = SCREEN_SIZES
     """Known screen resolutions as (short side, long side)."""
+    pixels: Callable[[ImageRef], Pixels] = lambda image: Pixels(image.path)
+    """The image's pixels. The pipeline gives the detectors of one image the same `Pixels`, so
+    they share what it loads, and drops it with the image. By default each call loads anew."""
 
 
 def _peak_variance(image: ImageRef) -> float:
@@ -61,6 +65,10 @@ class Detector(Protocol):
     A detector that reads the embedding also sets `uses_embeddings = True`, so a new
     embedding makes its stored result stale. A Protocol can't make an attribute optional:
     the pipeline reads it with `getattr`, and a detector without it is false.
+
+    A detector that decodes the image sets `decode_side` to the draft side it decodes at, read
+    the same way. The pipeline runs an image's detectors from the largest side down, as the
+    app does, where the sides that give one sample size share a decode.
     """
 
     id: str
