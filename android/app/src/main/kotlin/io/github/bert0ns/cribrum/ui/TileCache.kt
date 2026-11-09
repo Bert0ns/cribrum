@@ -1,7 +1,9 @@
 package io.github.bert0ns.cribrum.ui
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.graphics.Bitmap
+import androidx.core.content.edit
 import androidx.tracing.trace
 import coil3.ImageLoader
 import coil3.Uri
@@ -12,6 +14,7 @@ import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.filePath
+import coil3.getExtra
 import coil3.request.Options
 import coil3.size.Dimension
 import coil3.size.Precision
@@ -27,7 +30,7 @@ import java.io.IOException
  * evicts the least recently used thumbnails past its cap: the app deletes none of them itself. It lives in the app's cache
  * directory, so Android's "clear cache" empties it and the storage section of the settings counts it.
  */
-internal class TileCache(private val disk: DiskCache, private val minBytes: Long = MIN_FILE_BYTES) {
+internal class TileCache(private val disk: DiskCache, private val prefs: SharedPreferences, private val minBytes: Long = MIN_FILE_BYTES) {
     /** A tile request the cache holds: its thumbnail is the source. */
     object Hit : ImageSource.Metadata()
 
@@ -73,6 +76,18 @@ internal class TileCache(private val disk: DiskCache, private val minBytes: Long
         }
     }
 
+    /** The size of the last Compress tile, in pixels, which the preparing job decodes at. Null before a Compress tile loads. */
+    var compressTileSize: Size?
+        get() = rememberedSize ?: prefs.getString(COMPRESS_SIZE, null)?.let(::parseSize)?.also { rememberedSize = it }
+        set(value) {
+            if (value == null || value == compressTileSize) return
+            rememberedSize = value
+            prefs.edit { putString(COMPRESS_SIZE, "${(value.width as Dimension.Pixels).px}x${(value.height as Dimension.Pixels).px}") }
+        }
+
+    @Volatile
+    private var rememberedSize: Size? = null
+
     /**
      * Fetches a tile's file through the cache: its thumbnail on a hit, else the original, as the loader's own fetcher gives it, marked
      * [Miss] for the decoder to store. A file under [minBytes], or a size not in pixels, is the plain original. A `Tile.hit` or
@@ -85,6 +100,7 @@ internal class TileCache(private val disk: DiskCache, private val minBytes: Long
             val original = fetched as? SourceFetchResult ?: return fetched
             val path = uri.filePath ?: return original
             val key = cache.key(File(path), options.size, options.scale, options.precision) ?: return original
+            if (options.getExtra(COMPRESS_TILE)) cache.compressTileSize = options.size
             val hit = cache.source(key)
             if (hit == null) {
                 trace("Tile.miss") {}
@@ -103,13 +119,17 @@ internal class TileCache(private val disk: DiskCache, private val minBytes: Long
     }
 
     companion object {
-        /** About 900 thumbnails of 35 KB, for the first Compress pages and what the other grids show. */
+        /** About 900 thumbnails of 35 KB, for the 100 photos of the first two Compress pages and what the other grids show. */
         const val MAX_BYTES = 32L * 1024 * 1024
 
         /** A file this small decodes in a few ms, so its thumbnail would only push larger ones out. */
         const val MIN_FILE_BYTES = 1024L * 1024
 
         const val QUALITY = 85
+        private const val COMPRESS_SIZE = "compress_tile_size"
+
+        /** On the Compress tiles' requests: their size is the one the preparing job decodes at. */
+        val COMPRESS_TILE = coil3.Extras.Key(default = false)
 
         @Volatile
         private var instance: TileCache? = null
@@ -119,7 +139,7 @@ internal class TileCache(private val disk: DiskCache, private val minBytes: Long
             instance ?: run {
                 val app = context.applicationContext
                 val disk = DiskCache.Builder().directory(File(app.cacheDir, "tiles").toOkioPath()).maxSizeBytes(MAX_BYTES).build()
-                TileCache(disk).also { instance = it }
+                TileCache(disk, app.getSharedPreferences("tiles", Context.MODE_PRIVATE)).also { instance = it }
             }
         }
 
@@ -137,4 +157,9 @@ internal fun tileKey(path: String, length: Long, modified: Long, size: Size, sca
     val width = (size.width as? Dimension.Pixels)?.px ?: return null
     val height = (size.height as? Dimension.Pixels)?.px ?: return null
     return "tile:$path:$length:$modified:${width}x$height:$scale:$precision"
+}
+
+private fun parseSize(text: String): Size? {
+    val (width, height) = text.split("x").mapNotNull(String::toIntOrNull).takeIf { it.size == 2 } ?: return null
+    return Size(width, height)
 }

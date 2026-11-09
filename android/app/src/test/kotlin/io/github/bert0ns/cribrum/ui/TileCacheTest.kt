@@ -42,8 +42,9 @@ class TileCacheTest {
     val folder = TemporaryFolder()
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val prefs = context.getSharedPreferences("tiles-test", Context.MODE_PRIVATE)
     private val disk by lazy { DiskCache.Builder().directory(folder.newFolder("tiles").toOkioPath()).maxSizeBytes(TileCache.MAX_BYTES).build() }
-    private val cache by lazy { TileCache(disk, minBytes = 0) }
+    private val cache by lazy { TileCache(disk, prefs, minBytes = 0) }
     private val loader by lazy { ImageLoader.Builder(context).build() }
 
     /** A noisy photo-like JPEG, so it is no smaller than its thumbnail. */
@@ -54,11 +55,12 @@ class TileCacheTest {
         return File(folder.root, name).apply { outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it) } }
     }
 
-    private fun load(file: File, size: Int = 100, target: TileCache = cache) = runBlocking {
+    private fun load(file: File, size: Int = 100, compress: Boolean = false, target: TileCache = cache) = runBlocking {
         val builder = ImageRequest.Builder(context).data(file)
             .fetcherFactory(TileCache.Fetcher.Factory { target }, Uri::class).decoderFactory(TileDecoder.factory)
             .size(size, size).scale(Scale.FILL).precision(Precision.INEXACT)
             .memoryCachePolicy(CachePolicy.DISABLED).allowHardware(false)
+        if (compress) builder.extras[TileCache.COMPRESS_TILE] = true
         loader.execute(builder.build())
     }
 
@@ -138,9 +140,19 @@ class TileCacheTest {
     @Test
     fun `a file under the cache's floor is neither looked up nor stored`() {
         val file = photo("a.jpg")
-        val floored = TileCache(disk, minBytes = file.length() + 1)
+        val floored = TileCache(disk, prefs, minBytes = file.length() + 1)
         assertNull(floored.key(file, Size(100, 100), Scale.FILL, Precision.INEXACT))
         assertTrue(load(file, target = floored) is SuccessResult)
         assertFalse(cache.contains(key(file)))
+    }
+
+    @Test
+    fun `a Compress tile's size is remembered for the preparing job, across processes`() {
+        prefs.edit().clear().commit()
+        load(photo("a.jpg"))
+        assertNull(cache.compressTileSize)
+        load(photo("b.jpg"), size = 120, compress = true)
+        assertEquals(Size(120, 120), cache.compressTileSize)
+        assertEquals(Size(120, 120), TileCache(disk, prefs).compressTileSize)
     }
 }
