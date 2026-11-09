@@ -26,6 +26,7 @@ import io.github.bert0ns.cribrum.pipeline.IndexWorker
 import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.review.Review
 import io.github.bert0ns.cribrum.trash.AppTrash
+import io.github.bert0ns.cribrum.trash.Trash
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
@@ -79,7 +80,7 @@ class GalleryWorld(val app: CribrumApp, val root: File, val clock: MovableClock 
     private val pending = mutableMapOf<String, MutableMap<String, MutableList<Signal>>>()
     private val rows = mutableListOf<ImageRef>()
 
-    fun review() = Review(
+    fun review(trash: Trash = this.trash) = Review(
         app.index,
         trash,
         thresholds = { app.thresholds.values },
@@ -87,7 +88,7 @@ class GalleryWorld(val app: CribrumApp, val root: File, val clock: MovableClock 
         firstDayOfWeek = { WeekFields.of(app.resources.configuration.locales[0]).firstDayOfWeek },
     )
 
-    fun model() = ReviewViewModel(app, review())
+    fun model(trash: Trash = this.trash) = ReviewViewModel(app, review(trash))
 
     fun path(folder: String, name: String) = File(root, "$folder/$name").path
 

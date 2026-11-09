@@ -21,8 +21,11 @@ import io.github.bert0ns.cribrum.pipeline.Indexing
 import io.github.bert0ns.cribrum.pipeline.ScanProgress
 import io.github.bert0ns.cribrum.pipeline.Stats
 import io.github.bert0ns.cribrum.review.ReviewOrder
+import io.github.bert0ns.cribrum.trash.Trash
+import io.github.bert0ns.cribrum.trash.TrashedImage
 import io.github.bert0ns.cribrum.ui.ReviewViewModel
 import io.github.bert0ns.cribrum.ui.Screen
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -300,6 +303,16 @@ val scenes: List<Scene> = listOf(
         val model = app()
         openTrash(model)
         awaitText(str(R.string.trash_empty))
+    },
+    Scene("trash-loading", "Trash, opened while a big trash is still being read", "Wait under the progress bar for the photos to appear, or go back.", Variant.base) {
+        world.commit(scanned = false)
+        val reading = object : Trash by world.trash {
+            override suspend fun trashed(): List<TrashedImage> = awaitCancellation()
+        }
+        val model = app(world.model(reading))
+        awaitHome(model)
+        clickDescription(str(R.string.trash))
+        await("the trash, still reading") { model.state.value.screen is Screen.Trash && model.state.value.loading }
     },
     Scene("trash-items", "Trash with photos, screenshots and stickers, nothing selected", "Select photos to bring them back, select all, hold one to see it full size, empty the trash, or go back. The days left count down to the automatic deletion.", Variant.full) {
         val model = app(trashed(this))

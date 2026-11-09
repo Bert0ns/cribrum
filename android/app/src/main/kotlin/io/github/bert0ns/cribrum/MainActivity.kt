@@ -352,6 +352,7 @@ private fun AppContent(model: ReviewViewModel) {
                             model::selectAll,
                             model::restoreSelected,
                             model::deleteFromTrash,
+                            loading = state.loading,
                         )
                         Screen.Settings -> SettingsScreen(
                             modifier = Modifier.readableWidth(),
