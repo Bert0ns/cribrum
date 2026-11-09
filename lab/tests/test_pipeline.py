@@ -8,6 +8,7 @@ from PIL import Image
 from cribrum_lab import pipeline
 from cribrum_lab.detectors import blur
 from cribrum_lab.detectors.burst import BurstDetector
+from cribrum_lab.imaging import load_grayscale
 from cribrum_lab.index import ImageIndex
 from cribrum_lab.model import Category, Protection, ReviewState, Signal
 
@@ -87,10 +88,10 @@ def test_a_perceptual_hash_that_failed_once_and_works_now_gets_its_image_grouped
     copy = photos.resolve() / "WhatsApp/Media/a-copy.png"
     real = pipeline.hashing.perceptual_hash
 
-    def flaky(image):
+    def flaky(image, pixels=None):
         if image.path == copy:
             raise OSError("busy")
-        return real(image)
+        return real(image, pixels)
 
     monkeypatch.setattr(pipeline.hashing, "perceptual_hash", flaky)
     stats = pipeline.run(photos, index)
@@ -250,6 +251,44 @@ class FixedDetector:
         return [Signal(self.id, self.version, Category.BLURRY, 0.5)]
 
 
+class Decoding:
+    """Logs, for each image, the detectors in the order they ran and the pixels each one got."""
+
+    version = 1
+    category = None
+
+    def __init__(self, id, decode_side, log):
+        self.id = id
+        self.decode_side = decode_side
+        self.log = log
+
+    def analyze(self, image, context):
+        self.log.setdefault(image.path, []).append((self.id, context.pixels(image)))
+        return []
+
+
+def test_an_images_detectors_and_its_hash_share_one_pixels_from_the_largest_side_down(
+    photos, index, monkeypatch
+):
+    log = {}
+    detectors = [Decoding("small", 256, log), Decoding("none", None, log)]
+    detectors += [Decoding("large", 640, log), Decoding("middle", 512, log)]
+
+    def hash_logged(image, pixels=None):
+        log[image.path].append(("hash", pixels))
+        return 0
+
+    monkeypatch.setattr(pipeline.hashing, "perceptual_hash", hash_logged)
+    pipeline.run(photos, index, detectors=detectors, group_detectors=[])
+
+    assert len(log) == 3
+    for path, steps in log.items():
+        assert [name for name, _ in steps] == ["large", "middle", "small", "none", "hash"]
+        assert all(pixels is steps[0][1] for _, pixels in steps)
+        assert steps[0][1].path == path
+    assert len({id(steps[0][1]) for steps in log.values()}) == 3
+
+
 def test_failed_analysis_is_reported_and_retried_on_the_next_run(photos, index):
     stats = pipeline.run(photos, index, detectors=[FailingDetector()], group_detectors=[])
 
@@ -307,7 +346,7 @@ def test_the_sharpness_lookup_reads_what_blur_stored_and_measures_an_image_witho
     pipeline.run(photos, index, detectors=[blur_detector], group_detectors=[reader])
 
     screenshot = photos / "Pictures/Screenshots/Screenshot_1.png"
-    measured = blur.measure(screenshot)[1]
+    measured = blur.measure(load_grayscale(screenshot, blur.MAX_SIDE))[1]
     assert reader.seen == {"a.png": 12.3, "a-copy.png": 45.6, "Screenshot_1.png": measured}
 
 

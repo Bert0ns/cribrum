@@ -1,7 +1,7 @@
 import numpy as np
 from PIL import Image
 
-from cribrum_lab.imaging import load_grayscale
+from cribrum_lab.imaging import Pixels, load_grayscale
 
 
 def test_16_bit_images_are_scaled_not_clipped(tmp_path):
@@ -24,3 +24,15 @@ def test_palette_image_with_transparency_loads_without_warnings(tmp_path, recwar
     load_grayscale(path, 256)
 
     assert not [w for w in recwarn if issubclass(w.category, UserWarning)]
+
+
+def test_pixels_load_the_grayscale_once_per_side(tmp_path):
+    path = tmp_path / "a.jpg"
+    noise = np.random.default_rng(0).integers(0, 256, (12, 16, 3), np.uint8)
+    Image.fromarray(noise).resize((1600, 1200)).save(path)
+    pixels = Pixels(path)
+
+    for side in (512, 256):
+        gray = pixels.gray(side)
+        assert pixels.gray(side) is gray
+        assert np.array_equal(gray, load_grayscale(path, side))

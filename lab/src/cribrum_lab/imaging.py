@@ -22,3 +22,23 @@ def load_grayscale(path: Path, max_side: int) -> np.ndarray:
         gray = image.convert("L")
         gray.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
         return np.asarray(gray, dtype=np.float32)
+
+
+class Pixels:
+    """One image's pixels while one task analyzes it (docs/design.md, section 7): the grayscale
+    at a side is loaded once, for every step of the task. Nothing is kept past the task.
+
+    The app also shares one decode between the sides that give the same sample size. Here
+    Pillow's draft decodes each mode and side on its own, so only the same side is shared:
+    exposure and the perceptual hash, both at 256.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._grays: dict[int, np.ndarray] = {}
+
+    def gray(self, max_side: int) -> np.ndarray:
+        """As `load_grayscale`. The steps read the array and never write to it."""
+        if max_side not in self._grays:
+            self._grays[max_side] = load_grayscale(self.path, max_side)
+        return self._grays[max_side]
