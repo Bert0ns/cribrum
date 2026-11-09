@@ -6,12 +6,17 @@ import io.github.bert0ns.cribrum.imaging.referenceChannel
 import io.github.bert0ns.cribrum.imaging.referenceResample
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.ByteOrder
 import kotlin.math.max
 import kotlin.random.Random
 
-/** YuNet.letterbox as it was before #254, one channel at a time, on the reference channel split and resample. Do not optimize it. */
-private fun referenceLetterbox(decoded: Argb, orientation: Int): YuNet.Letterbox {
+/**
+ * YuNet.letterbox as it was before #254, one channel at a time, on the reference channel split and resample, into
+ * an array as before #353. Do not optimize it.
+ */
+private fun referenceLetterbox(decoded: Argb, orientation: Int): Triple<FloatArray, Int, Int> {
     val side = YuNet.INPUT_SIDE
     val canvas = FloatArray(3 * side * side)
     var size = 0 to 0
@@ -24,7 +29,7 @@ private fun referenceLetterbox(decoded: Argb, orientation: Int): YuNet.Letterbox
         for (y in 0 until height) for (x in 0 until width) canvas[(c * side + y) * side + x] = resized[x, y]
         size = width to height
     }
-    return YuNet.Letterbox(canvas, size.first, size.second)
+    return Triple(canvas, size.first, size.second)
 }
 
 class LetterboxTest {
@@ -37,11 +42,14 @@ class LetterboxTest {
             val random = Random(index)
             val image = Argb(size.first, size.second, IntArray(size.first * size.second) { random.nextInt() })
             for (orientation in 0..9) {
-                val expected = referenceLetterbox(image, orientation)
+                val (pixels, width, height) = referenceLetterbox(image, orientation)
                 val got = YuNet.letterbox(image, orientation)
                 val name = "${size.first}x${size.second}, orientation $orientation"
-                assertEquals(name, expected.width to expected.height, got.width to got.height)
-                assertArrayEquals(name, expected.pixels, got.pixels, 0f) // the padding too
+                assertEquals(name, width to height, got.width to got.height)
+                // What ONNX Runtime reads in place: a direct buffer in native order, from position 0, the padding too.
+                assertTrue(name, got.pixels.isDirect && got.pixels.order() == ByteOrder.nativeOrder())
+                assertEquals(name, 0, got.pixels.position())
+                assertArrayEquals(name, pixels, FloatArray(got.pixels.limit()) { got.pixels[it] }, 0f)
             }
         }
     }
