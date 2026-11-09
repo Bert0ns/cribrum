@@ -320,6 +320,8 @@ class SharedDecodeTest {
         for (file in files) {
             val name = file.relativeTo(root).path
             val stored = index.signals(file.path).associateBy { it.detectorId }
+            // The detectors ran by draft side, but the index lists their signals in the detectors' own order, as before.
+            assertEquals(name, detectors.map { it.id }.filter { it in stored }, index.signals(file.path).map { it.detectorId }.distinct())
             assertEquals(name, Before.blur(file), listOfNotNull(stored["blur"]))
             assertEquals(name, Before.exposure(file), stored["exposure"])
             assertEquals(name, Before.perceptualHash(file), index.perceptualHash(file.path))
