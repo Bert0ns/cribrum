@@ -325,10 +325,10 @@ class ImageIndex(private val db: IndexDatabase) :
 
     /** Every image with its review state and signals, as the ranker takes them. */
     suspend fun indexedImages(): List<IndexedImage> = traceSuspend("Index.indexedImages") {
-        db.withTransaction {
+        readTransaction {
             val signals = dao.allSignals().groupBy({ it.path }, ::signal)
             val seen = dao.allKeptSignals().groupBy({ it.path }) { SignalIdentity(Kind.of(it.category), it.groupId, it.role) }
-            dao.states().map { row ->
+            dao.statesNow().map { row ->
                 IndexedImage(
                     ImageRef(row.path, row.size, row.mtimeNs),
                     ReviewState.of(row.reviewState),
@@ -411,6 +411,22 @@ class ImageIndex(private val db: IndexDatabase) :
             removed = db.withTransaction(block)
         } finally {
             if (removed != 0) writes.incrementAndGet()
+        }
+    }
+
+    /**
+     * Runs [block] in a read-only transaction: one snapshot for all its reads, which does not take the write lock.
+     * Room's `withTransaction` begins IMMEDIATE on the one writer connection, and queues behind every other Room
+     * transaction, so a scan's writes would wait for the read. A deferred transaction runs on one of SQLite's reader
+     * connections when the database is in WAL mode. It belongs to the thread, so [block] makes only blocking DAO calls.
+     */
+    private suspend fun <T> readTransaction(block: () -> T): T = withContext(Dispatchers.IO) {
+        val sql = db.openHelper.writableDatabase
+        sql.beginTransactionReadOnly()
+        try {
+            block().also { sql.setTransactionSuccessful() }
+        } finally {
+            sql.endTransaction()
         }
     }
 
