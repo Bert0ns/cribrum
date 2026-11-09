@@ -8,10 +8,24 @@ import ai.onnxruntime.OrtException
 import ai.onnxruntime.OrtLoggingLevel
 import ai.onnxruntime.OrtSession
 import androidx.tracing.trace
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.FloatBuffer
 
-/** Float values in row-major order, with their shape. */
-class Tensor(val shape: LongArray, val values: FloatArray)
+/**
+ * Float values in row-major order, from index 0 to the buffer's limit, with their shape. ONNX Runtime reads
+ * an input from a [floatBuffer] in place, and copies any other buffer into one first.
+ */
+class Tensor(val shape: LongArray, val values: FloatBuffer) {
+    constructor(shape: LongArray, values: FloatArray) : this(shape, FloatBuffer.wrap(values))
+}
+
+/**
+ * A direct buffer of [size] floats in native order, all 0, which ONNX Runtime reads without a copy. A
+ * preprocessing step writes into it with bulk puts on a [FloatBuffer.duplicate], so the tensor's own buffer
+ * stays at position 0, where ONNX Runtime starts reading. The bulk puts at an index need API 35.
+ */
+fun floatBuffer(size: Int): FloatBuffer = ByteBuffer.allocateDirect(size * Float.SIZE_BYTES).order(ByteOrder.nativeOrder()).asFloatBuffer()
 
 interface ModelRuntime : AutoCloseable {
     fun run(inputs: Map<String, Tensor>): Map<String, Tensor>
@@ -71,12 +85,12 @@ class OnnxRuntime(model: ByteArray, threads: Int? = null, gpu: Boolean = false, 
     override fun run(inputs: Map<String, Tensor>): Map<String, Tensor> = trace(section) {
         val tensors = LinkedHashMap<String, OnnxTensor>()
         try {
-            for ((name, tensor) in inputs) tensors[name] = OnnxTensor.createTensor(environment, FloatBuffer.wrap(tensor.values), tensor.shape)
+            for ((name, tensor) in inputs) tensors[name] = OnnxTensor.createTensor(environment, tensor.values, tensor.shape)
             session.run(tensors).use { result ->
                 result.associate { (name, value) ->
                     val tensor = value as OnnxTensor
-                    val buffer = tensor.floatBuffer
-                    name to Tensor(tensor.info.shape, FloatArray(buffer.remaining()).also { buffer.get(it) })
+                    // floatBuffer is already a copy on the Java heap, so it outlives the result and needs no copy of its own.
+                    name to Tensor(tensor.info.shape, tensor.floatBuffer)
                 }
             }
         } finally {

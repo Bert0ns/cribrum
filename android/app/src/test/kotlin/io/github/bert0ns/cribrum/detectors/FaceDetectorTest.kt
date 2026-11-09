@@ -8,6 +8,7 @@ import io.github.bert0ns.cribrum.model.ImageRef
 import io.github.bert0ns.cribrum.model.Protection
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
+import io.github.bert0ns.cribrum.runtime.floatBuffer
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -66,7 +67,7 @@ class FaceDetectorTest {
         val boxed = YuNet.letterbox(file)
 
         assertEquals(640 to 320, boxed.width to boxed.height)
-        assertEquals(3 * 640 * 640, boxed.pixels.size)
+        assertEquals(3 * 640 * 640, boxed.pixels.limit())
         fun at(channel: Int, x: Int, y: Int) = boxed.pixels[(channel * 640 + y) * 640 + x]
         assertEquals(listOf(0f, 0f, 255f), (0..2).map { at(it, 100, 100) }) // red, as blue-green-red
         assertEquals(listOf(0f, 0f, 0f), (0..2).map { at(it, 100, 400) }) // padding below the image
@@ -75,7 +76,7 @@ class FaceDetectorTest {
     @Test
     fun `detect decodes anchor offsets and sizes`() {
         // Anchor at row 2, column 3 of the stride-32 grid, box of exp(1) * 32 px.
-        val faces = YuNet.detect(FakeYuNet(FakeYuNet.Anchor(32, 2, 3, 0.9f, 1f)), FloatArray(3 * 640 * 640))
+        val faces = YuNet.detect(FakeYuNet(FakeYuNet.Anchor(32, 2, 3, 0.9f, 1f)), floatBuffer(3 * 640 * 640))
 
         val size = exp(1.0) * 32
         val face = faces.single()
@@ -94,7 +95,7 @@ class FaceDetectorTest {
             FakeYuNet.Anchor(8, 50, 50, 0.3f, 1f),
         )
 
-        val faces = YuNet.detect(runtime, FloatArray(3 * 640 * 640))
+        val faces = YuNet.detect(runtime, floatBuffer(3 * 640 * 640))
 
         assertEquals(listOf(0.9f), faces.map { it.confidence })
     }

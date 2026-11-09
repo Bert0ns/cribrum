@@ -10,6 +10,7 @@ import io.github.bert0ns.cribrum.imaging.turnedSize
 import io.github.bert0ns.cribrum.pipeline.Embedder
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
+import io.github.bert0ns.cribrum.runtime.floatBuffer
 import java.io.File
 import kotlin.math.exp
 import kotlin.math.max
@@ -86,13 +87,14 @@ class MobileClip(loadVision: () -> ModelRuntime) :
         if (vision.isInitialized()) vision.value.close()
     }
 
-    /** [pixels] are [preprocess] outputs. */
+    /** [pixels] are [preprocess] outputs, copied into the one direct buffer ONNX Runtime reads. */
     override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
-        val batch = FloatArray(pixels.size * PIXELS)
-        pixels.forEachIndexed { i, image -> image.copyInto(batch, i * PIXELS) }
+        val batch = floatBuffer(pixels.size * PIXELS)
+        val writer = batch.duplicate()
+        for (image in pixels) writer.put(image)
         val shape = longArrayOf(pixels.size.toLong(), 3, INPUT_SIDE.toLong(), INPUT_SIDE.toLong())
         val embeds = vision.value.run(mapOf("pixel_values" to Tensor(shape, batch))).getValue("image_embeds").values
-        return List(pixels.size) { i -> normalize(embeds.copyOfRange(i * DIMENSIONS, (i + 1) * DIMENSIONS)) }
+        return List(pixels.size) { i -> normalize(FloatArray(DIMENSIONS) { embeds[i * DIMENSIONS + it] }) }
     }
 
     fun embedImages(files: List<File>): List<FloatArray> = embedPixels(files.map(::preprocess))

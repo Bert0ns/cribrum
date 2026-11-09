@@ -18,7 +18,9 @@ import io.github.bert0ns.cribrum.model.Signal
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
+import io.github.bert0ns.cribrum.runtime.floatBuffer
 import java.io.File
+import java.nio.FloatBuffer
 import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.max
@@ -60,8 +62,8 @@ internal object YuNet {
     private const val MIN_CONFIDENCE = 0.6f
     private const val NMS_OVERLAP = 0.3
 
-    /** BGR float pixels in [0, 255], CHW with a batch of 1, and the image's size in them. */
-    class Letterbox(val pixels: FloatArray, val width: Int, val height: Int)
+    /** BGR float pixels in [0, 255], CHW with a batch of 1, in the direct buffer ONNX Runtime reads, and the image's size in them. */
+    class Letterbox(val pixels: FloatBuffer, val width: Int, val height: Int)
 
     /**
      * The image is scaled so its longest side is 640 px (Pillow's bilinear), then padded with black
@@ -77,9 +79,13 @@ internal object YuNet {
         val width = max(1, Math.rint(turnedW * scale).toInt())
         val height = max(1, Math.rint(turnedH * scale).toInt())
         val (red, green, blue) = resampleChannels(decoded, orientation, width, height)
-        val canvas = FloatArray(3 * INPUT_SIDE * INPUT_SIDE)
-        for ((c, plane) in listOf(blue, green, red).withIndex()) {
-            for (y in 0 until height) plane.pixels.copyInto(canvas, (c * INPUT_SIDE + y) * INPUT_SIDE, y * width, (y + 1) * width)
+        val canvas = floatBuffer(3 * INPUT_SIDE * INPUT_SIDE)
+        // Written in order, row by row: the black padding is written too, since the writer cannot skip it.
+        val writer = canvas.duplicate()
+        val black = FloatArray(INPUT_SIDE)
+        for (plane in listOf(blue, green, red)) {
+            for (y in 0 until height) writer.put(plane.pixels, y * width, width).put(black, 0, INPUT_SIDE - width)
+            repeat(INPUT_SIDE - height) { writer.put(black) }
         }
         return Letterbox(canvas, width, height)
     }
@@ -88,7 +94,7 @@ internal object YuNet {
     class Face(val confidence: Float, val x: Double, val y: Double, val width: Double, val height: Double)
 
     /** Faces above [MIN_CONFIDENCE] after non-maximum suppression, most confident first. */
-    fun detect(runtime: ModelRuntime, pixels: FloatArray): List<Face> {
+    fun detect(runtime: ModelRuntime, pixels: FloatBuffer): List<Face> {
         val shape = longArrayOf(1, 3, INPUT_SIDE.toLong(), INPUT_SIDE.toLong())
         val outputs = runtime.run(mapOf("input" to Tensor(shape, pixels)))
         val candidates = mutableListOf<Face>()

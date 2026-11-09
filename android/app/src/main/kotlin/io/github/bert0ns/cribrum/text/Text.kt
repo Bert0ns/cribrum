@@ -14,6 +14,7 @@ import io.github.bert0ns.cribrum.imaging.turnedSize
 import io.github.bert0ns.cribrum.runtime.ModelRuntime
 import io.github.bert0ns.cribrum.runtime.OnnxRuntime
 import io.github.bert0ns.cribrum.runtime.Tensor
+import io.github.bert0ns.cribrum.runtime.floatBuffer
 import java.io.File
 import kotlin.math.max
 
@@ -29,7 +30,8 @@ const val DETECTOR_RESOURCE = "/ppocr/ch_PP-OCRv4_det_infer.onnx"
 /**
  * RGB normalized with ImageNet mean and deviation, shape (1, 3, H, W), H and W multiples of 32
  * with the longest near [INPUT_SIDE]. The channels go through Pillow's steps, the three at once, as in
- * [io.github.bert0ns.cribrum.mobileclip.preprocess].
+ * [io.github.bert0ns.cribrum.mobileclip.preprocess]. Each is normalized in its own plane and copied into
+ * the direct buffer ONNX Runtime reads, so no other array of the whole input is made.
  */
 fun preprocess(file: File): Tensor = trace("Text.preprocess") {
     val decoded = decode(file, INPUT_SIDE)
@@ -40,16 +42,23 @@ fun preprocess(file: File): Tensor = trace("Text.preprocess") {
     // Math.rint rounds halves to even, as Python's round does.
     fun side(pixels: Int) = max(32, Math.rint(pixels * scale / 32).toInt() * 32)
     val (outW, outH) = side(width) to side(height)
-    val out = FloatArray(3 * outW * outH)
+    val out = floatBuffer(3 * outW * outH)
+    val writer = out.duplicate()
     for ((c, resized) in resampleChannels(decoded, orientation, outW, outH).withIndex()) {
-        for (i in 0 until outW * outH) out[c * outW * outH + i] = (resized.pixels[i] / 255f - MEAN[c]) / STD[c]
+        val plane = resized.pixels
+        for (i in plane.indices) plane[i] = (plane[i] / 255f - MEAN[c]) / STD[c]
+        writer.put(plane)
     }
     Tensor(longArrayOf(1, 3, outH.toLong(), outW.toLong()), out)
 }
 
+/** The share of pixels above [TEXT_PROBABILITY], counted on the model's output buffer. */
 fun textCoverage(file: File, runtime: ModelRuntime = defaultRuntime): Float {
     val probability = runtime.run(mapOf("x" to preprocess(file))).values.single().values
-    return probability.count { it > TEXT_PROBABILITY } / probability.size.toFloat()
+    val size = probability.limit()
+    var text = 0
+    for (i in 0 until size) if (probability[i] > TEXT_PROBABILITY) text++
+    return text / size.toFloat()
 }
 
 private val defaultRuntime: ModelRuntime by lazy {
