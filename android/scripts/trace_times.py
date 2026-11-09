@@ -14,8 +14,10 @@ android/README.md. Lines:
   category open     the first Review.page
   compress open     the first Compress.list to the end of the last tile load of the first screen
   compress tiles    how many loads that screen started, the slowest, and the most at once
+  compress tile cache  Tile.hit and Tile.miss, the disk cache's lookups, while it loaded
   trash open        the first Trash.list to the end of the last tile load of the first screen
   trash tiles       as compress tiles
+  trash tile cache  as compress tile cache
   storage map open  the first StorageMap.build to the end of the layout that follows it
 
 A line says "unknown" when the trace has no such section. The tiles of the first screen are the
@@ -71,7 +73,8 @@ SCREEN_QUERY = (
 select name, ts, dur from sections
   where dur >= 0 and name in ('Compress.list', 'Compress.tile', 'Trash.list', 'Trash.tile',
                               'StorageMap.build', 'StorageMap.layout', 'Compressor.preview',
-                              'FullSize.image', 'TiledImage.base', 'TiledImage.tile')
+                              'FullSize.image', 'TiledImage.base', 'TiledImage.tile',
+                              'Tile.hit', 'Tile.miss')
   order by ts
 """
 )
@@ -97,6 +100,8 @@ class Tiles:
     count: int
     slowest_ns: int
     at_once: int
+    hits: int
+    misses: int
 
 
 def ms(ns: int | None) -> str:
@@ -127,11 +132,19 @@ def first_screen(sections: list[Section], read: str, tile: str) -> Tiles | None:
     for _, step in edges:
         open_now += step
         at_once = max(at_once, open_now)
+    # A lookup is in the screen's loads; a tile served from memory has none.
+    first, last = screen[0].ts, max(t.end for t in screen)
+
+    def lookups(name: str) -> int:
+        return sum(1 for s in sections if s.name == name and first <= s.ts <= last)
+
     return Tiles(
-        max(t.end for t in screen) - start,
+        last - start,
         len(screen),
         max(t.dur for t in screen),
         at_once,
+        lookups("Tile.hit"),
+        lookups("Tile.miss"),
     )
 
 
@@ -152,10 +165,15 @@ def map_open(sections: list[Section]) -> int | None:
 
 def screen_lines(label: str, tiles: Tiles | None) -> list[str]:
     if tiles is None:
-        return [f"{label} open: unknown", f"{label} tiles: unknown"]
+        return [
+            f"{label} open: unknown",
+            f"{label} tiles: unknown",
+            f"{label} tile cache: unknown",
+        ]
     return [
         f"{label} open: {ms(tiles.open_ns)}",
         f"{label} tiles: {tiles.count} on the first screen, the slowest {ms(tiles.slowest_ns)}, at most {tiles.at_once} at once",
+        f"{label} tile cache: {tiles.hits} hits, {tiles.misses} misses",
     ]
 
 
