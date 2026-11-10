@@ -35,6 +35,6 @@ internal class HomeReloads {
     }
 
     private companion object {
-        val CANDIDATE_PHASES = setOf(1, 3, 5)
+        val CANDIDATE_PHASES = listOf("scan", "detectors", "embedded_detectors").map(Indexing::phaseNumber).toSet()
     }
 }
