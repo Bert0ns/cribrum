@@ -4,10 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.core.app.ApplicationProvider
+import coil3.BitmapImage
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.asImage
+import coil3.decode.DataSource
 import coil3.memory.MemoryCache
+import coil3.request.SuccessResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -94,5 +97,16 @@ class FullSizeImagesTest {
         FullSizeLoader.clear()
         assertEquals(0, loader.memoryCache!!.size)
         assertEquals(before, tiles.keys)
+    }
+
+    @Test
+    fun `a prefetched base image is the one the view finds in the cache`() {
+        val file = photo("next.jpg", 3000, 2000)
+        val loader = FullSizeLoader.get(context)
+        FullSizeLoader.clear()
+        runBlocking { loader.execute(prefetchRequest(context, file)) }
+        val result = runBlocking { loader.execute(baseRequest(context, file, previewCacheKey(file), "TiledImage.base")) } as SuccessResult
+        assertEquals(DataSource.MEMORY_CACHE, result.dataSource)
+        assertEquals(2048, (result.image as BitmapImage).bitmap.width)
     }
 }
