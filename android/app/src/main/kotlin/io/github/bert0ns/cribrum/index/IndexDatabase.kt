@@ -192,8 +192,8 @@ data class StoredState(
 
 @Dao
 interface IndexDao {
-    @Query("SELECT path, size, mtime_ns FROM images WHERE path = :path")
-    suspend fun ref(path: String): StoredRef?
+    @Query("SELECT path, size, mtime_ns FROM images WHERE path IN (:paths)")
+    suspend fun refs(paths: List<String>): List<StoredRef>
 
     @Insert
     suspend fun insertImage(image: ImageRow)

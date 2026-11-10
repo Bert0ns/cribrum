@@ -85,6 +85,17 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `recordAll looks up more paths than one statement takes, and a path listed twice sees its first record`() = test {
+        val many = (0 until 1_200).map { ImageRef("/photos/$it.jpg", 1, 1) }
+        val touched = ImageRef(PHOTO.path, 101, 2)
+
+        assertEquals(1_203, recordAll(many + PHOTO + touched + PHOTO)) // new, then changed twice
+
+        assertEquals(0, recordAll(many))
+        assertEquals(PHOTO, images().single { it.path == PHOTO.path })
+    }
+
+    @Test
     fun `recordAll of images already recorded keeps the version`() = test {
         recordAll(listOf(PHOTO, OTHER))
         val before = version

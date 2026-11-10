@@ -66,13 +66,21 @@ class ImageIndex(private val db: IndexDatabase) :
      * [record] for many images in one transaction, which is much cheaper than one each. Returns how many are new or
      * changed. If it throws, none of them is recorded and the version stays.
      */
-    suspend fun recordAll(images: List<ImageRef>): Int = traceSuspend("Index.recordAll") { db.withTransaction { images.count { recordOne(it) } } }.also { changed -> if (changed > 0) writes.incrementAndGet() }
+    suspend fun recordAll(images: List<ImageRef>): Int = traceSuspend("Index.recordAll") {
+        db.withTransaction {
+            // One lookup for many paths, in the same transaction: one for each path took most of the time.
+            val stored = HashMap<String, StoredRef>()
+            images.map { it.path }.distinct().chunked(SQL_VARIABLES).forEach { paths -> dao.refs(paths).associateByTo(stored) { it.path } }
+            images.count { recordOne(it, stored) }
+        }
+    }.also { changed -> if (changed > 0) writes.incrementAndGet() }
 
-    private suspend fun recordOne(image: ImageRef): Boolean {
-        val stored = dao.ref(image.path)
+    /** Records [image] against its row in [stored], and keeps [stored] as the row now is, for a path the list holds twice. */
+    private suspend fun recordOne(image: ImageRef, stored: MutableMap<String, StoredRef>): Boolean {
+        val row = stored[image.path]
         when {
-            stored == null -> dao.insertImage(ImageRow(image.path, image.size, image.mtimeNs))
-            stored.size == image.size && stored.mtimeNs == image.mtimeNs -> return false
+            row == null -> dao.insertImage(ImageRow(image.path, image.size, image.mtimeNs))
+            row.size == image.size && row.mtimeNs == image.mtimeNs -> return false
             else -> {
                 dao.resetImage(image.path, image.size, image.mtimeNs)
                 dao.deleteAnalyses(image.path)
@@ -80,6 +88,7 @@ class ImageIndex(private val db: IndexDatabase) :
                 dao.deleteJpeg(image.path)
             }
         }
+        stored[image.path] = StoredRef(image.path, image.size, image.mtimeNs)
         return true
     }
 
