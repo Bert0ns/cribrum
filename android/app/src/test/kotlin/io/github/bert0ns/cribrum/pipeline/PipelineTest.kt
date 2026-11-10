@@ -208,6 +208,22 @@ class PipelineTest {
     }
 
     @Test
+    fun `a scan that changes nothing keeps the index version, so the review keeps its ranking`() {
+        photos()
+        save("WhatsApp/Media/WhatsApp Stickers/s.png", seed = 2)
+        fun pipeline() = Pipeline(index, embedder = MeanColorEmbedder())
+        run(pipeline())
+        val before = index.version
+
+        run(pipeline())
+        assertEquals(before, index.version)
+
+        save("DCIM/Camera/b.png", seed = 3)
+        run(pipeline())
+        assertNotEquals(before, index.version)
+    }
+
+    @Test
     fun `two scans of the same library run each group detector once`() {
         photos()
         val ids = listOf("exact_duplicate", "near_duplicate", "burst")

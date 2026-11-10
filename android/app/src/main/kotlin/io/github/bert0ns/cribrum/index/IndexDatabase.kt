@@ -213,10 +213,10 @@ interface IndexDao {
     suspend fun notTrashed(): List<StoredRef>
 
     @Query("DELETE FROM images WHERE path IN (:paths)")
-    suspend fun forget(paths: List<String>)
+    suspend fun forget(paths: List<String>): Int
 
     @Query("DELETE FROM images WHERE path IN (:paths) AND review_state = 'trashed'")
-    suspend fun forgetTrashed(paths: List<String>)
+    suspend fun forgetTrashed(paths: List<String>): Int
 
     @Query("SELECT path, size, mtime_ns FROM images WHERE width IS NULL AND NOT unreadable ORDER BY path")
     suspend fun withoutMetadata(): List<StoredRef>
@@ -287,7 +287,7 @@ interface IndexDao {
     suspend fun embeddingCount(): Int
 
     @Query("DELETE FROM analyses WHERE path IN (:paths) AND detector_id IN (:detectorIds)")
-    suspend fun forgetAnalyses(paths: List<String>, detectorIds: List<String>)
+    suspend fun forgetAnalyses(paths: List<String>, detectorIds: List<String>): Int
 
     @Query("SELECT * FROM embeddings WHERE model = :model AND model_version = :modelVersion")
     suspend fun embeddings(model: String, modelVersion: Int): List<EmbeddingRow>
