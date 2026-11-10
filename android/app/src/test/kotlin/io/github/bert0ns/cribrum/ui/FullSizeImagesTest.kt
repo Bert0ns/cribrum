@@ -13,10 +13,13 @@ import coil3.memory.MemoryCache
 import coil3.request.SuccessResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -48,12 +51,18 @@ class FullSizeImagesTest {
     private fun store(file: File) = tiles.set(tileMemoryKey(file), MemoryCache.Value(Bitmap.createBitmap(40, 30, Bitmap.Config.ARGB_8888).asImage()))
 
     @Test
-    fun `a tile's key is its path and time, so an edited file is another tile`() {
+    fun `a tile's key is its path, length and time, so an edited or compressed file is another tile`() {
         val file = photo("a.jpg")
         val key = tileMemoryKey(file)
         assertNotEquals(key, tileMemoryKey(photo("b.jpg")))
         file.setLastModified(file.lastModified() + 5000)
         assertNotEquals(key, tileMemoryKey(file))
+        // A compressed copy keeps the path and the time (Compressor) and only its length changes.
+        val time = file.lastModified()
+        val before = tileMemoryKey(file)
+        file.appendBytes(ByteArray(10))
+        file.setLastModified(time)
+        assertNotEquals(before, tileMemoryKey(file))
     }
 
     @Test
@@ -108,5 +117,17 @@ class FullSizeImagesTest {
         val result = runBlocking { loader.execute(baseRequest(context, file, previewCacheKey(file), "TiledImage.base")) } as SuccessResult
         assertEquals(DataSource.MEMORY_CACHE, result.dataSource)
         assertEquals(2048, (result.image as BitmapImage).bitmap.width)
+    }
+
+    @Test
+    fun `a prefetch still loading is not started again, and closing the view stops it`() {
+        val file = photo("next.jpg", 3000, 2000)
+        FullSizeLoader.clear()
+        val first = FullSizeLoader.prefetch(context, file)
+        assertTrue(FullSizeLoader.prefetching(file))
+        assertSame(first, FullSizeLoader.prefetch(context, file))
+        FullSizeLoader.clear()
+        assertFalse(FullSizeLoader.prefetching(file))
+        assertTrue(first.isDisposed)
     }
 }

@@ -112,7 +112,7 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `StorageMap.layout` | `layoutTreemap` for the map on screen, in the composition, so it runs again when the folder or the size changes |
 | `FullSize.image` | the image load of the review's and the trash's full size view (`ZoomableImage`), from Coil's request start to its end |
 | `TiledImage.base` | the base image load of a `TiledImage` (the Compress full size view and the summary's before and after), like `FullSize.image` |
-| `TiledImage.prefetch` | the load of the next photo's base image while the Compress full size view shows the current one (`prefetchBase`), like `TiledImage.base`. It starts after the shown photo's base ends, and a swipe that lands on it finds the image in the cache, so its `TiledImage.base` is short |
+| `TiledImage.prefetch` | the load of the next photo's base image while the Compress full size view shows the current one (`FullSizeLoader.prefetch`), like `TiledImage.base`. It starts after the shown photo's base ends, and a swipe that lands on it finds the image in the cache, or waits for the prefetch to end, so its `TiledImage.base` is short |
 | `FullSize.placeholder.hit`, `FullSize.placeholder.miss` | a full size view's lookup of its file's grid tile in Coil's memory cache, a section of no length: a hit draws the tile at once, a miss leaves the view blank until the image arrives. Never a name |
 | `TiledImage.tile` | one `BitmapRegionDecoder.decodeRegion` of a `TiledImage`: a view's missing tiles are one decode of their bounding box, so it is one for the view, not for each tile |
 
