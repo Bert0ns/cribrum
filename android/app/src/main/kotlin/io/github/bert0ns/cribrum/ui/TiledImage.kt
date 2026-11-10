@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -43,8 +44,10 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.withMatrix
 import androidx.tracing.trace
+import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
+import coil3.request.Disposable
 import coil3.request.ImageRequest
 import coil3.size.Precision
 import coil3.size.Scale
@@ -132,10 +135,11 @@ internal fun previewCacheKey(file: File) = "${file.path}:${file.lastModified()}"
  * to [BASE_PIXELS]; once the zoom needs more, the visible part is decoded again in tiles, at the
  * resolution the zoom shows. Tiles that leave the view are dropped, and closing the view stops the
  * work and the decoder. While [tiled] is false the file is not opened for tiles at all, as the
- * summary's original waits while the preview encodes. [open] is there for tests.
+ * summary's original waits while the preview encodes. Once the base image shows, the one of [next], the photo a swipe goes to,
+ * is loaded behind it. [open] is there for tests.
  */
 @Composable
-internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, tiled: Boolean = true, open: (File) -> RegionDecoder? = TileSource::open) {
+internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, tiled: Boolean = true, next: File? = null, open: (File) -> RegionDecoder? = TileSource::open) {
     val key = previewCacheKey(file)
     var source by remember(key) { mutableStateOf<RegionDecoder?>(null) }
     val tiles = remember(key) { mutableStateMapOf<Tile, Bitmap>() }
@@ -161,14 +165,22 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
             val context = LocalContext.current
             // Remembered: the listener of the trace section is not equal from one recomposition to the next, and the request would load again.
             val request = remember(context, file, key) { baseRequest(context, file, key, "TiledImage.base") }
+            val loader = FullSizeLoader.get(context)
+            var shown by remember(key) { mutableStateOf(false) }
             AsyncImage(
                 request,
                 null,
-                FullSizeLoader.get(context),
+                loader,
                 Modifier.fillMaxSize(),
                 placeholder = rememberTilePlaceholder(file),
+                onSuccess = { shown = true },
                 contentScale = ContentScale.Fit,
             )
+            // Not before this photo shows: both would decode at once, and this one is the one waited for. Leaving drops a load not yet done.
+            DisposableEffect(shown, next, loader) {
+                val prefetch = next?.takeIf { shown }?.let { prefetchBase(context, loader, it) }
+                onDispose { prefetch?.dispose() }
+            }
             Canvas(Modifier.fillMaxSize()) {
                 val shown = source ?: return@Canvas
                 if (tiles.isEmpty()) return@Canvas
@@ -197,6 +209,12 @@ private val tilePaint = Paint(Paint.FILTER_BITMAP_FLAG)
  * [BASE_PIXELS] whatever the photo (BaseImageTest checks it on a 200 MP file with both decoders).
  */
 internal fun baseRequest(context: Context, file: File, key: String, section: String): ImageRequest = ImageRequest.Builder(context).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).precision(Precision.INEXACT).traced(section).build()
+
+/** Loads [file]'s base image into the memory cache of [loader] as the view will ask for it, so a swipe to it finds it there. */
+internal fun prefetchBase(context: Context, loader: ImageLoader, file: File): Disposable = loader.enqueue(prefetchRequest(context, file))
+
+/** The request of [prefetchBase]: the view's own, called `TiledImage.prefetch` in the trace. */
+internal fun prefetchRequest(context: Context, file: File): ImageRequest = baseRequest(context, file, previewCacheKey(file), "TiledImage.prefetch")
 
 /** What [TileLoader] reads regions from: a [TileSource] on a file, or a fake in tests. [raw] is its size before the EXIF [orientation]. */
 internal interface RegionDecoder {

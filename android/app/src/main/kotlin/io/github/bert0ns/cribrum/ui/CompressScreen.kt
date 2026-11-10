@@ -324,7 +324,8 @@ private fun FullSize(photos: List<CompressibleImage>, start: CompressibleImage, 
         TiledImage(
             File(photo.path),
             zoom,
-            Modifier.fillMaxSize().zoomGestures(zoom, onTap = onClose).semantics {
+            next = photos.getOrNull(page + 1)?.let { File(it.path) },
+            modifier = Modifier.fillMaxSize().zoomGestures(zoom, onTap = onClose).semantics {
                 contentDescription = File(photo.path).name
                 onClick {
                     onClose()
