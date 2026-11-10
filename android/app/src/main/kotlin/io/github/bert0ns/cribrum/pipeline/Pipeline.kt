@@ -430,11 +430,11 @@ class Pipeline(
         stats: Stats,
         progress: Progress,
     ) = coroutineScope {
-        val analyzed = selected.associateWith { index.analyzedPaths(it.id, it.version) }
+        val analyzed = index.analyzedPaths(selected.associate { it.id to it.version })
         val hashed = if (beforeEmbeddings) index.hashedPaths() else emptySet()
         val tasks = traceSuspend("Pipeline.tasks") {
             images.mapNotNull { image ->
-                val todo = selected.filter { image.path !in analyzed.getValue(it) }
+                val todo = selected.filter { image.path !in analyzed.getValue(it.id) }
                 val needsPhash = beforeEmbeddings && image.path !in hashed
                 // Only an image with work reads its metadata: a query each for the whole library took most of a scan with few changes.
                 // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.

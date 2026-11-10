@@ -200,6 +200,16 @@ class ImageIndex(private val db: IndexDatabase) :
 
     suspend fun analyzedPaths(detectorId: String, detectorVersion: Int): Set<String> = dao.analyzedPaths(detectorId, detectorVersion).toSet()
 
+    /**
+     * [analyzedPaths] of several detectors, by id, from one read of the table: no index starts with the detector, so
+     * each read goes through every row.
+     */
+    suspend fun analyzedPaths(versions: Map<String, Int>): Map<String, Set<String>> {
+        if (versions.isEmpty()) return emptyMap()
+        val analyzed = dao.analyses(versions.keys.toList()).filter { versions[it.detectorId] == it.detectorVersion }.groupBy({ it.detectorId }, { it.path })
+        return versions.keys.associateWith { analyzed[it].orEmpty().toSet() }
+    }
+
     suspend fun embeddedPaths(model: String, modelVersion: Int): Set<String> = dao.embeddedPaths(model, modelVersion).toSet()
 
     /** The images a per-image detector must read: not unreadable, and not in the trash, where the scan no longer looks. */

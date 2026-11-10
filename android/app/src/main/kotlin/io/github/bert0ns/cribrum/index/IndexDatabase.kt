@@ -298,6 +298,9 @@ interface IndexDao {
     @Query("SELECT path FROM analyses WHERE detector_id = :detectorId AND detector_version = :version")
     suspend fun analyzedPaths(detectorId: String, version: Int): List<String>
 
+    @Query("SELECT path, detector_id, detector_version FROM analyses WHERE detector_id IN (:detectorIds)")
+    suspend fun analyses(detectorIds: List<String>): List<AnalysisRow>
+
     @Query("SELECT path FROM images WHERE NOT unreadable AND review_state != 'trashed'")
     suspend fun readableNotTrashed(): List<String>
 
