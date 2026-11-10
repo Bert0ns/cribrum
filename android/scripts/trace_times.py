@@ -30,6 +30,10 @@ the Compress summary (measure.sh --by-hand). Each lists the sections of the whol
   summary previews     the Compressor.preview of the summary, one after the other
   full size image      FullSize.image, the review's and the trash's view
   zoom base image      TiledImage.base, the Compress full size view and the summary's slider
+  zoom prefetch        TiledImage.prefetch, the next photo's base image, loaded behind the current one
+  full size placeholder  FullSize.placeholder.hit and .miss, the views that found their grid tile
+  grid tile loads after the first full size view
+                       Compress.tile, Review.tile and Trash.tile loads that start after the first view
   zoom tile decodes    TiledImage.tile, one for each view of a zoom
 """
 
@@ -74,8 +78,9 @@ SCREEN_QUERY = (
 select name, ts, dur from sections
   where dur >= 0 and name in ('Compress.list', 'Compress.tile', 'Trash.list', 'Trash.tile',
                               'StorageMap.build', 'StorageMap.layout', 'Compressor.preview',
-                              'FullSize.image', 'TiledImage.base', 'TiledImage.tile',
-                              'Tile.hit', 'Tile.miss')
+                              'Review.tile', 'FullSize.image', 'FullSize.placeholder.hit',
+                              'FullSize.placeholder.miss', 'TiledImage.base',
+                              'TiledImage.prefetch', 'TiledImage.tile', 'Tile.hit', 'Tile.miss')
   order by ts
 """
 )
@@ -184,12 +189,33 @@ def listed(sections: list[Section], name: str) -> str:
     return ", ".join(ms(d) for d in durs) if durs else "unknown"
 
 
+GRID_TILES = ("Compress.tile", "Review.tile", "Trash.tile")
+
+
+def tile_loads_after_full_size(sections: list[Section]) -> str:
+    """How many grid tile loads start after the first full size image, or unknown without one.
+
+    Open a full size view, swipe, press Back and touch nothing else: zero means Back reloaded no tile.
+    """
+    views = [
+        s.ts for s in sections if s.name in ("FullSize.image", "TiledImage.base")
+    ]
+    if not views:
+        return "unknown"
+    return str(sum(1 for s in sections if s.name in GRID_TILES and s.ts > min(views)))
+
+
 def by_hand_lines(sections: list[Section]) -> list[str]:
     decodes = [s.dur for s in sections if s.name == "TiledImage.tile"]
+    hits = sum(1 for s in sections if s.name == "FullSize.placeholder.hit")
+    misses = sum(1 for s in sections if s.name == "FullSize.placeholder.miss")
     return [
         f"summary previews: {listed(sections, 'Compressor.preview')}",
         f"full size image: {listed(sections, 'FullSize.image')}",
         f"zoom base image: {listed(sections, 'TiledImage.base')}",
+        f"zoom prefetch: {listed(sections, 'TiledImage.prefetch')}",
+        f"full size placeholder: {hits} hits, {misses} misses",
+        f"grid tile loads after the first full size view: {tile_loads_after_full_size(sections)}",
         f"zoom tile decodes: {len(decodes)}, the slowest {ms(max(decodes, default=None))}",
     ]
 

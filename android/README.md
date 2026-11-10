@@ -112,6 +112,8 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `StorageMap.layout` | `layoutTreemap` for the map on screen, in the composition, so it runs again when the folder or the size changes |
 | `FullSize.image` | the image load of the review's and the trash's full size view (`ZoomableImage`), from Coil's request start to its end |
 | `TiledImage.base` | the base image load of a `TiledImage` (the Compress full size view and the summary's before and after), like `FullSize.image` |
+| `TiledImage.prefetch` | the load of the next photo's base image while the Compress full size view shows the current one (`prefetchBase`), like `TiledImage.base`. It starts after the shown photo's base ends, and a swipe that lands on it finds the image in the cache, so its `TiledImage.base` is short |
+| `FullSize.placeholder.hit`, `FullSize.placeholder.miss` | a full size view's lookup of its file's grid tile in Coil's memory cache, a section of no length: a hit draws the tile at once, a miss leaves the view blank until the image arrives. Never a name |
 | `TiledImage.tile` | one `BitmapRegionDecoder.decodeRegion` of a `TiledImage`: a view's missing tiles are one decode of their bounding box, so it is one for the view, not for each tile |
 
 Sections are per image at the finest, never per pixel or row. Perfetto shows the async sections on process tracks and the others on thread tracks, so a query for a name must read both.
@@ -153,6 +155,9 @@ Besides those it swipes to scroll the category, the Compress page, the trash and
 - `summary previews`: the length of each `Compressor.preview`, in order. The first one is the time to the first before and after, from the moment the summary opens, since the summary starts it at once.
 - `full size image`: each `FullSize.image`, the load of the review's and the trash's full size view.
 - `zoom base image`: each `TiledImage.base`, the base image of the Compress full size view and of the summary's slider.
+- `zoom prefetch`: each `TiledImage.prefetch`, the next photo's base image, loaded while the current one shows. After a swipe to a prefetched photo, its `TiledImage.base` is a few ms.
+- `full size placeholder`: how many full size views found their grid tile (`FullSize.placeholder.hit`) and how many did not.
+- `grid tile loads after the first full size view`: the `Compress.tile`, `Review.tile` and `Trash.tile` loads that start after the first full size image of the trace. Open the view, swipe, press Back and touch nothing else: 0 means the grid kept its tiles in memory.
 - `zoom tile decodes`: how many `TiledImage.tile` decodes the zooms made and the slowest. One decode reads the bounding box of a view's missing tiles.
 
 Name a photo by its size in megapixels only, never by its name or path, and keep the trace in `/tmp`.
