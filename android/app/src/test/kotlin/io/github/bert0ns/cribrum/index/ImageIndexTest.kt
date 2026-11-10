@@ -700,6 +700,11 @@ class ImageIndexTest {
         "removeExcludedFolder" to { removeExcludedFolder("/photos") },
     )
 
+    /** What a write needs on that index to have something to do, before the version is read. */
+    private val setups: Map<String, suspend ImageIndex.() -> Unit> = mapOf(
+        "forgetTrashed" to { setReviewState(PHOTO.path, ReviewState.TRASHED) },
+    )
+
     /**
      * Every public read, each run once on the same index. A method that writes anything must never go here: the review
      * would keep showing what it ranked before the write. It goes in [writes].
@@ -762,6 +767,7 @@ class ImageIndexTest {
                 runBlocking {
                     index.record(PHOTO)
                     index.setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+                    setups[name]?.invoke(index)
                     val before = index.version
                     seen.clear()
                     index.write()
@@ -772,6 +778,22 @@ class ImageIndexTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `a delete that removes no row keeps the version`() = test {
+        record(PHOTO)
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+        val before = version
+
+        forget(listOf(OTHER.path))
+        forget(emptyList())
+        forgetTrashed(listOf(PHOTO.path)) // not trashed
+        forgetAnalyses(listOf(PHOTO.path), listOf("document"))
+        forgetAnalyses(listOf(OTHER.path), listOf("blur"))
+
+        assertEquals(before, version)
+        assertEquals(listOf(BLUR), signals(PHOTO.path))
     }
 
     @Test

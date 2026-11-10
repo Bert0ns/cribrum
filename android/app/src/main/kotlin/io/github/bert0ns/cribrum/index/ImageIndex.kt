@@ -95,16 +95,16 @@ class ImageIndex(private val db: IndexDatabase) :
     suspend fun images(): List<ImageRef> = dao.images().map { ImageRef(it.path, it.size, it.mtimeNs) }
 
     /** Removes images from the index, with everything stored about them. Files are untouched. */
-    suspend fun forget(paths: Collection<String>) = writeTransaction {
-        paths.chunked(SQL_VARIABLES).forEach { dao.forget(it) }
+    suspend fun forget(paths: Collection<String>) = delete {
+        paths.chunked(SQL_VARIABLES).sumOf { dao.forget(it) }
     }
 
     /**
      * [forget] for the trash's purge: only rows still TRASHED go. A new file at the path of a purged image has a row
      * of its own, with a state the user chose, and it stays.
      */
-    suspend fun forgetTrashed(paths: Collection<String>) = writeTransaction {
-        paths.chunked(SQL_VARIABLES).forEach { dao.forgetTrashed(it) }
+    suspend fun forgetTrashed(paths: Collection<String>) = delete {
+        paths.chunked(SQL_VARIABLES).sumOf { dao.forgetTrashed(it) }
     }
 
     /** Images whose metadata was never read, leaving out the unreadable ones. */
@@ -188,8 +188,8 @@ class ImageIndex(private val db: IndexDatabase) :
     }
 
     /** Drops what these detectors stored for these images, signals included, so a run analyzes them again. */
-    suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = writeTransaction {
-        paths.chunked(SQL_VARIABLES).forEach { dao.forgetAnalyses(it, detectorIds.toList()) }
+    suspend fun forgetAnalyses(paths: Collection<String>, detectorIds: Collection<String>) = delete {
+        paths.chunked(SQL_VARIABLES).sumOf { dao.forgetAnalyses(it, detectorIds.toList()) }
     }
 
     suspend fun setEmbeddings(model: String, modelVersion: Int, vectors: Map<String, FloatArray>) = writeTransaction {
@@ -399,6 +399,20 @@ class ImageIndex(private val db: IndexDatabase) :
     }
 
     private suspend fun <T> writeTransaction(block: suspend () -> T): T = write { db.withTransaction(block) }
+
+    /**
+     * Runs the deletes of [block], which returns how many rows they removed, in one transaction. Unlike [write] it bumps
+     * the version only when a row went, or the block threw: every scan runs these, mostly on rows that are not there, and
+     * a bump drops the review's ranking (docs/design.md §4).
+     */
+    private suspend fun delete(block: suspend () -> Int) {
+        var removed = -1
+        try {
+            removed = db.withTransaction(block)
+        } finally {
+            if (removed != 0) writes.incrementAndGet()
+        }
+    }
 
     private suspend fun requireRecorded(path: String) = require(dao.count(path), path)
 
