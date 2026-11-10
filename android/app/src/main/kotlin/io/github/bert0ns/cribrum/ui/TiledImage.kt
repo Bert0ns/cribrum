@@ -164,6 +164,7 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
             AsyncImage(
                 request,
                 null,
+                FullSizeLoader.get(context),
                 Modifier.fillMaxSize(),
                 placeholder = rememberTilePlaceholder(file),
                 contentScale = ContentScale.Fit,

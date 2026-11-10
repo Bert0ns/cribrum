@@ -481,6 +481,7 @@ internal fun FullSizeViewer(
     overlay: @Composable BoxScope.(page: Int) -> Unit,
 ) {
     val pager = rememberPagerState(paths.indexOf(start).coerceAtLeast(0)) { paths.size }
+    ClearFullSizeImagesOnExit()
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(pager, Modifier.fillMaxSize().testTag("fullSize"), key = { paths[it] }) { page ->

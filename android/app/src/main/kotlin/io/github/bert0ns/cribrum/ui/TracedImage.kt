@@ -17,7 +17,7 @@ import java.io.File
  * AsyncImage builds from a file, plus a listener, so it draws and caches the same. The request is remembered: a new one on
  * every recomposition would not be equal to the last and would load again. A [tile] (a grid's cell) decodes with the grid
  * tiles' decoder ([TileDecoder]) and is stored in the memory cache under [tileMemoryKey]. A [fullSize] view loads with Coil's
- * default and shows the file's tile, if the cache still holds it, until its own image arrives.
+ * default decoders in the [FullSizeLoader], and shows the file's tile, if the cache still holds it, until its own image arrives.
  */
 @Composable
 internal fun TracedAsyncImage(
@@ -31,7 +31,11 @@ internal fun TracedAsyncImage(
 ) {
     val context = LocalContext.current
     val request = remember(file, section, tile, context) { fileRequest(context, file, section, tile) }
-    AsyncImage(request, contentDescription, modifier, placeholder = if (fullSize) rememberTilePlaceholder(file) else null, alignment = Alignment.Center, contentScale = contentScale)
+    if (fullSize) {
+        AsyncImage(request, contentDescription, FullSizeLoader.get(context), modifier, placeholder = rememberTilePlaceholder(file), alignment = Alignment.Center, contentScale = contentScale)
+    } else {
+        AsyncImage(request, contentDescription, modifier, alignment = Alignment.Center, contentScale = contentScale)
+    }
 }
 
 /** The request [TracedAsyncImage] builds for [file]: a [tile]'s is stored in the memory cache under [tileMemoryKey]. */

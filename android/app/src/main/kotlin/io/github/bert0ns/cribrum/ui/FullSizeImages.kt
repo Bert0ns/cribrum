@@ -1,12 +1,14 @@
-// How the full size views get their images (docs/design.md §8): the grid's tile as the placeholder.
+// How the full size views get their images (docs/design.md §8): a loader of their own, and the grid's tile as the placeholder.
 package io.github.bert0ns.cribrum.ui
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.tracing.trace
+import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.compose.asPainter
 import coil3.memory.MemoryCache
@@ -35,4 +37,33 @@ internal fun tilePlaceholder(context: Context, file: File): Painter? {
 internal fun rememberTilePlaceholder(file: File): Painter? {
     val context = LocalContext.current
     return remember(context, file) { tilePlaceholder(context, file) }
+}
+
+/**
+ * The loader of the full size views and of the summary's before and after. It is Coil's own loader with a memory cache of its
+ * own, so what these views show never pushes the grids' tiles out of the default cache: a base image is up to 12.6 MB, and
+ * Coil drops the least recently used images, which, under a full size view, are the tiles of the grid behind it. Back then
+ * finds the grid as it was.
+ */
+internal object FullSizeLoader {
+    /** Three base images of a 4:3 photo at 2,048 px, 12.6 MB each: the one on screen, the next and the last. */
+    const val MAX_BYTES = 40L * 1024 * 1024
+
+    @Volatile
+    private var instance: ImageLoader? = null
+
+    fun get(context: Context): ImageLoader = instance ?: synchronized(this) {
+        instance ?: SingletonImageLoader.get(context).newBuilder().memoryCache(MemoryCache.Builder().maxSizeBytes(MAX_BYTES).build()).build().also { instance = it }
+    }
+
+    /** Lets go of the images it holds, but not of the ones a screen is drawing. */
+    fun clear() {
+        instance?.memoryCache?.clear()
+    }
+}
+
+/** Empties the [FullSizeLoader]'s cache when the caller leaves the screen, so a closed view holds no memory. */
+@Composable
+internal fun ClearFullSizeImagesOnExit() {
+    DisposableEffect(Unit) { onDispose { FullSizeLoader.clear() } }
 }

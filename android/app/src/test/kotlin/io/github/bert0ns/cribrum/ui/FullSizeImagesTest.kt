@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNotSame
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
@@ -76,5 +77,22 @@ class FullSizeImagesTest {
         tiles.clear()
         assertNull(tilePlaceholder(context, file))
         assertEquals(0, tiles.size)
+    }
+
+    @Test
+    fun `a full size image goes to the cache of its own loader and leaves the grid's tiles alone`() {
+        val file = photo("a.jpg")
+        store(file)
+        val before = tiles.keys.toSet()
+        val loader = FullSizeLoader.get(context)
+        assertNotSame(tiles, loader.memoryCache)
+        assertEquals(FullSizeLoader.MAX_BYTES, loader.memoryCache!!.maxSize)
+        runBlocking { loader.execute(baseRequest(context, file, previewCacheKey(file), "TiledImage.base")) }
+        runBlocking { loader.execute(fileRequest(context, file, "FullSize.image", tile = false)) }
+        assertEquals(before, tiles.keys)
+        assertNotNull(loader.memoryCache!![MemoryCache.Key(previewCacheKey(file))])
+        FullSizeLoader.clear()
+        assertEquals(0, loader.memoryCache!!.size)
+        assertEquals(before, tiles.keys)
     }
 }

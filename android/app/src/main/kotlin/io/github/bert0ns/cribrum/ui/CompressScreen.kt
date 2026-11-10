@@ -597,6 +597,7 @@ private fun Refusal.plural() = when (this) {
 private fun SummaryDialog(summary: Summary, state: CompressState, onLevel: (CompressionLevel) -> Unit, onLevelSettled: () -> Unit, onClose: () -> Unit, onConfirm: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val count = state.selectedPhotos.size
+    ClearFullSizeImagesOnExit()
     Dialog(onClose, DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
