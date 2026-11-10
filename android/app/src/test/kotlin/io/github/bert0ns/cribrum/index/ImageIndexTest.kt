@@ -336,6 +336,20 @@ class ImageIndexTest {
     }
 
     @Test
+    fun `the analyzed paths of several detectors are those of each one at its version`() = test {
+        record(PHOTO)
+        record(OTHER)
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+        setSignals(OTHER.path, "blur", 2, emptyList())
+        setSignals(OTHER.path, "document", 1, emptyList())
+
+        val versions = mapOf("blur" to 1, "document" to 1, "faces" to 1)
+
+        assertEquals(mapOf("blur" to setOf(PHOTO.path), "document" to setOf(OTHER.path), "faces" to emptySet<String>()), analyzedPaths(versions))
+        assertEquals(versions.mapValues { (id, version) -> analyzedPaths(id, version) }, analyzedPaths(versions))
+    }
+
+    @Test
     fun `signals are stored per detector version`() = test {
         record(PHOTO)
         val screenshot = Signal("screenshot", 3, Category.SCREENSHOT, 0.9f)
