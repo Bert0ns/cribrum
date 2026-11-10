@@ -1,6 +1,7 @@
 // A photo that zooms to its full resolution (docs/design.md §8): a base image from Coil, and tiles of the visible part read with BitmapRegionDecoder.
 package io.github.bert0ns.cribrum.ui
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
@@ -45,6 +46,7 @@ import androidx.tracing.trace
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import coil3.size.Precision
 import coil3.size.Scale
 import io.github.bert0ns.cribrum.imaging.orientation
 import io.github.bert0ns.cribrum.tracing.traced
@@ -158,9 +160,7 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
         ) {
             val context = LocalContext.current
             // Remembered: the listener of the trace section is not equal from one recomposition to the next, and the request would load again.
-            val request = remember(context, file, key) {
-                ImageRequest.Builder(context).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).traced("TiledImage.base").build()
-            }
+            val request = remember(context, file, key) { baseRequest(context, file, key, "TiledImage.base") }
             AsyncImage(
                 request,
                 null,
@@ -188,6 +188,13 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
 }
 
 private val tilePaint = Paint(Paint.FILTER_BITMAP_FLAG)
+
+/**
+ * The request for [file]'s base image, under the memory cache key [key] ([previewCacheKey]). Its size is [BASE_PIXELS] fitted,
+ * with the inexact precision AsyncImage sets on any request: a decoder only scales down for it, so the long side is at most
+ * [BASE_PIXELS] whatever the photo (BaseImageTest checks it on a 200 MP file with both decoders).
+ */
+internal fun baseRequest(context: Context, file: File, key: String, section: String): ImageRequest = ImageRequest.Builder(context).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).precision(Precision.INEXACT).traced(section).build()
 
 /** What [TileLoader] reads regions from: a [TileSource] on a file, or a fake in tests. [raw] is its size before the EXIF [orientation]. */
 internal interface RegionDecoder {
