@@ -592,6 +592,7 @@ private fun ZoomableImage(path: String, onClose: () -> Unit) {
         File(path),
         "FullSize.image",
         contentDescription = File(path).name,
+        fullSize = true,
         contentScale = ContentScale.Fit,
         modifier = Modifier.fillMaxSize()
             .pointerInput(Unit) {

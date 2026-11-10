@@ -165,6 +165,7 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
                 request,
                 null,
                 Modifier.fillMaxSize(),
+                placeholder = rememberTilePlaceholder(file),
                 contentScale = ContentScale.Fit,
             )
             Canvas(Modifier.fillMaxSize()) {
