@@ -375,7 +375,15 @@ class ReviewViewModel @JvmOverloads constructor(
 
     private fun showHome() = load { it.home() }
 
-    private suspend fun ReviewState.home() = copy(screen = Screen.Home, page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet()).withOverview(review.overview())
+    /**
+     * The home read again, with what [refresh] reads: a scan reloads the home only while it shows (HomeReloads), so one that
+     * moved on or ended while another screen showed has left the empty index and the last scan to read here.
+     */
+    private suspend fun ReviewState.home(): ReviewState {
+        val lastScan = withContext(Dispatchers.IO) { app.lastScan.report }
+        return copy(screen = Screen.Home, page = emptyList(), lastDecision = null, lastExclusion = null, skipped = emptySet(), indexEmpty = app.index.imageCount() == 0, lastScan = lastScan)
+            .withOverview(review.overview())
+    }
 
     /** An image that left the page while the tap waited for a change has no mark to flip. */
     fun toggle(image: ImageRef) = queue {

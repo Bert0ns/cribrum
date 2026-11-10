@@ -691,6 +691,22 @@ class ReviewViewModelTest {
         settle(model) { !it.state.value.indexEmpty }
     }
 
+    @Test
+    fun `back on the home reads the empty index and the last scan again, which a scan left while another screen showed`() {
+        val model = ReviewViewModel(app)
+        model.refresh()
+        settle(model) { it.state.value.categories.isNotEmpty() }
+        assertTrue(model.state.value.indexEmpty)
+        model.openSettings()
+        settle(model) { it.state.value.screen == Screen.Settings }
+
+        blurry("/sdcard/a.jpg", 0.9f)
+        app.lastScan.record(Stats(unreadable = 3), finishedAt = 5)
+        model.back()
+        settle(model) { it.state.value.screen == Screen.Home && !it.state.value.indexEmpty }
+        assertEquals(3, model.state.value.lastScan!!.unreadable)
+    }
+
     /** A view model whose [Review] counts the overview loads: each one reads the thresholds once. */
     private fun modelCountingLoads(): Pair<ReviewViewModel, AtomicInteger> {
         val loads = AtomicInteger()
