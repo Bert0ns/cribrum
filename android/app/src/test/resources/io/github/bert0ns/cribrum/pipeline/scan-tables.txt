@@ -1,0 +1,362 @@
+first scan
+[analyses]
+path=<tmp>/card/x.png | detector_id=burst | detector_version=3
+path=<tmp>/card/x.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/card/x.png | detector_id=first_value | detector_version=1
+path=<tmp>/card/x.png | detector_id=forwarded | detector_version=2
+path=<tmp>/card/x.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/card/x.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=size | detector_version=2
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=burst | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=size | detector_version=2
+path=<tmp>/device/Pictures/broken.png | detector_id=burst | detector_version=3
+path=<tmp>/device/Pictures/broken.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/Pictures/broken.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=burst | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=size | detector_version=2
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=burst | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=size | detector_version=2
+[embeddings]
+path=<tmp>/card/x.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/a.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/d.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/gone.png | model=arithmetic | model_version=1 | vector=5153a763104b0c46
+path=<tmp>/device/DCIM/Camera/touched.png | model=arithmetic | model_version=1 | vector=93fb53db80fecd08
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | model=arithmetic | model_version=1 | vector=5153a763104b0c46
+path=<tmp>/device/WhatsApp/Media/a-copy.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+[excluded_folders]
+[group_runs]
+detector_id=burst | detector_version=3 | fingerprint=#1
+detector_id=exact_duplicate | detector_version=1 | fingerprint=#1
+detector_id=near_duplicate | detector_version=3 | fingerprint=#1
+[images]
+path=<tmp>/card/x.png | size=218 | mtime_ns=1700000006000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=7c6d5405dc1722bf | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/a.png | size=218 | mtime_ns=1700000000000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=#3 | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/d.png | size=218 | mtime_ns=1700000003000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=125d45093ed85661 | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/gone.png | size=236 | mtime_ns=1700000004000000000 | review_state=unreviewed | width=9 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=319042e7e12e9158 | perceptual_hash=db24370158aa635c
+path=<tmp>/device/DCIM/Camera/touched.png | size=254 | mtime_ns=1700000011000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=4f8bbb71f2a48b47 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | size=236 | mtime_ns=1700000001000000000 | review_state=unreviewed | width=9 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=005a6506eefda244 | perceptual_hash=db24370158aa635c
+path=<tmp>/device/Pictures/broken.png | size=19 | mtime_ns=1700000009000000000 | review_state=unreviewed | width=null | height=null | mime=null | camera_make=null | camera_model=null | captured_at=null | unreadable=1 | content_hash=null | perceptual_hash=null
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | size=254 | mtime_ns=1700000002000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=106f354ebefa3328 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/WhatsApp/Media/a-copy.png | size=218 | mtime_ns=1700000000000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=#3 | perceptual_hash=null
+[jpegs]
+[kept_detectors]
+[kept_signals]
+[not_images]
+path=<tmp>/device/Documents/notes.txt | size=12 | mtime_ns=1700000005000000000
+path=<tmp>/device/Pictures/broken.png | size=19 | mtime_ns=1700000009000000000
+[signals]
+path=<tmp>/card/x.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/card/x.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/card/x.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#2","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/card/x.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate | detector_version=1 | category=exact_duplicate | score=0 | evidence={"group":"#3","role":"best"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#2","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#2","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=first_value | detector_version=1 | category=document | score=0.082597 | evidence={}
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161461 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.95717 | evidence={"group":"#2","role":"inferior","distance":"30","cosine":"0.991"}
+path=<tmp>/device/DCIM/Camera/gone.png | detector_id=size | detector_version=2 | category=blurry | score=0.36 | evidence={"width":"9","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=first_value | detector_version=1 | category=document | score=0.00105953 | evidence={}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.157685 | evidence={"prompt":"an emoji sticker","probability":"0.071","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0 | evidence={"group":"#2","role":"best","distance":"0","cosine":"1.000"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=size | detector_version=2 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=first_value | detector_version=1 | category=document | score=0.082597 | evidence={}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161461 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.95717 | evidence={"group":"#2","role":"inferior","distance":"30","cosine":"0.991"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=size | detector_version=2 | category=blurry | score=0.36 | evidence={"width":"9","mime":"image\/png"}
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=1 | evidence={"group":"#2","role":"inferior","distance":"0"}
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=size | detector_version=2 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=exact_duplicate | detector_version=1 | category=exact_duplicate | score=1 | evidence={"group":"#3","role":"inferior"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.496862 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"yes","camera_exif":"no"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+[scan failures]
+<tmp>/device/WhatsApp/Media/a-copy.png: perceptual hash: IOException: busy
+second scan
+[analyses]
+path=<tmp>/card/x.png | detector_id=burst | detector_version=3
+path=<tmp>/card/x.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/card/x.png | detector_id=first_value | detector_version=1
+path=<tmp>/card/x.png | detector_id=forwarded | detector_version=2
+path=<tmp>/card/x.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/card/x.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=size | detector_version=2
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=size | detector_version=2
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=burst | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=size | detector_version=2
+path=<tmp>/device/Pictures/broken.png | detector_id=burst | detector_version=3
+path=<tmp>/device/Pictures/broken.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/Pictures/broken.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=burst | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=size | detector_version=2
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=burst | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=size | detector_version=2
+[embeddings]
+path=<tmp>/card/x.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/a.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/d.png | model=arithmetic | model_version=1 | vector=93fb53db80fecd08
+path=<tmp>/device/DCIM/Camera/e.png | model=arithmetic | model_version=1 | vector=5153a763104b0c46
+path=<tmp>/device/DCIM/Camera/touched.png | model=arithmetic | model_version=1 | vector=93fb53db80fecd08
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | model=arithmetic | model_version=1 | vector=5153a763104b0c46
+path=<tmp>/device/WhatsApp/Media/a-copy.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+[excluded_folders]
+[group_runs]
+detector_id=burst | detector_version=3 | fingerprint=#1
+detector_id=exact_duplicate | detector_version=1 | fingerprint=#1
+detector_id=near_duplicate | detector_version=3 | fingerprint=#1
+[images]
+path=<tmp>/card/x.png | size=218 | mtime_ns=1700000006000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=7c6d5405dc1722bf | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/a.png | size=218 | mtime_ns=1700000000000000000 | review_state=kept | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=#2 | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/d.png | size=254 | mtime_ns=1700000099000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=7b65f2c4a900fbd1 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/DCIM/Camera/e.png | size=236 | mtime_ns=1700000007000000000 | review_state=unreviewed | width=9 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=c79b162205eb0c6d | perceptual_hash=db24370158aa635c
+path=<tmp>/device/DCIM/Camera/touched.png | size=254 | mtime_ns=1700000055000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=4f8bbb71f2a48b47 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | size=236 | mtime_ns=1700000001000000000 | review_state=trashed | width=9 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=005a6506eefda244 | perceptual_hash=db24370158aa635c
+path=<tmp>/device/Pictures/broken.png | size=19 | mtime_ns=1700000009000000000 | review_state=unreviewed | width=null | height=null | mime=null | camera_make=null | camera_model=null | captured_at=null | unreadable=1 | content_hash=null | perceptual_hash=null
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | size=254 | mtime_ns=1700000002000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=106f354ebefa3328 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/WhatsApp/Media/a-copy.png | size=218 | mtime_ns=1700000000000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=#2 | perceptual_hash=bb3da7f6656da9e2
+[jpegs]
+[kept_detectors]
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=burst
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size
+[kept_signals]
+path=<tmp>/device/DCIM/Camera/a.png | category=blurry | group_id= | role=
+path=<tmp>/device/DCIM/Camera/a.png | category=document | group_id= | role=
+path=<tmp>/device/DCIM/Camera/a.png | category=exact_duplicate | group_id=#2 | role=best
+path=<tmp>/device/DCIM/Camera/a.png | category=forwarded | group_id= | role=
+path=<tmp>/device/DCIM/Camera/a.png | category=near_duplicate | group_id=#3 | role=inferior
+[not_images]
+path=<tmp>/device/Documents/notes.txt | size=12 | mtime_ns=1700000005000000000
+[signals]
+path=<tmp>/card/x.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/card/x.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/card/x.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/card/x.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate | detector_version=1 | category=exact_duplicate | score=0 | evidence={"group":"#2","role":"best"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=first_value | detector_version=1 | category=document | score=0.00105953 | evidence={}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.157685 | evidence={"prompt":"an emoji sticker","probability":"0.071","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0 | evidence={"group":"#4","role":"best","distance":"0","cosine":"1.000"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=size | detector_version=2 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=first_value | detector_version=1 | category=document | score=0.082597 | evidence={}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161461 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.95717 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.991"}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=size | detector_version=2 | category=blurry | score=0.36 | evidence={"width":"9","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=first_value | detector_version=1 | category=document | score=0.00105953 | evidence={}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.157685 | evidence={"prompt":"an emoji sticker","probability":"0.071","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=1 | evidence={"group":"#4","role":"inferior","distance":"0","cosine":"1.000"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=size | detector_version=2 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=first_value | detector_version=1 | category=document | score=0.082597 | evidence={}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161461 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.95717 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.991"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=size | detector_version=2 | category=blurry | score=0.36 | evidence={"width":"9","mime":"image\/png"}
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=1 | evidence={"group":"#4","role":"inferior","distance":"0"}
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=size | detector_version=2 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=exact_duplicate | detector_version=1 | category=exact_duplicate | score=1 | evidence={"group":"#2","role":"inferior"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.496862 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"yes","camera_exif":"no"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=size | detector_version=2 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+[scan failures]
+fourth scan
+[analyses]
+path=<tmp>/card/x.png | detector_id=burst | detector_version=3
+path=<tmp>/card/x.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/card/x.png | detector_id=first_value | detector_version=1
+path=<tmp>/card/x.png | detector_id=forwarded | detector_version=2
+path=<tmp>/card/x.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/card/x.png | detector_id=size | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=size | detector_version=3
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=size | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=burst | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=size | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=burst | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=size | detector_version=3
+path=<tmp>/device/Pictures/broken.png | detector_id=burst | detector_version=3
+path=<tmp>/device/Pictures/broken.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/Pictures/broken.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=burst | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=size | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=burst | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=exact_duplicate | detector_version=1
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=first_value | detector_version=1
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=forwarded | detector_version=2
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=near_duplicate | detector_version=3
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=size | detector_version=3
+[embeddings]
+path=<tmp>/card/x.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/a.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+path=<tmp>/device/DCIM/Camera/d.png | model=arithmetic | model_version=1 | vector=93fb53db80fecd08
+path=<tmp>/device/DCIM/Camera/e.png | model=arithmetic | model_version=1 | vector=5153a763104b0c46
+path=<tmp>/device/DCIM/Camera/touched.png | model=arithmetic | model_version=1 | vector=93fb53db80fecd08
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | model=arithmetic | model_version=1 | vector=5153a763104b0c46
+path=<tmp>/device/WhatsApp/Media/a-copy.png | model=arithmetic | model_version=1 | vector=f092446a751f095c
+[excluded_folders]
+[group_runs]
+detector_id=burst | detector_version=3 | fingerprint=#1
+detector_id=exact_duplicate | detector_version=1 | fingerprint=#1
+detector_id=near_duplicate | detector_version=3 | fingerprint=#1
+[images]
+path=<tmp>/card/x.png | size=218 | mtime_ns=1700000006000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=7c6d5405dc1722bf | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/a.png | size=218 | mtime_ns=1700000000000000000 | review_state=kept | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=#2 | perceptual_hash=bb3da7f6656da9e2
+path=<tmp>/device/DCIM/Camera/d.png | size=254 | mtime_ns=1700000099000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=7b65f2c4a900fbd1 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/DCIM/Camera/e.png | size=236 | mtime_ns=1700000007000000000 | review_state=unreviewed | width=9 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=c79b162205eb0c6d | perceptual_hash=db24370158aa635c
+path=<tmp>/device/DCIM/Camera/touched.png | size=254 | mtime_ns=1700000055000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=4f8bbb71f2a48b47 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | size=236 | mtime_ns=1700000001000000000 | review_state=trashed | width=9 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=005a6506eefda244 | perceptual_hash=db24370158aa635c
+path=<tmp>/device/Pictures/broken.png | size=19 | mtime_ns=1700000009000000000 | review_state=unreviewed | width=null | height=null | mime=null | camera_make=null | camera_model=null | captured_at=null | unreadable=1 | content_hash=null | perceptual_hash=null
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | size=254 | mtime_ns=1700000002000000000 | review_state=unreviewed | width=10 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=106f354ebefa3328 | perceptual_hash=fb0ac60c4be71cd6
+path=<tmp>/device/WhatsApp/Media/a-copy.png | size=218 | mtime_ns=1700000000000000000 | review_state=unreviewed | width=8 | height=6 | mime=image/png | camera_make=null | camera_model=null | captured_at=null | unreadable=0 | content_hash=#2 | perceptual_hash=bb3da7f6656da9e2
+[jpegs]
+[kept_detectors]
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=burst
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size
+[kept_signals]
+path=<tmp>/device/DCIM/Camera/a.png | category=blurry | group_id= | role=
+path=<tmp>/device/DCIM/Camera/a.png | category=document | group_id= | role=
+path=<tmp>/device/DCIM/Camera/a.png | category=exact_duplicate | group_id=#2 | role=best
+path=<tmp>/device/DCIM/Camera/a.png | category=forwarded | group_id= | role=
+path=<tmp>/device/DCIM/Camera/a.png | category=near_duplicate | group_id=#3 | role=inferior
+[not_images]
+path=<tmp>/device/Documents/notes.txt | size=12 | mtime_ns=1700000005000000000
+[signals]
+path=<tmp>/card/x.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/card/x.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/card/x.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/card/x.png | detector_id=size | detector_version=3 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=exact_duplicate | detector_version=1 | category=exact_duplicate | score=0 | evidence={"group":"#2","role":"best"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161437 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/device/DCIM/Camera/a.png | detector_id=size | detector_version=3 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=first_value | detector_version=1 | category=document | score=0.00105953 | evidence={}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.157685 | evidence={"prompt":"an emoji sticker","probability":"0.071","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0 | evidence={"group":"#4","role":"best","distance":"0","cosine":"1.000"}
+path=<tmp>/device/DCIM/Camera/d.png | detector_id=size | detector_version=3 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=first_value | detector_version=1 | category=document | score=0.082597 | evidence={}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161461 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.95717 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.991"}
+path=<tmp>/device/DCIM/Camera/e.png | detector_id=size | detector_version=3 | category=blurry | score=0.36 | evidence={"width":"9","mime":"image\/png"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=first_value | detector_version=1 | category=document | score=0.00105953 | evidence={}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.157685 | evidence={"prompt":"an emoji sticker","probability":"0.071","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=1 | evidence={"group":"#4","role":"inferior","distance":"0","cosine":"1.000"}
+path=<tmp>/device/DCIM/Camera/touched.png | detector_id=size | detector_version=3 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=first_value | detector_version=1 | category=document | score=0.082597 | evidence={}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.161461 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"no","camera_exif":"no"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.95717 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.991"}
+path=<tmp>/device/Pictures/Screenshots/Screenshot_1.png | detector_id=size | detector_version=3 | category=blurry | score=0.36 | evidence={"width":"9","mime":"image\/png"}
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=1 | evidence={"group":"#4","role":"inferior","distance":"0"}
+path=<tmp>/device/WhatsApp/Media/WhatsApp Stickers/s.png | detector_id=size | detector_version=3 | category=blurry | score=0.54 | evidence={"width":"10","mime":"image\/png"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=exact_duplicate | detector_version=1 | category=exact_duplicate | score=1 | evidence={"group":"#2","role":"inferior"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=first_value | detector_version=1 | category=document | score=0.0764949 | evidence={}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=forwarded | detector_version=2 | category=forwarded | score=0.496862 | evidence={"prompt":"an emoji sticker","probability":"0.076","messaging_folder":"yes","camera_exif":"no"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=near_duplicate | detector_version=3 | category=near_duplicate | score=0.969494 | evidence={"group":"#4","role":"inferior","distance":"30","cosine":"0.994"}
+path=<tmp>/device/WhatsApp/Media/a-copy.png | detector_id=size | detector_version=3 | category=blurry | score=0.18 | evidence={"width":"8","mime":"image\/png"}
+[scan failures]
