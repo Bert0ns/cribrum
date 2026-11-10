@@ -345,7 +345,7 @@ class Pipeline(
      * embedding and the run goes on.
      */
     private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
-        val stored = index.embeddings(embedder.id, embedder.version).keys
+        val stored = index.embeddedPaths(embedder.id, embedder.version)
         val todo = images.filter { it.path !in stored }
         stats.counts["embeddings tasks"] = todo.size
         if (todo.isEmpty()) return
