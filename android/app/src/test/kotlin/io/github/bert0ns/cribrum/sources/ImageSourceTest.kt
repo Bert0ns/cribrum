@@ -456,6 +456,20 @@ class ImageSourceTest {
     }
 
     @Test
+    fun `merged sources give a later source the paths the earlier ones yielded`() {
+        val given = mutableListOf<Set<String>>()
+        fun source(vararg paths: String) = object : ImageSource {
+            override val walkedRoots = emptyList<File>()
+            override fun scan(): Flow<ImageRef> = scan(emptySet())
+            override fun scan(known: Set<String>): Flow<ImageRef> = flowOf(*paths.map { ImageRef(it, 1, 1) }.toTypedArray()).also { given += known }
+        }
+
+        runBlocking { MergedImageSource(listOf(source("/a.jpg", "/b.jpg"), source("/b.jpg", "/sd/c.jpg"))).scan().toList() }
+
+        assertEquals(listOf(emptySet(), setOf("/a.jpg", "/b.jpg")), given)
+    }
+
+    @Test
     fun `merged sources add up their counts and count the files a later source found again`() {
         fun source(count: Int, vararg paths: String) = object : ImageSource {
             override val walkedRoots = emptyList<File>()
@@ -521,7 +535,22 @@ class MediaStoreImageSourceTest {
 
         runBlocking { source.scan().toList() }
 
-        assertEquals(mapOf("mediaStoreRows" to 2), source.counts)
+        assertEquals(mapOf("mediaStoreRows" to 2, "duplicates" to 0), source.counts)
+    }
+
+    @Test
+    fun `leaves out a known path before it looks at the file, and counts it`() {
+        val found = write("DCIM/Camera/IMG_1.jpg")
+        val other = write("DCIM/Camera/IMG_2.jpg")
+        val gone = File(root, "DCIM/Camera/IMG_3.jpg").path // a stat would drop it without counting it
+        FakeMedia.paths = listOf(found, other, gone)
+        Robolectric.setupContentProvider(FakeMedia::class.java, MediaStore.AUTHORITY)
+        val source = MediaStoreImageSource(ApplicationProvider.getApplicationContext<Context>().contentResolver, listOf(root))
+
+        val images = runBlocking { source.scan(setOf(found, gone)).toList() }
+
+        assertEquals(listOf(other), images.map { it.path })
+        assertEquals(mapOf("mediaStoreRows" to 3, "duplicates" to 2), source.counts)
     }
 
     @Test
