@@ -10,6 +10,7 @@ import android.graphics.Paint
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
@@ -19,7 +20,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -44,10 +44,8 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.core.graphics.withMatrix
 import androidx.tracing.trace
-import coil3.ImageLoader
 import coil3.compose.AsyncImage
 import coil3.request.CachePolicy
-import coil3.request.Disposable
 import coil3.request.ImageRequest
 import coil3.size.Precision
 import coil3.size.Scale
@@ -167,20 +165,22 @@ internal fun TiledImage(file: File, zoom: Zoom, modifier: Modifier = Modifier, t
             val request = remember(context, file, key) { baseRequest(context, file, key, "TiledImage.base") }
             val loader = FullSizeLoader.get(context)
             var shown by remember(key) { mutableStateOf(false) }
-            AsyncImage(
-                request,
-                null,
-                loader,
-                Modifier.fillMaxSize(),
-                placeholder = rememberTilePlaceholder(file),
-                onSuccess = { shown = true },
-                contentScale = ContentScale.Fit,
-            )
-            // Not before this photo shows: both would decode at once, and this one is the one waited for. Leaving drops a load not yet done.
-            DisposableEffect(shown, next, loader) {
-                val prefetch = next?.takeIf { shown }?.let { prefetchBase(context, loader, it) }
-                onDispose { prefetch?.dispose() }
+            // A swipe that lands while this photo's prefetch still loads waits for it: Coil would decode it a second time.
+            var ready by remember(key) { mutableStateOf(!FullSizeLoader.prefetching(file)) }
+            LaunchedEffect(key) {
+                if (ready) return@LaunchedEffect
+                FullSizeLoader.awaitPrefetch(file)
+                ready = true
             }
+            val placeholder = rememberTilePlaceholder(file)
+            if (ready) {
+                AsyncImage(request, null, loader, Modifier.fillMaxSize(), placeholder = placeholder, onSuccess = { shown = true }, contentScale = ContentScale.Fit)
+            } else if (placeholder != null) {
+                Image(placeholder, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+            }
+            // Not before this photo shows: both would decode at once, and this one is the one waited for. The prefetch outlives
+            // the page, so the swipe to it finds it loading or done; closing the view stops it (ClearFullSizeImagesOnExit).
+            LaunchedEffect(shown, next) { if (shown && next != null) FullSizeLoader.prefetch(context, next) }
             Canvas(Modifier.fillMaxSize()) {
                 val shown = source ?: return@Canvas
                 if (tiles.isEmpty()) return@Canvas
@@ -210,10 +210,7 @@ private val tilePaint = Paint(Paint.FILTER_BITMAP_FLAG)
  */
 internal fun baseRequest(context: Context, file: File, key: String, section: String): ImageRequest = ImageRequest.Builder(context).data(file).memoryCacheKey(key).diskCachePolicy(CachePolicy.DISABLED).size(BASE_PIXELS).scale(Scale.FIT).precision(Precision.INEXACT).traced(section).build()
 
-/** Loads [file]'s base image into the memory cache of [loader] as the view will ask for it, so a swipe to it finds it there. */
-internal fun prefetchBase(context: Context, loader: ImageLoader, file: File): Disposable = loader.enqueue(prefetchRequest(context, file))
-
-/** The request of [prefetchBase]: the view's own, called `TiledImage.prefetch` in the trace. */
+/** The request of [FullSizeLoader.prefetch]: the view's own, called `TiledImage.prefetch` in the trace. */
 internal fun prefetchRequest(context: Context, file: File): ImageRequest = baseRequest(context, file, previewCacheKey(file), "TiledImage.prefetch")
 
 /** What [TileLoader] reads regions from: a [TileSource] on a file, or a fake in tests. [raw] is its size before the EXIF [orientation]. */
