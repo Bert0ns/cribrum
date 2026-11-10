@@ -436,13 +436,10 @@ class Pipeline(
             images.mapNotNull { image ->
                 val todo = selected.filter { image.path !in analyzed.getValue(it) }
                 val needsPhash = beforeEmbeddings && image.path !in hashed
+                // Only an image with work reads its metadata: a query each for the whole library took most of a scan with few changes.
                 // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
-                val metadata = index.metadata(image.path)
-                if ((todo.isEmpty() && !needsPhash) || metadata == null) {
-                    null
-                } else {
-                    AnalysisTask(image, metadata, embeddings[image.path], todo, needsPhash, beforeEmbeddings)
-                }
+                if (todo.isEmpty() && !needsPhash) return@mapNotNull null
+                index.metadata(image.path)?.let { AnalysisTask(image, it, embeddings[image.path], todo, needsPhash, beforeEmbeddings) }
             }
         }
         stats.counts["$step tasks"] = tasks.size
