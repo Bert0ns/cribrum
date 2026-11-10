@@ -93,7 +93,7 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Pipeline.tasks` | `analyzeEach`'s building of its tasks: the index reads that tell what each image still needs |
 | `Pipeline.store` | `storeOutcome`: the index writes of one image's results |
 | `Walk.list`, `Walk.stat` | the walk's `listFiles` of one folder, and the `readAttributes` of all its entries (one section for the folder, not for each entry) |
-| `Walk.mediaStore` | the MediaStore pass: the query, and the stat of each row's file. Not the emits, which wait for the collector |
+| `Walk.mediaStore` | the MediaStore pass: the query, and the stat of each row's file the walk did not find. Not the emits, which wait for the collector |
 | `Index.recordAll` | `ImageIndex.recordAll`: one transaction of the walk, `RECORD_BATCH` images at most |
 | `Group.<id>.analyze`, `Group.<id>.store` | a group detector's `analyze`, and the writes of its signals and fingerprint, for `exact_duplicate`, `near_duplicate` and `burst` |
 | `Trash.items` | `AppTrash.items()`: reading every item folder of the trash, six at a time. It runs inside the calls that list, purge or restore, not the scan's `purgeExpired` |
@@ -132,7 +132,7 @@ Sections are per image at the finest, never per pixel or row. Perfetto shows the
 - `storage map open`: from the first `StorageMap.build` to the end of the `StorageMap.layout` that follows it.
 - `indexed images` and `last scan` with the new or changed files, the time of each phase and the group detectors that ran or skipped: what the last scan logged under the `scan-time` tag (`adb logcat -s scan-time`), while the log still holds it. Settings shows the total time of the last scan.
   The `last scan` lines also hold, after the new or changed files and before the phase times:
-  - `walk folders`, `walk entries`, `walk sniffed`, `walk mediaStoreRows` and `walk duplicates`: the folders and entries listed, the files whose head the walk read, the MediaStore rows, and the files MediaStore found that the walk already had;
+  - `walk folders`, `walk entries`, `walk sniffed`, `walk mediaStoreRows` and `walk duplicates`: the folders and entries listed, the files whose head the walk read, the MediaStore rows, and the files MediaStore found that the walk already had, which it leaves out before their stat;
   - `trash items`: the items the trash held when the scan listed it;
   - `detectors tasks`, `embeddings tasks` and `embedded_detectors tasks`: the images each phase worked on, and `detectors sticker tasks` and `embedded_detectors sticker tasks`, how many of them are stickers; `stickers` is the stickers among all the readable images;
   - after the phase times, `thermal <phase> <status>`: `PowerManager.currentThermalStatus` (0 none, 1 light, 2 moderate, 3 severe, up to 6 shutdown), read once when the phase starts.

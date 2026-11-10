@@ -23,6 +23,12 @@ interface ImageSource {
     fun scan(): Flow<ImageRef>
 
     /**
+     * [scan], free to leave out a path in [known] before any work on it. [MergedImageSource] passes the paths the
+     * earlier sources yielded, whose refs it keeps over any later one.
+     */
+    fun scan(known: Set<String>): Flow<ImageRef> = scan()
+
+    /**
      * The roots the last [scan] listed in full. An image under one of them that [scan] did not
      * yield is gone; under any other root the scan could not look, so it says nothing.
      */
@@ -172,9 +178,13 @@ class MediaStoreImageSource(private val resolver: ContentResolver, private val v
     override var counts: Map<String, Int> = emptyMap()
         private set
 
-    override fun scan(): Flow<ImageRef> = flow {
+    override fun scan(): Flow<ImageRef> = scan(emptySet())
+
+    /** A path in [known] costs no stat: the walk already found it, and that is most of what MediaStore lists. */
+    override fun scan(known: Set<String>): Flow<ImageRef> = flow {
         counts = emptyMap()
         var rows = 0
+        var duplicates = 0
         // The query and the stats are one section; the emits wait for the collector, so they stay out of it. Without an emit
         // per row, each row checks for a stopped scan itself, so a stop does not wait for the stats of every row.
         val images = trace("Walk.mediaStore") {
@@ -190,6 +200,10 @@ class MediaStoreImageSource(private val resolver: ContentResolver, private val v
             rows = paths.size
             paths.sorted().mapNotNull { path ->
                 currentCoroutineContext().ensureActive()
+                if (path in known) {
+                    duplicates++
+                    return@mapNotNull null
+                }
                 val file = File(path)
                 if (isSkipped(volumes.firstOrNull(file::startsWith) ?: File("/"), file)) return@mapNotNull null
                 try {
@@ -199,7 +213,7 @@ class MediaStoreImageSource(private val resolver: ContentResolver, private val v
                 }
             }
         }
-        counts = mapOf("mediaStoreRows" to rows)
+        counts = mapOf("mediaStoreRows" to rows, "duplicates" to duplicates)
         images.forEach { emit(it) }
     }.flowOn(Dispatchers.IO)
 }
@@ -214,14 +228,16 @@ class MergedImageSource(private val sources: List<ImageSource>) : ImageSource {
     @Volatile
     private var duplicates = 0
 
+    /** Its own duplicates are added to those a source left out itself. */
     override val counts: Map<String, Int>
-        get() = sources.flatMap { it.counts.entries }.groupingBy { it.key }.fold(0) { sum, entry -> sum + entry.value } + ("duplicates" to duplicates)
+        get() = (sources.flatMap { it.counts.toList() } + ("duplicates" to duplicates)).groupingBy { it.first }.fold(0) { sum, entry -> sum + entry.second }
 
     override fun scan(): Flow<ImageRef> = flow {
         duplicates = 0
         val seen = HashSet<String>()
         for (source in sources) {
-            source.scan().collect { if (seen.add(it.path)) emit(it) else duplicates++ }
+            // A copy: the source may still read it while this adds the paths it yields.
+            source.scan(seen.toSet()).collect { if (seen.add(it.path)) emit(it) else duplicates++ }
         }
     }
 }
