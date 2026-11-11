@@ -325,9 +325,9 @@ class Pipeline(
     private fun stickersLast(images: List<ImageRef>): List<ImageRef> = images.partition { !isStickerFolder(it.path) }.let { (real, stickers) -> real + stickers }
 
     /** Runs one phase of [run] in a trace section, and keeps how long it took. */
-    private suspend fun <T> phase(name: String, stats: Stats, block: suspend () -> T): T {
+    private suspend fun <T> phase(name: String, stats: Stats, startedAt: Long? = null, block: suspend () -> T): T {
         thermalStatus()?.let { stats.thermal[name] = it }
-        val start = clock()
+        val start = startedAt ?: clock()
         return traceSuspend("Pipeline.$name", block).also { stats.phaseMs[name] = clock() - start }
     }
 
@@ -354,6 +354,8 @@ class Pipeline(
      * Returns the embeddings of [images], for the group detectors.
      */
     private suspend fun embedAndClassify(images: List<ImageRef>, stats: Stats, progress: Progress): Map<String, FloatArray> = withContext(Dispatchers.IO.limitedParallelism(1)) {
+        // The phase's time starts here, so it holds the reads and the tasks of the images embedded already.
+        val start = clock()
         val selected = detectors.filter { it.usesEmbeddings }
         val kept = images.mapTo(HashSet()) { it.path }
         val embeddings = HashMap(embedder?.let { index.embeddings(it.id, it.version).filterKeys { path -> path in kept } }.orEmpty())
@@ -399,7 +401,7 @@ class Pipeline(
                 repeat(parallelism - held) { permits.release() }
             }
         }
-        phase("embeddings", stats) {
+        phase("embeddings", stats, start) {
             if (embedder != null) {
                 embed(embedder, todo, stats, ::alone) { batch, vectors ->
                     embeddings += vectors
