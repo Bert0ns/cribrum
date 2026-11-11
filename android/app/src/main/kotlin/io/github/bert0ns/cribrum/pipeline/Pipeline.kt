@@ -542,8 +542,9 @@ class Pipeline(
 
     /**
      * Runs the tasks [queue] brings on [parallelism] workers, no more at once than [permits] lets, and stores the
-     * outcomes here, in order of completion, [storeBatch] in one transaction, calling [stored] with the count of each. What ran out of memory meanwhile may have
-     * lost to another worker, so it runs again alone once the queue is closed and empty.
+     * outcomes here, in order of completion, [storeBatch] in one transaction, calling [stored] with the count of each.
+     * What ran out of memory meanwhile may have lost to another worker, so it runs again alone once the queue is closed
+     * and empty.
      */
     private suspend fun runTasks(queue: ReceiveChannel<AnalysisTask>, stats: Stats, permits: Semaphore?, stored: suspend (count: Int) -> Unit) = coroutineScope {
         val results = Channel<AnalysisOutcome>(parallelism)

@@ -1130,11 +1130,14 @@ class PipelineTest {
             }
         }
         val detectors = listOf(WatchedEmbeddingDetector { firstResult.countDown() })
+        suspend fun kept() = index.images().count { image -> index.signals(image.path).any { it.detectorId == "embedding_user" } }
 
         runBlocking {
-            val scan = launch(Dispatchers.Default) { Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = gated).run(source) }
+            // One result per transaction, so the results the stop keeps are there to check.
+            val scan = launch(Dispatchers.Default) { Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = gated, storeBatch = 1).run(source) }
             assertTrue(modelRunning.await(5, TimeUnit.SECONDS))
             assertTrue(firstResult.await(5, TimeUnit.SECONDS))
+            withTimeout(5_000) { while (kept() == 0) delay(10) }
             scan.cancel()
             release.countDown()
             withTimeout(5_000) { scan.join() }
@@ -1143,6 +1146,7 @@ class PipelineTest {
         // The first batch is stored, the one the model ran on when the stop came is not, and no result lacks its embedding.
         val embeddings = runBlocking { index.embeddings(inner.id, inner.version) }
         assertEquals(EMBEDDING_BATCH, embeddings.size)
+        assertTrue(runBlocking { kept() } > 0)
         for (image in runBlocking { index.images() }) {
             val signal = runBlocking { index.signals(image.path) }.singleOrNull { it.detectorId == "embedding_user" } ?: continue
             assertEquals(image.path, embeddings.getValue(image.path)[0], signal.score, 0f)
@@ -1290,6 +1294,19 @@ class PipelineTest {
         assertEquals(6 to 6, last["metadata"])
         assertEquals(1 to 1, last[JPEG_STEP])
         assertEquals(6 to 6, last["detectors"])
+    }
+
+    @Test
+    fun `the classification ends its progress on the total, across batches`() {
+        repeat(5) { save("DCIM/Camera/c-$it.png", seed = it) }
+        val last = mutableMapOf<String, Pair<Int, Int>>()
+
+        runBlocking {
+            Pipeline(index, detectors = listOf(WatchedEmbeddingDetector()), groupDetectors = emptyList(), embedder = MeanColorEmbedder(), storeBatch = 2)
+                .run(source) { step, done, total -> last[step] = done to total }
+        }
+
+        assertEquals(5 to 5, last[CLASSIFY_STEP])
     }
 
     @Test
