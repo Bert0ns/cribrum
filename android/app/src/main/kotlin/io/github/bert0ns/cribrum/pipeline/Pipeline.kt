@@ -41,6 +41,7 @@ import io.github.bert0ns.cribrum.sources.ImageSource
 import io.github.bert0ns.cribrum.tracing.traceSuspend
 import io.github.bert0ns.cribrum.trash.Trash
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -76,6 +77,13 @@ const val JPEG_TAG = "jpeg-status"
 
 /** Images the walk records in one transaction. */
 private const val RECORD_BATCH = 300
+
+/** Images whose metadata, JPEG headers or detector results are stored in one transaction. A stopped scan loses at most one batch. */
+private const val STORE_BATCH = 32
+
+/** Files whose metadata or JPEG headers are read at once: mostly waiting on storage, so more than the cores of a small phone, and few enough that the writer keeps up. */
+private const val MIN_READERS = 4
+private const val MAX_READERS = 8
 
 /** Embeds images preprocessed by [preprocess], as [io.github.bert0ns.cribrum.mobileclip.MobileClip] does. */
 interface Embedder {
@@ -150,6 +158,10 @@ class Pipeline(
     private val thermalStatus: () -> Int? = { null },
     /** Images the walk records in one transaction; a test sets it low to cross it with a few files. */
     internal val recordBatch: Int = RECORD_BATCH,
+    /** Results stored in one transaction; a test sets it low to cross it with a few files. */
+    internal val storeBatch: Int = STORE_BATCH,
+    /** Files whose metadata and JPEG headers are read at once. */
+    internal val readers: Int = parallelism.coerceIn(MIN_READERS, MAX_READERS),
 ) {
     /**
      * Analyzes every image the source finds. Images it no longer finds leave the index, except
@@ -215,18 +227,12 @@ class Pipeline(
 
         val pending = stickersLast(index.withoutMetadata())
         phase("metadata", stats) {
-            for ((done, image) in pending.withIndex()) {
-                storeMetadata(image.path, stats)
-                progress("metadata", done + 1, pending.size)
-            }
+            readAndStore(pending, "metadata", progress, read = { attempt { metadataReader(it) } }) { batch -> storeMetadata(batch, stats) }
         }
         // Android only: what the compress page needs, from the JPEG headers (docs/design.md §9).
         val jpegs = index.jpegsToRead().filter { it.path in found }
         phase("jpegHeaders", stats) {
-            for ((done, image) in jpegs.withIndex()) {
-                storeJpeg(image.path, stats)
-                progress(JPEG_STEP, done + 1, jpegs.size)
-            }
+            readAndStore(jpegs, JPEG_STEP, progress, read = { attempt { jpegReader(it) } }) { batch -> storeJpegs(batch, stats) }
         }
         index.jpegCounts().forEach { Log.i(JPEG_TAG, "${it.status} gain_map=${it.gainMap} ${it.count}") }
         val unreadable = index.unreadable().toSet()
@@ -461,11 +467,19 @@ class Pipeline(
         }
         var done = 0
         val again = mutableListOf<AnalysisTask>()
-        for (outcome in results) {
-            store(outcome, stats, final = false)?.let(again::add)
-            progress(step, ++done, tasks.size)
+        val batch = ArrayList<AnalysisOutcome>(storeBatch)
+        suspend fun flush() {
+            again += store(batch, stats, final = false)
+            done += batch.size
+            batch.clear()
+            progress(step, done, tasks.size)
         }
-        for (task in again) store(withContext(Dispatchers.Default) { analyze(task) }, stats, final = true)
+        for (outcome in results) {
+            batch += outcome
+            if (batch.size == storeBatch) flush()
+        }
+        if (batch.isNotEmpty()) flush()
+        for (task in again) store(listOf(withContext(Dispatchers.Default) { analyze(task) }), stats, final = true)
     }
 
     private suspend fun analyze(task: AnalysisTask): AnalysisOutcome {
@@ -488,11 +502,14 @@ class Pipeline(
         return AnalysisOutcome(task, results, if (task.needsPhash) computePhash(task.image, pixels, kind) else null)
     }
 
-    /** Stores what [outcome] has. Unless [final], what ran out of memory is not stored but returned as a task to run again. */
-    private suspend fun store(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? = try {
-        traceSuspend("Pipeline.store") { storeOutcome(outcome, stats, final) }
-    } catch (_: NoSuchElementException) {
-        null // the row went while the scan ran: the image is gone
+    /**
+     * Stores what [outcomes] have, in one transaction. Unless [final], what ran out of memory is not stored but returned
+     * as tasks to run again. An image whose row went while the scan ran is gone, and nothing of it is stored.
+     */
+    private suspend fun store(outcomes: List<AnalysisOutcome>, stats: Stats, final: Boolean): List<AnalysisTask> = traceSuspend("Pipeline.store") {
+        index.batch(outcomes.map { it.task.image.path }) { recorded ->
+            outcomes.filter { it.task.image.path in recorded }.mapNotNull { storeOutcome(it, stats, final) }
+        }
     }
 
     private suspend fun storeOutcome(outcome: AnalysisOutcome, stats: Stats, final: Boolean): AnalysisTask? {
@@ -566,47 +583,60 @@ class Pipeline(
     private suspend fun cachedContentHash(image: ImageRef): String = index.contentHash(image.path) ?: contentHasher(image).also { index.setContentHash(image.path, it) }
 
     /**
-     * A file that is gone, like one trashed since the walk, is not broken: it gets its metadata when it is back.
-     * Only [UnreadableImage] marks a file unreadable. Any other error, [OutOfMemoryError] included, may pass, so it is a failure and the next scan reads the file again.
+     * Reads [images] on [readers] threads and stores them [storeBatch] at a time, one transaction each, in the order of
+     * [images]: the real images still come before the stickers. The reads run at most two batches ahead of the store,
+     * so a first scan does not hold the whole library. A file that is gone, like one trashed since the walk, is not
+     * read, and it gets its metadata when it is back.
      */
-    private suspend fun storeMetadata(path: String, stats: Stats) {
-        val file = File(path)
-        if (!file.isFile) return
-        val metadata = attempt { metadataReader(file) }.getOrElse { error ->
-            if (error is UnreadableImage) {
-                markUnreadable(path)
-            } else {
-                stats.failures += Failure(path, "metadata", failureMessage(error))
-            }
-            return
+    private suspend fun <T> readAndStore(
+        images: List<ImageRef>,
+        step: String,
+        progress: Progress,
+        read: (File) -> Result<T>,
+        store: suspend (List<Pair<String, Result<T>>>) -> Unit,
+    ) = coroutineScope {
+        val reads = Channel<Deferred<Pair<String, Result<T>?>>>(2 * storeBatch)
+        val pool = Dispatchers.IO.limitedParallelism(readers)
+        launch {
+            for (image in images) reads.send(async(pool) { image.path to File(image.path).takeIf { it.isFile }?.let(read) })
+            reads.close()
         }
-        try {
-            index.setMetadata(path, metadata)
-        } catch (_: NoSuchElementException) {
-            // the row went while the scan ran
+        var done = 0
+        val batch = ArrayList<Pair<String, Result<T>>>(storeBatch)
+        suspend fun flush() {
+            if (batch.isNotEmpty()) store(batch)
+            batch.clear()
+            progress(step, done, images.size)
+        }
+        for (pending in reads) {
+            val (path, result) = pending.await()
+            result?.let { batch += path to it }
+            if (++done % storeBatch == 0) flush()
+        }
+        if (done % storeBatch != 0) flush()
+    }
+
+    /**
+     * Only [UnreadableImage] marks a file unreadable. Any other error, [OutOfMemoryError] included, may pass, so it is
+     * a failure and the next scan reads the file again.
+     */
+    private suspend fun storeMetadata(batch: List<Pair<String, Result<ImageMetadata>>>, stats: Stats) = traceSuspend("Pipeline.storeMetadata") {
+        for ((path, result) in batch) {
+            result.exceptionOrNull()?.takeIf { it !is UnreadableImage }?.let { stats.failures += Failure(path, "metadata", failureMessage(it)) }
+        }
+        index.batch(batch.map { it.first }) { recorded ->
+            for ((path, result) in batch) {
+                if (path !in recorded) continue // the row went while the scan ran
+                result.fold({ index.setMetadata(path, it) }, { if (it is UnreadableImage) index.setUnreadable(path) })
+            }
         }
     }
 
     /** A JPEG whose headers fail to read is a failure of the metadata step, so the next scan reads it again. */
-    private suspend fun storeJpeg(path: String, stats: Stats) {
-        val file = File(path)
-        if (!file.isFile) return
-        val info = attempt { jpegReader(file) }.getOrElse { error ->
-            stats.failures += Failure(path, "metadata", failureMessage(error))
-            return
-        }
-        try {
-            index.setJpeg(path, info)
-        } catch (_: NoSuchElementException) {
-            // the row went while the scan ran
-        }
-    }
-
-    private suspend fun markUnreadable(path: String) {
-        try {
-            index.setUnreadable(path)
-        } catch (_: NoSuchElementException) {
-            // the row went while the scan ran
+    private suspend fun storeJpegs(batch: List<Pair<String, Result<JpegInfo>>>, stats: Stats) = traceSuspend("Pipeline.storeJpegs") {
+        for ((path, result) in batch) result.exceptionOrNull()?.let { stats.failures += Failure(path, "metadata", failureMessage(it)) }
+        index.batch(batch.map { it.first }) { recorded ->
+            for ((path, result) in batch) if (path in recorded) result.onSuccess { index.setJpeg(path, it) }
         }
     }
 

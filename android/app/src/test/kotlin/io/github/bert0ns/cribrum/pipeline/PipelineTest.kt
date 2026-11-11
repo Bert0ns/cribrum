@@ -37,6 +37,8 @@ import io.github.bert0ns.cribrum.trash.TrashedImage
 import io.github.bert0ns.cribrum.trash.copyFileFor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
@@ -1131,14 +1133,105 @@ class PipelineTest {
 
     private val realImagesThenStickers = listOf("a.png", "x.png", "z.png", "s1.png", "s2.png")
 
+    /** The order in which the scan stores the images' metadata, from a trigger on the index's own table. */
+    private fun metadataStoreOrder(): () -> List<String> {
+        val db = index.database.openHelper.writableDatabase
+        db.execSQL("CREATE TABLE stored_metadata (path TEXT NOT NULL)")
+        db.execSQL("CREATE TRIGGER log_metadata AFTER UPDATE OF width ON images WHEN new.width IS NOT NULL BEGIN INSERT INTO stored_metadata VALUES (new.path); END")
+        return { db.query("SELECT path FROM stored_metadata ORDER BY rowid").use { cursor -> List(cursor.count) { cursor.moveToNext().let { File(cursor.getString(0)).name } } } }
+    }
+
     @Test
-    fun `the metadata step reads every real image before the stickers, and reads every sticker`() {
+    fun `the metadata step stores every real image before the stickers, though it reads them at once, and stores every sticker`() {
         stickersAmongPhotos()
-        val read = mutableListOf<String>()
+        val stored = metadataStoreOrder()
+        val read = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        // The real images read slowly, so the stickers' reads end first.
+        val reader = { file: File ->
+            if (!isStickerFolder(file.path)) Thread.sleep(100)
+            readMetadata(file).also { read += file.name }
+        }
 
-        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), metadataReader = { file -> readMetadata(file).also { read += file.name } }))
+        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), metadataReader = reader, storeBatch = 2, readers = 4))
 
-        assertEquals(realImagesThenStickers, read)
+        assertNotEquals(realImagesThenStickers, read.toList())
+        assertEquals(realImagesThenStickers, stored())
+    }
+
+    @Test
+    fun `the metadata, JPEG and detector phases end their progress on the total, across batches`() {
+        stickersAmongPhotos()
+        TestImage.texture(64, 48, 7).save(File(root, "DCIM/Camera/b.jpg"), Bitmap.CompressFormat.JPEG)
+        val last = mutableMapOf<String, Pair<Int, Int>>()
+
+        runBlocking { Pipeline(index, listOf(Probe()), emptyList(), storeBatch = 2).run(source) { step, done, total -> last[step] = done to total } }
+
+        assertEquals(6 to 6, last["metadata"])
+        assertEquals(1 to 1, last[JPEG_STEP])
+        assertEquals(6 to 6, last["detectors"])
+    }
+
+    @Test
+    fun `a scan stopped in the middle of a metadata batch keeps the batches before it, and the next scan reads the rest`() {
+        repeat(7) { save("DCIM/Camera/$it.png", seed = it) }
+        val reads = AtomicInteger()
+        lateinit var scan: Job
+        val reader = { file: File ->
+            if (reads.incrementAndGet() == 6) {
+                // One reader and batches of two: the first four are stored, and the fifth waits in the batch this read would fill.
+                runBlocking { withTimeout(10_000) { while (index.withoutMetadata().size > 3) delay(10) } }
+                scan.cancel()
+            }
+            readMetadata(file)
+        }
+
+        runBlocking {
+            scan = launch(Dispatchers.Default) { Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), metadataReader = reader, storeBatch = 2, readers = 1).run(source) }
+            scan.join()
+        }
+
+        assertEquals(3, runBlocking { index.withoutMetadata() }.size)
+        val stats = run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList(), storeBatch = 2))
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(emptyList<ImageRef>(), runBlocking { index.withoutMetadata() })
+    }
+
+    @Test
+    fun `a scan stopped in the middle of a detector batch keeps the batches before it, and the next scan stores what a whole scan does`() {
+        repeat(7) { save("DCIM/Camera/$it.png", seed = it) }
+        val analyzed = AtomicInteger()
+        lateinit var scan: Job
+        val stopping = object : Detector {
+            override val id = "probe"
+            override val version = 1
+
+            override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
+                if (analyzed.incrementAndGet() == 6) {
+                    // One worker and batches of two: four images are stored, and the fifth waits in the collector's batch.
+                    withTimeout(10_000) { while (index.analyzedPaths("probe", 1).size < 4) delay(10) }
+                    scan.cancel()
+                }
+                return listOf(Signal(id, version, Category.BLURRY, 0.5f)) // as [Probe]'s
+            }
+        }
+
+        runBlocking {
+            scan = launch(Dispatchers.Default) { Pipeline(index, listOf(stopping), emptyList(), parallelism = 1, storeBatch = 2).run(source) }
+            scan.join()
+        }
+
+        assertEquals(4, runBlocking { index.analyzedPaths("probe", 1) }.size)
+        assertEquals(4, runBlocking { index.hashedPaths() }.size)
+        val stats = run(Pipeline(index, listOf(Probe()), emptyList(), storeBatch = 2))
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(3 + 3, stats.detectorRuns) // the three left, each with its hash
+        val whole = memoryIndex()
+        try {
+            runBlocking { Pipeline(whole, listOf(Probe()), emptyList()).run(source) }
+            assertEquals(storedResults(whole), storedResults(index))
+        } finally {
+            whole.close()
+        }
     }
 
     @Test

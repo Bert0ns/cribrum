@@ -59,7 +59,13 @@ class ScanTablesTest {
     fun close() = index.close()
 
     @Test
-    fun `a scan leaves the tables it left before the fixed costs were cut`() {
+    fun `a scan leaves the tables it left before the fixed costs were cut`() = scans(storeBatch = 32)
+
+    /** Batches of two cross many commits: the parallel readers and the batched stores leave the same rows (#358). */
+    @Test
+    fun `a scan that stores in small batches leaves the same tables`() = scans(storeBatch = 2)
+
+    private fun scans(storeBatch: Int) {
         val a = png("DCIM/Camera/a.png", 0)
         val copy = png("WhatsApp/Media/a-copy.png", 0)
         val screenshot = png("Pictures/Screenshots/Screenshot_1.png", 1)
@@ -73,7 +79,7 @@ class ScanTablesTest {
         val touched = png("DCIM/Camera/touched.png", 11)
 
         // The copy's perceptual hash fails, so the next scan has only that hash to compute for it.
-        val first = scan(pipeline(failingHash = copy.path))
+        val first = scan(pipeline(storeBatch, failingHash = copy.path))
         // What a user and time do between two scans.
         runBlocking {
             index.setReviewState(a.path, ReviewState.KEPT)
@@ -85,22 +91,23 @@ class ScanTablesTest {
         png("DCIM/Camera/e.png", 7)
         png(changed.relativeTo(root).path, 8).setLastModified(MTIME + 99_000)
         touched.setLastModified(MTIME + 55_000) // the same size and a new time
-        val second = scan(pipeline())
-        val third = scan(pipeline())
-        val fourth = scan(pipeline(sizeVersion = 3))
+        val second = scan(pipeline(storeBatch))
+        val third = scan(pipeline(storeBatch))
+        val fourth = scan(pipeline(storeBatch, sizeVersion = 3))
 
         val actual = "first scan\n$first\nsecond scan\n$second\nfourth scan\n$fourth"
-        File("build/scan-tables.txt").writeText(actual)
+        if (storeBatch == 32) File("build/scan-tables.txt").writeText(actual)
         assertEquals(golden(), actual)
         assertEquals("a scan with nothing changed changes no row", second, third)
     }
 
-    private fun pipeline(sizeVersion: Int = 2, failingHash: String? = null) = Pipeline(
+    private fun pipeline(storeBatch: Int, sizeVersion: Int = 2, failingHash: String? = null) = Pipeline(
         index,
         detectors = listOf(SizeDetector(sizeVersion), ForwardedDetector(), FirstValueDetector()),
         embedder = ArithmeticEmbedder(),
         preprocessing = { file -> file.readBytes().let { bytes -> FloatArray(3) { c -> (bytes.size * (c + 1) % 251).toFloat() / 251f } } },
         perceptualHasher = { image, _ -> if (image.path == failingHash) throw IOException("busy") else image.size.toULong() * 0x9E3779B97F4A7C15uL },
+        storeBatch = storeBatch,
     )
 
     private fun scan(pipeline: Pipeline): String {
