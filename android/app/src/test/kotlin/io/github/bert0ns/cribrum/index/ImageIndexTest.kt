@@ -884,7 +884,8 @@ class ImageIndexTest {
             .map { it.name.substringBefore('-') } // Kotlin mangles names that take inline classes like ULong
             .toSet()
         // A new write must bump the version, or the review shows a stale ranking: add it to [writes].
-        assertEquals(writes.keys + reads.keys + "close" + NOT_IMAGES_METHODS + JPEG_METHODS, methods)
+        // [ImageIndex.batch] writes only through the methods its block calls, and its tests are below.
+        assertEquals(writes.keys + reads.keys + "close" + "batch" + NOT_IMAGES_METHODS + JPEG_METHODS, methods)
     }
 
     @Test
@@ -913,6 +914,51 @@ class ImageIndexTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun `a batch gets the paths still recorded, and bumps the version again after its commit`() = test {
+        record(PHOTO)
+        val before = version
+        var inside = 0L
+
+        batch(listOf(PHOTO.path, OTHER.path, PHOTO.path)) { recorded ->
+            assertEquals(setOf(PHOTO.path), recorded)
+            setMetadata(PHOTO.path, META)
+            setPerceptualHash(PHOTO.path, 1uL)
+            inside = version
+        }
+
+        // A read that took the version inside the batch, before the commit, finds it changed.
+        assertTrue(inside > before)
+        assertTrue(version > inside)
+        assertEquals(META, metadata(PHOTO.path))
+    }
+
+    @Test
+    fun `a batch that throws stores none of its writes`() = test {
+        record(PHOTO)
+
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking {
+                batch(listOf(PHOTO.path)) {
+                    setMetadata(PHOTO.path, META)
+                    error("stop")
+                }
+            }
+        }
+
+        assertEquals(listOf(PHOTO), withoutMetadata())
+    }
+
+    @Test
+    fun `a batch of JPEG headers keeps the version, as setJpeg does`() = test {
+        record(PHOTO)
+        val before = version
+
+        batch(listOf(PHOTO.path)) { setJpeg(PHOTO.path, JpegInfo(JpegStatus.ELIGIBLE)) }
+
+        assertEquals(before, version)
     }
 
     @Test

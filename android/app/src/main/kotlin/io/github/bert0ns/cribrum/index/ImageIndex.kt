@@ -412,6 +412,25 @@ class ImageIndex(private val db: IndexDatabase) :
 
     override fun close() = db.close()
 
+    /**
+     * Runs the writes of [block] in one transaction, so a scan stores many images with one commit instead of one each.
+     * [block] gets the paths of [paths] that are still recorded and writes only those: inside the batch no row can go,
+     * and a write for a row that went would throw and roll the whole batch back. If [block] bumped the version, it is
+     * bumped once more after the commit, so a read that took the version before the commit finds it changed.
+     */
+    suspend fun <T> batch(paths: Collection<String>, block: suspend (recorded: Set<String>) -> T): T {
+        val before = writes.get()
+        try {
+            return db.withTransaction {
+                val recorded = HashSet<String>()
+                paths.distinct().chunked(SQL_VARIABLES).forEach { chunk -> dao.refs(chunk).mapTo(recorded) { it.path } }
+                block(recorded)
+            }
+        } finally {
+            if (writes.get() != before) writes.incrementAndGet()
+        }
+    }
+
     /** Bumps the version after the block, even one that throws: a read that starts after the bump finds the write committed. */
     private suspend fun <T> write(block: suspend () -> T): T = try {
         block()
