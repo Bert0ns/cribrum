@@ -507,8 +507,14 @@ class Pipeline(
      * as tasks to run again. An image whose row went while the scan ran is gone, and nothing of it is stored.
      */
     private suspend fun store(outcomes: List<AnalysisOutcome>, stats: Stats, final: Boolean): List<AnalysisTask> = traceSuspend("Pipeline.store") {
+        // The transaction runs on Room's own thread, so its counts go into [stats] after it, on the caller's thread.
+        val tally = Stats()
         index.batch(outcomes.map { it.task.image.path }) { recorded ->
-            outcomes.filter { it.task.image.path in recorded }.mapNotNull { storeOutcome(it, stats, final) }
+            outcomes.filter { it.task.image.path in recorded }.mapNotNull { storeOutcome(it, tally, final) }
+        }.also {
+            stats.failures += tally.failures
+            stats.skipped += tally.skipped
+            stats.detectorRuns += tally.detectorRuns
         }
     }
 
@@ -584,8 +590,8 @@ class Pipeline(
 
     /**
      * Reads [images] on [readers] threads and stores them [storeBatch] at a time, one transaction each, in the order of
-     * [images]: the real images still come before the stickers. The reads run at most two batches ahead of the store,
-     * so a first scan does not hold the whole library. A file that is gone, like one trashed since the walk, is not
+     * [images]: the real images still come before the stickers. The reads run at most about three batches ahead of the
+     * store (two in [reads], the one being filled), so a first scan does not hold the whole library. A file that is gone, like one trashed since the walk, is not
      * read, and it gets its metadata when it is back.
      */
     private suspend fun <T> readAndStore(
