@@ -83,7 +83,7 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Index.indexedImages` | `ImageIndex.indexedImages`: reading every image and signal |
 | `Ranker.rank` | `Review`'s calls of `Ranker.rank` |
 | `Review.overview`, `Review.counts`, `Review.page` | the three `Review` loads, each with the two above inside |
-| `Pipeline.walk`, `Pipeline.metadata`, `Pipeline.detectors`, `Pipeline.embeddings`, `Pipeline.embeddedDetectors`, `Pipeline.groupDetectors` | the phases of `Pipeline.run` |
+| `Pipeline.walk`, `Pipeline.metadata`, `Pipeline.jpegHeaders`, `Pipeline.detectors`, `Pipeline.embeddings`, `Pipeline.embeddedDetectors`, `Pipeline.groupDetectors` | the phases of `Pipeline.run` |
 | `Imaging.decode` | one image's decode at one sample size, with its bounds read the first time. In the detectors phase an image's steps share their decodes (`Pixels`), so an image has one for each sample size its steps need: 1 for a sticker, a PNG or a small JPEG, up to 3 for a JPEG whose drafts at 640, 512 and 256 all differ |
 | `Text.preprocess`, `MobileClip.preprocess` | one image's preprocessing, each with `Imaging.decode` inside |
 | `Onnx.run.yunet`, `Onnx.run.ppocr`, `Onnx.run.mobileclip` | one `ModelRuntime.run` call of `OnnxRuntime`, named after the model it runs (the faces, the text coverage and the embeddings) |
@@ -91,7 +91,8 @@ The code names its heavy steps with `androidx.tracing`, so a Perfetto trace of t
 | `Detector.<id>.image`, `Detector.<id>.sticker` | one per-image detector's `analyze` call on one image, for each of `blur`, `exposure`, `faces`, `screenshot`, `sticker`, `document` and `forwarded`. `.sticker` is for an image in a sticker folder, so stickers can be split out. An async section. The detectors of an image run from the largest draft side down (`faces` at 640, `blur` at 512, `exposure` at 256), and a decode shows inside the first one that needs it, so a later one that shares it is shorter by that much |
 | `Pipeline.phash.image`, `Pipeline.phash.sticker` | one perceptual hash. It reads the grayscale `exposure` computed, so it holds no decode unless exposure did not run on the image |
 | `Pipeline.tasks` | `analyzeEach`'s building of its tasks: the index reads that tell what each image still needs |
-| `Pipeline.store` | `storeOutcome`: the index writes of one image's results |
+| `Pipeline.store` | the collector's writes of `STORE_BATCH` images' results at most, in one transaction (`storeOutcome` for each image) |
+| `Pipeline.storeMetadata`, `Pipeline.storeJpegs` | one transaction of the metadata or the JPEG headers phase, `STORE_BATCH` images at most. The reads run on 4 to 8 threads outside these sections |
 | `Walk.list`, `Walk.stat` | the walk's `listFiles` of one folder, and the `readAttributes` of all its entries (one section for the folder, not for each entry) |
 | `Walk.mediaStore` | the MediaStore pass: the query, and the stat of each row's file the walk did not find. Not the emits, which wait for the collector |
 | `Index.recordAll` | `ImageIndex.recordAll`: one transaction of the walk, `RECORD_BATCH` images at most |
