@@ -297,7 +297,8 @@ class Pipeline(
                 try {
                     val signals = traceSuspend("Group.${detector.id}.analyze") { detector.analyze(images, context) }
                     traceSuspend("Group.${detector.id}.store") {
-                        index.setGroupSignals(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                        // An image in two groups is rewritten by each of their detectors at every run, to keep its signals' order.
+                        stats.counts["${detector.id} rewritten"] = index.setGroupSignals(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
                         index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
                     }
                     stats.detectorRuns++

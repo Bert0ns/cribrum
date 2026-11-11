@@ -248,9 +248,9 @@ class ImageIndex(private val db: IndexDatabase) :
      * same order: the same version and signals, and those signals already after the image's others, where new ids put
      * them. The others are replaced as [setSignalsOfMany] does, and a missing image throws [NoSuchElementException] and
      * writes nothing, as there. Four reads replace the four statements an image that took. Android only: the lab writes
-     * every image.
+     * every image. Returns how many images it rewrote.
      */
-    suspend fun setGroupSignals(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>) = writeTransaction {
+    suspend fun setGroupSignals(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>): Int = writeTransaction {
         val versions = dao.analyses(listOf(detectorId)).associate { it.path to it.detectorVersion }
         // An analyses row goes with its image, so only a path without one can be missing.
         val unanalyzed = signals.keys.filter { it !in versions }
@@ -271,6 +271,7 @@ class ImageIndex(private val db: IndexDatabase) :
         val kept = dao.keptWithoutDetector(detectorId).filter { it in signals }
         dao.insertKeptSignals(kept.flatMap { path -> signals.getValue(path).map { it.identity }.map { KeptSignalRow(path, it.kind.value, it.group, it.role) } })
         dao.insertKeptDetectors(kept.map { KeptDetectorRow(it, detectorId) })
+        changed.size
     }
 
     suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? = dao.groupFingerprint(detectorId, detectorVersion)?.let { groupRun(it).first() }
