@@ -471,6 +471,11 @@ class ImageIndexTest {
         assertEquals(setOf("blur"), keptDetectors(PHOTO.path))
     }
 
+    /** The signal ids of each image, in their order. */
+    private fun signalIds(): Map<String, List<Long>> = index.database.openHelper.readableDatabase.query("SELECT path, id FROM signals ORDER BY id").use { cursor ->
+        List(cursor.count) { cursor.moveToNext().let { cursor.getString(0) to cursor.getLong(1) } }.groupBy({ it.first }, { it.second })
+    }
+
     private fun group(id: String, role: Role) = Signal(
         "near_duplicate",
         1,
@@ -579,6 +584,94 @@ class ImageIndexTest {
         }
 
         assertEquals(emptyList<Signal>(), signals(PHOTO.path))
+    }
+
+    @Test
+    fun `group signals keep the rows that would be written again, ids included, and replace the others`() = test {
+        record(PHOTO)
+        record(OTHER)
+        val best = group("g", Role.BEST)
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(best), OTHER.path to listOf(group("g", Role.INFERIOR))))
+        val ids = signalIds()
+
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(best), OTHER.path to emptyList()))
+
+        assertEquals(ids.getValue(PHOTO.path), signalIds().getValue(PHOTO.path))
+        assertEquals(listOf(best), signals(PHOTO.path))
+        assertEquals(emptyList<Signal>(), signals(OTHER.path))
+        assertTrue(isAnalyzed(OTHER.path, "near_duplicate", 1))
+    }
+
+    @Test
+    fun `group signals are written again when another detector wrote after them, so the image keeps its order`() = test {
+        record(PHOTO)
+        val best = group("g", Role.BEST)
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(best)))
+        setSignals(PHOTO.path, "blur", 1, listOf(BLUR))
+
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(best)))
+
+        assertEquals(listOf(BLUR, best), signals(PHOTO.path))
+    }
+
+    @Test
+    fun `group signals record the first result of a kept image that lacks the detector, whether or not its rows change`() = test {
+        record(PHOTO)
+        val best = group("g", Role.BEST)
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(best)))
+        // An undo puts back a keep from before the detector ran.
+        restoreReviewState(PHOTO.path, ReviewState.KEPT, emptySet(), emptySet())
+
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(best)))
+
+        assertEquals(setOf(best.identity), keptSignals(PHOTO.path))
+        assertEquals(setOf("near_duplicate"), keptDetectors(PHOTO.path))
+    }
+
+    @Test
+    fun `group signals store nothing if one image is missing`() = test {
+        record(PHOTO)
+        setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to emptyList()))
+
+        assertThrows(NoSuchElementException::class.java) {
+            runBlocking { setGroupSignals("near_duplicate", 1, mapOf(PHOTO.path to listOf(group("g", Role.BEST)), "/nope.jpg" to emptyList())) }
+        }
+
+        assertEquals(emptyList<Signal>(), signals(PHOTO.path))
+    }
+
+    /**
+     * The statements a group detector runs on a library whose groups did not change, against the per-image replace that
+     * came before: four reads in all, where that ran four statements an image and one per signal.
+     */
+    @Test
+    fun `group signals of an unchanged library run four statements`() {
+        var statements = 0
+        val counted = ImageIndex(
+            Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), IndexDatabase::class.java)
+                .setQueryCallback({ sql, _ -> if ("TRANSACTION" !in sql && "room_" !in sql) statements++ }, Runnable::run)
+                .build(),
+        )
+        counted.use { index ->
+            val images = (0 until 1000).map { ImageRef("/photos/$it.jpg", 1, 1) }
+            // One image in ten is in a group of two.
+            val signals = images.associate { image ->
+                val n = image.path.filter(Char::isDigit).toInt()
+                image.path to if (n % 10 < 2) listOf(group("g${n / 10}", if (n % 10 == 0) Role.BEST else Role.INFERIOR)) else emptyList()
+            }
+            runBlocking {
+                index.recordAll(images)
+                index.setGroupSignals("near_duplicate", 1, signals)
+
+                statements = 0
+                index.setSignalsOfMany("near_duplicate", 1, signals)
+                assertEquals(4 * 1000 + 200, statements)
+
+                statements = 0
+                index.setGroupSignals("near_duplicate", 1, signals)
+                assertEquals(4, statements)
+            }
+        }
     }
 
     @Test
@@ -734,6 +827,7 @@ class ImageIndexTest {
         "setEmbeddings" to { setEmbeddings("clip", 1, mapOf(PHOTO.path to floatArrayOf(1f))) },
         "setSignals" to { setSignals(PHOTO.path, "blur", 1, emptyList()) },
         "setSignalsOfMany" to { setSignalsOfMany("blur", 1, mapOf(PHOTO.path to emptyList())) },
+        "setGroupSignals" to { setGroupSignals("blur", 1, mapOf(PHOTO.path to emptyList())) },
         "setGroupFingerprint" to { setGroupFingerprint("exact_duplicate", 1, "abc") },
         "setReviewState" to { setReviewState(PHOTO.path, ReviewState.KEPT) },
         "restoreReviewState" to { restoreReviewState(PHOTO.path, ReviewState.KEPT, emptySet(), emptySet()) },

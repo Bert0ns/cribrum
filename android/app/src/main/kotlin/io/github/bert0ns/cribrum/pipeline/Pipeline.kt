@@ -297,7 +297,7 @@ class Pipeline(
                 try {
                     val signals = traceSuspend("Group.${detector.id}.analyze") { detector.analyze(images, context) }
                     traceSuspend("Group.${detector.id}.store") {
-                        index.setSignalsOfMany(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
+                        index.setGroupSignals(detector.id, detector.version, images.associate { it.path to signals[it].orEmpty() })
                         index.setGroupFingerprint(detector.id, detector.version, fingerprint, hashFailed.sorted())
                     }
                     stats.detectorRuns++

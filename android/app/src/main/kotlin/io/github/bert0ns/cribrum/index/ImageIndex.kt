@@ -238,19 +238,39 @@ class ImageIndex(private val db: IndexDatabase) :
                 dao.insertKeptSignals(imageSignals.map { it.identity }.map { KeptSignalRow(path, it.kind.value, it.group, it.role) })
                 dao.insertKeptDetectors(listOf(KeptDetectorRow(path, detectorId)))
             }
-            dao.insertSignals(
-                imageSignals.map {
-                    SignalRow(
-                        path = path,
-                        detectorId = it.detectorId,
-                        detectorVersion = it.detectorVersion,
-                        category = it.kind.value,
-                        score = it.score.toDouble(),
-                        evidence = JSONObject(it.evidence).toString(),
-                    )
-                },
-            )
+            dao.insertSignals(signalRows(path, imageSignals))
         }
+    }
+
+    /**
+     * [setSignalsOfMany] for a group detector, which hands over every image of the library at each run although few of
+     * them change. An image keeps its rows, ids included, when replacing them would leave it with the same rows in the
+     * same order: the same version and signals, and those signals already after the image's others, where new ids put
+     * them. The others are replaced as [setSignalsOfMany] does, and a missing image throws [NoSuchElementException] and
+     * writes nothing, as there. Four reads replace the four statements an image that took. Android only: the lab writes
+     * every image.
+     */
+    suspend fun setGroupSignals(detectorId: String, detectorVersion: Int, signals: Map<String, List<Signal>>) = writeTransaction {
+        val versions = dao.analyses(listOf(detectorId)).associate { it.path to it.detectorVersion }
+        // An analyses row goes with its image, so only a path without one can be missing.
+        val unanalyzed = signals.keys.filter { it !in versions }
+        val recorded = HashSet<String>()
+        unanalyzed.chunked(SQL_VARIABLES).forEach { paths -> dao.refs(paths).mapTo(recorded) { it.path } }
+        unanalyzed.firstOrNull { it !in recorded }?.let { require(0, it) }
+        val stored = dao.detectorSignals(detectorId).groupBy { it.path }
+        val lastOther = dao.lastOtherSignals(detectorId).associate { it.path to it.id }
+        val rows = signals.mapValues { (path, imageSignals) -> signalRows(path, imageSignals) }
+        val changed = rows.filter { (path, new) ->
+            val old = stored[path].orEmpty()
+            versions[path] != detectorVersion || old.map { it.copy(id = 0) } != new || old.isNotEmpty() && old.first().id < (lastOther[path] ?: 0)
+        }
+        changed.keys.filter { it in versions }.chunked(SQL_VARIABLES).forEach { dao.forgetAnalyses(it, listOf(detectorId)) }
+        dao.insertAnalyses(changed.keys.map { AnalysisRow(it, detectorId, detectorVersion) })
+        dao.insertSignals(changed.values.flatten())
+        // A detector that had not run when the image was kept has nothing to be new against: its first result is seen.
+        val kept = dao.keptWithoutDetector(detectorId).filter { it in signals }
+        dao.insertKeptSignals(kept.flatMap { path -> signals.getValue(path).map { it.identity }.map { KeptSignalRow(path, it.kind.value, it.group, it.role) } })
+        dao.insertKeptDetectors(kept.map { KeptDetectorRow(it, detectorId) })
     }
 
     suspend fun groupFingerprint(detectorId: String, detectorVersion: Int): String? = dao.groupFingerprint(detectorId, detectorVersion)?.let { groupRun(it).first() }
@@ -458,6 +478,17 @@ private fun metadata(row: StoredMetadata) = ImageMetadata(
 
 /** A fingerprint is hex, so a stored value that starts with "[" is the array [setGroupFingerprint] writes. */
 private fun groupRun(stored: String): List<String> = if (stored.startsWith("[")) JSONArray(stored).let { List(it.length(), it::getString) } else listOf(stored)
+
+private fun signalRows(path: String, signals: List<Signal>) = signals.map {
+    SignalRow(
+        path = path,
+        detectorId = it.detectorId,
+        detectorVersion = it.detectorVersion,
+        category = it.kind.value,
+        score = it.score.toDouble(),
+        evidence = JSONObject(it.evidence).toString(),
+    )
+}
 
 private fun signal(row: SignalRow) = Signal(row.detectorId, row.detectorVersion, Kind.of(row.category), row.score.toFloat(), LazyEvidence(row.evidence))
 
