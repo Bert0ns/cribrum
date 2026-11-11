@@ -110,4 +110,5 @@ Prints the recall on the labeled images with the current thresholds, and the num
 | `cribrum_lab.labels` | `LabelStore`: keep/delete labels keyed by content hash |
 | `cribrum_lab.labeling` | Sampling and the local labeling web page |
 | `cribrum_lab.evaluation` | Recall per category, threshold sweep and missed images |
+| `cribrum_lab.comparison` | What a scan option that changes outputs does to the candidates, the recall and each category's order |
 | `cribrum_lab.ranker` | `Ranker`: per-category thresholds, candidates and the review order |
