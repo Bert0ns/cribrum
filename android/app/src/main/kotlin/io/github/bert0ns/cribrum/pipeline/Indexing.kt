@@ -147,7 +147,7 @@ object Indexing {
     }
 
     /** How many phases a scan has. A rescan may skip one, so the number a user sees can jump. */
-    internal const val PHASES = 6
+    internal const val PHASES = 5
 
     /**
      * The number and the title of a [Pipeline] step. The step of a group detector is named after
@@ -157,9 +157,8 @@ object Indexing {
         "", "scan" -> 1 to R.string.scan_phase_scan
         "metadata", JPEG_STEP -> 2 to R.string.scan_phase_metadata
         "detectors" -> 3 to R.string.scan_phase_analysis
-        "embeddings" -> 4 to R.string.scan_phase_embeddings
-        "embedded_detectors" -> 5 to R.string.scan_phase_classification
-        else -> 6 to R.string.scan_phase_groups
+        CLASSIFY_STEP -> 4 to R.string.scan_phase_classification
+        else -> 5 to R.string.scan_phase_groups
     }
 
     @StringRes

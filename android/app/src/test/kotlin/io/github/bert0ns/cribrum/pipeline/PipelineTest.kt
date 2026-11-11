@@ -1047,13 +1047,134 @@ class PipelineTest {
     }
 
     @Test
-    fun `the steps run in order, the detectors that read embeddings last`() {
+    fun `the steps run in order, the embeddings and the detectors that read them as one step`() {
         photos()
         val steps = mutableListOf<String>()
 
         runBlocking { Pipeline(index, embedder = MeanColorEmbedder()).run(source) { step, _, _ -> if (steps.lastOrNull() != step) steps += step } }
 
-        assertEquals(listOf("metadata", "detectors", "embeddings", "embedded_detectors", "exact_duplicate", "near_duplicate", "burst"), steps)
+        assertEquals(listOf("metadata", "detectors", "embedded_detectors", "exact_duplicate", "near_duplicate", "burst"), steps)
+    }
+
+    /** [EmbeddingDetector], calling [analyzed] after each image. */
+    private class WatchedEmbeddingDetector(private val analyzed: () -> Unit = {}) : Detector {
+        private val inner = EmbeddingDetector()
+        override val id = inner.id
+        override val version = inner.version
+        override val usesEmbeddings = true
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext) = inner.analyze(image, context).also { analyzed() }
+    }
+
+    /** Every image's results, by detector: the analyses, then the signals, with no row id. */
+    private fun analysesAndSignals(index: ImageIndex) = runBlocking {
+        val versions = (DETECTORS.map { it.id to it.version } + GROUP_DETECTORS.map { it.id to it.version } + ("embedding_user" to 1)).toMap()
+        index.analyzedPaths(versions) to storedResults(index)
+    }
+
+    @Test
+    fun `the detectors that read the embeddings run on a batch while the next one is embedded`() {
+        repeat(EMBEDDING_BATCH + 2) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        val firstResult = CountDownLatch(1)
+        val inner = MeanColorEmbedder()
+        val calls = AtomicInteger()
+        var sawResult = false
+        val embedder = object : Embedder by inner {
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+                if (calls.incrementAndGet() == 2) sawResult = firstResult.await(5, TimeUnit.SECONDS)
+                return inner.embedPixels(pixels)
+            }
+        }
+
+        val stats = run(Pipeline(index, detectors = listOf(WatchedEmbeddingDetector { firstResult.countDown() }), groupDetectors = emptyList(), embedder = embedder))
+
+        assertTrue(sawResult)
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(EMBEDDING_BATCH + 2, stats.counts["embedded_detectors tasks"])
+    }
+
+    @Test
+    fun `the embeddings and the detectors that read them store the same results at once as one after the other`() {
+        repeat(EMBEDDING_BATCH) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        photos()
+        save("WhatsApp/Media/WhatsApp Images/meme.png", seed = 3)
+        val other = memoryIndex()
+        // One after the other: a run without the detectors that read embeddings, then one that finds every embedding stored.
+        runBlocking { Pipeline(other, detectors = DETECTORS.filter { !it.usesEmbeddings }, embedder = MeanColorEmbedder()).run(source) }
+        val after = runBlocking { Pipeline(other, embedder = MeanColorEmbedder()).run(source) }
+        assertEquals(0, after.counts["embeddings tasks"])
+
+        val stats = run(Pipeline(index, embedder = MeanColorEmbedder()))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(EMBEDDING_BATCH + 4, stats.counts["embedded_detectors tasks"])
+        assertEquals(analysesAndSignals(other), analysesAndSignals(index))
+        other.close()
+    }
+
+    @Test
+    fun `a stop while both run keeps every result with the embedding it read, and the next run finishes the same as one run`() {
+        repeat(3 * EMBEDDING_BATCH) { save("DCIM/Camera/shot-$it.png", seed = it) }
+        val firstResult = CountDownLatch(1)
+        val modelRunning = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val inner = MeanColorEmbedder()
+        val calls = AtomicInteger()
+        val gated = object : Embedder by inner {
+            override fun embedPixels(pixels: List<FloatArray>): List<FloatArray> {
+                if (calls.incrementAndGet() == 2) {
+                    modelRunning.countDown()
+                    release.await(5, TimeUnit.SECONDS)
+                }
+                return inner.embedPixels(pixels)
+            }
+        }
+        val detectors = listOf(WatchedEmbeddingDetector { firstResult.countDown() })
+
+        runBlocking {
+            val scan = launch(Dispatchers.Default) { Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = gated).run(source) }
+            assertTrue(modelRunning.await(5, TimeUnit.SECONDS))
+            assertTrue(firstResult.await(5, TimeUnit.SECONDS))
+            scan.cancel()
+            release.countDown()
+            withTimeout(5_000) { scan.join() }
+        }
+
+        // The first batch is stored, the one the model ran on when the stop came is not, and no result lacks its embedding.
+        val embeddings = runBlocking { index.embeddings(inner.id, inner.version) }
+        assertEquals(EMBEDDING_BATCH, embeddings.size)
+        for (image in runBlocking { index.images() }) {
+            val signal = runBlocking { index.signals(image.path) }.singleOrNull { it.detectorId == "embedding_user" } ?: continue
+            assertEquals(image.path, embeddings.getValue(image.path)[0], signal.score, 0f)
+        }
+
+        val stats = run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = MeanColorEmbedder()))
+        val other = memoryIndex()
+        runBlocking { Pipeline(other, detectors = detectors, groupDetectors = emptyList(), embedder = MeanColorEmbedder()).run(source) }
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(2 * EMBEDDING_BATCH, stats.counts["embeddings tasks"])
+        assertEquals(analysesAndSignals(other), analysesAndSignals(index))
+        other.close()
+    }
+
+    @Test
+    fun `a model that does not load still lets the detectors that read embeddings run on the stored ones`() {
+        photos()
+        val detectors = listOf(EmbeddingDetector())
+        run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = MeanColorEmbedder()))
+        runBlocking { index.forgetAnalyses(index.images().map { it.path }, listOf("embedding_user")) }
+        save("DCIM/Camera/new.png", seed = 5)
+        val broken = object : Embedder by MeanColorEmbedder() {
+            override fun load() = throw IllegalStateException("model damaged")
+        }
+
+        val stats = run(Pipeline(index, detectors = detectors, groupDetectors = emptyList(), embedder = broken))
+
+        assertEquals(listOf(Failure("", EMBEDDING_STEP, "IllegalStateException: model damaged")), stats.failures)
+        assertEquals(1, stats.skipped) // the new image waits for a run that embeds it
+        val analyzed = runBlocking { index.images().filter { index.isAnalyzed(it.path, "embedding_user", 1) } }.map { File(it.path).name }
+        assertEquals(setOf("a.png", "a-copy.png", "Screenshot_1.png"), analyzed.toSet())
     }
 
     private val stickerFolder = "WhatsApp/Media/WhatsApp Stickers"

@@ -28,8 +28,8 @@ class HomeReloadsTest {
     }
 
     @Test
-    fun `a full scan reloads after the walk, the detectors, the embedded detectors and at the end`() {
-        val steps = arrayOf("", "scan", "metadata", "jpeg_headers", "detectors", "embeddings", "embedded_detectors", "exact_duplicate", "near_duplicate", "burst")
+    fun `a full scan reloads after the walk, the detectors, the classification and at the end`() {
+        val steps = arrayOf("", "scan", "metadata", "jpeg_headers", "detectors", "embedded_detectors", "exact_duplicate", "near_duplicate", "burst")
 
         assertEquals(listOf("scan", "detectors", "embedded_detectors", "end"), reloadsAfter(*steps))
     }
@@ -38,14 +38,14 @@ class HomeReloadsTest {
     fun `a scan that skips phases still reloads after each phase that can add candidates`() {
         // A rescan with no new file goes from the walk to the group detectors.
         assertEquals(listOf("scan", "end"), reloadsAfter("scan", "exact_duplicate"))
-        // No embedder: no embeddings phase.
-        assertEquals(listOf("scan", "detectors", "embedded_detectors", "end"), reloadsAfter("scan", "metadata", "detectors", "embedded_detectors", "burst"))
+        // Every image classified already: no classification phase.
+        assertEquals(listOf("scan", "detectors", "end"), reloadsAfter("scan", "metadata", "detectors", "burst"))
     }
 
     @Test
     fun `a candidate phase the home never saw still reloads it`() {
         // The detectors ran too quickly for their step to reach the screen.
-        assertEquals(listOf("scan", "jpeg_headers", "end"), reloadsAfter("scan", "jpeg_headers", "embeddings"))
+        assertEquals(listOf("scan", "jpeg_headers", "end"), reloadsAfter("scan", "jpeg_headers", "embedded_detectors"))
     }
 
     @Test

@@ -81,28 +81,28 @@ class ScanStatusTest {
     fun `a running scan says which phase it is in out of the total`() {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100), onScan = {}) }
 
-        compose.onNodeWithText("Phase 3 of 6").assertExists()
+        compose.onNodeWithText("Phase 3 of 5").assertExists()
     }
 
     @Test
     fun `the phase number shows while the scan looks for images too`() {
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}) }
 
-        compose.onNodeWithText("Phase 1 of 6").assertExists()
+        compose.onNodeWithText("Phase 1 of 5").assertExists()
     }
 
     @Test
     fun `a scan that has reported nothing yet is in the first phase`() {
         compose.setContent { ScanStatus(ScanProgress("", 0, 0), onScan = {}) }
 
-        compose.onNodeWithText("Phase 1 of 6").assertExists()
+        compose.onNodeWithText("Phase 1 of 5").assertExists()
     }
 
     @Test
     fun `the phase number keeps its own line beside the time left`() {
         compose.setContent { ScanStatus(ScanProgress("detectors", 12, 100, leftMs = 12 * 60_000L), onScan = {}) }
 
-        compose.onNodeWithText("Phase 3 of 6").assertExists()
+        compose.onNodeWithText("Phase 3 of 5").assertExists()
     }
 
     @Test
@@ -114,7 +114,7 @@ class ScanStatusTest {
 
     @Test
     fun `a time left over an hour shows in hours and minutes`() {
-        compose.setContent { ScanStatus(ScanProgress("embeddings", 12, 100, leftMs = 95 * 60_000L), onScan = {}) }
+        compose.setContent { ScanStatus(ScanProgress("embedded_detectors", 12, 100, leftMs = 95 * 60_000L), onScan = {}) }
 
         compose.onNodeWithText("About 1 h 35 min left in this step").assertExists()
     }
@@ -139,7 +139,7 @@ class ScanStatusTest {
 
         compose.onNodeWithText(hot).assertExists()
         compose.onNodeWithText("12", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("Phase 1 of 6").assertExists()
+        compose.onNodeWithText("Phase 1 of 5").assertExists()
     }
 
     @Test
@@ -182,7 +182,7 @@ class ScanStatusTest {
         compose.setContent { ScanStatus(ScanProgress("scan", 300, 0), onScan = {}, heat = Heat(HeatLevel.MODERATE, 12)) }
 
         compose.onNodeWithText("Il telefono è caldo, quindi la scansione è più lenta").assertExists()
-        compose.onNodeWithText("Fase 1 di 6").assertExists()
+        compose.onNodeWithText("Fase 1 di 5").assertExists()
     }
 
     @Test

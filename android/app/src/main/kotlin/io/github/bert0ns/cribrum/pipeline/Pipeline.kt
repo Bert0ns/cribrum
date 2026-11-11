@@ -1,5 +1,6 @@
-// Analysis pipeline: scan → metadata → detectors that read no embedding → embeddings → detectors that
-// read one → group detectors. Mirrors lab/src/cribrum_lab/pipeline.py.
+// Analysis pipeline: scan → metadata → detectors that read no embedding → embeddings, with the detectors
+// that read one beside them → group detectors. Mirrors lab/src/cribrum_lab/pipeline.py, which runs the
+// embeddings and those detectors one after the other.
 package io.github.bert0ns.cribrum.pipeline
 
 import android.os.SystemClock
@@ -46,8 +47,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -74,6 +78,12 @@ const val JPEG_STEP = "jpeg_headers"
 
 /** The log tag of the JPEG status counts each scan writes, for the maintainer's check of the rules on a real library. */
 const val JPEG_TAG = "jpeg-status"
+
+/** The progress step of the embeddings and the detectors that read them, which run at once (docs/design.md §4). */
+const val CLASSIFY_STEP = "embedded_detectors"
+
+/** Workers the detectors that read embeddings leave to the encoder's decodes while it runs. */
+private const val EMBEDDING_DECODERS = 2
 
 /** Images the walk records in one transaction. */
 private const val RECORD_BATCH = 300
@@ -243,24 +253,14 @@ class Pipeline(
         val readable = images.filter { it.path !in unreadable } // group detectors still see the unreadable files
         // The home screen lists candidates as soon as these are stored; the embeddings come after.
         phase("detectors", stats) {
-            analyzeEach(stickersLast(readable), detectors.filter { !it.usesEmbeddings }, emptyMap(), "detectors", beforeEmbeddings = true, stats, progress)
+            analyzeEach(stickersLast(readable), detectors.filter { !it.usesEmbeddings }, "detectors", stats, progress)
         }
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
         stats.counts["stickers"] = stickers.size
         // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
         index.forgetAnalyses(stickers.map { it.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
-        val embeddings = if (embedder == null) {
-            phase("embeddings", stats) {} // so every scan logs the same phases
-            emptyMap()
-        } else {
-            phase("embeddings", stats) { embed(embedder, embeddable, stats, progress) }
-            val kept = embeddable.mapTo(HashSet()) { it.path }
-            index.embeddings(embedder.id, embedder.version).filterKeys { it in kept }
-        }
-        phase("embeddedDetectors", stats) {
-            analyzeEach(embeddable, detectors.filter { it.usesEmbeddings }, embeddings, "embedded_detectors", beforeEmbeddings = false, stats, progress)
-        }
+        val embeddings = embedAndClassify(embeddable, stats, progress)
 
         // The exact detector skips an image whose content hash fails: the run stores those paths with its fingerprint.
         val hashFailed = mutableSetOf<String>()
@@ -347,22 +347,102 @@ class Pipeline(
     )
 
     /**
-     * Decodes on every core and runs the model on a batch at a time, decoding the next batch while
-     * the model runs on this one. An image that fails is a failure of that image only: it gets no
-     * embedding and the run goes on.
+     * The embeddings, with the detectors that read them running beside them (docs/design.md §4, §7). The images whose
+     * embedding is stored already go to the detectors first, and each batch's images as soon as its embeddings are stored,
+     * after the results they replace are forgotten. While the model runs, [EMBEDDING_DECODERS] workers are left to its
+     * decodes. The two steps' own work runs on one thread, so they never update the stats or report progress at once.
+     * Returns the embeddings of [images], for the group detectors.
      */
-    private suspend fun embed(embedder: Embedder, images: List<ImageRef>, stats: Stats, progress: Progress) {
-        val stored = index.embeddedPaths(embedder.id, embedder.version)
-        val todo = images.filter { it.path !in stored }
+    private suspend fun embedAndClassify(images: List<ImageRef>, stats: Stats, progress: Progress): Map<String, FloatArray> = withContext(Dispatchers.IO.limitedParallelism(1)) {
+        val selected = detectors.filter { it.usesEmbeddings }
+        val kept = images.mapTo(HashSet()) { it.path }
+        val embeddings = HashMap(embedder?.let { index.embeddings(it.id, it.version).filterKeys { path -> path in kept } }.orEmpty())
+        val todo = if (embedder == null) emptyList() else images.filter { it.path !in embeddings }
+        val analyzed = index.analyzedPaths(selected.associate { it.id to it.version })
+        var tasks = 0
+        var stickerTasks = 0
+
+        // As in analyzeEach: only an image with work reads its metadata, and one without metadata waits for a restore.
+        suspend fun task(image: ImageRef, todo: List<Detector>): AnalysisTask? {
+            if (todo.isEmpty()) return null
+            val task = index.metadata(image.path)?.let { AnalysisTask(image, it, embeddings[image.path], todo, needsPhash = false, beforeEmbeddings = false) } ?: return null
+            tasks++
+            if (isStickerFolder(image.path)) stickerTasks++
+            return task
+        }
+        fun missing(image: ImageRef) = selected.filter { image.path !in analyzed.getValue(it.id) }
+        val waiting = todo.mapTo(HashSet()) { it.path }
+        val ready = traceSuspend("Pipeline.tasks") { images.filter { it.path !in waiting }.mapNotNull { task(it, missing(it)) } }
+
+        // An image is done once its results are stored, or once it turns out to need none.
+        val total = ready.size + todo.size
+        var done = 0
+        progress(CLASSIFY_STEP, 0, total)
+        val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
+        ready.forEach(queue::trySend)
+        val permits = Semaphore(parallelism)
+        val held = if (todo.isEmpty()) 0 else EMBEDDING_DECODERS.coerceAtMost(parallelism - 1)
+        repeat(held) { permits.acquire() }
+        val classify = launch {
+            runTasks(queue, stats, permits) { count ->
+                done += count
+                progress(CLASSIFY_STEP, done, total)
+            }
+        }
+
+        // A decode's retry runs alone, so the detectors wait for it too.
+        suspend fun alone(block: () -> Unit) {
+            repeat(parallelism - held) { permits.acquire() }
+            try {
+                block()
+            } finally {
+                repeat(parallelism - held) { permits.release() }
+            }
+        }
+        phase("embeddings", stats) {
+            if (embedder != null) {
+                embed(embedder, todo, stats, ::alone) { batch, vectors ->
+                    embeddings += vectors
+                    traceSuspend("Pipeline.tasks") {
+                        for (image in batch) {
+                            // A new embedding has had the results of the old one forgotten, so every detector runs again.
+                            val task = task(image, if (image.path in vectors) selected else missing(image))
+                            if (task == null) progress(CLASSIFY_STEP, ++done, total) else queue.send(task)
+                        }
+                    }
+                }
+            }
+        }
+        repeat(held) { permits.release() }
+        queue.close()
+        phase("embeddedDetectors", stats) { classify.join() }
+        stats.counts["$CLASSIFY_STEP tasks"] = tasks
+        stats.counts["$CLASSIFY_STEP sticker tasks"] = stickerTasks
+        embeddings
+    }
+
+    /**
+     * Decodes on every core left free and runs the model on a batch at a time, decoding the next batch while
+     * the model runs on this one. An image that fails is a failure of that image only: it gets no
+     * embedding and the run goes on. A decode's retry runs inside [alone]. Calls [stored] once for every image of
+     * [todo], with its batch and the embeddings stored for it, none if the model did not load.
+     */
+    private suspend fun embed(
+        embedder: Embedder,
+        todo: List<ImageRef>,
+        stats: Stats,
+        alone: suspend (() -> Unit) -> Unit,
+        stored: suspend (batch: List<ImageRef>, vectors: Map<String, FloatArray>) -> Unit,
+    ) {
         stats.counts["embeddings tasks"] = todo.size
         if (todo.isEmpty()) return
         val loaded = withContext(Dispatchers.Default) { attempt { embedder.load() } }
         loaded.exceptionOrNull()?.let { error ->
             // The same model fails the same way for every image: one failure for the step, and no embedding this run.
             stats.failures += Failure("", EMBEDDING_STEP, failureMessage(error))
+            stored(todo, emptyMap())
             return
         }
-        var done = 0
         fun fail(image: ImageRef, error: Throwable) {
             stats.failures += Failure(image.path, EMBEDDING_STEP, failureMessage(error))
         }
@@ -382,21 +462,27 @@ class Pipeline(
                     }
                 }
                 // Other decodes may have taken the memory this one needed, so it gets one more go, alone, before the next batch starts.
-                for (image in outOfMemory) {
-                    attempt { preprocessing(File(image.path)) }.fold({ pixels += image to it }, { fail(image, it) })
+                if (outOfMemory.isNotEmpty()) {
+                    alone {
+                        for (image in outOfMemory) {
+                            attempt { preprocessing(File(image.path)) }.fold({ pixels += image to it }, { fail(image, it) })
+                        }
+                    }
                 }
                 // One batch ahead at most, so memory holds two batches of pixels.
                 batches.getOrNull(i + 1)?.let { next = decode(it) }
-                // Not on Dispatchers.Default, where the model would wait behind the decodes queued ahead.
-                val vectors = withContext(Dispatchers.IO) { embedBatch(embedder, pixels, ::fail) }
+                // Not on Dispatchers.Default, where the model would wait behind the decodes queued ahead. Its failures are
+                // counted back here, beside the detectors' own.
+                val failed = mutableListOf<Pair<ImageRef, Throwable>>()
+                val vectors = withContext(Dispatchers.IO) { embedBatch(embedder, pixels) { image, error -> failed += image to error } }
+                failed.forEach { (image, error) -> fail(image, error) }
                 if (vectors.isNotEmpty()) {
                     // A detector's result belongs to the embedding it read: a new one means analyzing again.
                     index.forgetAnalyses(vectors.keys.toList(), detectors.filter { it.usesEmbeddings }.map { it.id })
                     index.setEmbeddings(embedder.id, embedder.version, vectors)
                     stats.detectorRuns += vectors.size
                 }
-                done += batch.size
-                progress("embeddings", done, todo.size)
+                stored(batch, vectors)
             }
         }
     }
@@ -423,30 +509,20 @@ class Pipeline(
     }
 
     /**
-     * Runs the [selected] per-image detectors on [parallelism] images at a time, storing results here,
-     * in order of completion. What ran out of memory meanwhile may have lost to another worker, so it
-     * runs again alone once the queue is empty. The pass [beforeEmbeddings] also computes the perceptual
-     * hashes, and a detector in it that asks for an embedding fails: it should have said `usesEmbeddings`.
+     * Runs the [selected] per-image detectors that read no embedding on [parallelism] images at a time, and
+     * computes the perceptual hashes. A detector here that asks for an embedding fails: it should have said `usesEmbeddings`.
      */
-    private suspend fun analyzeEach(
-        images: List<ImageRef>,
-        selected: List<Detector>,
-        embeddings: Map<String, FloatArray>,
-        step: String,
-        beforeEmbeddings: Boolean,
-        stats: Stats,
-        progress: Progress,
-    ) = coroutineScope {
+    private suspend fun analyzeEach(images: List<ImageRef>, selected: List<Detector>, step: String, stats: Stats, progress: Progress) {
         val analyzed = index.analyzedPaths(selected.associate { it.id to it.version })
-        val hashed = if (beforeEmbeddings) index.hashedPaths() else emptySet()
+        val hashed = index.hashedPaths()
         val tasks = traceSuspend("Pipeline.tasks") {
             images.mapNotNull { image ->
                 val todo = selected.filter { image.path !in analyzed.getValue(it.id) }
-                val needsPhash = beforeEmbeddings && image.path !in hashed
+                val needsPhash = image.path !in hashed
                 // Only an image with work reads its metadata: a query each for the whole library took most of a scan with few changes.
                 // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.
                 if (todo.isEmpty() && !needsPhash) return@mapNotNull null
-                index.metadata(image.path)?.let { AnalysisTask(image, it, embeddings[image.path], todo, needsPhash, beforeEmbeddings) }
+                index.metadata(image.path)?.let { AnalysisTask(image, it, null, todo, needsPhash, beforeEmbeddings = true) }
             }
         }
         stats.counts["$step tasks"] = tasks.size
@@ -455,24 +531,36 @@ class Pipeline(
         val queue = Channel<AnalysisTask>(Channel.UNLIMITED)
         tasks.forEach(queue::trySend)
         queue.close()
+        var done = 0
+        runTasks(queue, stats, permits = null) { count ->
+            done += count
+            progress(step, done, tasks.size)
+        }
+    }
+
+    /**
+     * Runs the tasks [queue] brings on [parallelism] workers, no more at once than [permits] lets, and stores the
+     * outcomes here, in order of completion, [storeBatch] in one transaction, calling [stored] with the count of each. What ran out of memory meanwhile may have
+     * lost to another worker, so it runs again alone once the queue is closed and empty.
+     */
+    private suspend fun runTasks(queue: ReceiveChannel<AnalysisTask>, stats: Stats, permits: Semaphore?, stored: suspend (count: Int) -> Unit) = coroutineScope {
         val results = Channel<AnalysisOutcome>(parallelism)
         val workers = List(parallelism) {
             launch(Dispatchers.Default) {
-                for (task in queue) results.send(analyze(task))
+                for (task in queue) results.send(if (permits == null) analyze(task) else permits.withPermit { analyze(task) })
             }
         }
         launch {
             workers.forEach { it.join() }
             results.close()
         }
-        var done = 0
         val again = mutableListOf<AnalysisTask>()
         val batch = ArrayList<AnalysisOutcome>(storeBatch)
         suspend fun flush() {
             again += store(batch, stats, final = false)
-            done += batch.size
+            val count = batch.size
             batch.clear()
-            progress(step, done, tasks.size)
+            stored(count)
         }
         for (outcome in results) {
             batch += outcome
