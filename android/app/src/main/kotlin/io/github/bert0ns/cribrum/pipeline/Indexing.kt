@@ -166,7 +166,7 @@ object Indexing {
 
     internal fun phaseNumber(step: String) = phase(step).first
 
-    /** "Phase 3 of 6". */
+    /** "Phase 3 of 5". */
     internal fun phaseText(resources: Resources, step: String) = resources.getString(R.string.scan_phase_number, phaseNumber(step), PHASES)
 
     /** The time left, rounded to the minute: "About 12 min left in this step", or "Less than a minute left in this step". */
