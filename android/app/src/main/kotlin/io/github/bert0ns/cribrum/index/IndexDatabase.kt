@@ -166,6 +166,8 @@ data class StoredJpeg(
 
 data class StoredJpegCount(val status: String, @ColumnInfo(name = "gain_map") val gainMap: Boolean, val count: Int)
 
+data class StoredSignalId(val path: String, val id: Long)
+
 data class StoredRef(val path: String, val size: Long, @ColumnInfo(name = "mtime_ns") val mtimeNs: Long)
 
 data class StoredMetadata(
@@ -314,7 +316,20 @@ interface IndexDao {
     suspend fun insertAnalysis(analysis: AnalysisRow)
 
     @Insert
+    suspend fun insertAnalyses(analyses: List<AnalysisRow>)
+
+    @Insert
     suspend fun insertSignals(signals: List<SignalRow>)
+
+    @Query("SELECT * FROM signals WHERE detector_id = :detectorId ORDER BY id")
+    suspend fun detectorSignals(detectorId: String): List<SignalRow>
+
+    /** The last id of the other detectors' signals of each image that has signals of this one. */
+    @Query(
+        """SELECT path, MAX(id) AS id FROM signals WHERE detector_id != :detectorId
+           AND path IN (SELECT path FROM signals WHERE detector_id = :detectorId) GROUP BY path""",
+    )
+    suspend fun lastOtherSignals(detectorId: String): List<StoredSignalId>
 
     @Query("SELECT count(*) FROM analyses WHERE path = :path AND detector_id = :detectorId AND detector_version = :version")
     suspend fun analyses(path: String, detectorId: String, version: Int): Int
@@ -365,6 +380,9 @@ interface IndexDao {
             "AND NOT EXISTS(SELECT 1 FROM kept_detectors WHERE path = :path AND detector_id = :detectorId)",
     )
     suspend fun keptWithoutDetector(path: String, detectorId: String): Boolean
+
+    @Query("SELECT path FROM images WHERE review_state = 'kept' AND path NOT IN (SELECT path FROM kept_detectors WHERE detector_id = :detectorId)")
+    suspend fun keptWithoutDetector(detectorId: String): List<String>
 
     @Query("SELECT detector_id FROM kept_detectors WHERE path = :path")
     suspend fun keptDetectors(path: String): List<String>
