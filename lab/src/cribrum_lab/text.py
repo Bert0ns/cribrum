@@ -27,14 +27,15 @@ _URL = (
 _SHA256 = "d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9"
 
 
-def preprocess(path: Path) -> np.ndarray:
+def preprocess(path: Path, side: int = INPUT_SIDE) -> np.ndarray:
     """RGB normalized with ImageNet mean and deviation, shape (1, 3, H, W), H and W
-    multiples of 32 with the longest near INPUT_SIDE."""
+    multiples of 32 with the longest near `side`. Another side than INPUT_SIDE is for
+    studies only (issue 359): it changes every coverage."""
     with Image.open(path) as image:
-        image.draft("RGB", (INPUT_SIDE, INPUT_SIDE))
+        image.draft("RGB", (side, side))
         image = ImageOps.exif_transpose(image).convert("RGB")
-        scale = INPUT_SIDE / max(image.size)
-        size = tuple(max(32, round(side * scale / 32) * 32) for side in image.size)
+        scale = side / max(image.size)
+        size = tuple(max(32, round(length * scale / 32) * 32) for length in image.size)
         pixels = np.asarray(image.resize(size, Image.Resampling.BILINEAR), dtype=np.float32)
     return ((pixels / 255.0 - _MEAN) / _STD).transpose(2, 0, 1)[None]
 

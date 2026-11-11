@@ -25,6 +25,15 @@ def test_preprocess_keeps_the_aspect_in_multiples_of_32(tmp_path):
     assert pixels[0, 0, 0, 0] == pytest.approx((1.0 - 0.485) / 0.229)
 
 
+def test_a_smaller_side_shrinks_the_input_the_same_way(tmp_path):
+    path = tmp_path / "a.jpg"
+    Image.new("RGB", (4000, 3000), "white").save(path)
+
+    pixels = preprocess(path, side=480)
+
+    assert pixels.shape == (1, 3, 352, 480)
+
+
 def test_coverage_is_the_share_of_text_pixels(tmp_path):
     path = tmp_path / "a.jpg"
     Image.new("RGB", (640, 640)).save(path)
