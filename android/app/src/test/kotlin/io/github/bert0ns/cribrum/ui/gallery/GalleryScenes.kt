@@ -403,10 +403,10 @@ val scenes: List<Scene> = listOf(
         val setup = CompressSetup(cameraRoll().photos, GalleryBatches(BatchState.WaitingForScan(total = 12)))
         val model = app(compress = setup)
         goTo(model, R.string.nav_compress) { it.state.value.screen == Screen.Compress }
-        RunningScanWorker.progress = ScanProgress("embeddings", 840, 1_900, 4 * 60_000L)
+        RunningScanWorker.progress = ScanProgress("embedded_detectors", 840, 1_900, 4 * 60_000L)
         Indexing.scanNow(app)
         awaitText(str(R.string.compress_waiting_scan))
-        awaitText(str(R.string.scan_phase_embeddings), substring = true)
+        awaitText(str(R.string.scan_phase_classification), substring = true)
     },
     Scene("compress-result", "Compress, the result of a batch with Undo", "Read how many photos were compressed and how much space they saved, close the result with Done, or undo the batch to bring the originals back.", Variant.wide) {
         val roll = cameraRoll()

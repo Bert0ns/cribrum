@@ -6,7 +6,6 @@
     <string name="scan_channel">Looking for images</string>
     <string name="scan_phase_scan">Looking for images</string>
     <string name="scan_phase_metadata">Reading the images</string>
-    <string name="scan_phase_embeddings">Comparing the images</string>
     <string name="scan_phase_analysis">Analyzing the images</string>
     <string name="scan_phase_classification">Classifying the images</string>
     <string name="scan_phase_groups">Finding duplicates and bursts</string>

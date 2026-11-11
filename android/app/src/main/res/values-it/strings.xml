@@ -38,7 +38,6 @@
     <string name="scan_channel">Ricerca di immagini</string>
     <string name="scan_phase_scan">Ricerca di immagini</string>
     <string name="scan_phase_metadata">Lettura delle immagini</string>
-    <string name="scan_phase_embeddings">Confronto delle immagini</string>
     <string name="scan_phase_analysis">Analisi delle immagini</string>
     <string name="scan_phase_classification">Classificazione delle immagini</string>
     <string name="scan_phase_groups">Ricerca di duplicati e raffiche</string>

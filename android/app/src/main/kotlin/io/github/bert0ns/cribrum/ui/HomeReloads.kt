@@ -1,5 +1,6 @@
 package io.github.bert0ns.cribrum.ui
 
+import io.github.bert0ns.cribrum.pipeline.CLASSIFY_STEP
 import io.github.bert0ns.cribrum.pipeline.Indexing
 
 /**
@@ -7,11 +8,11 @@ import io.github.bert0ns.cribrum.pipeline.Indexing
  * ranking, so it happens only once a phase that can add candidates is over, and when the scan ends:
  * - the walk (phase 1): a trashed image put back by hand becomes unreviewed with its signals, and the first scan
  *   ends the empty index;
- * - the detectors (phase 3) and the detectors that read the embeddings (phase 5) store signals;
- * - the group detectors (phase 6) store signals too, and are the last steps, so the end of the scan covers them.
+ * - the detectors (phase 3) and the detectors that read the embeddings, which run with the embeddings (phase 4),
+ *   store signals;
+ * - the group detectors (phase 5) store signals too, and are the last steps, so the end of the scan covers them.
  *
- * The metadata and JPEG headers (phase 2) store no signal or review state, and the embeddings (phase 4) only drop
- * the results of the detectors that read them, which phase 5 stores again.
+ * The metadata and JPEG headers (phase 2) store no signal or review state.
  */
 internal class HomeReloads {
     private var first = true
@@ -35,6 +36,6 @@ internal class HomeReloads {
     }
 
     private companion object {
-        val CANDIDATE_PHASES = listOf("scan", "detectors", "embedded_detectors").map(Indexing::phaseNumber).toSet()
+        val CANDIDATE_PHASES = listOf("scan", "detectors", CLASSIFY_STEP).map(Indexing::phaseNumber).toSet()
     }
 }

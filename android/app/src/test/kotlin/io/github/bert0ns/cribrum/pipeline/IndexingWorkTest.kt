@@ -348,7 +348,7 @@ class IndexingWorkTest {
 
     @Test
     fun `the notification shows the total once the phase knows it`() {
-        steps += Triple("embeddings", 3, 10)
+        steps += Triple("embedded_detectors", 3, 10)
         Indexing.scanNow(app)
         runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
 
@@ -359,19 +359,18 @@ class IndexingWorkTest {
     fun `each phase of the pipeline has a title of its own`() {
         assertEquals(R.string.scan_phase_scan, Indexing.phaseTitle("scan"))
         assertEquals(R.string.scan_phase_metadata, Indexing.phaseTitle("metadata"))
-        assertEquals(R.string.scan_phase_embeddings, Indexing.phaseTitle("embeddings"))
         assertEquals(R.string.scan_phase_analysis, Indexing.phaseTitle("detectors"))
         assertEquals(R.string.scan_phase_classification, Indexing.phaseTitle("embedded_detectors"))
         assertEquals(R.string.scan_phase_groups, Indexing.phaseTitle("near_duplicate"))
     }
 
     @Test
-    fun `each phase has its number out of six, and every group detector is the last`() {
-        val steps = listOf("scan", "metadata", "detectors", "embeddings", "embedded_detectors", "near_duplicate")
-        assertEquals(listOf(1, 2, 3, 4, 5, 6), steps.map(Indexing::phaseNumber))
-        assertEquals(6, Indexing.PHASES)
-        assertEquals(6, Indexing.phaseNumber("burst"))
-        assertEquals(6, Indexing.phaseNumber("exact_duplicate"))
+    fun `each phase has its number out of five, and every group detector is the last`() {
+        val steps = listOf("scan", "metadata", "detectors", "embedded_detectors", "near_duplicate")
+        assertEquals(listOf(1, 2, 3, 4, 5), steps.map(Indexing::phaseNumber))
+        assertEquals(5, Indexing.PHASES)
+        assertEquals(5, Indexing.phaseNumber("burst"))
+        assertEquals(5, Indexing.phaseNumber("exact_duplicate"))
     }
 
     @Test
@@ -383,11 +382,11 @@ class IndexingWorkTest {
     @Test
     fun `the notification title follows the phase, even right after the last update`() {
         steps += Triple("scan", 100, 0)
-        steps += Triple("embeddings", 1, 10)
+        steps += Triple("embedded_detectors", 1, 10)
         Indexing.scanNow(app)
         runBlocking { withTimeout(10_000) { Indexing.progress(app).filterNotNull().first() } }
 
-        assertEquals("Phase 4 of 6 · " + app.getString(R.string.scan_phase_embeddings), notificationTitle())
+        assertEquals("Phase 4 of 5 · " + app.getString(R.string.scan_phase_classification), notificationTitle())
     }
 
     private fun waitForScan(done: CompletableDeferred<Unit>, expectedNextNight: ZonedDateTime = at(23, 2)) = runBlocking {

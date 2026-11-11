@@ -796,7 +796,7 @@ class CompressScreenTest {
         show(model(big))
 
         awaitText("Waiting for the scan to finish. The compression starts by itself afterwards.")
-        compose.onNodeWithText("Phase 3 of 6 · Analyzing the images").assertExists()
+        compose.onNodeWithText("Phase 3 of 5 · Analyzing the images").assertExists()
         compose.onNodeWithText("A compression is running", substring = true).assertDoesNotExist()
     }
 
