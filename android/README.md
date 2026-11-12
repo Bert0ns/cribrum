@@ -15,6 +15,8 @@ cd android
 
 Unit tests run on the JVM with Robolectric, so they need no phone. CI runs the same command on every pull request that changes `android/`, `fixtures/` or `lab/src/`, and keeps the debug APK as an artifact.
 
+A run filtered to one test used to abort the JVM now and then with `Class not found: java/nio/FloatBuffer` (or `ShortBuffer`, exit 134) before any test reported (#377). Robolectric's native runtime builds Android's `JniConstants` on the first native graphics call, with a `JNIEnv` that is not the calling thread's, and when that call came from a worker thread (a scan decoding on `Dispatchers.Default`) the lookup failed. `WarmedNativeRuntimeLoader` (`src/test`, registered in `META-INF/services`) makes that first call on the test thread when the runtime loads (native graphics tests on SDK 36 and later). A test that decodes images off the test thread needs no setup of its own.
+
 Detector tests compare with the lab's golden fixtures (`fixtures/golden`), decoding them with Android's own decoders through Robolectric's native graphics.
 
 Instrumented tests run on a connected phone. The app trash tests move files on its real shared storage under `Pictures/cribrum-test` and place a temporary sentinel in the real device trash to verify it survives, cleaning up after themselves:
