@@ -58,6 +58,16 @@ def test_a_candidate_that_loses_its_only_reason_is_dropped_and_counted_against_r
     assert (blurry.lost, blurry.caught) == (1, (2, 1))
 
 
+def test_a_category_counts_what_leaves_it_and_what_joins_it_apart():
+    before = [image("a", blur(0.9)), image("b", blur(0.1))]
+    after = [image("a", blur(0.1)), image("b", blur(0.9))]
+
+    blurry = change(compare(before, after), Category.BLURRY)
+
+    assert blurry.flagged == (1, 1)
+    assert (blurry.lost, blurry.joined) == (1, 1)
+
+
 def test_a_reordered_list_shows_in_its_category():
     before = [image("a", blur(0.9)), image("b", blur(0.7)), image("c", blur(0.5))]
     after = [image("a", blur(0.5)), image("b", blur(0.7)), image("c", blur(0.9))]
