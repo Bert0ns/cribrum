@@ -44,7 +44,7 @@ class TrashScreenTest {
 
     private val trashed = listOf("a.jpg", "b.jpg").map {
         val trashedAt = Instant.now() - Duration.ofDays(3)
-        TrashedImage(ImageRef("/sdcard/DCIM/$it", 1, 0), trashedAt, File("/sdcard/.cribrum-trash/x/$it"), trashedAt + Duration.ofDays(30))
+        TrashedImage(ImageRef("/sdcard/DCIM/$it", 1, 0), trashedAt, File("/sdcard/.cribrum-trash/x/$it"), trashedAt + Duration.ofDays(30) - Duration.ofHours(12))
     }
 
     @Test
