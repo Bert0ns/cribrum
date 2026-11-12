@@ -51,6 +51,20 @@ GROUP_DETECTORS: list[GroupDetector] = [
     BurstDetector(),
 ]
 
+SKIPPED_ON_STICKERS = frozenset({"blur", "exposure", "faces"})
+"""The detectors that read no embedding and still skip a sticker. A sticker is listed under
+STICKER only and its signal there already gives the highest likelihood, so blur and exposure
+cannot change its place, and faces were not shown to order stickers (docs/design.md, 5)."""
+
+
+def runs_on_stickers(detector: Detector) -> bool:
+    """Whether a sticker runs `detector`: not one that reads the embedding, which a sticker
+    never gets, nor one in SKIPPED_ON_STICKERS."""
+    return (
+        not getattr(detector, "uses_embeddings", False) and detector.id not in SKIPPED_ON_STICKERS
+    )
+
+
 Progress = Callable[[str, int, int], None]
 """Called with a step name, the items done and the items in total."""
 
@@ -159,6 +173,12 @@ def run(
     # A sticker is listed under STICKER only (docs/design.md, 8), so neither MobileCLIP nor
     # text coverage runs on it.
     embeddable = [i for i in readable if not is_sticker_folder(i.path)]
+    # A sticker scanned before those rules keeps results they no longer produce: drop them so
+    # a library gives the same result either way.
+    index.forget_analyses(
+        [i.path for i in readable if is_sticker_folder(i.path)],
+        [d.id for d in detectors if not runs_on_stickers(d)],
+    )
     embeddings = {}
     if embedder is not None:
         _embed(embedder, index, detectors, embeddable, jobs, stats, progress)
@@ -257,14 +277,21 @@ def _analyze_each(
     *,
     before_embeddings: bool,
 ) -> None:
-    """Runs `detectors` on the images that lack them.
+    """Runs `detectors` on the images that lack them, a sticker only the ones that
+    `runs_on_stickers`.
 
     The pass `before_embeddings` also computes the perceptual hashes, and a detector in it that
     asks for an embedding fails: it should have set `uses_embeddings`.
     """
     tasks = []
     for image in images:
-        todo = [d for d in detectors if not index.is_analyzed(image.path, d.id, d.version)]
+        sticker = is_sticker_folder(image.path)
+        todo = [
+            d
+            for d in detectors
+            if (not sticker or runs_on_stickers(d))
+            and not index.is_analyzed(image.path, d.id, d.version)
+        ]
         needs_phash = before_embeddings and index.perceptual_hash(image.path) is None
         if todo or needs_phash:
             tasks.append(

@@ -15,7 +15,7 @@ data class Coverage(val id: String, val version: Int, val analysed: Int, val nee
 
 /**
  * The embedding first, then each detector. Images in the trash are left out, since the scan no longer
- * looks at them. A sticker needs neither the embedding nor the detectors that read it (§5), so an
+ * looks at them. A sticker needs neither the embedding nor the detectors that skip it (§5), so an
  * embedding or a result it still has from an earlier scan counts for nothing. Group detectors see
  * every image the scan finds, unreadable ones too.
  */
@@ -31,6 +31,6 @@ suspend fun ImageIndex.coverage(
 
     suspend fun row(id: String, version: Int, needed: Set<String>, analysed: Set<String>) = Coverage(id, version, needed.count { it in analysed }, needed.size)
     return listOf(row(EMBEDDING_STEP, modelVersion, embeddable, embeddedPaths(model, modelVersion))) +
-        detectors.map { row(it.id, it.version, if (it.usesEmbeddings) embeddable else readable, analyzedPaths(it.id, it.version)) } +
+        detectors.map { row(it.id, it.version, if (runsOnStickers(it)) readable else embeddable, analyzedPaths(it.id, it.version)) } +
         groupDetectors.map { row(it.id, it.version, everything, analyzedPaths(it.id, it.version)) }
 }

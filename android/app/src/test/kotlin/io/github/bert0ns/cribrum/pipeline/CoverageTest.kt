@@ -47,7 +47,7 @@ class CoverageTest {
     }
 
     @Test
-    fun `a sticker needs neither the embedding nor the detectors that read it`() {
+    fun `a sticker needs neither the embedding nor the detectors that skip it`() {
         images()
         scan()
 
@@ -55,7 +55,9 @@ class CoverageTest {
 
         assertEquals(Coverage("embedding", 1, analysed = 2, needed = 2), rows["embedding"])
         assertEquals(Coverage("document", 3, analysed = 2, needed = 2), rows["document"])
-        assertEquals(Coverage("blur", 1, analysed = 3, needed = 3), rows["blur"])
+        assertEquals(Coverage("blur", 1, analysed = 2, needed = 2), rows["blur"])
+        assertEquals(Coverage("faces", 1, analysed = 2, needed = 2), rows["faces"])
+        assertEquals(Coverage("screenshot", 1, analysed = 3, needed = 3), rows["screenshot"])
         assertEquals(Coverage("near_duplicate", 3, analysed = 3, needed = 3), rows["near_duplicate"])
     }
 
@@ -66,11 +68,13 @@ class CoverageTest {
         val sticker = File(root, "WhatsApp/Media/WhatsApp Stickers/s.png").path
         runBlocking { index.setEmbeddings("test_model", 1, mapOf(sticker to FloatArray(512))) }
         runBlocking { index.setSignals(sticker, "document", 3, emptyList()) }
+        runBlocking { index.setSignals(sticker, "blur", 1, emptyList()) }
 
         val rows = coverage()
 
         assertEquals(2, rows.getValue("embedding").analysed)
         assertEquals(2, rows.getValue("document").analysed)
+        assertEquals(2, rows.getValue("blur").analysed)
     }
 
     @Test
@@ -85,7 +89,7 @@ class CoverageTest {
         val rows = coverage()
 
         assertEquals(Coverage("embedding", 1, analysed = 1, needed = 1), rows["embedding"])
-        assertEquals(Coverage("blur", 1, analysed = 2, needed = 2), rows["blur"])
+        assertEquals(Coverage("blur", 1, analysed = 1, needed = 1), rows["blur"])
     }
 
     @Test
@@ -95,7 +99,7 @@ class CoverageTest {
         val path = File(root, "DCIM/Camera/a.png").path
         runBlocking { index.setSignals(path, "blur", 0, emptyList()) }
 
-        assertEquals(2, coverage().getValue("blur").analysed)
+        assertEquals(1, coverage().getValue("blur").analysed)
     }
 
     @Test
@@ -119,8 +123,9 @@ class CoverageTest {
         val rows = coverage()
 
         val needed = mapOf(
-            "embedding" to 1, "document" to 1, "forwarded" to 1, // the camera image only: not the sticker, the broken file or the trashed ones
-            "blur" to 2, "exposure" to 2, "screenshot" to 2, "faces" to 2, "sticker" to 2, // readable images: the camera image and the sticker
+            // The camera image only: not the sticker, the broken file or the trashed ones.
+            "embedding" to 1, "document" to 1, "forwarded" to 1, "blur" to 1, "exposure" to 1, "faces" to 1,
+            "screenshot" to 2, "sticker" to 2, // readable images: the camera image and the sticker
             "exact_duplicate" to 3, "near_duplicate" to 3, "burst" to 3, // every image found, the broken file included
         )
         assertEquals(needed, rows.mapValues { it.value.needed })
