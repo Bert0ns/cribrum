@@ -74,6 +74,8 @@ def test_a_walk_longer_than_the_record_batch_records_every_file_and_counts_them(
 
 
 def test_second_run_on_unchanged_data_does_no_detector_work(photos, index):
+    # A sticker too: a detector it skips must not be queued, run and forgotten at every scan.
+    save(photos / STICKERS / "s.png", seed=3)
     pipeline.run(photos, index)
 
     stats = pipeline.run(photos, index)

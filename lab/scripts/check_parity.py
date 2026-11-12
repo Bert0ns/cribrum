@@ -6,6 +6,7 @@ It reads the sources with regular expressions, so it needs no dependencies. Per 
 by id) it compares the version and every numeric constant with an UPPER_CASE name; for the ranker,
 the thresholds, the protection weights and its constants. Everything must exist on both sides,
 except what LAB_ONLY (detectors not ported yet) and ONE_SIDED (implementation details) list.
+It also compares the ids of the detectors a sticker skips, SKIPPED_ON_STICKERS in each pipeline.
 """
 
 import re
@@ -30,6 +31,7 @@ ANDROID_VERSION = re.compile(r"override val version = (\d+)")
 ANDROID_CONSTANT = re.compile(
     rf"\bval ([A-Z][A-Z0-9_]*)(?::\s*\w+)? = {NUMBER}f?\s*(?://.*)?$", re.M
 )
+SKIPPED = re.compile(r"^(?:val )?SKIPPED_ON_STICKERS\b.*$", re.M)
 WEIGHT = re.compile(rf"\b((?:Category|Protection)\.\w+)\s*(?::|to)\s*{NUMBER}")
 
 
@@ -67,6 +69,22 @@ def mismatches(lab: dict[str, str], android: dict[str, str]) -> list[str]:
     return problems
 
 
+def skipped_on_stickers(source: str) -> set[str] | None:
+    """The ids in the one-line SKIPPED_ON_STICKERS definition, or None when there is none."""
+    line = SKIPPED.search(source)
+    return set(re.findall(r'"(\w+)"', line.group())) if line else None
+
+
+def skipped_mismatch(lab: set[str] | None, android: set[str] | None) -> list[str]:
+    if lab is not None and lab == android:
+        return []
+
+    def show(ids):
+        return "missing" if ids is None else ", ".join(sorted(ids)) or "none"
+
+    return [f"SKIPPED_ON_STICKERS: lab {show(lab)}, android {show(android)}"]
+
+
 def main() -> int:
     lab_files = [*sorted((LAB / "detectors").glob("*.py")), LAB / "ranker.py"]
     android_files = [*sorted((ANDROID / "detectors").glob("*.kt")), ANDROID / "ranker/Ranker.kt"]
@@ -75,7 +93,10 @@ def main() -> int:
     if not lab or not android:
         print("parity: no detectors found, so the paths or patterns in this script are stale")
         return 1
-    problems = mismatches(lab, android)
+    problems = mismatches(lab, android) + skipped_mismatch(
+        skipped_on_stickers((LAB / "pipeline.py").read_text()),
+        skipped_on_stickers((ANDROID / "pipeline/Pipeline.kt").read_text()),
+    )
     for problem in problems:
         print(f"parity: {problem}")
     if problems:
