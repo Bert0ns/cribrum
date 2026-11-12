@@ -376,7 +376,7 @@ def report(index_path: Path, labels_path: Path, coverage_file: Path, speed_file:
     )
     lines += ["", "evaluation rows (deletes, only, keeps, candidates), today -> O2"]
     rows = [{r.category: r for r in evaluate(v, labels).categories} for v in (images, o2)]
-    for category in (Category.BLURRY, Category.BAD_EXPOSURE):
+    for category in (Category.BLURRY, Category.BAD_EXPOSURE, Category.STICKER):
         today_row, o2_row = (_evaluation_row(r[category]) for r in rows)
         lines.append(f"  {category.value}: {today_row} -> {o2_row}")
 
