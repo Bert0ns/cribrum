@@ -65,6 +65,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.file.Files
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -201,12 +202,15 @@ class PipelineTest {
     @Test
     fun `second run on unchanged data does no detector work`() {
         photos()
+        // A sticker too: a detector it skips must not be queued, run and forgotten at every scan.
+        save("WhatsApp/Media/WhatsApp Stickers/s.png", seed = 3)
         run()
 
         val stats = run()
 
         assertEquals(0, stats.newOrChanged)
         assertEquals(0, stats.detectorRuns)
+        assertEquals(0, stats.counts["detectors tasks"])
     }
 
     @Test
@@ -787,7 +791,7 @@ class PipelineTest {
     private class Probe : Detector {
         override val id = "probe"
         override val version = 1
-        val seen = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val seen = ConcurrentLinkedQueue<String>()
 
         override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
             seen += image.path
@@ -1202,7 +1206,7 @@ class PipelineTest {
     /** Records the images it ran on, under the id of a real detector. */
     private class Seeing(override val id: String) : Detector {
         override val version = 1
-        val seen = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val seen = ConcurrentLinkedQueue<String>()
 
         override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
             seen += File(image.path).name
@@ -1299,7 +1303,7 @@ class PipelineTest {
     fun `the metadata step stores every real image before the stickers, though it reads them at once, and stores every sticker`() {
         stickersAmongPhotos()
         val stored = metadataStoreOrder()
-        val read = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val read = ConcurrentLinkedQueue<String>()
         // The real images read slowly, so the stickers' reads end first.
         val reader = { file: File ->
             if (!isStickerFolder(file.path)) Thread.sleep(100)
@@ -1513,7 +1517,7 @@ class PipelineTest {
     @Test
     fun `an image that runs out of memory while decoding gets one more try alone, after its batch`() {
         photos()
-        val attempts = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val attempts = ConcurrentLinkedQueue<String>()
         val decoder = { file: File ->
             attempts += file.name
             if (file.name == "Screenshot_1.png" && attempts.count { it == file.name } == 1) throw OutOfMemoryError("Failed to allocate")
@@ -1578,7 +1582,7 @@ class PipelineTest {
         override val version = 1
         private val inFlight = java.util.concurrent.atomic.AtomicInteger()
         private val attempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
-        val alone = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val alone = ConcurrentLinkedQueue<String>()
 
         override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
             val name = File(image.path).name
@@ -1765,7 +1769,7 @@ class PipelineTest {
         val decodes = AtomicInteger()
         val nextBatchDecoding = CountDownLatch(1)
         val modelRunning = CountDownLatch(1)
-        val decodesSawModel = java.util.concurrent.ConcurrentLinkedQueue<Boolean>()
+        val decodesSawModel = ConcurrentLinkedQueue<Boolean>()
         val decoder = { file: File ->
             if (decodes.incrementAndGet() > EMBEDDING_BATCH) {
                 nextBatchDecoding.countDown()
@@ -1823,7 +1827,7 @@ class PipelineTest {
     fun `a decode that fails in the batch ahead is a failure of that image only`() {
         repeat(2 * EMBEDDING_BATCH) { save("DCIM/Camera/shot-$it.png", seed = it) }
         val decodes = AtomicInteger()
-        val broken = java.util.concurrent.ConcurrentLinkedQueue<String>()
+        val broken = ConcurrentLinkedQueue<String>()
         val decoder = { file: File ->
             // the first decode of the second batch, which runs while the model embeds the first
             if (decodes.incrementAndGet() == EMBEDDING_BATCH + 1) {

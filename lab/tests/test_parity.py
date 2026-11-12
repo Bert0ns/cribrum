@@ -75,3 +75,22 @@ def test_a_constant_renamed_on_one_side_is_a_mismatch():
 
 def test_a_listed_one_sided_constant_is_allowed():
     assert parity.mismatches({"near_duplicate.CHUNK": "1024"}, {}) == []
+
+
+def test_the_ids_a_sticker_skips_are_read_from_each_pipeline():
+    lab = 'SKIPPED_ON_STICKERS = frozenset({"blur", "faces"})\n"""Docs."""\n'
+    android = 'val SKIPPED_ON_STICKERS: Set<String> = setOf("faces", "blur")\n'
+    assert (
+        parity.skipped_on_stickers(lab) == parity.skipped_on_stickers(android) == {"blur", "faces"}
+    )
+    assert parity.skipped_on_stickers("x = 1\n") is None
+
+
+def test_a_different_skip_on_stickers_is_a_mismatch():
+    assert parity.skipped_mismatch({"blur"}, {"blur"}) == []
+    assert parity.skipped_mismatch({"blur", "faces"}, {"blur"}) == [
+        "SKIPPED_ON_STICKERS: lab blur, faces, android blur"
+    ]
+    assert parity.skipped_mismatch(None, {"blur"}) == [
+        "SKIPPED_ON_STICKERS: lab missing, android blur"
+    ]
