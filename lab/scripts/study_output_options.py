@@ -35,9 +35,10 @@ from cribrum_lab import prompts, text
 from cribrum_lab.comparison import Comparison, compare, with_signals, without_signals
 from cribrum_lab.detectors.base import AnalysisContext
 from cribrum_lab.detectors.document import FULL_COVERAGE, TEXT_WEIGHT, DocumentDetector
+from cribrum_lab.evaluation import CategoryResult, evaluate
 from cribrum_lab.folders import is_sticker_folder
 from cribrum_lab.index import ImageIndex
-from cribrum_lab.labels import Decision, LabelStore
+from cribrum_lab.labels import Decision, Label, LabelStore
 from cribrum_lab.mobileclip import MobileClip
 from cribrum_lab.model import Category, IndexedImage, Protection, Signal
 from cribrum_lab.ranker import THRESHOLDS, Ranker
@@ -61,8 +62,12 @@ VARIANTS = {
 """Text variants: model file and input side. "fp32 640" is today's, computed again."""
 TODAY = "fp32 640"
 O4_CUTOFFS = (0.2, 0.3, 0.5, 0.8, 0.95)
-USER_THRESHOLDS = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0)
-"""DOCUMENT thresholds a user can pick in the settings (docs/design.md, 6.1)."""
+USER_THRESHOLDS = tuple(round(0.05 * step, 2) for step in range(1, 21))
+"""Every DOCUMENT threshold the settings slider offers: 0.05 to 1 in steps of 0.05
+(docs/design.md, 6.1; `Thresholds.kt`, `ThresholdsScreen.kt`)."""
+RETUNED = (0.15, 0.1, 0.05)
+"""Lower DOCUMENT thresholds tried for a text variant, against today at the default."""
+BOOTSTRAP_ROUNDS = 2000
 
 
 def model_path(file: str) -> Path:
@@ -101,7 +106,9 @@ def build_models(index_path: Path) -> None:
     with ImageIndex(index_path) as index:
         unreadable = set(index.unreadable())
         real = sorted(
-            i.path for i in index.images() if i.path not in unreadable and not _sticker(i.path)
+            i.path
+            for i in index.images()
+            if i.path not in unreadable and not is_sticker_folder(i.path)
         )
     random.Random(359).shuffle(real)
     calibration = real[:CALIBRATION_IMAGES]
@@ -183,12 +190,15 @@ def measure_speed(coverage_file: Path, out: Path, images: int, rounds: int) -> N
     random.Random(1).shuffle(paths)
     sides = {side for _, side in VARIANTS.values()}
     inputs = {side: [text.preprocess(Path(p), side) for p in paths[:images]] for side in sides}
-    preprocess = {}
-    for side in sorted(sides):
-        start = time.perf_counter()
-        for p in paths[:images]:
-            text.preprocess(Path(p), side)
-        preprocess[side] = time.perf_counter() - start
+    # Interleaved and repeated like the models, the order reversed every round.
+    preprocess = {side: [] for side in sides}
+    for round_ in range(rounds):
+        for side in sorted(sides, reverse=round_ % 2 == 1):
+            start = time.perf_counter()
+            for p in paths[:images]:
+                text.preprocess(Path(p), side)
+            preprocess[side].append(time.perf_counter() - start)
+    preprocess = {side: statistics.median(t) for side, t in preprocess.items()}
     sessions = {
         name: OnnxRuntime(model_path(file), threads=1) for name, (file, _) in VARIANTS.items()
     }
@@ -252,7 +262,7 @@ def agreement(today: Sequence[float], variant: Sequence[float]) -> dict[str, flo
 def protection_levels(images: Sequence[IndexedImage]) -> dict[str, float]:
     """How the STICKER list is ordered: every sticker scores 1, so only protection and then
     the path hash order it."""
-    stickers = [i for i in images if _sticker(i.ref.path)]
+    stickers = [i for i in images if is_sticker_folder(i.ref.path)]
     ranked = [c for c in Ranker().rank(stickers) if c.is_candidate]
     levels = [round(c.protection, 9) for c in ranked]
     counts = {level: levels.count(level) for level in set(levels)}
@@ -268,8 +278,57 @@ def protection_levels(images: Sequence[IndexedImage]) -> dict[str, float]:
     }
 
 
-def _sticker(path: Path) -> bool:
-    return is_sticker_folder(path)
+def face_rates(images: Sequence[IndexedImage], labels: Sequence[Label]) -> dict[str, float]:
+    """Share of the labeled stickers, kept and deleted, with a FACES score above 0."""
+    faces = {
+        i.ref.path: any(s.category is Protection.FACES and s.score > 0 for s in i.signals)
+        for i in images
+        if is_sticker_folder(i.ref.path)
+    }
+    rates = {}
+    for decision in (Decision.KEEP, Decision.DELETE):
+        found = [faces[x.path] for x in labels if x.decision is decision and x.path in faces]
+        rates[f"{decision.value}s"] = len(found)
+        rates[f"{decision.value}s_with_a_face"] = sum(found) / len(found) if found else 0.0
+    return rates
+
+
+def bootstrap_deletes_first(
+    before: Sequence[IndexedImage],
+    after: Sequence[IndexedImage],
+    labels: Sequence[Label],
+    category: Category,
+    rounds: int = BOOTSTRAP_ROUNDS,
+    seed: int = 0,
+) -> tuple[float, float]:
+    """95% interval of the change in `deletes_first` of the category's list, after minus
+    before, resampling the labeled images it lists. Both orders see the same resample."""
+
+    def positions(images: Sequence[IndexedImage]) -> dict[Path, int]:
+        ranked = [c for c in Ranker().rank(images) if c.is_candidate]
+        listed = Ranker.by_category(ranked).get(category, [])
+        return {c.image.ref.path: i for i, c in enumerate(listed)}
+
+    old, new = positions(before), positions(after)
+    decisions = {x.path: x.decision for x in labels}
+    labeled = [p for p in old if p in decisions and p in new]
+    deletes = np.array([decisions[p] is Decision.DELETE for p in labeled])
+    at_old = np.array([old[p] for p in labeled])
+    at_new = np.array([new[p] for p in labeled])
+    rng = np.random.default_rng(seed)
+    changes = []
+    for _ in range(rounds):
+        pick = rng.integers(0, len(labeled), len(labeled))
+        if deletes[pick].all() or not deletes[pick].any():
+            continue
+        changes.append(_auc(at_new[pick], deletes[pick]) - _auc(at_old[pick], deletes[pick]))
+    low, high = np.quantile(changes, [0.025, 0.975])
+    return float(low), float(high)
+
+
+def _auc(positions: np.ndarray, deletes: np.ndarray) -> float:
+    """Chance that a delete is listed before a keep."""
+    return float((positions[deletes][:, None] < positions[~deletes][None, :]).mean())
 
 
 def report(index_path: Path, labels_path: Path, coverage_file: Path, speed_file: Path) -> str:
@@ -284,31 +343,42 @@ def report(index_path: Path, labels_path: Path, coverage_file: Path, speed_file:
 
     paths = {i.ref.path for i in images}
     matched = [label for label in labels if label.path in paths]
-    stickers = sum(_sticker(p) for p in paths)
+    sticker_labels = [label for label in matched if is_sticker_folder(label.path)]
+    stickers = sum(is_sticker_folder(p) for p in paths)
     lines = [
         f"{len(images)} images, {stickers} in sticker folders, {len(coverage)} with text coverage",
         f"{len(matched)} labels match the index: "
         f"{sum(x.decision is Decision.DELETE for x in matched)} delete, "
         f"{sum(x.decision is Decision.KEEP for x in matched)} keep, "
-        f"{sum(x.decision is Decision.DELETE and _sticker(x.path) for x in matched)} delete "
-        f"and {sum(x.decision is Decision.KEEP and _sticker(x.path) for x in matched)} keep "
-        "among stickers",
+        f"{sum(x.decision is Decision.DELETE for x in sticker_labels)} delete "
+        f"and {sum(x.decision is Decision.KEEP for x in sticker_labels)} keep among stickers",
     ]
 
     # O1, O2
-    o1 = without_signals(images, {"faces"}, _sticker)
-    o2 = without_signals(images, {"blur", "exposure"}, _sticker)
-    both = without_signals(o1, {"blur", "exposure"}, _sticker)
+    o1 = without_signals(images, {"faces"}, is_sticker_folder)
+    o2 = without_signals(images, {"blur", "exposure"}, is_sticker_folder)
+    both = without_signals(o1, {"blur", "exposure"}, is_sticker_folder)
     for name, after in (("O1", o1), ("O2", o2), ("O1 and O2", both)):
         lines += ["", f"== {name}", *format_comparison(compare(images, after, labels))]
     lines += ["", "STICKER list, how it is ordered (protection only)"]
     for name, variant in (("today", images), ("O1", o1), ("O2", o2), ("O1 and O2", both)):
         lines.append(f"  {name:10} {_format_numbers(protection_levels(variant))}")
     blur_in_burst = sum(
-        _sticker(i.ref.path) and any(s.category is Category.BURST for s in i.signals)
+        is_sticker_folder(i.ref.path) and any(s.category is Category.BURST for s in i.signals)
         for i in images
     )
     lines.append(f"  stickers with a BURST signal, which reads blur's measure: {blur_in_burst}")
+    lines.append(f"  labeled stickers: {_format_numbers(face_rates(images, labels))}")
+    low, high = bootstrap_deletes_first(images, o1, labels, Category.STICKER)
+    lines.append(
+        f"  O1's change in STICKER deletes first, 95% bootstrap interval over the labeled "
+        f"stickers ({BOOTSTRAP_ROUNDS} rounds): {low:.3f} to {high:.3f}"
+    )
+    lines += ["", "evaluation rows (deletes, only, keeps, candidates), today -> O2"]
+    rows = [{r.category: r for r in evaluate(v, labels).categories} for v in (images, o2)]
+    for category in (Category.BLURRY, Category.BAD_EXPOSURE):
+        today_row, o2_row = (_evaluation_row(r[category]) for r in rows)
+        lines.append(f"  {category.value}: {today_row} -> {o2_row}")
 
     # O3
     lines += ["", "== O3"]
@@ -346,6 +416,7 @@ def report(index_path: Path, labels_path: Path, coverage_file: Path, speed_file:
         )
         lines += format_comparison(compare(base, after, labels))
         lines += _user_thresholds(base, after)
+        lines += _retuned(base, after)
 
     # O4
     lines += ["", "== O4"]
@@ -366,19 +437,50 @@ def report(index_path: Path, labels_path: Path, coverage_file: Path, speed_file:
             "",
             f"speed: {speed['images']} images, median of {speed['rounds']} rounds, one thread, "
             f"ONNX Runtime CPU on the dev machine. Pillow preprocessing at 480 takes "
-            f"{speed['preprocess_ratio']['480']:.2f} of the time at 640.",
+            f"{speed['preprocess_ratio']['480']:.2f} of the time at 640, interleaved the same way.",
         ]
     return "\n".join(lines)
 
 
+def _evaluation_row(result: CategoryResult) -> str:
+    return f"{result.caught}, {result.only_caught}, {result.false_positives}, {result.candidates}"
+
+
 def _user_thresholds(before: Sequence[IndexedImage], after: Sequence[IndexedImage]) -> list[str]:
-    """Candidates dropped when the user raised DOCUMENT's threshold in the settings."""
-    dropped = []
+    """At every DOCUMENT threshold the user can set, both sides at that threshold: the
+    candidates dropped and added, and the images that leave and join each category."""
+    lines, unchanged = ["  at each user DOCUMENT threshold, -left/+joined:"], []
     for threshold in USER_THRESHOLDS:
         ranker = Ranker({**THRESHOLDS, Category.DOCUMENT: threshold})
         result = compare(before, after, ranker=ranker)
-        dropped.append(f"{threshold}: -{result.dropped}/+{result.added}")
-    return ["  candidates dropped/added at a user DOCUMENT threshold of " + ", ".join(dropped)]
+        moves = [
+            f"{c.category.value} -{c.lost}/+{c.joined}"
+            for c in result.categories
+            if c.lost or c.joined
+        ]
+        if not (result.dropped or result.added or moves):
+            unchanged.append(str(threshold))
+            continue
+        lines.append(
+            f"    {threshold}: candidates -{result.dropped}/+{result.added}, " + ", ".join(moves)
+        )
+    lines.append(f"    no change at: {', '.join(unchanged) or '-'}")
+    return lines
+
+
+def _retuned(before: Sequence[IndexedImage], after: Sequence[IndexedImage]) -> list[str]:
+    """Today's candidates at the default thresholds against the variant's at a lower DOCUMENT
+    threshold: whether a retune wins back what the variant drops, and what it adds."""
+    today = {c.image.ref.path for c in Ranker().rank(before) if c.is_candidate}
+    parts = []
+    for threshold in RETUNED:
+        ranker = Ranker({**THRESHOLDS, Category.DOCUMENT: threshold})
+        variant = {c.image.ref.path for c in ranker.rank(after) if c.is_candidate}
+        parts.append(f"{threshold}: -{len(today - variant)}/+{len(variant - today)}")
+    return [
+        "  today at the default against the variant at a lower DOCUMENT threshold, "
+        "-dropped/+added: " + ", ".join(parts)
+    ]
 
 
 def format_comparison(result: Comparison) -> list[str]:

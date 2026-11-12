@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from cribrum_lab import prompts
+from cribrum_lab.labels import Decision, Label
 from cribrum_lab.model import Category, ImageRef, IndexedImage, Protection, Signal
 
 _SCRIPT = Path(__file__).parents[1] / "scripts" / "study_output_options.py"
@@ -72,3 +73,61 @@ def test_protection_levels_show_how_the_sticker_list_is_ordered():
     assert levels["with_a_face"] == pytest.approx(1 / 3)
     assert levels["levels"] == 2
     assert levels["largest_level_share"] == pytest.approx(2 / 3)
+
+
+def sticker_with_face(name, face):
+    return image(
+        STICKERS / name,
+        Signal("sticker", 1, Category.STICKER, 1.0),
+        Signal("faces", 1, Protection.FACES, face),
+    )
+
+
+def test_face_rates_split_the_labeled_stickers_by_decision():
+    images = [
+        sticker_with_face("1.webp", 0.9),
+        sticker_with_face("2.webp", 0.0),
+        sticker_with_face("3.webp", 0.8),
+        image("DCIM/Camera/photo.jpg", Signal("faces", 1, Protection.FACES, 0.9)),
+    ]
+    labels = [
+        Label("1", STICKERS / "1.webp", Decision.KEEP),
+        Label("2", STICKERS / "2.webp", Decision.KEEP),
+        Label("3", STICKERS / "3.webp", Decision.DELETE),
+        Label("p", Path("DCIM/Camera/photo.jpg"), Decision.KEEP),
+    ]
+
+    rates = study.face_rates(images, labels)
+
+    assert rates == {
+        "keeps": 2,
+        "keeps_with_a_face": 0.5,
+        "deletes": 1,
+        "deletes_with_a_face": 1.0,
+    }
+
+
+def test_the_bootstrap_of_an_unchanged_order_is_zero():
+    images = [sticker_with_face(f"{i}.webp", 0.1 * i) for i in range(6)]
+    labels = [
+        Label(str(i), STICKERS / f"{i}.webp", Decision.DELETE if i % 2 else Decision.KEEP)
+        for i in range(6)
+    ]
+
+    assert study.bootstrap_deletes_first(images, images, labels, Category.STICKER, 50) == (
+        0.0,
+        0.0,
+    )
+
+
+def test_the_threshold_sweep_shows_what_leaves_and_joins_a_category():
+    def document(name, score):
+        return image(name, Signal("document", 3, Category.DOCUMENT, score))
+
+    before = [document("a", 0.52), document("b", 0.48)]
+    after = [document("a", 0.48), document("b", 0.52)]
+
+    lines = study._user_thresholds(before, after)
+
+    assert "    0.5: candidates -1/+1, document -1/+1" in lines
+    assert lines[-1].startswith("    no change at: 0.05, 0.1,")
