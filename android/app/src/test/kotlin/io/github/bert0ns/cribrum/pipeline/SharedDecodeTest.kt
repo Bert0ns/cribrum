@@ -9,6 +9,7 @@ import io.github.bert0ns.cribrum.detectors.FaceDetector
 import io.github.bert0ns.cribrum.detectors.ScreenshotDetector
 import io.github.bert0ns.cribrum.detectors.StickerDetector
 import io.github.bert0ns.cribrum.detectors.YuNet
+import io.github.bert0ns.cribrum.folders.isStickerFolder
 import io.github.bert0ns.cribrum.golden.Golden
 import io.github.bert0ns.cribrum.hashing.PHASH_DECODE_SIDE
 import io.github.bert0ns.cribrum.hashing.PHASH_SIZE
@@ -322,14 +323,19 @@ class SharedDecodeTest {
             val stored = index.signals(file.path).associateBy { it.detectorId }
             // The detectors ran by draft side, but the index lists their signals in the detectors' own order, as before.
             assertEquals(name, detectors.map { it.id }.filter { it in stored }, index.signals(file.path).map { it.detectorId }.distinct())
+            assertEquals(name, Before.perceptualHash(file), index.perceptualHash(file.path))
+            if (isStickerFolder(file.path)) {
+                // A sticker runs neither blur, exposure nor faces (docs/design.md §5).
+                assertEquals(name, emptySet<String>(), stored.keys intersect SKIPPED_ON_STICKERS)
+                continue
+            }
             assertEquals(name, Before.blur(file), listOfNotNull(stored["blur"]))
             assertEquals(name, Before.exposure(file), stored["exposure"])
-            assertEquals(name, Before.perceptualHash(file), index.perceptualHash(file.path))
             // No golden has a face, so the faces score is 0 everywhere: what YuNet read is the stronger check.
             val boxed = Before.letterbox(file)
             assertTrue(name, seen.any { it.contentEquals(boxed.pixels) })
             assertEquals(name, Before.faces(boxed, yunet), stored["faces"])
         }
-        assertEquals(files.size, seen.size)
+        assertEquals(files.count { !isStickerFolder(it.path) }, seen.size)
     }
 }

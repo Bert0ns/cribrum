@@ -1194,25 +1194,54 @@ class PipelineTest {
         assertEquals(0, stats.skipped)
         assertEquals(3, runBlocking { index.embeddings("mean_color", 1) }.size)
         val signals = runBlocking { index.signals(File(root, "$stickerFolder/s.png").path) }
-        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), signals.map { it.kind }.toSet())
+        assertEquals(setOf(Category.SCREENSHOT, Category.STICKER), signals.map { it.kind }.toSet())
         assertEquals(1f, signals.single { it.kind == Category.STICKER }.score, 0f)
+        assertTrue(kinds("DCIM/Camera/a.png").containsAll(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER)))
+    }
+
+    /** Records the images it ran on, under the id of a real detector. */
+    private class Seeing(override val id: String) : Detector {
+        override val version = 1
+        val seen = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
+        override suspend fun analyze(image: ImageRef, context: AnalysisContext): List<Signal> {
+            seen += File(image.path).name
+            return emptyList()
+        }
     }
 
     @Test
-    fun `a sticker scanned before the rule loses its document and forwarded signals`() {
+    fun `a sticker runs only the perceptual hash, screenshot and sticker, and a real image runs every detector`() {
+        save("DCIM/Camera/a.png", seed = 1)
+        save("$stickerFolder/s.png", seed = 3)
+        val detectors = listOf("blur", "exposure", "screenshot", "faces", "sticker").map(::Seeing)
+
+        val stats = run(Pipeline(index, detectors = detectors, groupDetectors = emptyList()))
+
+        assertEquals(emptyList<Failure>(), stats.failures)
+        assertEquals(
+            mapOf("blur" to setOf("a.png"), "exposure" to setOf("a.png"), "screenshot" to setOf("a.png", "s.png"), "faces" to setOf("a.png"), "sticker" to setOf("a.png", "s.png")),
+            detectors.associate { it.id to it.seen.toSet() },
+        )
+        assertNotNull(runBlocking { index.perceptualHash(File(root, "$stickerFolder/s.png").path) })
+    }
+
+    @Test
+    fun `a sticker scanned before the rules loses its document, forwarded, faces, blur and exposure signals, and a real image keeps them`() {
+        save("DCIM/Camera/a.png", seed = 1)
         save("$stickerFolder/s.png", seed = 3)
         val path = File(root, "$stickerFolder/s.png").path
-        run(Pipeline(index, detectors = emptyList(), groupDetectors = emptyList()))
-        runBlocking {
-            index.setSignals(path, "document", 1, listOf(Signal("document", 1, Category.DOCUMENT, 0.9f)))
-            index.setSignals(path, "forwarded", 1, listOf(Signal("forwarded", 1, Category.FORWARDED, 0.9f)))
-        }
+        val photo = File(root, "DCIM/Camera/a.png").path
+        run(Pipeline(index, embedder = MeanColorEmbedder()))
+        val before = runBlocking { index.signals(photo) }
+        val old = DETECTORS.filter { it.id in SKIPPED_ON_STICKERS || it.usesEmbeddings }
+        runBlocking { old.forEach { index.setSignals(path, it.id, it.version, listOf(Signal(it.id, it.version, it.category ?: Protection.FACES, 0.9f))) } }
 
         run(Pipeline(index, embedder = MeanColorEmbedder()))
 
-        val kinds = runBlocking { index.signals(path) }.map { it.kind }.toSet()
-        assertFalse(Category.DOCUMENT in kinds || Category.FORWARDED in kinds)
-        assertEquals(setOf(Category.BLURRY, Category.BAD_EXPOSURE, Category.SCREENSHOT, Protection.FACES, Category.STICKER), kinds)
+        assertEquals(setOf(Category.SCREENSHOT, Category.STICKER), runBlocking { index.signals(path) }.map { it.kind }.toSet())
+        assertFalse(runBlocking { old.any { index.isAnalyzed(path, it.id, it.version) } })
+        assertEquals(before, runBlocking { index.signals(photo) })
     }
 
     @Test

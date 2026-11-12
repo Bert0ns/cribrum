@@ -65,6 +65,16 @@ val DETECTORS: List<Detector> = listOf(
     FaceDetector(),
     StickerDetector(),
 )
+
+/**
+ * The detectors that read no embedding and still skip a sticker. A sticker is listed under STICKER only and its signal there already gives
+ * the highest likelihood, so blur and exposure cannot change its place, and faces were not shown to order stickers (docs/design.md §5).
+ */
+val SKIPPED_ON_STICKERS: Set<String> = setOf("blur", "exposure", "faces")
+
+/** Whether a sticker runs [detector]: not one that reads the embedding, which a sticker never gets, nor one in [SKIPPED_ON_STICKERS]. */
+fun runsOnStickers(detector: Detector): Boolean = !detector.usesEmbeddings && detector.id !in SKIPPED_ON_STICKERS
+
 val GROUP_DETECTORS: List<GroupDetector> = listOf(ExactDuplicateDetector(), NearDuplicateDetector(), BurstDetector())
 val GROUP_DETECTOR_IDS: Set<String> = GROUP_DETECTORS.map { it.id }.toSet()
 val DETECTOR_CATEGORIES: Set<Category> =
@@ -258,8 +268,8 @@ class Pipeline(
         // A sticker is listed under STICKER only (docs/design.md §8), so neither MobileCLIP nor text coverage runs on it.
         val (stickers, embeddable) = readable.partition { isStickerFolder(it.path) }
         stats.counts["stickers"] = stickers.size
-        // A sticker scanned before that rule keeps results the rule no longer produces: drop them so a library gives the same result either way.
-        index.forgetAnalyses(stickers.map { it.path }, detectors.filter { it.usesEmbeddings }.map { it.id })
+        // A sticker scanned before those rules keeps results they no longer produce: drop them so a library gives the same result either way.
+        index.forgetAnalyses(stickers.map { it.path }, detectors.filterNot(::runsOnStickers).map { it.id })
         val embeddings = embedAndClassify(embeddable, stats, progress)
 
         // The exact detector skips an image whose content hash fails: the run stores those paths with its fingerprint.
@@ -512,14 +522,16 @@ class Pipeline(
 
     /**
      * Runs the [selected] per-image detectors that read no embedding on [parallelism] images at a time, and
-     * computes the perceptual hashes. A detector here that asks for an embedding fails: it should have said `usesEmbeddings`.
+     * computes the perceptual hashes. A sticker runs only the ones that [runsOnStickers]. A detector here that asks for an
+     * embedding fails: it should have said `usesEmbeddings`.
      */
     private suspend fun analyzeEach(images: List<ImageRef>, selected: List<Detector>, step: String, stats: Stats, progress: Progress) {
         val analyzed = index.analyzedPaths(selected.associate { it.id to it.version })
         val hashed = index.hashedPaths()
         val tasks = traceSuspend("Pipeline.tasks") {
             images.mapNotNull { image ->
-                val todo = selected.filter { image.path !in analyzed.getValue(it.id) }
+                val sticker = isStickerFolder(image.path)
+                val todo = selected.filter { image.path !in analyzed.getValue(it.id) && (!sticker || runsOnStickers(it)) }
                 val needsPhash = image.path !in hashed
                 // Only an image with work reads its metadata: a query each for the whole library took most of a scan with few changes.
                 // No metadata: the image was trashed before its metadata was read, and a restore brings it back to the next run.

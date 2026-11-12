@@ -620,14 +620,77 @@ def test_a_sticker_is_not_embedded_and_the_detectors_reading_embeddings_leave_it
     assert stats.skipped == 0
     assert len(index.embeddings("mean_color", 1)) == 3
     signals = index.signals(sticker.resolve())
-    assert {s.category for s in signals} == {
-        Category.BLURRY,
-        Category.BAD_EXPOSURE,
-        Category.SCREENSHOT,
-        Category.STICKER,
-        Protection.FACES,
-    }
+    assert {s.category for s in signals} == {Category.SCREENSHOT, Category.STICKER}
     assert next(s for s in signals if s.category == Category.STICKER).score == 1.0
+    assert categories(index, photos.resolve() / "DCIM/Camera/a.png") >= ALL_PER_IMAGE
+
+
+ALL_PER_IMAGE = {
+    Category.BLURRY,
+    Category.BAD_EXPOSURE,
+    Category.SCREENSHOT,
+    Category.STICKER,
+    Protection.FACES,
+}
+
+
+class Seeing:
+    """Records the images it ran on, under the id of a real detector."""
+
+    version = 1
+
+    def __init__(self, id):
+        self.id = id
+        self.seen = []
+
+    def analyze(self, image, context):
+        self.seen.append(image.path.name)
+        return []
+
+
+def test_a_sticker_runs_only_the_hash_screenshot_and_sticker_and_a_real_image_runs_all(
+    tmp_path, index
+):
+    root = tmp_path / "device"
+    save(root / "DCIM/Camera/a.png", seed=1)
+    sticker = save(root / STICKERS / "s.png", seed=3)
+    detectors = [Seeing(i) for i in ["blur", "exposure", "screenshot", "faces", "sticker"]]
+
+    stats = pipeline.run(root, index, detectors=detectors, group_detectors=[])
+
+    assert stats.failures == []
+    assert {d.id: d.seen for d in detectors} == {
+        "blur": ["a.png"],
+        "exposure": ["a.png"],
+        "screenshot": ["a.png", "s.png"],
+        "faces": ["a.png"],
+        "sticker": ["a.png", "s.png"],
+    }
+    assert index.perceptual_hash(sticker.resolve()) is not None
+
+
+def test_a_sticker_scanned_before_the_rules_loses_their_results_and_a_real_image_keeps_them(
+    tmp_path, index
+):
+    root = tmp_path / "device"
+    photo = save(root / "DCIM/Camera/a.png", seed=1).resolve()
+    sticker = save(root / STICKERS / "s.png", seed=3).resolve()
+    pipeline.run(root, index, embedder=MeanColorEmbedder())
+    before = index.signals(photo)
+    old = [
+        d
+        for d in pipeline.DETECTORS
+        if d.id in pipeline.SKIPPED_ON_STICKERS or getattr(d, "uses_embeddings", False)
+    ]
+    for d in old:
+        kind = d.category or Protection.FACES
+        index.set_signals(sticker, d.id, d.version, [Signal(d.id, d.version, kind, 0.9)])
+
+    pipeline.run(root, index, embedder=MeanColorEmbedder())
+
+    assert categories(index, sticker) == {Category.SCREENSHOT, Category.STICKER}
+    assert not any(index.is_analyzed(sticker, d.id, d.version) for d in old)
+    assert index.signals(photo) == before
 
 
 def test_a_sticker_with_no_embedding_is_still_in_a_near_duplicate_group_through_its_hash(
