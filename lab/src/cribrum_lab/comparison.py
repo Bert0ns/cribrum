@@ -29,6 +29,8 @@ class CategoryChange:
     """Images with a reason in the category, before and after."""
     lost: int
     """Images the category flagged before and not after. They may still be candidates."""
+    joined: int
+    """Images the category flags after and not before."""
     caught: tuple[int, int]
     """Images labeled delete that the category flags, before and after."""
     listed: tuple[int, int]
@@ -162,6 +164,7 @@ def _category_change(
         category,
         flagged=(len(was), len(now)),
         lost=len(was - now),
+        joined=len(now - was),
         caught=(len(deletes & was), len(deletes & now)),
         listed=(len(old_order), len(new_order)),
         moved=sum(old_at[path] != new_at[path] for path in both),
