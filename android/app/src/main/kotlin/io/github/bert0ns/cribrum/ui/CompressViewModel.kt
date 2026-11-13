@@ -118,16 +118,22 @@ class CompressViewModel @JvmOverloads constructor(
 ) : AndroidViewModel(application) {
     private val mutableState = MutableStateFlow(CompressState())
     val state: StateFlow<CompressState> = mutableState.asStateFlow()
+    private var refreshJob: Job? = null
     private var previewJob: Job? = null
     private val makePreview = preview ?: (application as CribrumApp).let { Compressor.forDevice(it, it.trash, it.index)::preview }
 
-    /** Reads the list again: after a scan, a batch, or when the page opens. A selected photo that left the list is dropped. */
+    /**
+     * Reads the list again: after a scan, a batch, or when the page opens. A newer refresh replaces an older
+     * one still in flight so a slow read never overwrites a newer list. A selected photo that left the list is dropped.
+     */
     fun refresh() {
-        viewModelScope.launch {
+        refreshJob?.cancel()
+        refreshJob = viewModelScope.launch {
             try {
                 val (all, favorite, days) = traceSuspend("Compress.list") {
                     Triple(photos(), favorites(), withContext(Dispatchers.IO) { retentionDays() })
                 }
+                ensureActive()
                 val (done, todo) = all.partition { it.info.marker != null }
                 mutableState.update { state ->
                     val selected = state.selected intersect all.mapTo(HashSet()) { it.path }
