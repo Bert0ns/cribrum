@@ -573,4 +573,38 @@ class CompressViewModelTest {
         model.undo(result)
         settle(model) { !it.undoing && batches.undone.size == 2 }
     }
+
+    @Test
+    fun `a second refresh replaces an older slow one, and the stale result never lands`() {
+        val gate = CompletableDeferred<Unit>()
+        var calls = 0
+        val model = CompressViewModel(
+            app,
+            batches,
+            photos = {
+                calls++
+                if (calls == 1) {
+                    // A blocking read does not stop when its job is cancelled, so it finishes later with the old list.
+                    withContext(NonCancellable) { gate.await() }
+                    listOf(a)
+                } else {
+                    listOf(a, b)
+                }
+            },
+            favorites = { emptySet() },
+            retentionDays = { 7 },
+            preview = { _, _, _ -> null },
+            previewFiles = previewFiles,
+            discard = {},
+        )
+        model.refresh()
+        settle(model) { calls == 1 }
+
+        model.refresh()
+        settle(model) { it.photos == listOf(a, b) }
+        gate.complete(Unit)
+        repeat(20) { shadowOf(Looper.getMainLooper()).idle() }
+
+        assertEquals(listOf(a, b), model.state.value.photos)
+    }
 }
